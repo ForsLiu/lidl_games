@@ -21,14 +21,16 @@
  *     they read the same four exported numbers, so there is nowhere else for
  *     the geometry to come from.
  *
- * **`tests/class-kit-whiff.test.ts` is a named exception, not an oversight.**
- * It is the seventh file with `WX/WY = 10,10`, and c014 did not list it. It
- * cannot be converted from this lane: its Ice Wall row exists to state the
- * same policy as `tests/p6d-nine-classes.test.ts` and pins the agreement with
- * `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim point.
- * De-hardcoding one side alone would silently break the agreement the row is
- * for; p6d is out of this lane's Scope. Logged for the main lane, and asserted
- * below so the exception cannot quietly become six-plus-one-forgotten.
+ * **`tests/class-kit-whiff.test.ts` was the named exception until `c025`, and
+ * is now an importer like the rest.** c014 left it out because its Ice Wall
+ * row states the same whiff policy as the out-of-Scope
+ * `tests/p6d-nine-classes.test.ts` and pinned the agreement as
+ * `expect([AX, AY]).toEqual([12, 10])` — de-hardcoding one side of an
+ * agreement about absolute tiles breaks it. c025 removed both halves of that:
+ * the module exports the Ice Wall *column* the file needs, and the agreement
+ * is now an offset read out of p6d's own occupancy test
+ * (`tests/class-p6d-agreement.ts`). The row that guarded the exemption now
+ * guards the agreement, below.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -38,15 +40,18 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
 import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W } from '../src/sim/grid';
-import { checkBuild } from '../src/sim/towers';
+import { buildTower, checkBuild } from '../src/sim/towers';
 import { World } from '../src/sim/world';
 import {
   BOARD,
   BUILD_TX,
   BUILD_TY,
   EAST_REACH,
+  HAS_WALL,
   PROBE_ORIGIN,
   SOUTH_REACH,
+  WALL_TX,
+  WALL_TYS,
   WX,
   WY,
   probeBoard,
@@ -85,24 +90,15 @@ const EXCEPTIONS: Record<string, string> = {
   // This file is the rule; it owns the geometry rather than importing it.
   'class-board':
     'the rule itself — it imports ./class-board by definition and asserts the shipped board as a baseline',
-  // c007's file, and the exception code review was right to call broader than
-  // its reason. **Only one row is coupled to p6d** (`expect([AX, AY])
-  // .toEqual([12, 10])`, the Ice Wall occupancy agreement); the rest of the
-  // file builds at `AX = WX + 2` and is exactly the harness c014 exists to
-  // fold in. The original reason here also misstated the failure mode:
-  // converting would not "silently break the agreement", it would break it
-  // *loudly*, on that one row, which is the alarm you want.
-  //
-  // It is still exempt, for a narrower and more honest reason: whiff builds a
-  // three-tile vertical wall at `AX, WY-1..WY+1`, and `class-board.ts` exports
-  // one tile, not a column. `footprintClear` already validates that column
-  // (it lies inside the probed rectangle), so exporting it is a small change
-  // — but it is a change to the module every other file now depends on, and
-  // it belongs in its own item rather than in this one's rework. Logged in
-  // BACKLOG-CONTENT.md.
-  'class-kit-whiff':
-    'one row pins an Ice Wall agreement with the out-of-Scope p6d, and its 3-tile wall column is not ' +
-    'something class-board.ts exports yet — conversion logged as its own item',
+  // `class-kit-whiff` was here until `c025` and is now an importer like the
+  // rest. Both halves of its exemption are gone: the module exports the wall
+  // column it needed (`WALL_TX`/`WALL_TYS`, probed, degrading on its own rung),
+  // and its p6d agreement is stated as an *offset* read out of p6d's source
+  // rather than as the absolute `[12, 10]` — which stopped being this file's
+  // tile the moment terrain moved the shared board to `10,6`. The exemption's
+  // own note that `footprintClear` "already validates that column" was true of
+  // the pre-`c026` bounding box and false afterwards; the column is checked
+  // explicitly now.
   // c019's file. It parks the Warden on a *derived* centre
   // (`Math.floor(GRID_W / 2)`) and places no tower, so the literal-pin rule
   // has nothing to catch — but code review is right that derived-and-unprobed
@@ -124,11 +120,26 @@ function source(name: string): string {
   return readFileSync(join(__dirname, `${name}.test.ts`), 'utf8');
 }
 
-/** Strips comments, so prose *about* a pin never counts as one. */
+/**
+ * Strips comments **and string literals**, so neither prose *about* a pin nor
+ * a quoted *sample* of one counts as one.
+ *
+ * The string half arrived with `c025`: `tests/class-p6d-agreement.test.ts`
+ * builds a miniature p6d out of string literals — `'    w.warden.x = 4;'`,
+ * `'buildTower(w, arrow.id, 12, ty)'` — to exercise the agreement parser on
+ * synthetic input, and the sink rules read all four of them as real board
+ * pins. A sink inside a quote is text, not a placement. Real pins are
+ * unaffected: a park is `w.warden.x = WX;` and a build call is
+ * `tower(w, WALL_TX, ty)`, neither of which is ever quoted — the injection
+ * check below is what keeps that claim honest.
+ */
 function code(name: string): string {
   return source(name)
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, '``')
+    .replace(/'(?:[^'\\\n]|\\[\s\S])*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\[\s\S])*"/g, '""');
 }
 
 /**
@@ -267,7 +278,23 @@ describe('c014: the shared board is probed, not pinned', () => {
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
     ).toEqual({ WX: 10, WY: 6, BUILD_TX: 11, BUILD_TY: 6 });
-    expect(BOARD).toEqual({ WX, WY, BUILD_TX, BUILD_TY, tier: BOARD.tier });
+    expect(BOARD).toEqual({
+      WX,
+      WY,
+      BUILD_TX,
+      BUILD_TY,
+      WALL_TX,
+      WALL_TYS,
+      hasWall: BOARD.hasWall,
+      tier: BOARD.tier,
+    });
+    // c025's column, as a baseline of its own: the aim point `class-kit-whiff`
+    // fires the Ice Wall at, and the three rows that wall occupies.
+    expect({ WALL_TX, WALL_TYS: [...WALL_TYS] }, 'the shared Ice Wall column moved').toEqual({
+      WALL_TX: 12,
+      WALL_TYS: [5, 6, 7],
+    });
+    expect(HAS_WALL, 'the shipped board cannot host the Ice Wall column — class-kit-whiff will say so too').toBe(true);
   });
 
   /**
@@ -327,17 +354,50 @@ describe('c014: the shared board is probed, not pinned', () => {
   it('the build tile is the Warden spot plus one east, which is the offset the six files were written around', () => {
     expect([BUILD_TX - WX, BUILD_TY - WY]).toEqual([1, 0]);
   });
+
+  /**
+   * c025: the Ice Wall column, checked the way `class-kit-whiff` uses it —
+   * three real `buildTower` calls, not three `grid.buildable` reads. The
+   * difference is the point of that file: its Ice Wall row pre-occupies all
+   * three tiles so the Active has nowhere to land, and a tile that `buildable`
+   * accepts but `buildTower` rejects would make the whiff pass for the wrong
+   * reason (nothing was in the way; the Active simply never fired).
+   */
+  it('the Ice Wall column is three tiles a tower can really go on', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }), content);
+    w.gold = 1e6;
+    w.warden.x = WX;
+    w.warden.y = WY;
+    const id = content.towerByKey.get('arrow_spire')!.id;
+    expect(WALL_TYS, 'the column is the three rows a vertical wall occupies').toEqual([WY - 1, WY, WY + 1]);
+    expect(WALL_TX - WX, "the aim point is the Warden's spot plus two east — c007's AX").toBe(2);
+    for (const ty of WALL_TYS) {
+      expect(buildTower(w, id, WALL_TX, ty).ok, `column tile ${WALL_TX},${ty} is not buildable`).toBe(true);
+    }
+  });
+
+  it('the whole column at once does not seal the Core', () => {
+    // Asked of the three together: `fireIceWall` raises them in one cast, and
+    // each tile alone can be harmless while the column closes the corridor.
+    const w = new World(cfg({ classKey: 'swordsman' }), content);
+    expect(w.grid.wouldBlockPath(WALL_TYS.map((ty) => [WALL_TX, ty] as [number, number]))).toBe(false);
+  });
 });
 
 describe('c014: a shifted probe origin moves the whole board', () => {
   /**
    * Four origins, none of which can be served by the shipped answer: two whose
-   * own footprint runs into the Core or the border, one in the far corner. The
-   * scan has to walk in every case, which is exactly what the terrain epic will
-   * make it do at `10,10`.
+   * own footprint runs into the Core or the border, one out past the Core. The
+   * scan has to walk in every case — which is what the terrain epic now makes
+   * it do at `10,10` as well.
    */
   const SHIFTED = [
-    { tx: 1, ty: 1 },
+    // `1,1`, the far-corner case, moved out of this list at `c025` and into a
+    // row of its own below — it now *converges on* the shipped board, which is
+    // a measurement worth keeping rather than a case worth deleting. `25,12`
+    // takes its place here: same job, answer `26,12`, nowhere near the shipped
+    // board.
+    { tx: 25, ty: 12 },
     { tx: 15, ty: 6 },
     { tx: 30, ty: 15 },
     { tx: 22, ty: 3 },
@@ -352,11 +412,46 @@ describe('c014: a shifted probe origin moves the whole board', () => {
       expect(serves.farGround, `origin ${origin.tx},${origin.ty}: no far ground for tilePastBaseRange`).toBe(true);
       expect(buildsFrom(b), `probed board at origin ${origin.tx},${origin.ty} is not buildable`).toBeNull();
       expect([b.BUILD_TX - b.WX, b.BUILD_TY - b.WY]).toEqual([1, 0]);
+      // c025: the column travels with the spot rather than staying behind at
+      // the shipped one — the property `class-kit-whiff` needs from a shift.
+      expect([b.WALL_TX - b.WX, ...b.WALL_TYS.map((ty) => ty - b.WY)]).toEqual([2, -1, 0, 1]);
+      if (b.hasWall) {
+        const w = new World(cfg({ classKey: 'swordsman' }), content);
+        w.gold = 1e6;
+        w.warden.x = b.WX;
+        w.warden.y = b.WY;
+        const id = content.towerByKey.get('arrow_spire')!.id;
+        for (const ty of b.WALL_TYS) {
+          expect(buildTower(w, id, b.WALL_TX, ty).ok, `origin ${origin.tx},${origin.ty}: column tile ${b.WALL_TX},${ty}`).toBe(true);
+        }
+      }
       for (const [tx, ty] of footprintTiles(b)) {
         expect(tx > 0 && tx < GRID_W - 1 && ty > 0 && ty < GRID_H - 1).toBe(true);
       }
     });
   }
+
+  it('the far corner converges on the shipped board, and the reason is that there are eleven spots', () => {
+    // `1,1` was a `SHIFTED` case until `c025` and is kept as its own row,
+    // because what it measures changed rather than stopped being true. Its
+    // nearest legal board used to be `10,5` — the single spot on this map that
+    // the Ice Wall column costs (12 legal boards without the column, 11 with),
+    // so the walk from the corner now ends one row further on, at the shipped
+    // board itself. Asserting "a shift moves the board" there would assert the
+    // opposite of what happens; asserting *this* keeps the fact on the record.
+    expect(probeBoard({ tx: 1, ty: 1 })).toEqual(BOARD);
+    // The claim underneath it, so the row above cannot quietly become true for
+    // some other reason: legal boards are scarce, and the corner has no local
+    // one at all.
+    let legal = 0;
+    for (let ty = 1; ty < GRID_H - 1; ty++) {
+      for (let tx = 1; tx < GRID_W - 1; tx++) {
+        const b = probeBoard({ tx, ty });
+        if (b.WX === tx && b.WY === ty) legal++;
+      }
+    }
+    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(11);
+  });
 
   it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {
     // **This row used to also assert `PROBE_ORIGIN` equals the answer**, which
@@ -508,7 +603,12 @@ describe('c014: no importer pins the board privately again', () => {
           // probe like the shared one, kept because the Engineer's reach clause
           // is *about* a tile the base range cannot reach and so cannot use the
           // shared one.
-          const bad = tiles.filter((t) => !/^(BUILD_TX, BUILD_TY|tx, ty|far!?\.tx, far!?\.ty)$/.test(t));
+          // `WALL_TX, ...` is `c025`'s Ice Wall column — probed by the same
+          // module and moving with the same spot, so it is shared geometry in
+          // exactly the sense this rule is about, not a private pin.
+          const bad = tiles.filter(
+            (t) => !/^(BUILD_TX, BUILD_TY|WALL_TX, (WALL_TY|ty)|tx, ty|far!?\.tx, far!?\.ty)$/.test(t),
+          );
           expect(bad, `${name}: build calls on a tile that is not the shared one`).toEqual([]);
         });
 
@@ -533,20 +633,45 @@ describe('c014: no importer pins the board privately again', () => {
     ).toMatch(/const WX = Math\.floor\(GRID_W \/ 2\)/);
   });
 
-  it('class-kit-whiff is the one convertible file left pinned, and p6d is why', () => {
+  /**
+   * `c025` converted `class-kit-whiff`, so the row that guarded its exemption
+   * becomes the row that guards its *agreement*. Same job, other side: the
+   * exemption existed because that file states one whiff policy jointly with
+   * the out-of-Scope `p6d-nine-classes`, and the conversion only holds while
+   * the two still fire the same cast.
+   */
+  it('class-kit-whiff reads its p6d agreement out of p6d, and p6d still states it', () => {
     const s = source('class-kit-whiff');
-    expect(s, 'class-kit-whiff was converted — drop its EXCEPTIONS row').toMatch(/^const WX = 10;$/m);
-    // The reason, asserted rather than described: its aim point is an
-    // agreement with `p6d-nine-classes`, which is out of this lane's Scope.
-    expect(s).toMatch(/expect\(\[AX, AY\]\)\.toEqual\(\[12, 10\]\)/);
+    expect(s, 'class-kit-whiff is an importer now — it may not re-pin the board').not.toMatch(/^const WX = 10;$/m);
+    // The agreement is an *offset* now, because terrain moved the shared board
+    // to 10,6 and `[12, 10]` stopped being this file's tile. It still names
+    // p6d's own numbers, read out of p6d rather than retyped.
+    expect(s, 'the p6d agreement is gone from class-kit-whiff').toMatch(/p6d\.aimX - p6d\.parkX/);
+    // And it is *read*, not retyped. QA replaced the parse with
+    // `const P6D = { parkX: 10, parkY: 10, aimX: 12, aimY: 10 }` and this row
+    // stayed green — which is the hardcoded-expectation shape the parse exists
+    // to remove, reappearing inside the guard that protects it.
+    expect(s, 'class-kit-whiff retyped p6d\'s numbers instead of reading them').toMatch(
+      /import \{[^}]*\bp6dIceWall\b[^}]*\} from '\.\/class-p6d-agreement';/,
+    );
+    expect(
+      readFileSync(join(__dirname, 'class-p6d-agreement.ts'), 'utf8'),
+      'class-p6d-agreement no longer reads p6d at all',
+    ).toMatch(/readFileSync\([\s\S]{0,160}P6D_FILE/);
     const p6d = readFileSync(join(__dirname, 'p6d-nine-classes.test.ts'), 'utf8');
     // Anchored on p6d's *Ice Wall* rows, not on any `12, 10` in the file.
-    // Code review: p6d has eight matches for the loose pattern, most of them
-    // unrelated dummy placements, so it could de-hardcode the aim point
-    // entirely and this row would stay green — leaving the exception standing
-    // after its reason had gone.
-    expect(p6d, 'p6d no longer pins the Ice Wall tile — the class-kit-whiff exception can be lifted').toMatch(
+    // Code review (c014): p6d has eight matches for the loose pattern, most of
+    // them unrelated dummy placements, so it could de-hardcode the aim point
+    // entirely and this row would stay green — leaving the agreement asserting
+    // nothing after its other side had gone.
+    expect(p6d, 'p6d no longer pins the Ice Wall tile — the agreement has nothing to agree with').toMatch(
       /w\.(grid\.buildable|structureAt)\(12, 10\)/,
+    );
+    // And the column is built from the shared export in a loop over it, not
+    // from a local `ty` that happens to run 9..11: the sink allowlist accepts
+    // `WALL_TX, ty`, so this is what keeps that `ty` honest.
+    expect(code('class-kit-whiff'), 'the wall column is built from something other than WALL_TYS').toMatch(
+      /for \(const ty of WALL_TYS\)/,
     );
   });
 

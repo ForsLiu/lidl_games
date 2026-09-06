@@ -5,13 +5,23 @@
  * (`hud.ts`/`character-panel.ts`, which passes a `ClassLiveContext` so
  * `cooldownSeconds` and `damage`/`dps` resolve through the same formulas the
  * sim itself uses — `w.derived.cdr`, `classAttackPowerMul`/`characterDamage`,
- * classes.ts). Every other field (radius, knockback, summon counts, ...) has
- * no live sim equivalent to resolve through, so it falls back to the plain
- * authored /data number — the file header's own stated rule.
+ * classes.ts) — and, since fb148, `dashRange`, which every `dash_*` kind
+ * scales by current move speed (`dashDistance`/`classDashDuration`, fb053).
+ * Every other field (radius, knockback, summon counts, ...) has no live sim
+ * equivalent to resolve through, so it falls back to the plain authored /data
+ * number — the file header's own stated rule.
  */
 
 import type { ClassDef, ClassEffect } from '../sim/content';
-import { formatPct, modLinesHtml, numericFieldListHtml, trimNum } from './info-format';
+import {
+  AOE_FALLOFF_CLAUSE,
+  LINE_FALLOFF_CLAUSE,
+  PATCH_FALLOFF_CLAUSE,
+  formatPct,
+  modLinesHtml,
+  numericFieldListHtml,
+  trimNum,
+} from './info-format';
 import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 
 export interface ClassLiveContext {
@@ -32,6 +42,38 @@ export interface ClassLiveContext {
    * omits it.
    */
   active2CdrFactor?: number;
+  /**
+   * fb148 (qa-playtester finding during fb112 verification): the factor the
+   * sim applies to a `dash_*` effect's authored `dashRange`.
+   *
+   * Every class dash scales with move speed (fb053): `fireDashSlash` and its
+   * three siblings feed `dashDistance(currentMoveSpeed(w), duration)` with
+   * `duration = classDashDuration(eff.dashRange, classBaseMoveSpeed(cls))`,
+   * which reduces to `dashRange * currentMoveSpeed / classBaseMoveSpeed`. The
+   * sentences printed the authored number, so a Warden with any move-speed
+   * source was told a distance it had not dashed since the buff landed.
+   *
+   * Optional because the Hub's pre-run Class screen has no run to read and
+   * legitimately shows the authored base, same as every other number there.
+   */
+  dashRangeMul?: number;
+  /**
+   * fb148: whether `swordsman_shoes` is equipped. Mirrors `fireDashSlash`'s
+   * own hardcoded `hasEquipment(w, 'swordsman_shoes') ? 2 : 1`
+   * (`src/sim/classes.ts`), which is applied by that one function and no
+   * other dash — hence a separate flag rather than folding it into
+   * `dashRangeMul`, which every `dash_*` kind reads.
+   */
+  swordsmanShoes?: boolean;
+}
+
+/**
+ * fb148: an effect's authored `dashRange` as the sim will really dash it —
+ * every `dash_*` kind's shared move-speed scaling. `dashSlashSentence` adds
+ * `fireDashSlash`'s own Shoes doubling on top; no other kind may.
+ */
+function liveDashRange(eff: ClassEffect, live?: ClassLiveContext): number {
+  return (eff.dashRange ?? 0) * (live?.dashRangeMul ?? 1);
 }
 
 function liveOverrides(fields: Record<string, unknown>, live?: ClassLiveContext, cooldownFactor?: number): Record<string, number> {
@@ -47,6 +89,16 @@ function liveOverrides(fields: Record<string, unknown>, live?: ClassLiveContext,
   // whichever field is the real gate for this effect.
   if (typeof fields.rechargeSeconds === 'number') {
     overrides.rechargeSeconds = fields.rechargeSeconds * factor;
+  }
+  // fb148: the generic field-list fallback (`effectBlock`) is unreachable for
+  // every shipped kind since fb108's sentence table, but it is where a fifth
+  // `dash_*` kind would land before anyone wrote its sentence — and printing
+  // the authored number there is the exact defect fb108/fb112/fb146/fb148
+  // have now each fixed once. Carries the move-speed scaling only:
+  // `fireDashSlash`'s Shoes doubling is one function's, not a field's, so it
+  // has no place in a per-field override.
+  if (typeof fields.dashRange === 'number') {
+    overrides.dashRange = fields.dashRange * (live.dashRangeMul ?? 1);
   }
   if (typeof fields.damage === 'number') {
     overrides.damage = (fields.damage + live.atkFlat) * live.damageMul;
@@ -86,7 +138,7 @@ function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldown
   const minDamage = liveDamageValue(eff.minDamage ?? 0, live);
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Hold to charge a self-centered nova: release immediately to hit everything within ${trimNum(eff.minRadius ?? 0)} tiles for ${trimNum(minDamage)} damage, or hold up to ${trimNum(eff.chargeCapSeconds ?? 0)}s for a ${trimNum(eff.radius)}-tile hit dealing ${trimNum(damage)} damage and knocking enemies back ${trimNum(eff.knockback ?? 0)} tiles. Cooldown ${trimNum(cd)}s.`;
+  return `Hold to charge a self-centered nova: release immediately to hit everything within ${trimNum(eff.minRadius ?? 0)} tiles for ${trimNum(minDamage)} damage, or hold up to ${trimNum(eff.chargeCapSeconds ?? 0)}s for a ${trimNum(eff.radius)}-tile hit dealing ${trimNum(damage)} damage and knocking enemies back ${trimNum(eff.knockback ?? 0)} tiles.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**
@@ -101,13 +153,13 @@ function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldown
 function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage. Usable mid-Circle-Slash-charge: the charge's own range and damage merge into this one hit instead of firing separately. Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live) * (live?.swordsmanShoes ? 2 : 1))} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage.${LINE_FALLOFF_CLAUSE} Usable mid-Circle-Slash-charge: the charge's own range and damage merge into this one hit instead of firing separately. Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Drops a ${trimNum(eff.radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+  return `Drops a ${trimNum(eff.radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -189,7 +241,7 @@ function summonTurretSentence(eff: ClassEffect, live?: ClassLiveContext, cooldow
 function dashTrailSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, leaving ${trimNum(eff.trailSegments ?? 0, 0)} fire patches (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide) along the path, each dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, leaving ${trimNum(eff.trailSegments ?? 0, 0)} fire patches (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide) along the path, each dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${PATCH_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**
@@ -205,13 +257,13 @@ function dashTrailSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 function chargePierceSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Hold to draw a piercing shot, up to ${trimNum(eff.chargeCapSeconds ?? 0)}s: damage compounds ${formatPct(eff.compoundPerSecond ?? 0)}/s of charge before your own bonuses are added, dealing ${trimNum(damage)} damage if released immediately. Gains +1 enemy pierced (cap ${trimNum(eff.pierceCap ?? 0, 0)}) per full second charged, while moving at ${formatPct(eff.moveMulWhileCharging ?? 0)} speed. Cooldown ${trimNum(cd)}s between shots.`;
+  return `Hold to draw a piercing shot, up to ${trimNum(eff.chargeCapSeconds ?? 0)}s: damage compounds ${formatPct(eff.compoundPerSecond ?? 0)}/s of charge before your own bonuses are added, dealing ${trimNum(damage)} damage if released immediately. Gains +1 enemy pierced (cap ${trimNum(eff.pierceCap ?? 0, 0)}) per full second charged, while moving at ${formatPct(eff.moveMulWhileCharging ?? 0)} speed.${LINE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s between shots.`;
 }
 
 function dashVolleySentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, firing ${trimNum(eff.volleyShots ?? 0, 0)} arrows at the nearest enemies within ${trimNum(eff.radius)} tiles for ${trimNum(damage)} damage each. Usable while charging a piercing shot without losing the charge. Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, firing ${trimNum(eff.volleyShots ?? 0, 0)} arrows at the nearest enemies within ${trimNum(eff.radius)} tiles for ${trimNum(damage)} damage each. Usable while charging a piercing shot without losing the charge. Cooldown ${trimNum(cd)}s.`;
 }
 
 function raiseSkeletonsSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -260,7 +312,7 @@ function bloodTitheSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownF
  */
 function dashHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, healing ${trimNum(eff.healPerEnemy ?? 0)} HP for each enemy passed through (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide). Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, healing ${trimNum(eff.healPerEnemy ?? 0)} HP for each enemy passed through (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide). Cooldown ${trimNum(cd)}s.`;
 }
 
 function manifestSpiritSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -280,7 +332,7 @@ function clarionTauntSentence(eff: ClassEffect, live?: ClassLiveContext, cooldow
 
 function judgementSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Releases all stored Wrath as a holy nova within ${trimNum(eff.radius)} tiles, dealing ${trimNum(eff.wrathDamageMul ?? 0)}× the stored amount as damage. Cooldown ${trimNum(cd)}s.`;
+  return `Releases all stored Wrath as a holy nova within ${trimNum(eff.radius)} tiles, dealing ${trimNum(eff.wrathDamageMul ?? 0)}× the stored amount as damage.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**

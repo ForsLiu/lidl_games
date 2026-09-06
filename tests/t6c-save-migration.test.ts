@@ -11,13 +11,14 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { loadContent } from '../src/sim/content';
+
 import {
   SAVE_VERSION,
   defaultMeta,
   deserializeMeta,
   loadMetaWithNotice,
-  serializeMeta,
-} from '../src/meta/meta';
+  serializeMeta, DAMAGE_METRICS_RESCALED_AT } from '../src/meta/meta';
 import { withSavedRaw } from '../tools/fuzz-save';
 import type { MetaState } from '../src/sim/types';
 
@@ -231,5 +232,30 @@ describe('p7d: retiring the Ember economy at migration', () => {
     expect(once).not.toMatch(/"accountLevel"/);
     const twice = serializeMeta(deserializeMeta(once));
     expect(twice).toBe(once);
+  });
+});
+
+describe('fb153a — a pre-rescale save banks damage in pre-rescale units', () => {
+  it('converts lifetime_damage into the units the live quest target uses', () => {
+    // qa-playtester: `data/quests.json`'s `lifetime_damage` target is divided by
+    // `numberScale` at load, but a save written before the rescale banked
+    // undivided damage — enough to unlock the Corpse Core off a zero-damage
+    // run. The conversion is a version step, so it happens exactly once.
+    const k = loadContent().modifiers.numberScale;
+    const banked = 50_000;
+    const stale = JSON.stringify({
+      version: DAMAGE_METRICS_RESCALED_AT - 1,
+      meta: { ...defaultMeta(), questProgress: { lifetime_damage: banked } },
+    });
+    const migrated = deserializeMeta(stale)!;
+    expect(migrated.questProgress.lifetime_damage).toBeCloseTo(banked * k, 6);
+
+    // A save already written at the new version is left alone — the step must
+    // not compound on every load.
+    const current = JSON.stringify({
+      version: DAMAGE_METRICS_RESCALED_AT,
+      meta: { ...defaultMeta(), questProgress: { lifetime_damage: banked } },
+    });
+    expect(deserializeMeta(current)!.questProgress.lifetime_damage).toBe(banked);
   });
 });

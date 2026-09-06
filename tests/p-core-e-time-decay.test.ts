@@ -20,7 +20,7 @@ import { loadContent } from '../src/sim/content';
 import { computeCoreState, updateTimeDecay, upgradeCore } from '../src/sim/cores';
 import { spawnEnemy } from '../src/sim/enemies';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
@@ -34,7 +34,10 @@ const TIME_MULT5 = TIME.upgrade.steps![4].decayMult; // step 5: raised multiplie
  * literal 5 is baked into `cores.ts`'s own formula, not a `/data/cores.json`
  * field), so it stays hand-written here; only `mult` is sourced from content.
  */
-const rateAtRing = (mult: number, ring: number): number => Math.pow(mult, 5 - ring);
+// fb153a: SPEC-FINAL states the aura as "1 x mult^(5-ring)" HP/s, and that
+// leading 1 is a damage magnitude, so it takes `numberScale` like every other
+// authored one (the coefficient lives in `cores.ts` as rule-4 debt).
+const rateAtRing = (mult: number, ring: number): number => scaled(Math.pow(mult, 5 - ring));
 
 function timeWorld(): World {
   return new World(cfg({ core: 'time' }), content);

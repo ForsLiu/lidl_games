@@ -34,7 +34,7 @@ import { buildTower, towerDamage, updateTowers } from '../src/sim/towers';
 import { emptyInput } from '../src/sim/types';
 import { updateWieldedAttacks } from '../src/sim/vswield';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
@@ -45,7 +45,17 @@ const TIME = content.coreByKey.get('time')!;
 /** Sum of `stone_heart`'s first `n` step `coreHpBonus` deltas, straight off `/data/cores.json` — not a hardcoded per-step amount, since the three steps need not stay uniform. */
 const stoneStepSum = (n: number): number =>
   STONE.upgrade.steps!.slice(0, n).reduce((sum, step) => sum + (step.coreHpBonus ?? 0), 0);
-const VAMP_BASE_OVERHEAL_RATIO = VAMPIRE.effects!.overhealGoldRatio;
+/**
+ * fb153a: read from the **authored** document. `numberScale` scales the loaded
+ * ratio with the HP pool it divides, so reading it back off `content` would make
+ * every assertion below `implementation === implementation` at any scale — which
+ * is exactly how a wrong scaling *direction* shipped for one round
+ * (qa-playtester). The cross-scale control lives in
+ * `tests/fb153a-number-scale.test.ts`; these rows pin the authored figure.
+ */
+const VAMP_BASE_OVERHEAL_RATIO = (
+  content.raw.cores as { cores: { key: string; effects?: { overhealGoldRatio?: number } }[] }
+).cores.find((c) => c.key === 'vampire_heart')!.effects!.overhealGoldRatio!;
 const VAMP_STEP2_OVERHEAL_RATIO = VAMPIRE.upgrade.steps![1].overhealGoldRatio;
 const TIME_TD_SLOW_MUL = 1 - TIME.effects!.tdSlowPct;
 const TIME_VS_SPEED_MUL = 1 + TIME.effects!.vsSpeedPct;
@@ -189,7 +199,7 @@ describe('p-core-b — Vampire Heart', () => {
     expect(w.core.missingHpBuffPerPct).toBeCloseTo(VAMPIRE.effects!.missingHpBuffPerPct, 9);
     expect(w.core.missingHpBuffCap).toBeCloseTo(VAMPIRE.effects!.missingHpBuffCap, 9);
     expect(w.core.vsLifestealPct).toBeCloseTo(VAMPIRE.effects!.vsLifestealPct, 9);
-    expect(w.core.overhealGoldRatio).toBe(VAMP_BASE_OVERHEAL_RATIO);
+    expect(w.core.overhealGoldRatio).toBeCloseTo(scaled(VAMP_BASE_OVERHEAL_RATIO), 9);
     expect(w.core.towerOverhealConverts).toBe(false); // no step bought yet — structural, not a data magnitude
   });
 
@@ -289,9 +299,9 @@ describe('p-core-b — Vampire Heart', () => {
   it('VS: overhealing converts to gold at 20:1 before any step is bought', () => {
     const w = new World(cfg({ core: 'vampire_heart' }), content);
     w.phase = 'act2';
-    w.warden.hp = w.derived.maxHp - 5;
+    w.warden.hp = w.derived.maxHp - scaled(5);
     const goldBefore = w.gold;
-    applyHealingToWarden(w, 25); // 5 tops off maxHp, 20 is overheal
+    applyHealingToWarden(w, scaled(25)); // 5 authored tops off maxHp, 20 is overheal
     expect(w.warden.hp).toBe(w.derived.maxHp);
     expect(w.gold).toBe(goldBefore + Math.floor(20 / VAMP_BASE_OVERHEAL_RATIO));
   });
@@ -320,8 +330,10 @@ describe('p-core-b — Vampire Heart', () => {
 
     w.warden.hp = w.derived.maxHp;
     const before = w.gold;
-    for (let i = 0; i < 100; i++) applyHealingToWarden(w, 20); // 2000 hp overheal
-    expect(w.gold).toBe(before + Math.floor(2000 / VAMP_BASE_OVERHEAL_RATIO));
+    // fb153a: the heal is an HP magnitude (authored units x `numberScale`) and
+    // the ratio scales with it, so the gold this pays is unchanged.
+    for (let i = 0; i < 100; i++) applyHealingToWarden(w, scaled(20)); // 2000 authored hp overheal
+    expect(w.gold).toBeCloseTo(before + Math.floor(2000 / VAMP_BASE_OVERHEAL_RATIO), 0);
   });
 
   it('a different Core never converts overheal, even in VS (overhealGoldRatio is 0)', () => {
@@ -337,22 +349,23 @@ describe('p-core-b — Vampire Heart', () => {
     const w = new World(cfg({ core: 'vampire_heart' }), content);
     const { tx, ty } = nearTile(w);
     const s = buildAt(w, tx, ty);
-    s.maxHp = 100;
-    s.hp = 95;
+    // fb153a: the probe's own pool, stated in authored units like the heal.
+    s.maxHp = scaled(100);
+    s.hp = scaled(95);
     const goldBefore = w.gold;
 
-    applyHealingToStructure(w, s, 25); // before step 1: overheal discarded
-    expect(s.hp).toBe(100);
+    applyHealingToStructure(w, s, scaled(25)); // before step 1: overheal discarded
+    expect(s.hp).toBeCloseTo(scaled(100), 9);
     expect(w.gold).toBe(goldBefore);
 
     w.gold = 1e6;
     w.warden.x = CORE_X - 1; // back within the Core's build range, away from the built tile
     w.warden.y = CORE_Y;
     expect(upgradeCore(w)).toBe(true); // step 1
-    s.hp = 95;
+    s.hp = scaled(95);
     const goldAfterStep = w.gold;
-    applyHealingToStructure(w, s, 25); // 5 tops off, 20 overheal
-    expect(s.hp).toBe(100);
+    applyHealingToStructure(w, s, scaled(25)); // 5 authored tops off, 20 overheal
+    expect(s.hp).toBeCloseTo(scaled(100), 9);
     expect(w.gold).toBe(goldAfterStep + Math.floor(20 / VAMP_BASE_OVERHEAL_RATIO));
   });
 

@@ -5,6 +5,444 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — CI is green.** Run
+  [#34048887457](https://github.com/ForsLiu/lidl_games/actions/runs/34048887457)
+  passed the fast tier and the build on `claude/backlog-processing-30e66t`
+  (PR #6), the first green run since the workflow landed. It took three
+  attempts because the first red run had five causes and fixing them exposed a
+  sixth:
+  - Run [#34010610675](https://github.com/ForsLiu/lidl_games/actions/runs/34010610675)
+    — seven assertions, five files (b032/b034/b035/b036, b028, q41, p10e); see
+    the entry below.
+  - Run [#34048137111](https://github.com/ForsLiu/lidl_games/actions/runs/34048137111)
+    — b028/q41/p10e green, and the four browser suites still red. They now had
+    four distinct ports, so the 5173 collision was genuinely fixed, and every
+    one still reported `ERR_CONNECTION_REFUSED` at its own 127.0.0.1 URL.
+    `startDevServer` had not set `server.host`, so Vite bound the *name*
+    `localhost`, and `listen` takes only the first address a name resolves to.
+  - Run #34048887457 — the literal `127.0.0.1` pinned, nothing else changed,
+    all four suites green. **That pair is the control**: the interface the
+    server bound was the cause. What it does *not* establish is which address
+    `localhost` resolved to on the runner or why — nothing read the bound
+    address there, and Ubuntu's stock `/etc/hosts` argues against the obvious
+    IPv6-first reading. The first commit stated that mechanism as fact; the
+    correction is in `tests/helpers/browser.ts` and in `ef1016e`.
+
+  Both dev-server contracts are now pinned in `tests/helpers-browser.test.ts`
+  rather than left to CI, and mutation-checked: dropping the host fails one,
+  reverting to `port: 0` fails both. `startDevServer` also fetches the URL it
+  hands out before returning, so a cause nobody anticipated fails there, named,
+  in ~100 ms — the earlier fixes had no such property, which is why the second
+  red run cost a whole round to diagnose. No game code was changed in any of
+  it, per the owner's instruction.
+
+  Still true and unrelated to CI: `q15`/`q45` fail in the dev container on tsx
+  worker-thread module resolution and pass on the runner. `fb168` is filed —
+  `tools/ui-audit.ts` builds its own dev server carrying both defects fixed
+  here, with no test that would catch either.
+
+- **2026-09-06 — fb140's first CI run went red, and four of its five causes were
+  real defects the local tier could not see.** The failing run is
+  [#34010610675](https://github.com/ForsLiu/lidl_games/actions/runs/34010610675)
+  on PR #6; checkout, `npm ci`, the Chromium install and `npm run build` all
+  passed, so the browser was never the problem — only the fast tier failed, with
+  seven assertions across five files. What each one actually was:
+
+  1. **`b032`/`b034`/`b035`/`b036` — two bugs, both in the harness.** First, all
+     four asked Vite for `port: 0` meaning "any free port"; **Vite resolves a
+     falsy port to its default 5173** (verified directly), so the four raced for
+     one port and CI reported `ERR_CONNECTION_REFUSED at 127.0.0.1:5173`. They
+     now take a port from the OS by binding a throwaway listener, and pass it
+     with `strictPort: true` so losing the race is a loud error rather than a
+     server listening somewhere the test never looks. Second — visible only
+     under a *full* tier run, which is why it never showed locally — a Vite
+     server rooted at the repo watches every file in it, the rest of the tier
+     writes scratch copies into `bench/.tmp` continuously, and the resulting
+     HMR reload destroyed the page mid-assertion (`Execution context was
+     destroyed, most likely because of a navigation`, and a panel read back
+     empty). These are layout suites that load the page once, so they now run
+     with `hmr: false` and the scratch directories unwatched.
+  2. **`b028` — a real POSIX bug in `killProcessTree`**, not a flake. It killed
+     the process *group* (`-pid`), which by construction cannot reach a
+     descendant that detached into a group of its own — exactly what the
+     fixture's grandchild does, and what a nested `npx` -> `node` -> vitest
+     worker chain does. It passed on the Windows box it was written on because
+     `taskkill /T` walks the parent-child tree. It now walks that tree on POSIX
+     too (`ps -A -o pid=,ppid=`), keeping the group kill as the sweep.
+  3. **`q41` — a broken fixture reporting a false negative.** The scratch copies
+     `src`/`tools`/`data` but no `tests/`, and `tools/perf-ratio.ts` statically
+     imports `../tests/helpers`, so Node failed *resolution* before esbuild ever
+     transformed the deliberately-broken JSON the test is about. It now copies
+     that one module, per tool, leaving the minimal scratch that the file's
+     `mutation-probe` carve-out depends on intact.
+  4. **`p10e` — a timing measurement running under contention.** Its
+     granularity-stability case asserts two calibration granularities agree
+     within 25%; the file's own header records 0.6-14% on a quiet host, and the
+     shared runner measured 25.6%. Moved to `vitest.perf.config.ts`, which is
+     single-threaded for exactly this reason and is where `a10-performance`
+     already lives — the assertion stays live in `npm test`, at its bound.
+
+  Nothing in `/src/sim` or `/data` was touched. Verified by running the tier the
+  way CI does — `STONEWAKE_REQUIRE_BROWSER=1`, browsers present, `npm run
+  test:fast -- --poolOptions.threads.maxThreads=2` — which now leaves only
+  `q45`/`q15`, both of which **passed on the GitHub runner** and fail here on a
+  tsx worker-thread module-resolution difference. `docs/CI.md`'s "a failure here
+  is probably not yours" paragraph was rewritten accordingly: it was about to
+  teach readers to ignore four real bugs.
+
+- **2026-09-05/06 session close (branch `claude/backlog-processing-30e66t`): the
+  owner's cloud-round-1 feedback is routed and six items are done.** In order:
+  the eight feedback files became `fb152`-`fb160` across the main queue and two
+  lanes; then **fb152** (DoT tick cadence), **fb153a** (the global HP/damage
+  rescale), **fb154** (VS spawns from the gates), **fb155** (the enemy attack
+  registry), **fb141** (the STATUS feedback ledger) and **fb140** (CI). Each
+  item's own entry below carries its measurements. Four things a reader picking
+  this up should know:
+
+  1. **Three of the six were owner orders, and two of them measurably moved the
+     balance** — not as a side effect but as the thing the orders asked for.
+     fb152's late DoT kills and fb154's longer walk from the gates add ~13% to
+     run length, and the T1 status snapshot now shows 24 of 88 runs censored at
+     the 45-minute cap where it showed none. That is the p12e tick-cap defect
+     being paid for, recorded in QUESTIONS **Q184** and BALANCE.md, and
+     deliberately not tuned: the orders say re-record, and P10 is the one
+     balance pass.
+  2. **The owner's readability goal is measured as not met by a single factor.**
+     fb153a's /10 rescale is proportional (control pair: outcomes identical,
+     `damageTotal` exactly /10), but typical on-screen hits are median 60 early
+     and 88 late — mid/late is double digits, early is not, and no one factor
+     can do both because `/data` carries two economies. Filed for an owner
+     verdict as **fb163**, with **fb164** for the prose that still quotes
+     pre-rescale numbers.
+  3. **`fb153b` (the bigger map) was measured and split rather than started.**
+     Flipping the grid constants reddens ~85 assertions across 20 files, most of
+     them in the terrain and UI lanes' own suites — filed as `fb166`/`fb167` in
+     those lanes, with the per-file counts.
+  4. **Every item went through code-reviewer and (for the full tier)
+     qa-playtester, and they found real defects every time** — a Burning splash
+     thrown away on carrier death, a 10x Heartstone heal, a Tuner that would
+     have re-divided `/data` on save, spawns landing on top of the player, a
+     boss publishing a slam radius a tile short of its real one, a ledger
+     reporting the wrong backlog item, a CI job that would have committed a
+     STATUS.md measured on a red tree. All fixed before commit; the ones too big
+     for their item are filed (`fb161`, `fb162`, `fb165`).
+
+  `npm run test:fast` ends the session at the same baseline it started from —
+  3 failures, all in the `q41`/`q45`/`q15`/`b028` scratch-dir family that fails
+  identically on the parent commit. `npm run build` and `npx tsc --noEmit` are
+  clean, and STATUS.md is regenerated.
+
+- **2026-09-05 — BACKLOG fb140: CI.** `.github/workflows/ci.yml` runs the fast
+  tier plus `npm run build` on every push and pull request across all branches
+  (`lane/*` included), and the full suite plus a STATUS.md regeneration nightly
+  on master; `docs/CI.md` says what each job is for and what to do when either
+  is red, including the two repository settings the nightly's commit depends on.
+
+  **code-reviewer returned four Majors and all are fixed.** The nightly would
+  have committed a STATUS.md measured on a red — or cancelled — tree
+  (`if: always()` on both steps); the workflow had no top-level `permissions`,
+  so the push job inherited whatever the repo default is while running
+  third-party lifecycle scripts on every branch; the STATUS push was a bare
+  `git push` after a three-hour window, which any commit landing on master in
+  between would have failed for a reason unrelated to the suite; and the worker
+  cap was deferred to **fb087, which owns no such env var** — a deferral
+  recorded against a fiction, while `STONEWAKE_REQUIRE_BROWSER=1` had just
+  turned the four load-sensitive UI suites from self-skipping into must-run. The
+  cap is set here at two threads and logged as QUESTIONS **Q185**.
+
+  The review's sharpest finding was about the test, not the workflow: five
+  meaningful mutations (narrowing the push trigger, cutting the timeouts,
+  deleting the nightly's `permissions` and `ref`) all passed the first version,
+  because a greedy `on:[\s\S]*push:` regex is satisfied by the *other*
+  trigger's branch line. The assertions are now scoped per trigger and per job
+  and pin the literal budgets, and the mutation table is re-run: **six edits
+  that break CI silently, six caught**. The file no longer calls itself a "dry
+  parse" — no YAML parser is resolvable in this tree, and a green structural
+  check must not be misread as "GitHub will accept this".
+
+- **2026-09-05 — BACKLOG fb141 [polish]: STATUS.md's feedback ledger reads every
+  backlog file, not just the main queue.** Owner feedback routed into a lane
+  showed "no BACKLOG citation found" on the one report whose job is to say what
+  happened to it. `tools/status.ts` now discovers `BACKLOG*.md` by glob
+  (`BACKLOG.md` first so the main queue wins a tie) and names the lane in the
+  status. On the real repo that turned **eight false negatives into real
+  citations** (`fb055 (BACKLOG-UI.md) — done`, `fb056 (BACKLOG-CONTENT.md) —
+  queued`, …).
+
+  **code-reviewer found three ways the first version reported the *wrong* item,
+  which is worse than the false negative it removed.** (1) Allowing indented
+  bullets made the owner's own two-part rescale order read `fb153a — done` while
+  `fb153b` is still queued; a sub-item is now reported with its parent's state
+  (`fb153a (of fb153) — queued`). (2) The backward walk had no block boundary,
+  so a prose mention attached to whatever bullet preceded it and returned —
+  `feature-dot-tick-numbers` was reported as a long-done QUESTIONS chore instead
+  of the UI lane's fb060; the walk now stops at a blank line or a header, and
+  the scan tries **every** hit in a document rather than the first, so prose can
+  no longer shadow the item. (3) Ten rows still read "no citation" because the
+  backlogs cite the *type*-stripped slug (`dot-tick-cadence`) or the whole path;
+  the needle list now covers all three forms. Four of the remaining rows are
+  honest — nothing in any backlog file cites them.
+
+  **What regenerating STATUS.md exposed, filed rather than shipped quietly:**
+  the 88-run T1 snapshot goes from win rate 1.0 on every policy with 0/88
+  timeouts to 0-0.5 with **24/88**, because fb152 and fb154 both make runs
+  longer and the snapshot scores a censored run as a loss. G1's own 24-seed
+  measurement, which excludes censored seeds by design, still reads 40.9% — in
+  band. Recorded in QUESTIONS **Q184**, BALANCE.md and under **p12e**, whose
+  "zero `'running'` outcomes" acceptance is now what stands between the project
+  and a status report that reads as a difficulty collapse. Not tuned: the orders
+  say re-record, and P10 is the one balance pass.
+
+- **2026-09-05 — BACKLOG fb155: every enemy publishes what its attack is and how
+  far it reaches.** All 20 §9 rows in `data/enemies.json` now carry
+  `attackKind` (a closed enum: melee/ranged/bomber/healer/buffer/burrower/
+  phaser) and `attackRange`, plus `specialRange` on the four rows whose special
+  has a radius of its own — the `/data` half of the owner's
+  `ui-enemy-attack-indicators` order, so the UI lane's fb158 draws an icon and a
+  ring from authored fields instead of re-deriving both from the `traits` array.
+  `boss.ts`'s `SLAM_RADIUS` moved into `/data` behind `specialRange`, closing
+  one more rule-4 literal.
+
+  **The loader is the deliverable, not the fields.** `loadContent` refuses a row
+  whose published range disagrees with the radius the sim uses for its kind, a
+  kind its own traits do not describe, a melee row that deals no contact damage,
+  an elite or boss hiding its special, and a row inventing one it does not have.
+  That closed **29 previously-recorded holes** in `tests/q7-loader-holes.ts`
+  (mutations of `radius`, `explodeRadius`, `healRadius`, `buffRadius`,
+  `stompRadius`, `coreDamage` and `spawns.contactPadding` that used to load
+  silently) and cost two: `radius` and `contactPadding` can no longer be tuned
+  in isolation, which the Tuner now says out loud instead of bricking the next
+  load.
+
+  **Three things measurement caught that review or reasoning did not.** (1)
+  Reading the authored melee reach in the contact loop *changed the game*:
+  `0.4 + 0.45` is `0.8500000000000001`, so Shellback and Charger moved by one
+  ULP and seed 5 went from a `victory` at 144,299 ticks to a 45-minute timeout.
+  Reverted — the sim still computes the reach, the loader pins the published
+  number to it within 1e-6, and the test measures the real connect distance.
+  The BACKLOG clause "move the melee reach to `/data`" is therefore **not**
+  delivered literally, and that is recorded rather than glossed. (2) The Bomber
+  and the Warlock published their blast and aura as their *attack* range while
+  actually hitting at 0.8 (code review). (3) The Warden-Eater published 5.5 for
+  a slam ring that reaches 6.4, because the authored number was being spent as
+  the ring's lifetime rather than as its reach — and its `attackKind: melee`
+  described a contact attack it never makes (`coreDamage: 0`; its close-range
+  damage is the charge at 2.3 tiles). Both fixed at the cause, both now pinned
+  by growing a real ring and by driving a real charge.
+
+  Verification: `npm run test:fast` at the parent's baseline, `npx tsc --noEmit`
+  and `npm run build` clean, the excluded boss suite green, and a report-field
+  control pair over 14 configs (8 seeds x 5 policies x 6 classes x T1-T5) that
+  is **bit-identical** to the parent on every field including `damageByWeapon`
+  to full float precision — only `endHash` moves, which any `/data` edit must
+  do. QUESTIONS **Q183** carries the design choices.
+
+- **2026-09-05 — BACKLOG fb154 (owner order, top priority): VS waves spawn from
+  the TD gates.** `pickSpawnPoint(w, key?)` (act2.ts) routes every non-flying VS
+  spawn through a round-robin over `w.gates` — a hashed `World.vsGateCursor`,
+  the same in-tile jitter the TD path uses, `nudgeToOpen`-ed onto walkable
+  ground — with the old edge ring (now `edgeSpawnPoint`) kept for fliers, per the
+  owner's own designer note, and as the fallback. Elites, rift bursts, the
+  leak-coupled surge and the final boss all go through it; the practice-mode
+  `dev spawn` command passes its key too, so a flier summoned in VS still enters
+  from the edge.
+
+  **Both subagents found real defects and the two biggest were the same one.**
+  code-reviewer measured G1's live win-rate clause (`p10d-run-length`, T3, 24
+  seeds — fast-tier-excluded, so `test:fast` cannot see it) going green -> red at
+  6/21 = 28.6%, and separately found that the gate path had dropped
+  `spawns.spawnDistance` — which qa-playtester then measured at its worst: with
+  the Warden standing on a gate, **60 of 217 spawns landed inside contact range,
+  the closest at 0.048 tiles, the Warden-Eater at 0.204, and the Warden died at
+  tick 217**. Adding the distance rule (prefer a gate that clears
+  `min(spawnDistance, 12)`, fall back only when every gate is close) fixed both:
+  G1 re-measures **9/24 wins, 40.9% of resolved seeds, mean 38.11 min** — inside
+  its band and level with the pre-fb154 baseline. It costs something the order
+  did not anticipate and QUESTIONS **Q182** now records: "all gates active" is
+  conditional on where the player stands (all three gates live from 19.4% of the
+  map's tiles), so the suite pins a 15%-per-gate floor over a walked circuit
+  rather than an even split.
+
+  **The balance re-record the item asks for**, seeds 1-12 against the parent:
+  mean run **120,988 -> 137,073 ticks (+13.3%), 10 of 12 longer**, kills +17%,
+  leaks -14%, censored seeds **1/12 -> 5/12**, hybrid sweep median 36.6 -> 40.1
+  min, per-tick cost +41%. Written into BALANCE.md; not tuned back (P10 is the
+  one balance pass, and the order says re-record). qa-playtester's independent
+  sweep: 7,200 director picks over 300 real-terrain seeds, **0 off a gate tile**;
+  in a live run 26% of *bodies* sit exactly on a gate tile and 99.94% within 2
+  tiles, the spread being pack scatter, with the >2.5 tail traced to splitling
+  death-splits rather than the director. Determinism held at every tick over
+  40,000 ticks and through a replay.
+
+  Also in this commit, and **not** fb154's work: `tests/boss.test.ts:122`'s tier
+  assertion was left red by fb153a (it scaled line 114 and missed 122; the file
+  is fast-tier-excluded, so nothing caught it). Fixed here rather than left red,
+  and named rather than buried — qa-playtester filed it as a process finding.
+  Two more of its findings became items: **fb165** (A10's perf fixture no longer
+  resembles the shape the game produces — gate-clustered hordes cost 6x the
+  scattered fixture) and the still-untested practice `dev spawn` flier path,
+  which is now covered by this item's own suite.
+
+- **2026-09-05 — BACKLOG fb153a (owner order, top priority): every HP and damage
+  number in `/data` is divided by one authored factor.** `data/modifiers.json`
+  gains `numberScale` (shipped **0.1** ⚖, optional, `1.0` identity, bounded
+  `[1e-4, 1e4]`), applied by `applyNumberScale` to the *parsed* content at load
+  — the shape `baseHpMul`'s own header argues for, and the only shape that
+  leaves SPEC-FINAL §4/§5/§7/§9's stated figures true of `/data`, which four
+  ledger files exist to enforce. `Content.raw` still carries the authored
+  documents, so `contentHash` hashes what is on disk and a replay against an
+  edited factor fails loudly. `STAT_SCALED` (statkeys.ts) is the exhaustive
+  `Record<StatKey, boolean>` half for `/data`-authored stat records;
+  `tests/helpers.ts` gains `scaled()` so the suite states magnitudes in authored
+  units and the factor stays a real ⚖ tunable instead of a suite-wide rewrite.
+
+  **Proportionality, measured with a control pair** (`npm run sim -- --seed N
+  --policy hybrid`, scale 1.0 vs 0.1): seeds 1 and 9 are **identical** in
+  outcome, waves cleared, VS waves, kills and leaks; seed 3 differs by 35 of
+  42,220 ticks (float re-association) and matches on everything else;
+  `damageTotal` is exactly /10 on all three. Getting there required finding the
+  asymmetries: three `Math.max(1, ...)` magnitude floors and four `boss.ts`
+  damage literals were rule-4 debt that did not scale — `attackStructure`'s
+  floor alone flattened the tier ladder's structure rung to exactly 1.0.
+
+  **The completeness risk is the item**, so it is closed by a census rather than
+  greps: `tests/fb153a-number-scale.test.ts` walks every numeric leaf of every
+  `/data` file, compares loaded against authored, and demands a classification
+  for any field whose name reads like an HP/damage/heal/attack quantity. It
+  found `healRate`, `devourCoreHeal`, `healPerEnemy` and `heartstoneHeal` after
+  two rounds of name greps had missed all four.
+
+  **code-reviewer returned 2 Critical and 6 Major; all are fixed.** `BASE.heartstoneHeal`
+  (weapons.ts) read the shared pre-scale parse, leaving a 1 HP/s heal on a 10 HP
+  pool — a live 10x buff the item's own field list claimed to cover. The Tuner's
+  editors were seeded from the *parsed* view, so a Save would have written the
+  already-divided numbers back over `/data` and the next load would divide them
+  again; they now read `content.raw.<file>`. Also fixed: the Time core's decay
+  aura and four `??` fallbacks were unscaled code literals; `overhealGoldRatio`
+  converts HP into gold and needed the **inverse** scale, like `breach.perEhp`;
+  `hundred_grand`'s `lifetime_damage` quest target would have become a 10x
+  longer grind; and the census's own risky-name guard matched 2 of the 19 names
+  it was written for until it was re-tokenised on camelCase boundaries.
+
+  **What it does not deliver, measured and filed rather than claimed.** The
+  order's "typical early hits are single digits" clause is **not** met: at 0.1
+  the on-screen distribution is median 60 in minutes 0-3 and 88 past minute 20
+  (p90 110-844, max 1205), so mid/late hits are double digits and early ones are
+  not — because median hit size is nearly flat across a run rather than growing.
+  No single factor can meet both clauses: `/data` carries two economies (enemy
+  HP and damage dealt to enemies, versus enemy output, Core/character HP and
+  equipment flats), and /100 — which would put typical hits at 6-9 — takes the
+  character pool to 1 HP and equipment to +0.01. Filed as **fb163** for an owner
+  verdict, with the five lifesteal/tithe/wrath/store/vampire crossing points
+  named. The authored *prose* is also now a factor off what the sim runs on
+  ("+15 Max HP" granting 1.5) — the owner's own "re-anchored as data" clause,
+  unimplemented by the one-knob shape and filed as **fb164** with
+  `tests/class-descriptions.test.ts`'s narrowed guarantee stated in the file
+  itself. The renderer's `>= 1` thresholds were fixed here rather than filed:
+  they hid every flat-DoT number and rendered a chilled husk's hit as `-0`.
+
+  **qa-playtester ran 130 control pairs and found one material break; it is
+  fixed.** 122 were clean (12 classes x 2 seeds, 10 policies, tiers 1/3/5 x 12
+  seeds, seeds 1-20, four Cores); the 8 that were not were all Vampire Heart,
+  because `overhealGoldRatio` had been scaled in the wrong *direction* — it is a
+  divisor (`gold += excess / ratio`) where `breach.perEhp` is a factor, so it
+  takes `k`, not `1/k`. It paid 100x less gold and flipped seed 2 from victory
+  to `defeat_core` and seed 17 into a timeout. QA also proved the two tests that
+  should have caught it were tautological: both read the divisor back out of the
+  *loaded* content, so they asserted `implementation === implementation` at any
+  scale. Also fixed from that round: `world.ts`'s `coreMaxHp` kept an unscaled
+  `Math.max(1, ...)` floor (the fourth of its kind, found by sweeping the knob
+  across its legal range rather than testing the shipped value); the Codex
+  showed loaded numbers under a column named `authoredHp` and disagreed with
+  its own Tuner editor one click away; two suite tests fed loaded views back
+  through `ContentOverrides` and so ran doubly-scaled worlds; and a save's
+  banked `lifetime_damage` was in pre-rescale units with no migration, which
+  unlocked the Corpse Core off a zero-damage run (`SAVE_VERSION` 5). QA's
+  observation that a **typo** in the key (`numberScal3`) silently ships the
+  pre-rescale game at the 1.0 identity is logged as **Q181**.
+
+  Verification: `npm run test:fast` at the parent commit's own baseline (the
+  `q41`/`q45`/`q15`/`b028` scratch-dir family, controlled), the census and both
+  new cross-scale control cases green (the gold one verified to fail against the
+  inverted constant), and a re-run control pair over **five Cores x three
+  seeds**: 13 identical to the tick, 2 within float noise (same outcome, same
+  waves, ticks 0.02%/0.16% apart, damage ratio 0.0997/0.1005). QUESTIONS
+  **Q180** carries the design choices and the readability measurement.
+
+- **2026-09-05 — BACKLOG fb152 (owner order, [bug], top of queue): DoTs tick on
+  a bounded cadence instead of every sim frame.** `data/damagetypes.json` gains
+  `dotTickInterval: 0.25` (optional-with-default, plus a loader rule refusing a
+  cadence that does not fit inside every dot row's own duration); each DoT
+  instance banks `accTime`/`accDamage`/`accScaled`/`accSource` per frame and
+  pays once per interval, flushing early only when the stack ends so the last
+  partial interval is clipped and paid rather than dropped. Both loops moved —
+  `tickDots` (enemies) and `tickWardenDots` (Time Lord's converted damage, the
+  owner's own example) — and every tick-driven effect moved with them: armor
+  shred, Burning's neighbour splash, the Bleeding Ring's lifesteal. Totals are
+  exact per stack, and `dotOutstanding` counts the unpaid bank so Spreading
+  Plague's C10 transfer conserves it. `tests/fb152-dot-tick-cadence.test.ts`
+  (13 tests) landed **failing first** (240 ticks over 4 s, wanted <= 16) and
+  pins the cadence, the totals, a mid-window refresh, a mid-bank death, the
+  splash's total, the eviction loss, a Frozen window, an i-frame window and
+  the lifesteal path.
+
+  **Both subagents found real defects and both are fixed, not argued with.**
+  code-reviewer (Major): the neighbour splash's bank was thrown away whenever
+  the tick killed its carrier — one frame's worth before this item, a whole
+  interval after it, on the *common* case of a burn finishing its carrier
+  (measured 55 of 60, and 20 of 25). qa-playtester (Major x2): the three
+  time-varying multipliers on the DoT path (`kitPowerMul`, Frozen's +30%, the
+  final-boss ramp) were priced once at the flush instead of per frame, so a
+  Frozen window inside an interval vanished (40.70 -> 40.00) or billed the
+  whole interval; and the Warden's i-frame window erased either nothing or a
+  whole 0.25 s of converted DoT, including damage accrued before the dash
+  began. Both are now priced frame by frame (`dotVaryingMul` + a second
+  `accScaled` bank; `wardenDamageBlocked` + `preGated`). Minor findings fixed
+  too: the bank is attributed to the source that accrued it (`accSource`, so a
+  refresh cannot hand one weapon's damage to another in A5's share), the
+  loader rule is `>=` not `>`, one shared `DOT_TICK_EPS`, `SplashAccum.dps`
+  renamed to `damage`. Two findings became follow-up items rather than scope
+  creep: **fb161** (four per-frame `dot: true` *zone* sources, one of which
+  still emits a damage number every frame at the Warden) and **fb162** (a DoT
+  kill books its whole banked lump into the damage ledger, so overkill is
+  over-reported ~15x — which also retracts this item's first "poison damage is
+  up 22%, so nothing weakened" reading; the instrument is inflated by the
+  change, see Q179).
+
+  **What it costs, measured and recorded rather than tuned away** (no balance
+  tuning outside P10): DoT-only kills land up to one interval late and never
+  early (kill frame 6 -> 14 at 1 hp, 119 -> 134 at 20 hp). `tests/boss.test.ts`'s
+  single-seed victory pin flipped on seed 1 (`defeat_core`, 146 leaks) and is
+  re-pinned as a four-seed mechanism check — 4 of 6 sampled seeds still win
+  with a boss kill, so the mechanism is intact and only that trajectory moved.
+  `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak is `.skip`-ed with its
+  numbers: at a 120-minute cap it is `running` in the boss fight with
+  `warden_eater` at 1.10M of 7.30M hp — **p12e's censored-run defect**, not a
+  stranding regression (that file's other 18 tests cover the stranding
+  machinery and are green). Both re-enable at p12e, which now names them.
+  Verification: targeted suites green, `npm run test:fast` 3650 passed / 3
+  failed, the three being the `q41`/`q45`/`b028` scratch-dir family that fails
+  identically on the parent commit (controlled in a stash this session);
+  `tests/boss.test.ts` run in full because it is fast-tier-excluded and is the
+  repo's only live boss-victory coverage.
+
+- **2026-09-05 (branch `claude/backlog-processing-30e66t`): owner feedback
+  round "cloud round 1" (8 files, commit `f74f156`) processed and routed.**
+  Ids `fb152`-`fb160`, no verdict blocks in this round. Main lane
+  (BACKLOG.md, new section at the very top of the Queue): `fb152` DoT tick
+  cadence cap (a [bug], so above everything per working rule 3), `fb153` the
+  owner's damage/HP rescale order split into `fb153a` (global /10 ⚖ rescale of
+  every damage and HP row) and `fb153b` (grid 36x20 -> 56x32 with a
+  character-following camera), `fb154` VS waves spawning from the TD gates, and
+  `fb155` the `/data` half of the enemy attack-kind/range order. Lanes:
+  `fb156` (4 spawn gates) to BACKLOG-TERRAIN.md with a Log entry naming its
+  three out-of-lane consumers; `fb157` (compact in-run character panel, top),
+  `fb158` (enemy attack indicators, blocked on `fb155`), `fb159` (damage-number
+  font scaling) and `fb160` (DPS panel segmented bars) to BACKLOG-UI.md. The
+  eight files moved to `feedback/processed/`. **Standing consequence for the
+  p12 arc:** `fb153a` re-scales every number any balance gate measures, so
+  p12d/p12f/p12h measure after it, not before — a pre-rescale reading cannot be
+  inherited across it without a control run.
 - **2026-09-05 (lane `lane/terrain`): `fb065g` closed — terrain's contribution
   to the balance gates is measured, and it is large.** 24 seeds, T1, engineer,
   `practice: true` as the flat-arena control: `hybrid` **18/24 flat against
@@ -148,6 +586,152 @@
   `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
   `q45`, the same three the merge entry below records as failing identically on
   `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+- **2026-09-05/06 session (lane `lane/content`, branch
+  `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
+  `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
+  rule ran mid-session with two actionable items left and appended
+  `c028`/`c027`/`c031`/`c029`/`c030`; `c029` is the one of those five still
+  open, and the five owner items (`fb056`, `fb057`, `fb059`, `fb061`, `fb062`)
+  remain blocked out of Scope on the same paths as before.
+
+  **The through-line, for whoever picks this up.** Four of the six are one
+  idea: this lane's two spec ledgers audit *numbers*, and a row can carry the
+  right number on the wrong stat — which `c013` and `c024` had each found by
+  hand, one class apart, with no barrier between them. `c022` built the
+  behavioural pointer for §7, `c028` extracted it once `c027` needed it, `c027`
+  adapted it to §4 (where covers observe through signal helpers, not through
+  `w.derived.<stat>`), and `c031` closed the last unwatched `/data`-to-`/src`
+  contract before `fb056` adds fifteen items to it. Every device in them is a
+  mutation that got past an earlier draft; the mutation is the regression test
+  in each case, and BACKLOG-CONTENT.md's Log lists them per item.
+
+  No `/src` or `/data` byte moved in any of the six. `npm run test:fast` ends
+  the session at 3690 passed / 3 failed — `b028`, `q41`, `q45`, which fail
+  identically on a clean checkout of this branch's base (controlled in a stash
+  at the start of the session).
+
+  Items closed are listed below as they landed; BACKLOG-CONTENT.md's Log
+  carries the detail for each.
+
+  `c022`: every one of the 13 §7 Effect rows in
+  `tests/equip-spec-numbers.test.ts` now carries a **behavioural pointer** —
+  an anchored `describe`/`it` whose body reads that row's own stat key — so a
+  row can no longer audit the right number on a stat §7 never mentions. The
+  mutation QA measured on c012 (`normal_necklace`'s `-0.2` moved from
+  `towerCost` to `goldFind` in `/data` *and* in the ledger row) is red, as is
+  deleting a covering block. Seven of the thirteen stats had no cover anywhere
+  that named them — `hpRegen`, `xpGain`, `towerCost`, `leech`'s magnitude,
+  `bleedLifesteal`, `towerAtkFlat` and Swordsman Armor's `classFallback` — and
+  those covers are new, in this lane's `tests/equip-effect-behaviour.test.ts`
+  (`tests/fb015-equipment.test.ts` is out of Scope). No `/src` or `/data` byte
+  moved.
+
+  `c025`: `tests/class-kit-whiff.test.ts` is the eighth and last §4 file to
+  move onto the shared probed board, which needed `tests/class-board.ts` to
+  probe and export the **Ice Wall column** (three buildable, non-sealing tiles
+  two east) on its own rung of the degradation ladder — forcing the column
+  impossible fails that one file, on its four column rows, with the other eight
+  importers green. Its p6d agreement is now an **offset** parsed out of p6d's
+  own occupancy test rather than the absolute `[12, 10]` that stopped being
+  this file's tile when terrain moved the board to `10,6`. QA failed the first
+  parser: it was reading a neighbouring `castWall()` helper, so re-aiming the
+  row it claims to co-state left the file green, and it threw at module scope,
+  which vitest reports as `Tests no tests`. New `tests/class-p6d-agreement.ts`
+  plus 4 synthetic-source tests. Also generated five items (`c027`-`c031`) per
+  the generation rule, with a fresh sweep behind them: **maxbuild and hybrid
+  both win 0.17 over 12 seeds**, against STATUS.md's stale policy table of 1.
+
+  `c028`: c022's behavioural-pointer device — the block reader, the `reads`
+  default, the decoy derivation and the five pointer rules — is extracted to
+  `tests/equip-spec-ledger.ts` with its synthetic-source self-tests, ahead of
+  `c027` needing the same device on the §4 ledger. Ten mutations red, including
+  three new ones: a `describe.skip` on the device's own self-tests, a hand-copy
+  in `tests/helpers/`, and a hand-copy renamed `readBlock`. The `equip-` prefix
+  is the Scope's, not the module's — the rename to `tests/spec-ledger.ts` is
+  logged for the main lane.
+
+  `c027`: the §4 ledger's 16 stat-key rows now carry behavioural pointers of
+  their own — bound to the row's authored path, to the liveness `KILLS` entry
+  that deletes that exact path, and to a block that *asserts* the signal that
+  kill measures. It is the class-side answer to the hole `c013` and `c024` each
+  found by hand: a figure that is right, on a key whose reach is wider than
+  §4's sentence. Review and QA found three Majors, all of them gaps between
+  what the device claimed and what it checked — the class binding was missing
+  (Engineer's and Paladin's `towerHp` pointers were swappable), the
+  compensating control for the alternation was a strict tautology, and the
+  Time Lord divergence was a silent `{ kind: 'match' }` row. All closed, with
+  the mutation that found each as its regression test.
+
+  `c031`: the real contract between `data/equipment.json` and `/src` for §7's
+  three non-stat mechanics is eight `hasEquipment(w, '<key>')` literals that no
+  test enumerated — so renaming an item key in `/data` turned its mechanic off
+  silently, and `fb056` adds fifteen items to that file.
+  `tests/equip-hasequipment-roster.test.ts` scans `/src`, holds the roster to
+  §7's own Effect clauses, and checks every literal names a key `/data`
+  authors. Code review found the scan blind over 362 lines of `src/ui/hub.ts`
+  — `blankNonCode` has no regex-literal state and one `.replace(/'/g, …)`
+  desyncs it — which is closed with a raw-text cross-check and recorded as a
+  known limitation of the shared helper, with a self-test.
+
+  `c030`: this lane's two recorded class measurements were both taken before
+  master's terrain epic and its T1 re-anchor, and both had expired.
+  Re-measured at T1: **Time Lord 12/12 -> 11/12** (this class's first
+  `defeat_core` and its first two close wins), and the 144-run kit-share sweep
+  from "12/12 win for eleven classes, 2/12 distinct top damage sources" to
+  **five classes inside G8's literal 35-70% band and 1/12 distinct** — the
+  diversity clause got worse, because `mortar` is now every class's top source
+  where `ballista`/`mortar` used to split the roster. **At least six**
+  balance-affecting changes landed between the readings — `p12c`'s
+  `baseHpMul: 20` is the likeliest cause of the win-rate movement, not terrain
+  — so nothing is attributed; the tables are a baseline. Both readings are T1
+  while `p6e` moved to `GATE_TIER` = 3, which is part of what the main-lane
+  re-read has to settle.
+- **2026-09-05 (lane `lane/ui`): six items closed — `fb144`, `fb145`, `fb146`,
+  `fb147`, `fb148`, `fb149`.** Worked in queue order; `fb085`/`fb093`/`fb097`
+  were re-confirmed still permanently out of this lane's hard Scope
+  (`data/strings.json`, `tools/ui-audit.ts`, a `package.json` dependency) and
+  skipped with a logged reason, as in every prior session.
+
+  `fb144` seeds `reducedMotion` from the OS `prefers-reduced-motion` query on a
+  first run only, with `defaultSettings()` left pure so `q3-save-fuzz` and
+  fb111's portability audit keep a deterministic baseline. `fb145` adds a
+  `visibilitychange` auto-pause beside fb071's `blur` one, closing the doors
+  (backgrounded tab, minimized window, mobile app switch) that do not reliably
+  blur. `fb146` gives the `dashWidth` half-width defect a standing two-layer
+  guard after it shipped three times. `fb147` makes `SAVE_KEY` a live cache of
+  the active slot rather than the sole home of its data. `fb148` makes the
+  in-run dash sentences read the range the sim really dashes. `fb149` names the
+  pierce/AoE damage drop-off the line and blast sentences were hiding.
+
+  **Two things this session establishes that outlive its items.**
+  1. **Two of the six items' filed measurements were wrong**, and both were
+     caught only because they were re-measured before being implemented rather
+     than inherited. fb148 was filed as "the real dash is 10" — it is 20,
+     because the item's quote of `fireDashSlash` drops fb053's move-speed
+     scaling. fb149 was filed with a damage profile starting at 30 — Dash Slash
+     deals 90, and the eighth enemy in its own repro cannot be struck at all
+     because the line is 5 tiles long. Both items also named sentences that
+     turned out to be unaffected and missed ones that were. CLAUDE.md's
+     measurement rule ("a deferral is a measurement with an expiry date") is
+     doing real work; the corrected figures are in each item's DONE note.
+  2. **A code review changed one item's whole mechanism.** fb147 first patched
+     `Storage.prototype` to intercept `meta.ts`'s own `saveMeta` (which this
+     lane may not edit); review rejected it with three Majors — one of them
+     that the install's idempotence was ALREADY silently broken by
+     `tests/ui-fb087-persist-disabled-toast.test.ts` restoring
+     `Storage.prototype.setItem` in its own `afterEach` — and the acceptance's
+     "or its callers" clause allowed a wrapper at the three `main.ts` save
+     sites instead, with a source rule making "on every save" a property of the
+     codebase rather than of three call sites.
+
+  Ten follow-ups filed rather than folded in (`fb152`-`fb159`, plus two
+  regressions caught by QA and fixed inside their own items rather than filed).
+  `npm run test:fast` after each item: 3734 passed / 3 failed at the end, the
+  failures being `q15`/`b028`/`q41`/`q45` — all tools/CLI-subprocess suites in
+  the documented pre-existing flake classes, which QA reproduced standalone on
+  a clean clone of HEAD. `npx tsc --noEmit` clean; `npm run sim -- --seed 1
+  --policy hybrid` byte-identical to a HEAD control (`endHash 952d7be8`), as
+  UI-only work must be.
 
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
@@ -11768,6 +12352,29 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
+  cycles 3 resolves instead of hanging forever" is `.skip`-ed, re-enable point
+  p12e.** The DoT cadence cap re-times every tick and so re-rolls this seed's
+  trajectory; the new one is **censored, not stranded**. Measured post-fix at a
+  120-minute cap: `running`, `act2`, cycle 3, 500 alive at the `aliveCap`,
+  `warden_eater` at **1,103,859 of 7,300,000 hp** — the run is progressing and
+  losing to the boss clock, which is p12e's diagnosed defect (QUESTIONS Q177:
+  `baseHpMul: 20` takes the final boss to 7.3M with no fight-length ceiling).
+  It resolved inside the 45-minute cap on the parent commit (controlled). The
+  file's other 18 tests cover `updateGroundUnreachable` and the gate/route
+  machinery directly and are green, so the stranding mechanism this case was
+  written for is still covered. Re-measure at p12e rather than inheriting this
+  note.
+- **fb152: DoT-only kills land up to one interval (0.25 s) late, by design of
+  the owner's order — a directional balance effect, not a defect.** Measured
+  kill frames (10 dps Bleeding): 1 hp 6 -> 14, 10 hp 60 -> 74, 20 hp 119 -> 134,
+  39 hp 234 -> 239; never earlier. Downstream on `tools/sim.ts --policy hybrid`,
+  leaks rose on all three sampled seeds (1: 103 -> 106, 3: 153 -> 178, 9: 11 ->
+  55) — three seeds is a sample, but the kill-frame table is a controlled
+  measurement of the mechanism. `tests/boss.test.ts`'s single-seed victory pin
+  flipped on seed 1 because of it and is now a four-seed mechanism check (4 of
+  6 sampled seeds still win with a boss kill). Pricing this belongs to P10/p12,
+  not to a [bug] item.
 - **p12c: G13's solo-viability clause (`tests/a4-single-type.test.ts`) is
   `.skip`-ed, re-enable point p12d — and it was already largely red before
   p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at

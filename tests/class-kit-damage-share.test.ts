@@ -21,9 +21,80 @@
  *   KIT_SHARE_MEASURE=1 npx vitest run tests/class-kit-damage-share.test.ts
  *   KIT_SHARE_MEASURE=1 KIT_SHARE_CLASSES=swordsman KIT_SHARE_SEEDS=2 npx vitest run ...
  *
- * -- RECORDED (2026-09-03, session 2, `KIT_SHARE_MEASURE=1`, 12 classes x
- * seeds 1-12 = 144 full T1 runs, 36 min wall clock, against commit `80538e9`
- * = c001) --
+ * -- RECORDED (2026-09-06, `c030`, `KIT_SHARE_MEASURE=1`, 12 classes x seeds
+ * 1-12 = 144 full **T1** runs, ~140 min wall clock, on this branch's HEAD --
+ *
+ *   swordsman      win  4/12  ownShare  1.85%  vsKit  2.13%  top: mortar  (kit top: Dash Slash)
+ *   plaguebringer  win  4/12  ownShare 13.40%  vsKit 17.85%  top: mortar  (kit top: spreading_plague)
+ *   engineer       win 10/12  ownShare  0.49%  vsKit  0.48%  top: mortar  (kit top: Pop Turret)
+ *   pyromancer     win  5/12  ownShare 12.56%  vsKit 16.86%  top: mortar  (kit top: Immolation Wave)
+ *   archer         win  6/12  ownShare  0.37%  vsKit  0.37%  top: mortar  (kit top: Deadeye Draw)
+ *   necromancer    win  5/12  ownShare  0.49%  vsKit  0.45%  top: mortar  (kit top: Raise)
+ *   cryomancer     win  9/12  ownShare  3.13%  vsKit  4.31%  top: mortar  (kit top: Glaciate)
+ *   stormcaller    win  7/12  ownShare  2.61%  vsKit  3.31%  top: mortar  (kit top: Chain Surge)
+ *   bloodlord      win  2/12  ownShare  0.02%  vsKit  0.00%  top: mortar  (kit top: Bloodlord basic attack)
+ *   animist        win  4/12  ownShare  0.76%  vsKit  0.10%  top: mortar  (kit top: Manifest)
+ *   paladin        win  5/12  ownShare  0.77%  vsKit  0.97%  top: mortar  (kit top: Judgement)
+ *   time_lord      win 11/12  ownShare 10.51%  vsKit  9.71%  top: mortar  (kit top: Time)
+ *
+ *   distinct top sources: **1/12** -> [mortar]
+ *   classes at/over the 35% VS kit-share target: **0/12**
+ *
+ * **Three things moved, and one of them is the opposite of progress.**
+ *
+ * **Measured at T1, and G8's reference tier is now T3.** `tests/helpers.ts`'s
+ * `GATE_TIER` is **3** since `p12b`, and `p6e` — the gate itself — runs there;
+ * this file still measures T1, deliberately, since that is what its recorded
+ * history is. `p12c` sets T1's own win-rate band at `[55%,90%]` with >=25%
+ * close-win (BACKLOG p12c), which is *not* G8's 35-70%. Read every figure
+ * below as a T1 figure, and the band comparisons in (b) as comparisons to
+ * G8's literal text rather than to the band that governs T1 today.
+ *
+ * a. **The diversity count went 2/12 -> 1/12.** `ballista` is no longer any
+ *    class's top source and `mortar` is every class's. G8 asks for >=9 of 12
+ *    distinct; the reading is now the worst it can be. Own-kit share rose
+ *    across the board (plaguebringer 6.40% -> 13.40%, pyromancer 0.08% ->
+ *    12.56%, time_lord 2.45% -> 10.51%) and *still* nothing clears
+ *    `MATERIALITY_SHARE`'s 20%, so every class falls through to the tower key
+ *    — and the tower key is now unanimous where it used to be split.
+ * b. **The win column is no longer uniform, and five classes are inside G8's
+ *    35-70% band on this harness**: pyromancer 41.7%, archer 50.0%,
+ *    necromancer 41.7%, stormcaller 58.3%, paladin 41.7%. Three sit just
+ *    under it (swordsman/plaguebringer/animist at 33.3%), bloodlord is at
+ *    16.7%, and engineer/cryomancer/time_lord are over at 83.3/75.0/91.7. The
+ *    2026-09-03 reading was 12/12 for eleven classes and 11/12 for one.
+ * c. **Point 2 of the old note is no longer true of the roster.** c002's
+ *    acceptance clause ("no class leaves the 35-70% band it is already in")
+ *    was flagged as false-on-its-face because *no* class was in that band.
+ *    Five now are, so the clause has become meaningful — and a tune written
+ *    against the old note would be aiming at the wrong target.
+ *
+ * d. **The VS kit-share column moved most of all, and is still 0/12.** Best
+ *    is now plaguebringer **17.85%** and pyromancer 16.86%, against the p12a
+ *    block's "best is `time_lord` at 5.16%" below — but that block is seeds
+ *    1-2 and this is seeds 1-12, so it is a better sample of the same metric,
+ *    not a like-for-like control. **No class reaches p12a's 35% target**, so
+ *    its conclusion holds and its arithmetic ("another ~10x from 5.16%",
+ *    "eight classes under 0.6%") is superseded: ~2x from 17.85%, and five
+ *    under 0.6%.
+ *
+ * **What this measurement does NOT say.** **At least six** balance-affecting
+ * changes landed between the readings, not the two an earlier draft of this
+ * note claimed: `p12a` (the kit re-anchor), **`p12c`'s `data/enemies.json`
+ * `baseHpMul: 20`** — a roster-wide T1 enemy-HP multiplier whose whole purpose
+ * was to end the all-landslide roster, and so the first candidate for (b) —
+ * plus `fb076`, `fb099`, `fb054` and `fb077` (terrain). (`p12b` is inert at
+ * T1: its scaling is `x^(tier-1)`. `p12d` and `p12e` have **not** landed.)
+ * This run varies all of them at once. CLAUDE.md's measurement rules are
+ * explicit that "my change improved X" needs the control run: nothing here
+ * attributes any of a/b/c/d to any cause, and the table above is a **baseline
+ * on the current tree**, not a mechanism. Separating them means re-running
+ * against a tree with one side backed out, which is main-lane (`p10r`/`p12d`)
+ * and is logged.
+ *
+ * -- SUPERSEDED (2026-09-03, session 2, same command, 36 min wall clock,
+ * against commit `80538e9` = c001, on the flat arena and before the
+ * re-anchor) --
  *
  *   swordsman      win 12/12  ownShare 0.07%  top: ballista  (kit top: Dash Slash)
  *   plaguebringer  win 12/12  ownShare 6.40%  top: ballista  (kit top: spreading_plague)
@@ -40,11 +111,16 @@
  *
  *   distinct top sources: **2/12** -> [ballista, mortar]
  *
- * This is the **control half** of c002's required control-run pair. Three
- * things in it are worth stating rather than leaving for the next reader to
- * rediscover:
+ * That reading was the **control half** of c002's required control-run pair,
+ * and `c030` re-measured it rather than inheriting it — CLAUDE.md: "a deferral
+ * is a measurement with an expiry date". It had expired. The three notes below
+ * were written about it and are kept for their reasoning, but **only point 3
+ * still holds in substance**: point 1's "the count is 2/12 either way" is now
+ * 1/12, and point 2's "no class is in that band" is now five of twelve. Both
+ * are superseded by the block above.
  *
- * 1. **The gate reading is unmoved but the second key is not the one
+ * 1. **(Superseded 2026-09-06: the count is 1/12 now, not 2/12.)** The gate
+ *    reading is unmoved but the second key is not the one
  *    STATUS.md names.** STATUS.md records the pair as
  *    `ballista`/`spreading_plague`; this run gives `ballista`/`mortar`.
  *    Plaguebringer's kit *is* still its own top source (`spreading_plague`,
@@ -52,8 +128,9 @@
  *    (20%, Q121), so the metric falls through to the tower key. The count —
  *    the thing G8 actually asserts — is 2/12 either way.
  *
- * 2. **c002's acceptance clause "no class leaves the 35-70% band it is
- *    already in" is false on its face: no class is in that band.** Win rate
+ * 2. **(Superseded 2026-09-06: five of twelve are in it now.)** c002's
+ *    acceptance clause "no class leaves the 35-70% band it is already in" is
+ *    false on its face: no class is in that band.** Win rate
  *    is 12/12 for eleven classes and 11/12 for the Animist — the same
  *    over-ceiling G8 failure STATUS.md describes, not an under-floor one. A
  *    tune written to "keep" a band nothing occupies would be measuring
@@ -115,6 +192,8 @@
  * non-kit VS sources the old rule swept in (`warden_eater`, plus the Core
  * effects a damaging Core would add) are below this table's precision.)
  *
+ * **(Arithmetic superseded 2026-09-06 — see (d) above: the best is now
+ * plaguebringer at 17.85% over 12 seeds, and it is still 0/12 at the target.)**
  * **0 of 12 classes reach the 35% target; the best is `time_lord` at 5.16%.**
  * The re-anchor is doing real work where it applies — `time_lord` x3.1,
  * `stormcaller` x2.7, `necromancer` x3.0, `archer` x3.3, `cryomancer` x9 off

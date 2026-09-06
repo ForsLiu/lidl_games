@@ -17,7 +17,7 @@ import { buildTerrainEffects, updateTerrainEffects } from '../src/sim/weapons';
 import { updateVsSpecials } from '../src/sim/vsspecials';
 import { wieldedAttacks } from '../src/sim/vswield';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const content = loadContent();
 const ARROW = content.towerByKey.get('arrow_spire')!;
@@ -161,7 +161,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
     damageEnemy(w, victim, 100, 'test');
     expect(victim.dead).toBe(true);
-    expect(bystander.hp).toBeCloseTo(1e6 - 5, 6);
+    expect(bystander.hp).toBeCloseTo(1e6 - scaled(5), 6);
   });
 
   it('no brazier built: a Burning enemy dying triggers no explosion', () => {
@@ -198,8 +198,10 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     for (let row = 0; row < SIDE; row++) {
       for (let col = 0; col < SIDE; col++) {
         const e = spawnEnemy(w, 'husk', 1 + col * 0.4, 1 + row * 0.4)!;
-        e.hp = 1;
-        e.maxHp = 1;
+        // fb153a: an HP pool the (now scaled) explosion can still clear, so the
+        // cascade is exercised rather than fizzling on the first hop.
+        e.hp = scaled(1);
+        e.maxHp = scaled(1);
         e.speed = 0;
         applyBurn(w, e, 1, 3, 'test');
         enemies.push(e);

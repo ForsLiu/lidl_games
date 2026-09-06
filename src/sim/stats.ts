@@ -345,9 +345,21 @@ function safeScale(base: number, factor: number): number {
 
 export function derive(content: Content, s: Stats, residualScale = 1): Derived {
   const armor = BASE.armor + s.total('armor');
+  // fb153a: the two HP-denominated warden bases come from *this* Content, not
+  // from the module-level `BASE`, because `numberScale` divides them and a
+  // Content may be built with a different scale (the Tuner, and this item's own
+  // control tests). Everything else here is a cap, a speed or a radius, on an
+  // axis the rescale does not touch.
+  const base = content.warden;
   return {
-    maxHp: Math.max(1, safeScale(BASE.maxHp + s.total('maxHp'), s.factor('maxHpPct'))),
-    hpRegen: BASE.hpRegen + s.total('hpRegen'),
+    // fb153a: the degenerate-input floor is an HP magnitude and scales with the
+    // pool, so a heavily negative `maxHpPct` cannot floor at a whole
+    // pre-rescale hit point.
+    maxHp: Math.max(
+      content.modifiers.numberScale,
+      safeScale(base.maxHp + s.total('maxHp'), s.factor('maxHpPct')),
+    ),
+    hpRegen: base.hpRegen + s.total('hpRegen'),
     armor,
     moveSpeed: safeScale(BASE.moveSpeed, s.factor('moveSpeedPct')),
     powerMul: s.factor('power'),

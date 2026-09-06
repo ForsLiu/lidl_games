@@ -5,7 +5,7 @@
 
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2 } from './math';
-import { spawnEnemy } from './enemies';
+import { spawnEnemy, TRAIT, traitFlags } from './enemies';
 import { tierBudgetMul } from './tiers';
 import { cycleEliteMul, World } from './world';
 
@@ -56,10 +56,80 @@ function weightsFor(w: World, minute: number): Record<string, number> {
 }
 
 /**
+ * fb154 (owner order `vs-spawn-from-gates`, amending SPEC-FINAL §6): a VS wave's
+ * **ground** enemies arrive through the same spawn gates a TD wave uses, not
+ * from the screen edge — all gates active, round-robin, so the run's terrain
+ * and its gate placement mean something in both halves of the cycle rather than
+ * only in TD. Rift and burst events go through this same function and so use
+ * the gates too, exactly as the order asks.
+ *
+ * **Fliers keep the edge ring**, on the owner's own designer note ("keep fliers
+ * edge-spawning to preserve their bypass role") — a flier that had to walk out
+ * of a gate would be a ground enemy with wings. A veto flips the `flies` branch
+ * and nothing else.
+ *
+ * Falls back to the edge ring whenever the gates cannot serve a spawn (no gate
+ * list, or every gate's neighbourhood blocked), so a degenerate map still
+ * spawns rather than stalling the director.
+ */
+export function pickSpawnPoint(w: World, key?: string): { x: number; y: number } {
+  if (!flies(w, key)) {
+    const gate = gateSpawn(w);
+    if (gate) return gate;
+  }
+  return edgeSpawnPoint(w);
+}
+
+/** Whether the enemy about to spawn bypasses the ground, and so the gates. */
+function flies(w: World, key?: string): boolean {
+  if (!key) return false;
+  const def = w.content.enemyByKey.get(key);
+  return def ? (traitFlags(def) & TRAIT.flying) !== 0 : false;
+}
+
+/**
+ * The next gate in round-robin order, jittered inside its tile the same way the
+ * TD path does (`gateSpawnPoint`, run.ts). The cursor is sim state and is
+ * hashed, so two runs of one seed pick the same gates in the same order.
+ */
+function gateSpawn(w: World): { x: number; y: number } | null {
+  const gates = w.gates;
+  if (gates.length === 0) return null;
+  // `spawns.spawnDistance` is not the edge ring's private rule: it is the "do
+  // not materialise inside the player" guarantee, and the gates have to keep it
+  // (code review, Major 2 — measured with the Warden parked on the west gate,
+  // one ground spawn in three arrived within 0.2 tiles of them, the final boss
+  // included). Two passes over the same round-robin: prefer a gate that clears
+  // the distance, and only fall back to a near one when *every* gate is close,
+  // which keeps a Warden camped between gates from stopping the wave.
+  const minDist = Math.min(w.content.spawns.spawnDistance, 12);
+  for (const requireDistance of [true, false]) {
+    for (let i = 0; i < gates.length; i++) {
+      const gate = gates[((w.vsGateCursor | 0) + i) % gates.length];
+      if (requireDistance && dist2(gate.tx + 0.5, gate.ty + 0.5, w.warden.x, w.warden.y) < minDist * minDist) {
+        continue;
+      }
+      // The jitter is drawn only once a gate is *chosen*, so a gate skipped for
+      // being too close to the Warden costs no draws. A gate whose
+      // neighbourhood then fails `nudgeToOpen` does consume two — deterministic
+      // either way, since occupancy is sim state (qa-playtester).
+      const jitterX = w.rng.spawns.range(-0.25, 0.25);
+      const jitterY = w.rng.spawns.range(-0.25, 0.25);
+      const p = nudgeToOpen(w, gate.tx + 0.5 + jitterX, gate.ty + 0.5 + jitterY);
+      if (p) {
+        w.vsGateCursor = (w.vsGateCursor + i + 1) % gates.length;
+        return p;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * A spawn ring just outside the play area's visible edge. The map is the whole
  * arena, so "off camera" is read as "at the rim, away from the Warden".
  */
-export function pickSpawnPoint(w: World): { x: number; y: number } {
+export function edgeSpawnPoint(w: World): { x: number; y: number } {
   const rng = w.rng.spawns;
   const minDist = Math.min(w.content.spawns.spawnDistance, 12);
   // The rim is the first *walkable* ring: tile 0 is the impassable border.
@@ -229,7 +299,7 @@ function spendBudget(w: World, budget: number): number {
       if (!alt) break;
       key = alt;
     }
-    const p = pickSpawnPoint(w);
+    const p = pickSpawnPoint(w, key);
     spawnEnemy(w, key, p.x, p.y, { hpMul, overlay: true });
     left -= sp.costs[key] ?? 5;
   }
@@ -242,7 +312,7 @@ function spawnElite(w: World): void {
   const keys = Object.keys(weights).sort();
   if (keys.length === 0) return;
   const idx = w.rng.spawns.weightedIndex(keys.map((k) => weights[k]));
-  const p = pickSpawnPoint(w);
+  const p = pickSpawnPoint(w, keys[idx]);
   spawnEnemy(w, keys[idx], p.x, p.y, { hpMul: timeHpScale(w), elite: true, overlay: true });
   w.emit('elite', p.x, p.y, 0, 0);
 }
@@ -263,7 +333,7 @@ export function shouldSpawnBoss(w: World): boolean {
 export function spawnFinalBoss(w: World): void {
   w.bossSpawned = true;
   w.bossSpawnTime = w.act2Time;
-  const p = pickSpawnPoint(w);
+  const p = pickSpawnPoint(w, 'warden_eater');
   // SPEC 5.5 fixes the Warden-Eater at 15,000 HP x the tier multiplier, so it
   // deliberately skips both the Act II overlay and the per-minute HP ramp.
   spawnEnemy(w, 'warden_eater', p.x, p.y, { hpMul: 1, overlay: false });

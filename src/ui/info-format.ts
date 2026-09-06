@@ -61,6 +61,38 @@ export function formatPct(fraction: number): string {
 }
 
 /**
+ * fb149: the two ways the engine cuts damage for later targets, in one place
+ * so a third surface cannot invent a third spelling. `tower-info.ts`'s cone
+ * blurb already carried the blast wording verbatim; that is now this constant.
+ *
+ * `lineHit` (`src/sim/combat.ts`) applies
+ * `scale = max(pierceFalloffFloor, scale * pierceFalloff)` after EVERY strike,
+ * so a line decays from its SECOND target on. `applyAoE` and `updateAreas`
+ * pay `aoeFullTargets` in full first and only then start scaling — which is
+ * why a ground field gets the blast clause, not the line one.
+ *
+ * Deliberately number-free. No single percentage is honest about a `0.82^n`
+ * curve floored at `0.2` that starts after the fifth target, and any number
+ * printed here would need re-verifying against `data/towers.json` on every
+ * balance tune. The acceptance's own disjunction — "either name the drop-off
+ * or stop promising the number" — is satisfied by naming it.
+ */
+export const LINE_FALLOFF_CLAUSE = ' The first enemy struck takes full damage; each one behind it takes less.';
+export const AOE_FALLOFF_CLAUSE = ' The nearest few take full damage; each target past that takes less.';
+/**
+ * fb149: the same rule for a field made of SEVERAL patches, where the blast
+ * clause above would be false as written. qa-playtester measured Flame Road
+ * aimed along a row of eight: 18, 30.1, 32.76, 36, 36, 32.76, 30.1, 27.92
+ * damage/s — the enemy NEAREST the caster takes the least, and four take
+ * double the printed per-patch number because `fireFlameRoad` lays five
+ * 1-tile-radius patches 1.25 tiles apart and `updateAreas` damps each one
+ * independently. There is no single "nearest" when there are five centres, so
+ * the scope has to be said out loud, and the stacking with it.
+ */
+export const PATCH_FALLOFF_CLAUSE =
+  ' Within each patch the nearest few take full damage and each target past that takes less, and overlapping patches stack.';
+
+/**
  * A handful of the most player-facing field names get a nicer label than the
  * generic camelCase split below would produce (`aoe` -> "AoE radius" rather
  * than "Aoe"). Anything not listed here still renders — see `fieldLabel`.
@@ -78,7 +110,14 @@ const FIELD_LABELS: Record<string, string> = {
   knockback: 'Knockback',
   chargeCapSeconds: 'Max charge time',
   dashRange: 'Dash range',
-  dashWidth: 'Dash width',
+  // fb146: `dashWidth` is a HALF-width everywhere the sim reads it — `lineHit`'s
+  // `halfWidth` parameter (`dash_line`, `dash_heal`) and a `GroundArea.radius`
+  // (`dash_trail`) — so the corridor/patch it describes is `2 * dashWidth`
+  // across. The same units slip has shipped twice in `class-info.ts`'s
+  // sentences (fb108, fb112); this label is the generic field-list fallback
+  // behind them and says half-width outright so a reader cannot make it a
+  // third time.
+  dashWidth: 'Dash half-width',
   groundDurationSeconds: 'Ground duration',
   baseHp: 'Base Core HP',
   coreHpBonus: 'Core HP bonus',

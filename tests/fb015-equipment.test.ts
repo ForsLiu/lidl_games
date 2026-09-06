@@ -17,9 +17,10 @@ import { applyCommand, hashWorld, Run, updateWarden } from '../src/sim/run';
 import { buildTower, towerDamage, upgradeTower } from '../src/sim/towers';
 import { wieldedAttacks } from '../src/sim/vswield';
 import type { TickInput } from '../src/sim/types';
+import { STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { characterPanelData } from '../src/ui/character-panel';
-import { cfg, runWithPolicy } from './helpers';
+import { cfg, runWithPolicy, scaled } from './helpers';
 
 const content = loadContent();
 
@@ -88,7 +89,10 @@ describe('p7b: every one of the 12 items\' every mods column reaches Stats as it
       // Also pins that the item authors no column beyond the owner table's.
       expect(Object.keys(item.mods).sort()).toEqual(Object.keys(expectedMods).sort());
       for (const [statKey, value] of Object.entries(expectedMods)) {
-        expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${item.key}`, value]);
+        // fb153a: the owner table is in authored units; `numberScale` divides
+        // the HP/damage-denominated stats at load (`STAT_SCALED`).
+        const live = STAT_SCALED[statKey as StatKey] ? scaled(value) : value;
+        expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${item.key}`, live]);
       }
     }
   });
@@ -120,10 +124,10 @@ describe('p7b: every one of the 12 items\' every mods column reaches Stats as it
 describe('fb015: §2 stacking — an equipped item is one Stats source, flats add, mults multiply', () => {
   it('a plain stat item (greatsword) contributes atkFlat/armor/attackSpeed as its own source', () => {
     const w = worldWith({ equipment: ['greatsword'] });
-    expect(w.stats.contributions('atkFlat')).toContainEqual(['equipment:greatsword', 10]);
+    expect(w.stats.contributions('atkFlat')).toContainEqual(['equipment:greatsword', scaled(10)]);
     expect(w.stats.contributions('armor')).toContainEqual(['equipment:greatsword', 5]);
     expect(w.derived.attackSpeedMul).toBeCloseTo(0.9, 5); // x0.9
-    expect(w.derived.atkFlat).toBe(10);
+    expect(w.derived.atkFlat).toBeCloseTo(scaled(10), 12);
   });
 
   it('two equipped items multiply their attackSpeed factors rather than adding', () => {
@@ -426,7 +430,11 @@ describe('fb015 (§7) Bleeding Ring: lifesteal now also applies to Bleeding dama
     w.rebuildBuckets();
     applyDot(w, e, 'bleeding', 100, 5); // large dps so the heal is unmissable
     expect(w.warden.leechAccumulator).toBe(0);
-    updateEnemies(w, 1 / 60);
+    // fb152: a DoT instance pays once per `dotTickInterval`, not once per
+    // frame, so the first tick — and with it the ring's heal — lands one whole
+    // interval in. Read from `/data` so a retune moves the window, not this test.
+    const frames = Math.round(w.content.damageTypes.dotTickInterval * 60);
+    for (let i = 0; i < frames; i++) updateEnemies(w, 1 / 60);
     expect(w.warden.leechAccumulator).toBeGreaterThan(0);
   });
 
@@ -552,7 +560,7 @@ describe('fb015 character panel: equipment sources are generic Stats contributio
     const w = worldWith({ equipment: ['greatsword'] });
     const [source, value] = w.stats.contributions('atkFlat')[0];
     expect(source).toBe('equipment:greatsword');
-    expect(value).toBe(10);
+    expect(value).toBeCloseTo(scaled(10), 12);
   });
 
   it("qa-playtester finding: the panel labels the source with the item's name, not the raw key", () => {
