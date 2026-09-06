@@ -152,9 +152,11 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
     // A regex that silently matched nothing would make every row below
     // vacuous. Exact, not a floor: a call site that disappears is as
     // interesting as one that appears.
-    // Eight, not five: three lines carry two calls each (the cross-item rule
-    // asks about both items in one condition).
-    expect(CALL_SITES.length, 'the hasEquipment scan found a different number of call sites').toBe(8);
+    // Nine, not five: three lines in classes.ts carry two calls each (the
+    // cross-item rule asks about both items in one condition), plus fb148's
+    // read of swordsman_shoes in class-live.ts for the bottom-bar/character
+    // panel Dash Slash tooltip.
+    expect(CALL_SITES.length, 'the hasEquipment scan found a different number of call sites').toBe(9);
     // **The raw cross-check, and it is not belt-and-braces.** `blankNonCode`
     // has no regex-literal state, so a quote inside a regex desyncs it — code
     // review measured 362 lines of `src/ui/hub.ts` coming back blanked because
@@ -165,7 +167,8 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
     expect(
       rawCalls,
       'a `hasEquipment(` in /src that the blanked scan did not see — check blankNonCode’s known blind spot',
-    ).toBe(CALL_SITES.length + 1); // +1: the `export function` in sim/equipment.ts
+    ).toBe(CALL_SITES.length + 2); // +2: the `export function` in sim/equipment.ts, and
+    // fb148's doc comment in class-info.ts quoting the class-live.ts call verbatim.
     // Per key, so a lost call site names the item rather than arriving as a
     // bare arity mismatch.
     const perKey: Record<string, number> = {};
@@ -173,24 +176,30 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
     expect(perKey, 'the per-item call-site census moved').toEqual({
       sleeve_sword: 4,
       swordsman_armor: 3,
-      swordsman_shoes: 1,
+      swordsman_shoes: 2,
     });
-    expect(new Set(CALL_SITES.map((c) => c.file)), 'a second file now gates on an item key').toEqual(
-      new Set(['src/sim/classes.ts']),
+    // classes.ts still holds the gate; fb148's class-live.ts reads the same
+    // flag (read-only, for the tooltip) rather than inventing a second gate —
+    // both are accounted for below, so a *third* file appearing is still caught.
+    expect(new Set(CALL_SITES.map((c) => c.file)), 'an unaccounted-for file now gates on an item key').toEqual(
+      new Set(['src/sim/classes.ts', 'src/ui/class-live.ts']),
     );
     // And the scan can see a call site at all — the positive control, since
     // "no unauthorised keys" is trivially true of an empty list.
     expect(new Set(CALL_SITES.map((c) => c.key)).size).toBe(3);
-    // And no *second* roster elsewhere: the UI and the renderer name none of
-    // the three item keys at all — they render from `mods`/`effectNote` and
-    // dispatch off the item's own key, which is why this contract has exactly
-    // one home to guard.
+    // And no *unaccounted* roster elsewhere: sleeve_sword and swordsman_armor
+    // are named nowhere but classes.ts and the enum copy; swordsman_shoes is
+    // additionally read (not gated) by class-live.ts's tooltip builder.
     for (const a of AUTHORISED) {
       const elsewhere = SRC_FILES.filter((f) => f !== CLASSES_TS && namesKeyInCode(readFileSync(f, 'utf8'), a.key));
+      const expected =
+        a.key === 'swordsman_shoes'
+          ? ['src/sim/content.ts', 'src/ui/class-live.ts']
+          : ['src/sim/content.ts'];
       expect(
-        elsewhere.map(rel),
+        elsewhere.map(rel).sort(),
         `${a.key} is named in /src somewhere this item has not accounted for`,
-      ).toEqual(['src/sim/content.ts']);
+      ).toEqual(expected);
     }
     // **And that second home is the finding, not an exemption.** `content.ts`
     // repeats all three keys in a closed zod enum for `effectKey` — the field
