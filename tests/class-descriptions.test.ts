@@ -125,7 +125,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadContent } from '../src/sim/content';
+import { loadContent, isScaledClassPath } from '../src/sim/content';
 
 const content = loadContent();
 
@@ -775,8 +775,24 @@ function readFrom(doc: RawClassesDoc, c: Claim): number | undefined {
 function readLoaded(c: Claim): number | undefined {
   const path = claimPath(c);
   if (!path) return undefined;
-  const raw = walk(content.classByKey.get(c.cls), path);
-  if (typeof raw !== 'number') return undefined;
+  const walked = walk(content.classByKey.get(c.cls), path);
+  if (typeof walked !== 'number') return undefined;
+  // fb153a: `numberScale` divides every authored kit magnitude at load. A
+  // description sentence quotes the *authored* number and `data/classes.json`
+  // still holds it, so the claim is read back through the scale rather than
+  // rewritten in display units.
+  //
+  // **This narrows the guarantee, and the narrowing is tracked, not hidden**
+  // (code review, Major 5). This file's header states its purpose as "a retune
+  // moves the field and leaves the sentence behind, and the player is then told
+  // a number the sim does not run on". Between the sentence and the *authored*
+  // field that invariant still holds and is still checked here. Between the
+  // sentence and what the sim actually *runs on* it no longer does — every
+  // quoted magnitude in `/data` is now a factor of `numberScale` off what the
+  // player sees, uniformly. That is a real, shipped defect, filed as BACKLOG
+  // **fb164**, whose acceptance re-points this read back at the loaded value
+  // once the sentences derive their numbers instead of quoting them.
+  const raw = isScaledClassPath(path) ? walked / content.modifiers.numberScale : walked;
   const as = claimConvert(c);
   return as ? CONVERT[as](raw) : raw;
 }

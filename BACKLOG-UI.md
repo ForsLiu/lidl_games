@@ -28,6 +28,84 @@ not already expose it) logs that need below instead of reaching into
 
 ## Queue
 
+- [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
+      `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
+      going **36x20 -> 56x32**, the whole arena no longer fits a screen at a
+      readable tile size, so the camera **follows the character** with zoom
+      limits and clamps at the map edges. Everything this needs is in this
+      lane's Scope: `src/render/**`'s viewport/letterboxing (it currently sizes
+      to a fixed 36:20 aspect), `src/ui/input.ts`'s click-to-tile math (which
+      must un-project through the camera, not the fixed board), and the overlay
+      geometry suites. Measured on the main lane before filing: flipping the two
+      grid constants reddens **~85 assertions across 20 files**, of which this
+      lane's are `tests/ui-input` 7, `tests/class-board` 6,
+      `tests/ui-fb082-overlay-geometry` 3, `tests/ui-fb106-extreme-aspect-
+      geometry` 2 and `tests/ui-fb102-bossbar-rail-overlap` 1. **Blocked on
+      BACKLOG-TERRAIN.md fb166**, which owns the constant flip; this item is
+      what makes the result playable. Acceptance: the camera follows the
+      character, clamps at both zoom limits and at all four map edges, and
+      click-to-tile is correct at every zoom; the geometry suites are re-fitted
+      and green at 56x32; the reduced-motion setting is respected — refs:
+      SPEC-FINAL §11, BACKLOG.md fb153b.
+
+### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
+
+Four of the eight owner files in that round are UI-lane; ids unchanged from the
+main-lane allocation. `fb157` carries `Priority: top` and goes above the rest of
+this queue. `fb158`'s `/data` half is **main-lane `fb155`** (`data/enemies.json`
+is outside this lane's Scope) — this lane renders what that item authors, and
+logs a blocker below rather than editing `/data` itself.
+
+- [ ] (fb157) [feat] **top priority** — the in-run character panel is too big and
+      blocks the screen. Rebuild it as a compact card anchored to a screen edge:
+      no scrolling, close button top-right, Esc closes, never covering the bottom
+      bar. Remove the passive/active entries (the bottom bar already carries
+      them). Show the equipped equipment slots with each item's effect text,
+      **read-only** — equipment cannot be changed during a run, only in the Hub,
+      with a tooltip saying so. Always-visible important stats: HP
+      (current/max), attack, attack speed, defense, movement speed, range, life
+      regen, lifesteal. Everything else — area, CDR, pickup, luck, per-source
+      multiplier breakdowns, active boons and ranks — moves behind a "Details"
+      pull-down. Acceptance: the panel fits a 1080p screen with no scrolling;
+      close works from both the button and Esc; equipment is read-only in-run
+      and says why; a test asserts the important-stat set and the Details
+      contents match the derived stats — refs: SPEC-FINAL §11, owner feedback
+      `ui-character-panel-compact`.
+
+- [ ] (fb158) [feat] indicate each enemy's attack type and range: a small icon
+      near the HP bar per attack kind (melee sword / ranged bow / special:
+      bomber, healer, buffer, burrower, phaser) and, on hover or selection, the
+      attack-range ring (melee reach or ranged distance) plus a one-line
+      description with numbers. Elites/bosses show their special attack ranges
+      when selected. Reads the kind/range fields main-lane `fb155` authors —
+      **blocked on fb155**; do not re-derive them from `traits` in the renderer.
+      Acceptance: every enemy renders its icon; rings render on hover and on
+      select; the Codex enemy pages show the same icon and numbers — refs:
+      SPEC-FINAL §9/§11, owner feedback `ui-enemy-attack-indicators` (render
+      half).
+
+- [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
+      `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),
+      clamped to a max; crit/execute keep their extra styling; DoT aggregate
+      numbers use the same rule at 80% size. Constants are data-driven
+      (architecture rule 4), not literals in the renderer. Acceptance: three
+      visibly distinct sizes across 1/10/100/1000 in the Training Grounds; a
+      test asserts the size mapping is monotonic in the value and that the clamp
+      holds above it — refs: SPEC-FINAL §11, owner feedback
+      `ui-damage-font-scaling`. Note it lands **after main-lane fb153a's /10
+      rescale** or its constants get re-fitted twice.
+
+- [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
+      total damage at the top, then one horizontal bar per source — each tower
+      type, each wielded attack, each class active, basic attack, Core — each
+      bar segmented by damage TYPE in the damage-type colors, with the source's
+      total printed at the right end of its bar, sorted by total. Hovering a
+      segment shows that type's amount and percent. Keeps the docked,
+      semi-transparent side style. Acceptance: bars render from the run report;
+      a test reconciles the rendered numbers against the sim's damage ledger;
+      colors come from `data/damagetypes.json` — refs: SPEC-FINAL §11, owner
+      feedback `ui-dps-panel-bars`.
+
 - [x] (fb055) [feat] top priority: the three visible classes' basic
       attacks currently look like recolors of each other rather than
       distinct weapons. Give Swordsman a sword-swing-arc melee sweep,

@@ -443,7 +443,7 @@ describe('fb016: QA-found overclaims, now real (or corrected)', () => {
   it('Contagious Flame touch damage flashes the adjacent enemy, not just the burning carrier', () => {
     const w = new World(cfg({ classKey: 'pyromancer' }));
     const carrier = spawnEnemy(w, 'husk', 5, 5)!;
-    carrier.dots.push({ type: 'burning', remaining: 5, dps: 10, source: 'test' });
+    carrier.dots.push({ type: 'burning', remaining: 5, dps: 10, source: 'test', accTime: 0, accDamage: 0, accScaled: 0, accSource: 'test' });
     const other = spawnEnemy(w, 'husk', 5.5, 5)!; // well within flameRadius (1.2)
     w.rebuildBuckets();
     updateClassPassives(w, DT);

@@ -75,17 +75,14 @@ const off: TerrainConfig = parseTerrain({ ...terrainRaw, highContestRadius: 0 })
 
 const SWEEP = 500;
 
-/**
- * `enemies.ts:1211`'s own default: `const range = def.attackRange ?? 4`.
- *
- * Mirrored rather than ignored. The first draft dropped every def without an
- * explicit `attackRange`, which reads as "no reach" and is the opposite of what
- * the sim does — a new `ranged` enemy authored with no range would have been
- * invisible to the cross-check while attacking structures at 4. Harmless while
- * this constant and `highContestRadius` are both 4; a live hole the day either
- * moves. (QA bug 4.)
+/*
+ * fb155 retired this file's `RANGED_DEFAULT_RANGE`. `enemies.ts` used to read
+ * `def.attackRange ?? 4`, so a `ranged` enemy authored with no range attacked
+ * structures at 4 while reading as "no reach" here — the hole this constant
+ * mirrored. Every enemy now authors an `attackRange` and the schema requires
+ * it, so the default has nothing left to stand in for and the map below reads
+ * the field directly.
  */
-const RANGED_DEFAULT_RANGE = 4;
 
 /**
  * Every reach that can put a structure on high ground under attack.
@@ -93,7 +90,7 @@ const RANGED_DEFAULT_RANGE = 4;
  * Gated on the `ranged` **trait**, not on family membership alone, because that
  * is what `enemies.ts:1211` gates its structure-damage branch on. The other
  * `attacksHigh` family is `flier`, and its one member (`gale_imp`) authors no
- * `attackRange` *and* cannot reach a structure at all — `enemies.ts:1422` puts
+ * `melee` **attack kind** (fb155) *and* cannot reach a structure at all — `enemies.ts:1422` puts
  * the whole bump/breach block behind `!e.flying`. Including it would invent a
  * reach for an enemy that has none.
  *
@@ -106,7 +103,7 @@ const RANGED_DEFAULT_RANGE = 4;
 const ROSTER_REACHES: number[] = enemiesRaw.enemies
   .filter((def) => (def.traits ?? []).includes('ranged'))
   .filter((def) => highGroundFamily(cfg, def.traits ?? []).attacksHigh)
-  .map((def) => (def as { attackRange?: number }).attackRange ?? RANGED_DEFAULT_RANGE);
+  .map((def) => (def as { attackRange: number }).attackRange);
 
 /**
  * The shortest of them, and the number the acceptance clause is written against
@@ -174,7 +171,10 @@ describe('fb064m — no uncontestable high-ground plot', () => {
     );
     expect(fliers.map((d) => d.key)).toEqual(['gale_imp']);
     for (const def of fliers) {
-      expect((def as { attackRange?: number }).attackRange).toBeUndefined();
+      // fb155: every enemy authors an `attackRange` now, so "has no range" is
+      // no longer the way to say "cannot shoot high ground from below". The
+      // claim is the kind: a melee flier reaches only its own contact radius.
+      expect((def as { attackKind?: string }).attackKind).toBe('melee');
       expect(def.traits ?? []).not.toContain('ranged');
     }
   });

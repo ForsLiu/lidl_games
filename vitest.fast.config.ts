@@ -19,6 +19,13 @@ export default mergeConfig(
         // Inherited from the base config (vitest merges exclude lists, but
         // restate the intent): a10 runs under vitest.perf.config.ts only.
         'tests/a10-performance.test.ts',
+        // fb140 CI: same reason as a10, and now enforced by the same config.
+        // `p10e`'s granularity-stability case compares two timing measurements
+        // and asserts they agree within 25% — meaningful on a quiet host (this
+        // file's own header records 0.6-14%), meaningless against two workers
+        // and 250 other files on a shared runner, where it measured 25.6% and
+        // failed. Runs single-threaded under vitest.perf.config.ts instead.
+        'tests/p10e-perf-budget.test.ts',
         // ~1 h: 11 classes × multi-seed full-run diversity measurement (G8).
         'tests/p6e-class-diversity.test.ts',
         // Multi-seed full-run gate measurements over the Core roster.
