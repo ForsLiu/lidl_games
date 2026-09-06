@@ -379,7 +379,6 @@ html, body {
   max-width: 92%;
   text-align: center;
 }
-.sw-card.wide { min-width: 620px; }
 .sw-card h2 { margin: 0 0 6px; font-size: 20px; }
 .sw-card p { margin: 0 0 14px; color: var(--dim); }
 
@@ -670,8 +669,10 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
    CSS-only hover-reveal technique as the bottom bar's `.sw-bb-tip`, scoped to
    its own class so the Hub's Equipment tab (`.sw-slot`/`.sw-lootitem` alone,
    no `sw-runeq-*`) is unaffected; it already has a click-to-select detail
-   panel for the same text. */
-.sw-runeq-slot, .sw-runeq-item { position: relative; }
+   panel for the same text. (fb157 made the section read-only and dropped the
+   owned-item stash list that used to carry `.sw-runeq-item` — only the slot
+   boxes, `.sw-runeq-slot`, still use this hover reveal.) */
+.sw-runeq-slot { position: relative; }
 .sw-eq-tip {
   display: none;
   position: absolute;
@@ -688,9 +689,7 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
   pointer-events: none;
 }
 .sw-runeq-slot:hover .sw-eq-tip,
-.sw-runeq-item:hover .sw-eq-tip,
-.sw-runeq-slot:focus-within .sw-eq-tip,
-.sw-runeq-item:focus-within .sw-eq-tip {
+.sw-runeq-slot:focus-within .sw-eq-tip {
   display: block;
 }
 

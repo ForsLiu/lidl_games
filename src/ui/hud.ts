@@ -91,7 +91,16 @@ export interface HudCallbacks {
   onToggleAutoPick(): void;
   /** SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   onToggleCharacterPanel(): void;
-  /** fb023 (SPEC-FINAL §7): swap an owned item into (or `null` out of) an equipment slot, mid-run, from the character panel. */
+  /**
+   * fb023 (SPEC-FINAL §7): swap an owned item into (or `null` out of) an
+   * equipment slot via the `equip_item` sim Command. fb157 removed the
+   * character panel's own click wiring to this (equipment is read-only
+   * in-run now) — kept on the interface rather than deleted, since the
+   * underlying Command stays a real, bot/replay-reachable action
+   * (architecture rule 3) and every existing `HudCallbacks` implementation
+   * already supplies a no-op here; removing it would only be a cosmetic
+   * cleanup at the cost of touching every one of those call sites.
+   */
   onEquipItem(slot: string, item: string | null): void;
   /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
   onToggleDpsPanel(): void;
