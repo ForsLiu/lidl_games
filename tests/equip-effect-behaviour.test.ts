@@ -53,7 +53,7 @@ import { buildTower, towerCost, towerDamage } from '../src/sim/towers';
 import { upgradeCost } from '../src/sim/upgrades';
 import type { TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
@@ -96,7 +96,7 @@ describe('c022 (§7) Normal Ring: life regen +1', () => {
   it('raises the hpRegen stat by exactly 1 over the same world without the ring', () => {
     const wWith = worldWith({ equipment: ['normal_ring'] });
     const wNone = worldWith();
-    expect(wWith.derived.hpRegen).toBeCloseTo(wNone.derived.hpRegen + 1, 9);
+    expect(wWith.derived.hpRegen).toBeCloseTo(wNone.derived.hpRegen + scaled(1), 9);
   });
 
   it('a wounded Warden heals faster per second with the ring than without it', () => {
@@ -112,7 +112,7 @@ describe('c022 (§7) Normal Ring: life regen +1', () => {
     const control = healedOverASecond([]);
     expect(gained).toBeGreaterThan(control);
     // The whole gap is the ring's hpRegen point, spread over one second.
-    expect(gained - control).toBeCloseTo(1, 3);
+    expect(gained - control).toBeCloseTo(scaled(1), 3);
   });
 });
 
@@ -131,8 +131,11 @@ describe('c022 (§7) Bleeding Ring: +0.01% lifesteal', () => {
     e.maxHp = 1e6;
     w.rebuildBuckets();
     const hpBefore = e.hp;
-    applyDot(w, e, 'bleeding', 6000, 5); // 6000 dps, so one tick is a round 100
-    updateEnemies(w, 1 / 60);
+    applyDot(w, e, 'bleeding', 6000, 5); // 6000 dps, so one cadence tick is a round 1500
+    // fb152: DoT pays out at most once per dotTickInterval, not per frame —
+    // advance enough frames to cross that cadence and force a flush.
+    const ticks = Math.ceil(content.damageTypes.dotTickInterval * 60) + 1;
+    for (let i = 0; i < ticks; i++) updateEnemies(w, 1 / 60);
     const dealt = hpBefore - e.hp;
     expect(dealt).toBeGreaterThan(0);
     // Both sides positive **first**. QA deleted `"leech": 0.0001` from the
@@ -164,7 +167,10 @@ describe('c022 (§7) Bleeding Ring: the bleedLifesteal flag is what routes Bleed
       e.maxHp = 1e6;
       w.rebuildBuckets();
       applyDot(w, e, 'bleeding', 6000, 5);
-      updateEnemies(w, 1 / 60);
+      // fb152: DoT pays out at most once per dotTickInterval, not per frame —
+      // advance enough frames to cross that cadence and force a flush.
+      const ticks = Math.ceil(content.damageTypes.dotTickInterval * 60) + 1;
+      for (let i = 0; i < ticks; i++) updateEnemies(w, 1 / 60);
       return w.warden.leechAccumulator;
     }
     expect(bledInto(true)).toBeGreaterThan(0);
@@ -214,7 +220,7 @@ describe("c022 (§7) Builder's Necklace: all towers +1 flat attack", () => {
   it('the +1 is authored on the towerAtkFlat stat', () => {
     const wWith = worldWith({ classKey: 'engineer', equipment: ['builders_necklace'] });
     const wNone = worldWith({ classKey: 'engineer' });
-    expect(wWith.derived.towerAtkFlat - wNone.derived.towerAtkFlat).toBeCloseTo(1, 9);
+    expect(wWith.derived.towerAtkFlat - wNone.derived.towerAtkFlat).toBeCloseTo(scaled(1), 9);
   });
 
   it('a built tower deals more damage for it', () => {
