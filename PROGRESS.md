@@ -70,6 +70,20 @@
   desyncs it — which is closed with a raw-text cross-check and recorded as a
   known limitation of the shared helper, with a self-test.
 
+  `c030`: this lane's two recorded class measurements were both taken before
+  master's terrain epic and its T1 re-anchor, and both had expired.
+  Re-measured at T1: **Time Lord 12/12 -> 11/12** (this class's first
+  `defeat_core` and its first two close wins), and the 144-run kit-share sweep
+  from "12/12 win for eleven classes, 2/12 distinct top damage sources" to
+  **five classes inside G8's literal 35-70% band and 1/12 distinct** — the
+  diversity clause got worse, because `mortar` is now every class's top source
+  where `ballista`/`mortar` used to split the roster. **At least six**
+  balance-affecting changes landed between the readings — `p12c`'s
+  `baseHpMul: 20` is the likeliest cause of the win-rate movement, not terrain
+  — so nothing is attributed; the tables are a baseline. Both readings are T1
+  while `p6e` moved to `GATE_TIER` = 3, which is part of what the main-lane
+  re-read has to settle.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and

@@ -665,7 +665,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       never silence; and `class-board.ts`'s header stops claiming the strong
       form of the property - refs: c014, c025, c013, c016.
 
-- [ ] (c030) [polish] **two of this lane's own recorded measurements were taken
+- [x] (c030) [polish] **DONE 2026-09-06.** Two of this lane's own recorded measurements were taken
       on a board that no longer exists.** CLAUDE.md's measurement rules: "a
       deferral is a measurement with an expiry date; re-measure before
       inheriting it." `tests/class-time-lord-band.test.ts` (`c003`) records its
@@ -681,6 +681,16 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       assertion that is now green is un-skipped (two of m20a's five were), and
       any that moved further out of band says by how much - refs: CLAUDE.md
       measurement rules, c002, c003, §14 G8, fb077.
+      **Both had expired, and both moved. Time Lord's T1 band: 12/12 (100%) ->
+      11/12 (91.7%), with this class's first `defeat_core` and its first two
+      `close-win`s. Kit damage share: every own-kit number up (plaguebringer
+      6.40% -> 13.40%, pyromancer 0.08% -> 12.56%), the win column no longer
+      uniform — five classes now inside G8's *literal* 35-70% band, where none
+      was — and the diversity count **worse**, 2/12 -> 1/12, because `mortar`
+      is now every class's top source where `ballista`/`mortar` used to split
+      it. Both readings are T1 and G8's reference tier is T3 since `p12b`, so
+      the band comparison is to G8's text, not to the band governing T1
+      (`p12c`: `[55%,90%]`).**
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -781,6 +791,46 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c030 (2026-09-06) — two deferrals, both expired, both moved
+
+- **Shape**: re-measured and re-recorded in place; the superseded reading is
+  kept beside the new one with its date and the reason it moved, per the item.
+  No `/src` or `/data` byte moved, and no assertion changed state — the one
+  `.skip`-ed band assertion is still over G8's ceiling, so it stays skipped
+  with its new number.
+- **Time Lord (c003), 12 seeds at T1, `TIME_LORD_MEASURE=1`: 12/12 (100%, all
+  landslide) -> 11/12 (91.7%), margins landslide 9 / close-win 2 /
+  contested-loss 1.** Seed 3 is a real `defeat_core` at wave 16 — this class's
+  first. Still over the 70% ceiling this file asserts (and over `p12c`'s T1
+  ceiling of 90%), so `p10r`/`p12d` still own the retune. The rest of the
+  roster is presumably in the same position and has not been re-read.
+- **Kit damage share (c002), 144 full T1 runs, ~140 min: the diversity clause
+  got *worse*.** Distinct top damage sources **2/12 -> 1/12** — `mortar` is now
+  every class's, where `ballista`/`mortar` used to split the roster. Own-kit
+  share rose everywhere (plaguebringer 6.40% -> 13.40%, pyromancer 0.08% ->
+  12.56%, time_lord 2.45% -> 10.51%) and still nothing clears
+  `MATERIALITY_SHARE`'s 20%, so every class falls through to the tower key and
+  the tower key is now unanimous.
+- **And the win column stopped being uniform.** Five classes are inside G8's
+  35-70% band on this harness (pyromancer 41.7%, archer 50.0%, necromancer
+  41.7%, stormcaller 58.3%, paladin 41.7%), three sit just under at 33.3%, and
+  the reading was 12/12-for-eleven-classes three days ago. That retires point 2
+  of the old note — c002's acceptance clause "no class leaves the 35-70% band
+  it is already in" was flagged as vacuous because no class was in the band,
+  and now five are.
+- **What the numbers do not say, stated on the record — and an overreach code
+  review caught before the commit.** The first draft of both write-ups
+  attributed the movement to the board ("nothing in this lane changed; the
+  board did"). **88 commits touch `/src` or `/data` between the readings**, and
+  the likeliest cause is not terrain: `p12c` (`9368fd4`) ships
+  `data/enemies.json` `baseHpMul: 20`, a roster-wide T1 enemy-HP multiplier
+  whose stated purpose is ending the all-landslide roster, which is the exact
+  shape of what moved. `fb076`, `fb099`, `fb054` and `fb077` are in the diff
+  too; `p12b` is inert at T1 and `p12d`/`p12e` have not landed. Per CLAUDE.md's
+  measurement rules nothing is attributed to any of them — the tables are a
+  **baseline on the current tree**, not a mechanism, and that is now what both
+  files say.
 
 ### c031 (2026-09-05) — the contract that is a set of string literals
 
@@ -1297,6 +1347,18 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       - refs: c014, BACKLOG-TERRAIN.md.
 
 ### For the main lane (out of this lane's Scope)
+
+- **Re-read the whole G8 roster on the current tree, and separate the causes**
+  (c030). The candidates are `p12c`'s `baseHpMul: 20` (the first one to try —
+  a roster-wide T1 enemy-HP multiplier), `p12a`'s kit re-anchor, `fb076`,
+  `fb099`, `fb054` and `fb077`'s terrain; `p12b` is inert at T1. This lane re-measured its own two
+  deferred numbers and both moved a long way: Time Lord 12/12 -> 11/12, and the
+  12-class kit-share sweep from "12/12 win for eleven classes, 2/12 distinct
+  top sources" to "five classes inside G8's literal 35-70% band, 1/12
+  distinct". Every other per-class number in STATUS.md and in `p6e`/`p10z` is
+  in the same position. Both of this lane's readings are **T1** while `p6e`
+  now runs at `GATE_TIER` = 3, so the re-read has a tier question in it as
+  well as an attribution one; `p12d` owns the gate text.
 
 - **`tests/equip-spec-ledger.ts` -> `tests/spec-ledger.ts`** (c028). The module
   is ledger-generic — `c027` uses it on the §4 ledger, which is about classes —
