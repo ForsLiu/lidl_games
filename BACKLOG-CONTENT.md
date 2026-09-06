@@ -502,7 +502,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       row is a named deviation, never silence - refs: SPEC-FINAL §6.3, c016,
       c019.
 
-- [ ] (c022) [bug] the §7 ledger pins **which stat key each numeric column uses
+- [x] (c022) [bug] **DONE 2026-09-05.** the §7 ledger pins **which stat key each numeric column uses
       and no Effect row's**. `c012` added `NUMERIC_STAT` after code review found
       that a `0`/`×1` cell reads 0 through *any* `StatKey`, so a numeric row
       could audit a stat §7 never mentions; the same hole is still open on the
@@ -520,6 +520,14 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       are, so deleting the covering block reddens the row; red under the
       `towerCost`->`goldFind` mutation above with the ledger row edited to
       match - refs: SPEC-FINAL §7, c012, QA on c012, fb056.
+      **Seven of the thirteen Effect rows had no block anywhere that named
+      their stat, so the pointer had nowhere to point: `hpRegen`, `xpGain`,
+      `towerCost`, `leech`'s magnitude, `bleedLifesteal` as a stat rather than
+      as an equipped item, `towerAtkFlat` as a key rather than as a damage
+      delta, and Swordsman Armor's `classFallback`, which had no dedicated
+      block at all. Those seven covers are new, in this lane's own
+      `tests/equip-effect-behaviour.test.ts` — `tests/fb015-equipment.test.ts`
+      is out of Scope. The other six point into fb015 unchanged.**
 
 - [x] (c023) [polish] **DONE 2026-09-05.** `equipment.items[].effectKey` is a **dead field**. Found
       by QA on c012: setting `sleeve_sword`'s to `"none"` changes no behaviour
@@ -561,6 +569,128 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       main-lane key needs. In-lane (`tests/class-*` only); `run.ts` itself is
       not edited from here - refs: SPEC-FINAL §4.2 (Time Lord), §2 (Area row),
       QUESTIONS Q120(5), c009, c013, QA on c013.
+
+- [x] (c028) [polish] **DONE 2026-09-05.** c022's **anchor/block-reader device lives privately inside
+      `tests/equip-spec-numbers.test.ts`**, and `c027` below is about to make a
+      second copy of it one file over — the exact shape `c014` spent an item
+      undoing for six copies of one board. It is ~90 lines and every one of
+      them was earned by a mutation: the indentation-derived block end (an
+      exact-`});` scan walked past a `}, 20000);` closer into the next block),
+      comment stripping (a bare `// luck` "covered" a row moved onto `luck`),
+      the identifier-boundary `reads` default (`atkFlat` satisfied by
+      `towerAtkFlat`), the ancestor `describe.skip` refusal, and the derived
+      decoy roster. A hand-copy loses whichever of those the copier does not
+      notice. First only because copying is cheaper than extracting once the
+      copy exists. Acceptance: a lane-owned `tests/spec-ledger.ts` exports the
+      reader, `defaultReads` and the decoy derivation; `equip-spec-numbers`
+      imports them and keeps its own rows; the synthetic self-tests move with
+      the module and gain one asserting the module has exactly one home (a
+      `tests/*-spec-numbers*` sweep finds no second private copy of the reader);
+      every mutation in c022's Log entry is re-run and still red - refs: c014
+      (the shape), c022, c027.
+      **The module is `tests/equip-spec-ledger.ts`, not `tests/spec-ledger.ts`:
+      the acceptance clause named a path outside this lane's Scope, and a
+      clause the lane wrote for itself under the generation rule cannot widen
+      its own Scope (code review). Of the two legal prefixes `equip-` is the
+      safe one — `class-board.test.ts` registry-checks every
+      `tests/class-*.test.ts`. The rename is logged for the main lane.**
+
+- [x] (c027) [bug] **DONE 2026-09-05.** **the §4 ledger has c022's hole in the one form that has
+      already bitten twice.** `tests/class-spec-numbers.test.ts` pins each
+      figure's authored *path* (`['passive', 'mods', 'leech']`), so moving a
+      value to another key is red there in a way §7's Effect rows were not —
+      but nothing proves the key is the one §4's *sentence* means. That is
+      exactly what `c013` found (Animist *Wide Grove*, "all towers +10% area",
+      authored on the global `area`, which since `c001` also widens all 24
+      class Actives) and `c024` found again, nine times larger, on Time Lord's
+      Chronal Surge (`run.ts:817`, `stats.add(source, 'area', ...)` beside a
+      `towerRange` sibling). Two findings, one hole, no barrier: any other §4
+      row could be authored on a stat whose reach is wider or narrower than its
+      clause and the ledger would agree with itself. Acceptance: every §4 row
+      whose figure is a stat key carries c022's `Behaviour` pointer (imported
+      from `c028`'s module) into a `tests/class-*` block that reads that key;
+      the two known divergences are **named deviations** pointing at c013/c024
+      rather than silence; red under moving one authored figure to a
+      neighbouring key with the row's own path edited to match, measured the
+      way c022's was - refs: SPEC-FINAL §4.1/§4.2, §2 (Area row), c008, c013,
+      c022, c024.
+      **The pointer is not a copy of c022's: §4's covers observe through named
+      `signal.*` helpers, not through `w.derived.<stat>`, so a stat-key text
+      match does not fit. It is bound three ways instead — the row's authored
+      path, the liveness `KILLS` entry that deletes that exact path (parsed out
+      of the file), and the block, which must *assert* the signal that kill
+      measures.**
+
+- [x] (c031) [polish] **DONE 2026-09-05.** **the three `hasEquipment(w, '<key>')` literals in
+      `/src` are an unpinned roster, and `fb056` adds fifteen items to the file
+      that feeds it.** §7's three non-stat mechanics (Sleeve Sword's no-charge
+      rule, Swordsman Armor's two) are gated on item keys hardcoded in
+      `src/sim/classes.ts`, while `c023` proved the `/data` field that *looks*
+      like it does this — `equipment.items[].effectKey` — is read by nothing.
+      So the real contract between `/data` and `/src` is a set of string
+      literals no test enumerates: an item key renamed in `/data` silently
+      turns its mechanic off (the loader validates slots and `notClassKey`, not
+      this), and a fifteen-item epic is the moment that is least affordable.
+      Acceptance: `tests/equip-hasequipment-roster.test.ts` enumerates every
+      `hasEquipment` call site in `/src` by source scan, asserts the roster is
+      exactly the three §7 items that authorise one — each row quoting the §7
+      Effect clause it implements — and asserts every literal names a key
+      `data/equipment.json` actually authors; a fourth literal, or a renamed
+      key, is red. Measurement and barrier only: the `effectKey`/`effectNums`
+      decision is main-lane (`c023`'s Log) - refs: SPEC-FINAL §7, c012, c022,
+      c023, fb056.
+      **Eight call sites, not three: three lines ask about two items each. And
+      the roster turned out to be written *twice* — `content.ts`'s closed
+      `effectKey` zod enum lists the same three keys, which is the copy a
+      reader finds first and the one `c023` proved nothing reads. The two are
+      held to each other here.**
+
+- [ ] (c029) [bug] **`c014`'s "the importers move with the board" property is
+      not true of the importers it was built for**, measured this session while
+      converting `class-kit-whiff` (`c025`). Shifting `PROBE_ORIGIN` to
+      `25,12` (board `26,12`) leaves the newly converted whiff file green at
+      58/58 and reddens **six rows** — four in `tests/class-wide-grove-reach.
+      test.ts` (the Mortar shell-splash probes and the "every footprint §4.2
+      claims is still widened" set row) and two in
+      `tests/class-line-bonus.test.ts` (Stormcaller `stormcaller_jump_cap`).
+      Controlled on HEAD without `c025`: the same six, identically, so this
+      predates the conversion and is a property claim the suite does not have.
+      Those rows carry *board-relative calibration* — a victim placed at a
+      distance tuned to one footprint, a chain line with room to reach — which
+      the shared board does not export and `class-board.test.ts`'s sink rules
+      cannot see. Acceptance: an enumeration table (the red/green shape c013
+      uses) naming, per importer, each board-relative window it depends on and
+      whether the file survives a shifted origin; a window that genuinely
+      cannot move is a declared, asserted dependency with its measured reason,
+      never silence; and `class-board.ts`'s header stops claiming the strong
+      form of the property - refs: c014, c025, c013, c016.
+
+- [x] (c030) [polish] **DONE 2026-09-06.** Two of this lane's own recorded measurements were taken
+      on a board that no longer exists.** CLAUDE.md's measurement rules: "a
+      deferral is a measurement with an expiry date; re-measure before
+      inheriting it." `tests/class-time-lord-band.test.ts` (`c003`) records its
+      12-seed win-rate number in a comment beside a `.skip`-ed assertion, and
+      `tests/class-kit-damage-share.test.ts` (`c002`'s control half) records
+      the per-class top-damage-source count — both measured before master's
+      `fb077` wired `generateTerrain` into every non-practice run, so every
+      seed they sample now plays a different map. The terrain lane retired the
+      same inherited reason rather than re-verifying it (PROGRESS.md, this
+      session's merge note). Acceptance: both numbers re-measured on the
+      current tree and updated in place, each keeping the superseded value
+      beside the new one with its date and the reason it moved; any `.skip`-ed
+      assertion that is now green is un-skipped (two of m20a's five were), and
+      any that moved further out of band says by how much - refs: CLAUDE.md
+      measurement rules, c002, c003, §14 G8, fb077.
+      **Both had expired, and both moved. Time Lord's T1 band: 12/12 (100%) ->
+      11/12 (91.7%), with this class's first `defeat_core` and its first two
+      `close-win`s. Kit damage share: every own-kit number up (plaguebringer
+      6.40% -> 13.40%, pyromancer 0.08% -> 12.56%), the win column no longer
+      uniform — five classes now inside G8's *literal* 35-70% band, where none
+      was — and the diversity count **worse**, 2/12 -> 1/12, because `mortar`
+      is now every class's top source where `ballista`/`mortar` used to split
+      it. Both readings are T1 and G8's reference tier is T3 since `p12b`, so
+      the band comparison is to G8's text, not to the band governing T1
+      (`p12c`: `[55%,90%]`).**
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -661,6 +791,312 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c030 (2026-09-06) — two deferrals, both expired, both moved
+
+- **Shape**: re-measured and re-recorded in place; the superseded reading is
+  kept beside the new one with its date and the reason it moved, per the item.
+  No `/src` or `/data` byte moved, and no assertion changed state — the one
+  `.skip`-ed band assertion is still over G8's ceiling, so it stays skipped
+  with its new number.
+- **Time Lord (c003), 12 seeds at T1, `TIME_LORD_MEASURE=1`: 12/12 (100%, all
+  landslide) -> 11/12 (91.7%), margins landslide 9 / close-win 2 /
+  contested-loss 1.** Seed 3 is a real `defeat_core` at wave 16 — this class's
+  first. Still over the 70% ceiling this file asserts (and over `p12c`'s T1
+  ceiling of 90%), so `p10r`/`p12d` still own the retune. The rest of the
+  roster is presumably in the same position and has not been re-read.
+- **Kit damage share (c002), 144 full T1 runs, ~140 min: the diversity clause
+  got *worse*.** Distinct top damage sources **2/12 -> 1/12** — `mortar` is now
+  every class's, where `ballista`/`mortar` used to split the roster. Own-kit
+  share rose everywhere (plaguebringer 6.40% -> 13.40%, pyromancer 0.08% ->
+  12.56%, time_lord 2.45% -> 10.51%) and still nothing clears
+  `MATERIALITY_SHARE`'s 20%, so every class falls through to the tower key and
+  the tower key is now unanimous.
+- **And the win column stopped being uniform.** Five classes are inside G8's
+  35-70% band on this harness (pyromancer 41.7%, archer 50.0%, necromancer
+  41.7%, stormcaller 58.3%, paladin 41.7%), three sit just under at 33.3%, and
+  the reading was 12/12-for-eleven-classes three days ago. That retires point 2
+  of the old note — c002's acceptance clause "no class leaves the 35-70% band
+  it is already in" was flagged as vacuous because no class was in the band,
+  and now five are.
+- **What the numbers do not say, stated on the record — and an overreach code
+  review caught before the commit.** The first draft of both write-ups
+  attributed the movement to the board ("nothing in this lane changed; the
+  board did"). **88 commits touch `/src` or `/data` between the readings**, and
+  the likeliest cause is not terrain: `p12c` (`9368fd4`) ships
+  `data/enemies.json` `baseHpMul: 20`, a roster-wide T1 enemy-HP multiplier
+  whose stated purpose is ending the all-landslide roster, which is the exact
+  shape of what moved. `fb076`, `fb099`, `fb054` and `fb077` are in the diff
+  too; `p12b` is inert at T1 and `p12d`/`p12e` have not landed. Per CLAUDE.md's
+  measurement rules nothing is attributed to any of them — the tables are a
+  **baseline on the current tree**, not a mechanism, and that is now what both
+  files say.
+
+### c031 (2026-09-05) — the contract that is a set of string literals
+
+- **Shape**: new `tests/equip-hasequipment-roster.test.ts` (4 tests). No `/src`
+  or `/data` byte moved; the `effectKey`/`effectNums` decision stays main-lane.
+- **Five mutations, all red**: renaming `sleeve_sword` in `/data` (the silent
+  mechanic-off `c023` makes possible — the loader validates slots and
+  `notClassKey`, and has nothing to say about these), a fourth literal no §7
+  clause authorises, a removed call site, a double-quoted key, and the one code
+  review found — see below.
+- **The scan had a hole exactly where it claimed not to.** `blankNonCode` (the
+  shared blank-comments-and-strings pass) has no regex-literal state, and
+  `src/ui/hub.ts:111`'s `.replace(/'/g, '&#39;')` opens string mode and never
+  closes it: **362 non-comment lines of that file come back blanked**, so a
+  call site there was invisible and the acceptance mutation stayed green.
+  Closed with a raw-text cross-check (`hasEquipment(` counted in the unblanked
+  source, against the scan's own total plus the one declaration), and the blind
+  spot is now written into `blankNonCode`'s header with a self-test that pins
+  it as a *known limitation* rather than leaving it to be rediscovered. The
+  same caution is recorded for `c027`'s `killEntries`, which is unexposed only
+  because those tables contain no regex literal.
+- **The §7 clause check was defeatable for the one pair it exists to separate.**
+  It matched the clause against any table row containing the item's name, and
+  Swordsman Armor's Effect cell names `sleeve sword` in its cross-item clause —
+  so pairing Sleeve Sword with Swordsman Armor's charge-rate rule passed. It
+  compares the row's **first cell** now.
+- **The second roster is the finding.** `content.ts` repeats all three keys in
+  the closed `effectKey` enum — the field `c023` measured as read by nothing —
+  so the contract is written once where it is load-bearing and once as
+  decoration, and the decoration is what a reader greps for first. The last row
+  holds the two copies to each other; the `.effectKey` census itself stays
+  `c023`'s, cited rather than duplicated (its version also asserts the two
+  allowed mentions are still present, which a bare `toEqual([])` here would
+  not).
+
+### c027 (2026-09-05) — the key is right; what it drives was nobody's assertion
+
+- **Shape**: `behaviour` pointers on the 16 §4 rows whose figure is authored on
+  a stat key, plus six checks over them; `killEntries`/`killRegion`/
+  `blankNonCode` added to `equip-spec-ledger.ts` (c028's module) with synthetic
+  self-tests, and `pointerProblems` gained two rules. No `/src` or `/data` byte
+  moved. 110 + 121 + 8 green.
+- **Why it is not a copy of c022.** §4's covers observe through named
+  `signal.*` helpers rather than through `w.derived.<stat>`, so §7's stat-key
+  text match has nothing to match. The pointer binds three things instead: the
+  row's authored path, the `KILLS` entry in a liveness file that deletes *that
+  exact path*, and the block, which must contain `expect(signal.<that kill's
+  measure>`. Move a figure to a neighbouring key with the row's path edited to
+  agree — the c022 mutation in §4's form — and the row names a key no liveness
+  table deletes: **3 red**.
+- **Seven mutations, all landing where they should**, six red and one
+  deliberately green: the pointer swap between Engineer and Paladin (they share
+  `signal.towerHpUp`), thirteen rows re-anchored at the wrapper `describe`,
+  deleting the frozen half's own `it`, a signal called with its result thrown
+  away, renaming c024's describe, the acceptance key move — and a `]` inside a
+  comment in the `KILLS` table, which **must** be green and was a false red
+  before `blankNonCode`.
+- **Three Majors from review and QA, each a hole in what the device *claimed*
+  rather than in what it did.** (1) `readsFor` dropped c028's owner binding, so
+  the Engineer and Paladin `towerHp` pointers were freely swappable while the
+  test title said "that block names the row's own class" — bound on the block
+  *title* now, since several §4 signals hardcode their class instead of taking
+  it as an argument. (2) The row advertised as the compensating control for the
+  at-least-one-of alternation was a **strict tautology**: it searched the file
+  for `signal.<measure>`, and `<measure>` was parsed out of that same file's
+  `KILLS` table, so the needle was guaranteed present — deleting the frozen
+  half's only `it` left it green. The table is cut out of the haystack now.
+  (3) The Time Lord `bonusAoeMul` row — the *larger* of the two divergences
+  this item exists because of — was `{ kind: 'match' }` with no note, and its
+  cross-reference was a `/time_lord/` grep that matched three unrelated
+  identifiers. It carries the finding now, and c024's describe is anchored
+  through the device.
+- **Two rules earned by QA went into the shared module**, so `c022`'s side gets
+  them too: a `describe` that *contains* nested blocks is not a cover (all
+  thirteen §4 rows re-anchored at one wrapper stayed green), and `expect(` in a
+  **string literal** is not an assertion (`['expect(x)'].join('')`).
+- **`killEntries` is in the shared module, not private here** — the `c028`
+  lesson applied immediately: it is a second source parser with its own earned
+  rules (a brace scan over *blanked* source; one `classKey` per entry; a throw
+  rather than an empty list when an entry never closes), and every one of those
+  has a synthetic self-test.
+
+### c028 (2026-09-05) — the device, before it was copied
+
+- **Shape**: new `tests/equip-spec-ledger.ts` (the reader, `escapeForRegex`,
+  `readsStat`, `defaultReads`, `decoyKeys`, `positiveLines`,
+  `pointerProblems`, the `Behaviour` and `Block` types) and
+  `tests/equip-spec-ledger.test.ts` (5 tests); `equip-spec-numbers` imports
+  them and keeps its §7 rows, rosters and exemptions. Behaviour unchanged: the
+  only textual delta in the moved code is the thrown-error prefix. 139 green
+  across the three files.
+- **Ten mutations, all red**, which is the acceptance: the seven from c022's
+  entry (`towerCost`->`goldFind`, a gutted block body under its own title, a
+  `}, 20000);` closer plus `towerCost`->`towerAtkFlat`, `hpRegen`->`luck` with
+  a `// luck` comment, a row re-pointed at an unrelated file's block,
+  `describe.skip` on the covers, and the leech cover's own deletion) plus three
+  new ones this item's checks add — `describe.skip` on the **device's own
+  self-tests**, a hand-copy in `tests/helpers/`, and a hand-copy *renamed*
+  `readBlock`.
+- **The one-home check had two open doors and code review measured both**: the
+  sweep read `tests/` non-recursively, so a copy in `tests/helpers/` — exactly
+  where a shared helper lands — passed; and it matched function *names*, so a
+  renamed copy passed, which is what a §4 copier adapting the device would
+  actually write. It recurses now and looks for the reader's structure (the
+  lookbehind boundary, the title scan) as well as its names, with the module
+  itself as a positive control so "no copies" cannot mean "no files read".
+- **The pointer guarding the self-tests was weaker than the device it guards**
+  — a prose substring match, which stayed green with `describe.skip` on all
+  five. It runs through `blockBody` now, ancestors and all: the file dogfoods
+  the module it exports.
+- **One piece of the extracted API was not generic and would have handed c027
+  the false red it inherited.** `positiveLines`' negative-control filter
+  recognised a control only when the control world is named `w...` — §7's
+  convention. Code review surveyed the §4 suites: their control operands are
+  `full.`, `poison.`, `plain.`, `both.`, `BASE.`, `f.`, `c.`, not one starting
+  with `w`. It is a parameter now, defaulted to §7's shape and passed
+  explicitly at the §7 call site.
+- **The *check* moved too, not only the primitives.** Review's point: five of
+  the rules (`matches === 1`, the empty-body catch, the skipped-ancestor
+  refusal, the per-`reads` loop) were still in the ledger's own loop, and each
+  is a mutation-earned rule a copier can drop. `pointerProblems(block, reads)`
+  carries them; the ledger supplies the row identity in the message.
+
+### c025 (2026-09-05) — the agreement that was watching the wrong test
+
+- **Shape**: `tests/class-board.ts` probes and exports the Ice Wall column
+  (`WALL_TX`/`WALL_TYS`/`WALL_TY`/`HAS_WALL`); `class-kit-whiff` imports its
+  whole geometry and leaves `EXCEPTIONS`; new `tests/class-p6d-agreement.ts`
+  (the parser) and `tests/class-p6d-agreement.test.ts` (4 tests) carry the
+  agreement. 58 whiff tests unchanged and green — the sorted test-name set is
+  byte-identical to HEAD's, which QA checked. No `/src` or `/data` byte moved.
+- **Both acceptance deviations were `c026` arriving first**, and both are
+  recorded on the item above rather than quietly worked around.
+- **The column costs exactly one spot, measured**: of 612 candidate spots, 12
+  are legal boards without it and 11 with; the one it costs is `10,5`, and the
+  shipped `10,6` is not it. That single spot is why the `1,1` shifted-origin
+  case had to move: its nearest legal board *was* `10,5`, so the corner now
+  converges on the shipped board. It is kept as a row of its own asserting that
+  convergence and the eleven-spot count behind it, rather than deleted.
+- **It degrades alone, proven by forcing it.** With the column made impossible
+  everywhere, exactly one file fails — `class-kit-whiff`, on the four rows that
+  build on the column, each with a named `HAS_WALL` message — and the other
+  eight importers stay green at 323 tests. That is `c026`'s rule (the shared
+  footprint asks for what importers need; one importer's extra need degrades on
+  its own rung) applied to the first extra need there has been.
+- **QA failed the first parser and was right to.** It read the *first*
+  `aimX/aimY` in p6d's Ice Wall `describe`, which belongs to a `castWall()`
+  helper the gold/duration rows use — **not** the occupancy row this file
+  co-states. Re-aiming the occupancy row alone left whiff green: the agreement
+  was watching a test it does not agree with. It also (a) threw at module
+  scope, so a cosmetic p6d edit collapsed the file to `Tests no tests` — 58
+  rows silently not running, which `class-board.ts`'s own header calls worse
+  than the failure c014 set out to fix; (b) reported "p6d's own Ice Wall aim
+  point moved" when p6d had merely been reordered or prettier-wrapped; and (c)
+  silently fell through to another test's park when p6d's was collapsed onto
+  one line. The parser is now a lazy, memoised module that anchors on the
+  occupancy `it`'s own title, ends the block by indentation, requires park and
+  aim to be unique inside it, tolerates line breaks and either quote style, and
+  says "parse failure, not a re-aim" when it cannot read. Every one of those
+  shapes is a synthetic-source test.
+- **`code()` in `class-board.test.ts` now strips string literals as well as
+  comments.** The new parser test builds a miniature p6d out of quoted source
+  (`'    w.warden.x = 4;'`), and the sink rules read all four of them as real
+  board pins. A sink inside a quote is text. Controlled: injecting a *real*
+  private park and a *real* literal build tile into `class-kit-whiff` is still
+  caught by both sinks.
+- **Three review/QA findings were pre-existing and are fixed in passing**: the
+  ladder's last rung (`east: 1`) was dead code — `footprintClear`'s far-ground
+  clause scans `dx = 4..east`, so it could never succeed, and the throw
+  advertised a floor ("down to a single build tile") the ladder could not reach
+  (now `east: 4`); the column was pre-filtered with `grid.buildable` while
+  `class-kit-whiff` places it with `buildTower`, so `probeAt` now asks
+  `checkBuild` too; and two headers still described the pre-`c026` bounding box
+  and the pre-`c025` exemption.
+
+### Generation rule (2026-09-05, session 3) — run with two actionable items left
+
+Run before executing, per CLAUDE.md, with `c022` and `c025` the only actionable
+items in the lane. Appended `c028`, `c027`, `c031`, `c029`, `c030`, in that
+order; the extraction leads only because `c027` would otherwise hand-copy the
+device `c028` extracts.
+
+- **(a) Sweep and gates.** `npx tsx tools/sweep.ts --seeds 12 --policies
+  maxbuild,hybrid` on this tree: **maxbuild win 0.17**, medMin 30.7, medWaves
+  17; **hybrid win 0.17**, medMin 38.2, medWaves 18. STATUS.md's own policy
+  table still reads win rate **1** for both, so that table is stale — it
+  predates master's `p12b`/`p12c` T1 re-anchor and the terrain wiring, and the
+  divergence is main-lane balance state, not this lane's (`c022` and `c025`
+  move zero `/src` and `/data` bytes between them). Of the five red gates,
+  **G8** is the only one whose lever is in this lane's Scope, and both of its
+  clauses are parked on owner verdicts — **Q160** (win rate) and **Q161**
+  (diversity), with `c002` skipped against the latter. No item is filed against
+  a gate that a `/data`-only session has already failed to move four times
+  (CLAUDE.md rule 6, and `p10r`/`p10s`/`p10t`/`p10z`'s record of it).
+- **(b) SPEC-FINAL coverage diff.** §7 is fully audited after `c012`/`c022`;
+  §13's equipment census (12+) and class census (12) are met. The three
+  uncovered §4/§7 surfaces are all *reach* rather than magnitude — which key a
+  clause is authored on — and that is `c027`. The `/data`-to-`/src` contract
+  `c031` names is the fourth, and the only one `fb056` is guaranteed to touch.
+- **(c) Engineer's judgment.** `c029`, which is a property this lane has been
+  *claiming* since `c014` and, measured while converting the eighth importer,
+  does not have.
+
+### c022 (2026-09-05) — the row that audits the right number on the wrong stat
+
+- **Shape**: `tests/equip-spec-numbers.test.ts` gains a `Behaviour` pointer on
+  every one of the 13 §7 Effect rows plus five checks over them; new in-lane
+  `tests/equip-effect-behaviour.test.ts` (13 tests) carries the seven covers
+  that did not exist. No `/src` or `/data` byte moved. 121 + 13 green.
+- **The mutation the item was filed on is red, measured, not argued.**
+  `"towerCost": -0.2` -> `"goldFind": -0.2` in `/data` with the ledger row's
+  `stat` edited to match: **2 red** (the pointer check and the decoy check).
+  Renaming the covering `it` title: **1 red**. Both were green before.
+- **Seven of the thirteen rows had no cover to point at**, which is the finding
+  underneath the finding: `hpRegen`, `xpGain` and `towerCost` had no
+  equipment-side behavioural block anywhere in the suite; `leech`'s *magnitude*
+  was unpinned (fb015's two Bleeding blocks prove the flag routes bleed damage,
+  never the 0.0001); `bleedLifesteal` was proven only by equipping the item, so
+  the stat could have moved keys with fb015 green; `towerAtkFlat` likewise —
+  fb015 observes `towerDamage()` rising, which any tower-damage key would do;
+  and Swordsman Armor's `classFallback` had no dedicated block at all, only the
+  generic three-item loop that names no stat. The ledger's own `note` on the
+  `bleedLifesteal` row had already written the pointer in prose ("named here
+  instead: `tests/fb015-equipment.test.ts:419`"); c022 is that sentence turned
+  into an anchor.
+- **The default is the strong one and the override is a roster, not a flag.**
+  `reads` defaults to the row's own stat key as a substring, so `areaMul`,
+  `towerRangeMul` and `leechAccumulator` satisfy `area`, `towerRange` and
+  `leech` — a derived factor named after its stat is that stat read by name.
+  Exactly one row overrides it (`swordsman_shoes`' `×2`, the only row with
+  `stat: null`), and the exemption asserts *its own cause*: the row must have
+  no stat key and must be `in_code`, so it cannot outlive the reason it exists.
+- **The block reader is exercised on synthetic source**, the shape `c012`'s
+  `unclaimedWords` established: a fabricated two-block file proves it stops at
+  its own closing brace rather than swallowing its neighbour, that 0 and 2
+  matches are reported rather than silently taken, and that an unterminated
+  block throws. Without that, every `reads` check could have been passing by
+  reading the rest of the file.
+- **The decoy roster is derived, not listed**: every `StatKey` no equipment
+  item authors may appear in no covering block, so re-pointing *any* Effect row
+  at one of them is red, not just the row QA happened to mutate. A hardcoded
+  roster of three carried the precondition "no item authors this key", which
+  the acceptance mutation itself breaks — it would have gone red saying
+  "goldFind is authored, so it is not a decoy", the right answer for the wrong
+  reason. One name is exempt with a reason (`towerDamage`, which `towers.ts`
+  also exports as a *function* the Builder's Necklace covers call), and a
+  negative control (`.not.`, or a `toBeCloseTo` against the control world) may
+  name a decoy freely — QA showed the first draft punished *strengthening* a
+  block with a "the discount must not leak into gold find" assertion.
+- **Eight of the device's own holes were found by review and QA, and every one
+  is closed with the mutation that found it as its regression test.** The
+  `reads` match was a bare substring (`atkFlat` satisfied by `towerAtkFlat`,
+  `armor` by the item key `swordsman_armor`) and is now closed on the left by
+  an identifier boundary; the body **excluded** the title line only after
+  review pointed out that ten of thirteen anchors name their stat in the title,
+  so the check was self-satisfying; comments are stripped, because a bare
+  `// luck` was enough to "cover" a row moved onto `luck`; the pointer now
+  binds the **item** as well as the stat, after QA re-pointed Normal Ring at
+  the Time Core's regen block and stayed green; a `describe.skip` above a cover
+  is refused; and the block reader stopped scanning for a literal `});` after
+  QA closed a block with `}, 20000);` (20 files here do) and watched the body
+  swallow its neighbour — it now reads the end off indentation and refuses
+  anything at that column that is not a closer. The seventh was in the new
+  covers themselves, not the device: the `leech` block asserted
+  `leechAccumulator ≈ dealt × derived.leech`, which is `0 ≈ 0` with the stat
+  deleted — the one cover of the seven that survived its own mod's removal.
 
 ### c026 (2026-09-05) — the merge that proved the footprint was describing the arena
 
@@ -870,7 +1306,7 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
 
 ### c014 follow-ups (in this lane, filed by code review's second pass)
 
-- [ ] (c025) [polish] **`tests/class-kit-whiff.test.ts` converts to the shared
+- [x] (c025) [polish] **DONE 2026-09-05.** **`tests/class-kit-whiff.test.ts` converts to the shared
       board, all but one row.** `c014` exempted the whole file; review showed
       the exemption is broader than its reason. Only the Ice Wall row
       (`expect([AX, AY]).toEqual([12, 10])`) is coupled to the out-of-Scope
@@ -886,6 +1322,13 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       comment, and drops out of `class-board.test.ts`'s `EXCEPTIONS` except for
       that row; all 58 whiff tests stay green and a shifted probe origin moves
       them with the other seven - refs: c007, c014, SPEC-FINAL §4.
+      **Two acceptance clauses could not hold as written and both had already
+      been overtaken by `c026`: "`footprintClear` already validates that
+      column" was true of the pre-c026 bounding box and false after it (the
+      column is probed explicitly now, on its own rung of the ladder), and
+      "keeps line 620's literal" described an absolute-tile agreement that
+      stopped being this file's tile when terrain moved the board to `10,6` —
+      it is an offset now, read out of p6d's own occupancy test.**
 
 - [x] (c026) [polish] **DONE 2026-09-05 (forced by the master merge).** **`footprintClear`'s rectangle is a bounding box, and it
       is expensive.** It requires all 128 tiles of
@@ -904,6 +1347,26 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       - refs: c014, BACKLOG-TERRAIN.md.
 
 ### For the main lane (out of this lane's Scope)
+
+- **Re-read the whole G8 roster on the current tree, and separate the causes**
+  (c030). The candidates are `p12c`'s `baseHpMul: 20` (the first one to try —
+  a roster-wide T1 enemy-HP multiplier), `p12a`'s kit re-anchor, `fb076`,
+  `fb099`, `fb054` and `fb077`'s terrain; `p12b` is inert at T1. This lane re-measured its own two
+  deferred numbers and both moved a long way: Time Lord 12/12 -> 11/12, and the
+  12-class kit-share sweep from "12/12 win for eleven classes, 2/12 distinct
+  top sources" to "five classes inside G8's literal 35-70% band, 1/12
+  distinct". Every other per-class number in STATUS.md and in `p6e`/`p10z` is
+  in the same position. Both of this lane's readings are **T1** while `p6e`
+  now runs at `GATE_TIER` = 3, so the re-read has a tier question in it as
+  well as an attribution one; `p12d` owns the gate text.
+
+- **`tests/equip-spec-ledger.ts` -> `tests/spec-ledger.ts`** (c028). The module
+  is ledger-generic — `c027` uses it on the §4 ledger, which is about classes —
+  and carries the `equip-` prefix only because this lane's Scope allows new
+  test files under `tests/class-*` and `tests/equip-*` and nothing else. A
+  two-file rename plus four literals (the import in `equip-spec-numbers`, the
+  skip-list and the two paths in its own test).
+
 
 ### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
 
