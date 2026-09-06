@@ -138,22 +138,28 @@ const HOST = '127.0.0.1';
  * **The interface has to be pinned too, not just the port.** Vite's
  * `server.host` defaults to `undefined`, which it resolves to the *name*
  * `localhost` before calling `httpServer.listen(port, host)` — and `listen`
- * binds only the first address the name resolves to. What was actually
- * observed on the runner (run 34048137111) is narrower than a mechanism: four
- * suites, four distinct ports, four `ERR_CONNECTION_REFUSED` at the 127.0.0.1
- * URL each was handed, with no reading of what the server had bound. The
- * leading hypothesis is that the name resolved to `::1` there and to 127.0.0.1
- * here, which would explain why the suites pass on this container and on every
- * developer machine; it is a hypothesis, not a measurement, and Ubuntu's stock
- * `/etc/hosts` argues against it.
+ * binds only the first address that name resolves to. With the port collision
+ * fixed but the host still defaulted, all four suites got distinct ports and
+ * still reported `ERR_CONNECTION_REFUSED` at the 127.0.0.1 URL each was handed
+ * (run 34048137111). Pinning the literal `127.0.0.1` and changing nothing else
+ * turned the same four suites green (run 34048887457), so the interface the
+ * server bound was the cause — that pair is the control, not a story.
  *
- * The fix does not depend on which explanation is right. Binding the literal
- * `127.0.0.1` takes name resolution out of the question entirely, and the
- * server is then checked two ways before the caller ever sees it: the bound
- * address must be the reserved one, and the URL must actually serve. That
- * second check is the one that pays for itself — every cause this helper has
- * not thought of now fails here, named, in ~100 ms, instead of surfacing four
- * suites later as an anonymous refused connection inside `page.goto`.
+ * What is *not* measured is which address the name resolved to on the runner
+ * and why: nothing read the bound address there, and Ubuntu's stock
+ * `/etc/hosts` argues against the obvious "`::1 localhost` comes first"
+ * explanation, since it puts 127.0.0.1 on the first line and does not list
+ * `localhost` on the `::1` line at all. Where a host does publish both, the
+ * order is decided by getaddrinfo's RFC 6724 sorting rather than by file
+ * order, and Node's verbatim default only means Node does not re-sort the
+ * result. So: the fix is established, the resolution mechanism behind it is
+ * not, and this comment should not pretend otherwise.
+ *
+ * The server is checked two ways before the caller sees it: the bound address
+ * must be the reserved one, and the URL must actually serve. The second check
+ * is the one that pays for itself — a cause this helper has not thought of
+ * fails here, named, in ~100 ms, instead of surfacing four suites later as an
+ * anonymous refused connection inside `page.goto`.
  */
 export async function startDevServer(root: string): Promise<{ server: ViteDevServer; url: string }> {
   const port = await freePort();

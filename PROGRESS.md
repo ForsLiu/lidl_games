@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — CI is green.** Run
+  [#34048887457](https://github.com/ForsLiu/lidl_games/actions/runs/34048887457)
+  passed the fast tier and the build on `claude/backlog-processing-30e66t`
+  (PR #6), the first green run since the workflow landed. It took three
+  attempts because the first red run had five causes and fixing them exposed a
+  sixth:
+  - Run [#34010610675](https://github.com/ForsLiu/lidl_games/actions/runs/34010610675)
+    — seven assertions, five files (b032/b034/b035/b036, b028, q41, p10e); see
+    the entry below.
+  - Run [#34048137111](https://github.com/ForsLiu/lidl_games/actions/runs/34048137111)
+    — b028/q41/p10e green, and the four browser suites still red. They now had
+    four distinct ports, so the 5173 collision was genuinely fixed, and every
+    one still reported `ERR_CONNECTION_REFUSED` at its own 127.0.0.1 URL.
+    `startDevServer` had not set `server.host`, so Vite bound the *name*
+    `localhost`, and `listen` takes only the first address a name resolves to.
+  - Run #34048887457 — the literal `127.0.0.1` pinned, nothing else changed,
+    all four suites green. **That pair is the control**: the interface the
+    server bound was the cause. What it does *not* establish is which address
+    `localhost` resolved to on the runner or why — nothing read the bound
+    address there, and Ubuntu's stock `/etc/hosts` argues against the obvious
+    IPv6-first reading. The first commit stated that mechanism as fact; the
+    correction is in `tests/helpers/browser.ts` and in `ef1016e`.
+
+  Both dev-server contracts are now pinned in `tests/helpers-browser.test.ts`
+  rather than left to CI, and mutation-checked: dropping the host fails one,
+  reverting to `port: 0` fails both. `startDevServer` also fetches the URL it
+  hands out before returning, so a cause nobody anticipated fails there, named,
+  in ~100 ms — the earlier fixes had no such property, which is why the second
+  red run cost a whole round to diagnose. No game code was changed in any of
+  it, per the owner's instruction.
+
+  Still true and unrelated to CI: `q15`/`q45` fail in the dev container on tsx
+  worker-thread module resolution and pass on the runner. `fb168` is filed —
+  `tools/ui-audit.ts` builds its own dev server carrying both defects fixed
+  here, with no test that would catch either.
+
 - **2026-09-06 — fb140's first CI run went red, and four of its five causes were
   real defects the local tier could not see.** The failing run is
   [#34010610675](https://github.com/ForsLiu/lidl_games/actions/runs/34010610675)
