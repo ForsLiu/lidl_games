@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — CI green on the whole branch, and fb168's QA pass found a leak
+  fb168 itself introduced.** Run
+  [#34057777523](https://github.com/ForsLiu/lidl_games/actions/runs/34057777523)
+  passed the fast tier and the build on `d9c2a42`, carrying both perf-tier
+  moves (q13's anti-vacuity case and fb064z's retry ratio), fb168 and fb165.
+  The earlier run on `53ed3a8` shows `cancelled` — that is the workflow's own
+  concurrency group dropping an in-flight run when a newer push to the same ref
+  arrives, not a failure.
+
+  qa-playtester **PASSED** fb168's three acceptance criteria, each measured:
+  `ui-audit` routes through the shared helper and importing it launches no
+  browser; a before/after control run of `npm run ui-audit` produced identical
+  summary (5764/7710), identical scene list and *identical failing-check detail
+  strings*; and the port/host pin is live and non-vacuous in both directions.
+  It also ran the four browser UI suites for real against the extracted helper
+  (5 tests green — under plain `npm run test:fast` they skip on this host),
+  and 12 simultaneous `startDevServer` calls gave 12 distinct ports, none 5173.
+
+  It then filed two Majors and four Minors, all fixed here as **fb169** and
+  **fb170**. fb169 is the one that matters: `strictPort: true` — the whole point
+  of fb168's port reservation — makes a lost port race *reject*, and the
+  rejection escaped with the `ViteDevServer` already holding ~26 chokidar
+  watchers, so `npx tsx tools/ui-audit.ts` hung forever instead of failing.
+  Unreachable before fb168, since the old call passed `strictPort: false`. The
+  regression test lands first per working rule 3 and measured 564 leaked
+  watchers before the fix, 0 after. fb170 closes four holes in fb168's own
+  guards, each with the mutation that found it — most instructively, the source
+  stripper was silently deleting 11 lines of the file it scanned, including the
+  very `await server.listen()` line fb169 had to fix.
+
 - **2026-09-06 — BACKLOG fb165: G17 measures the shape the game produces
   again.** `tools/perf-ratio.ts`'s `worstCaseWorld` scattered the 500-enemy
   alive cap evenly across the arena, which stopped being what a VS horde looks

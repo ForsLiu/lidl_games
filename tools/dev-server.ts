@@ -93,7 +93,22 @@ export async function startDevServer(root: string): Promise<{ server: ViteDevSer
       watch: { ignored: ['**/bench/**', '**/audit/**', '**/dist/**', '**/.git/**'] },
     },
   });
-  await server.listen();
+  // `strictPort: true` makes a lost port race reject here rather than bind
+  // somewhere the caller never looks — which is the point, but the server is
+  // already constructed and already owns a repo-wide chokidar watch by now, so
+  // the rejection has to take it down with it. It did not, and a caller whose
+  // own `finally` closes a variable assigned from this function's *return*
+  // value cannot help: on this path there is no return value. Measured by
+  // qa-playtester at fb168: `npx tsx tools/ui-audit.ts` hung forever (exit 124
+  // under `timeout 90`), because ~26 leaked watchers hold the event loop open.
+  // Pinned by tests/fb168-ui-audit-dev-server.test.ts, which reproduces the
+  // race by holding the reserved port and counts the surviving watchers.
+  try {
+    await server.listen();
+  } catch (err) {
+    await server.close();
+    throw err;
+  }
   const address = server.httpServer?.address();
   const bound = typeof address === 'object' && address ? address : null;
   if (bound?.address !== HOST || bound.port !== port) {

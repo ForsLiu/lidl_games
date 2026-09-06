@@ -44,6 +44,47 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
+- [x] (fb169) [bug] **DONE 2026-09-06, filed by qa-playtester on fb168 and
+      fixed in the same session with a failing regression test first (working
+      rule 3).** `startDevServer` leaked the `ViteDevServer` — and its ~26
+      chokidar watchers — when `server.listen()` rejected, the one failure path
+      `strictPort: true` exists to create. `ui-audit`'s own `finally` could not
+      help: it closes a variable assigned from the function's *return* value,
+      and on that path there is none. QA measured the end-to-end consequence:
+      `npx tsx tools/ui-audit.ts` **hung forever** (exit 124 under `timeout 90`)
+      because the leaked watchers hold the event loop open. **New at fb168**,
+      not pre-existing — the old call passed `strictPort: false`, under which a
+      taken port is survivable and the path unreachable. Fixed with a
+      `try/catch` that closes the server before rethrowing; pinned by a case in
+      `tests/fb168-ui-audit-dev-server.test.ts` that loses the port race
+      deterministically (holding the `freePort` probe open) and counts surviving
+      `FSWatcher` handles — measured **564 before the fix, 0 after**.
+
+- [x] (fb170) [bug] **DONE 2026-09-06, qa-playtester on fb168** — four ways
+      fb168's own guards read stronger than they were, each closed with the
+      mutation that found it as its regression:
+      (a) nothing asserted what `ui-audit` *navigates*, so rewriting `page.goto`
+      to a hand-built `http://localhost:${port}/` — fb140's second red run,
+      reintroduced in that file alone — passed all twelve tests while leaving
+      `npm run ui-audit` dead with `ERR_CONNECTION_REFUSED` and no report
+      written; now `page.goto(url)` is pinned.
+      (b) the "no `createServer` of its own" rule read the call shape only, so
+      `import { createServer as bootVite } from 'vite'` walked past it with a
+      full local server carrying both original defects; the import specifier
+      list is matched now.
+      (c) the source stripper's two-regex form read `'**/bench/**'`'s trailing
+      `/**` as a block-comment opener and **deleted 11 lines of the file it was
+      scanning**, `await server.listen()` among them (163 lines in, 42
+      non-blank out). Replaced with a left-to-right pass that tracks string
+      and template literals — not `blankNonCode`, which also blanks string
+      *insides*, and half these rules match module specifiers — plus positive
+      guards so an over-strip cannot leave the negative rules vacuously green.
+      (d) `tests/helpers-browser.test.ts`'s concurrency case claimed to catch
+      the pre-fix config and did not: at `{ port: 0, strictPort: false }` Vite
+      increments 5173 -> 5174 and the URLs genuinely differ (measured 6/6 green
+      against it). The port identity is asserted now, and the comment corrected.
+      All four mutants re-run and red.
+
 - [x] (fb168) [bug] **DONE 2026-09-06** — `startDevServer` extracted to
       `tools/dev-server.ts` (Playwright-free, so a tool importing it does not
       trigger `tests/helpers/browser.ts`'s module-load browser probe);
