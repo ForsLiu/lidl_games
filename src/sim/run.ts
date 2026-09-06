@@ -18,7 +18,7 @@ import {
   updateEnemies,
   type WardenDamageOptions,
 } from './enemies';
-import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
+import { setAreaDamageHandler, setWardenBlockedPredicate, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, maxAllTowers, sellTower, updateTowers, upgradeTower } from './towers';
 import {
   applyHealingToWarden,
@@ -78,6 +78,11 @@ import type { RunConfig } from './types';
 // take the World explicitly, and anything importing the sim needs them live.
 setWardenDamageHandler((w, amount, opts) => damageWarden(w, amount, opts));
 setAreaDamageHandler((w, amount, opts) => damageWarden(w, amount, opts));
+// fb161: ground fire banks per frame and pays per `dotTickInterval`, so it has
+// to ask the untouchable-window question frame by frame the way fb152's Warden
+// DoTs do — same reason, same predicate, injected the same way as the handler
+// above because combat.ts cannot import run.ts.
+setWardenBlockedPredicate(wardenDamageBlocked);
 
 export class Run {
   readonly world: World;

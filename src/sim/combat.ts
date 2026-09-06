@@ -583,6 +583,8 @@ function spawnBurningPatch(w: World, p: Projectile): void {
 /* ------------------------------------------------------------ ground areas */
 
 export function updateAreas(w: World, dt: number): void {
+  /** Summed dps of every live `enemyFire` field covering the Warden this frame (fb161). */
+  let coveringDps = 0;
   for (const a of w.areas) {
     if (a.dead) continue;
     a.remaining -= dt;
@@ -593,8 +595,10 @@ export function updateAreas(w: World, dt: number): void {
     // Boss slam rings grow and damage on their leading edge; boss.ts owns them.
     if (a.type === 'bossSlam') continue;
     if (a.type === 'enemyFire') {
+      // fb161: the Warden's share is summed across every covering field and
+      // banked once, below — see `tickGroundFireBank`.
       if (dist2(a.x, a.y, w.warden.x, w.warden.y) <= a.radius * a.radius) {
-        wardenAreaDamage(w, a.dps * dt);
+        coveringDps += a.dps;
       }
       continue;
     }
@@ -618,6 +622,95 @@ export function updateAreas(w: World, dt: number): void {
       if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
     }
   }
+  tickGroundFireBank(w, coveringDps, dt);
+}
+
+
+/**
+ * fb161: ground fire pays the Warden on `dotTickInterval`, not every frame.
+ *
+ * `updateAreas` called `wardenAreaDamage` once per frame per covering field,
+ * and `damageWarden` emits `wardenhit` on every call, so standing in a
+ * Cinderling's trail sprayed 60 damage numbers a second — the owner's
+ * `dot-tick-cadence` complaint on a mechanism fb152 deliberately left alone.
+ * fb152 was right that a zone is not a §3 DoT instance and has no per-target
+ * stack to bank against.
+ *
+ * **The bank is on the Warden, not on the field**, and the difference is not
+ * cosmetic — code review measured both. A per-field bank looks like fb152's
+ * shape but breaks its guarantee twice over:
+ *  - *the rate is per field, and fields overlap.* A Cinderling drops a 3 s
+ *    field every 0.4 s, so ~7.5 are alive at once and real trail geometry
+ *    covers a point with about two. Measured steady state with fields dropped
+ *    on the Warden every 0.4 s: **30 emits a second** — half of 60, not four.
+ *    The owner's complaint is about numbers on screen, so a per-instance rate
+ *    is the wrong denominator no matter what the acceptance line says.
+ *  - *a partial bank is stranded until its field expires.* fb152's analogue
+ *    force-flushes when the stack ends, which bounds the delay at one interval;
+ *    an `enemyFire` field lives 3 s. Measured: a Warden who steps out at
+ *    t = 0.2 s took her only hit at **t = 3.000 s**, at wherever she was
+ *    standing by then — and through dash i-frames and god mode, because the
+ *    flush is `preGated`.
+ * One bank on the Warden, fed by the summed dps of every covering field, is
+ * <= 4 emits a second in total and cannot strand anything: the timer advances
+ * whenever there is exposure *or* an unpaid bank, so the tail is capped at one
+ * interval. Totals are identical either way — summing dps and paying once is
+ * the same arithmetic as paying each field separately.
+ *
+ * Two details carried over from fb152 rather than rediscovered:
+ *  - the untouchable window is applied **per frame**, not at the flush.
+ *    `damageWarden` drops a hit outright while dashing, reforming or in god
+ *    mode, so pricing a banked interval at the flush instant would let a 0.2 s
+ *    dash erase a whole 0.25 s including damage accrued before it began. The
+ *    flush passes `preGated` for the same reason.
+ *  - the raw amount is banked and mitigated once at the flush, where the
+ *    per-frame path mitigated each frame. Identical while armor holds still,
+ *    which it does across 0.25 s for everything but an armor shred landing
+ *    mid-window; the difference there is a fraction of one interval's damage.
+ *
+ * Rate, stated exactly: at most one emit per `dotTickInterval`, so four in any
+ * window aligned to a flush and at most five in an arbitrary sliding second.
+ *
+ * The three sources fb152 left at 60 Hz that this does *not* touch — the
+ * enemy-facing fire field above, Contagious Flame's touch damage and the Time
+ * core's drain — all damage through `damageEnemy(..., { dot: true })`, which
+ * emits nothing. They have no symptom, and banking them would move when
+ * enemies die, re-rolling every run hash and every balance reading taken since
+ * P10 for no visible gain (QUESTIONS Q189).
+ */
+function tickGroundFireBank(w: World, coveringDps: number, dt: number): void {
+  const wd = w.warden;
+  if (coveringDps <= 0 && wd.groundFireAcc <= 0 && wd.groundFireAccTime <= 0) return;
+  if (coveringDps > 0 && !wardenGroundFireBlocked(w)) wd.groundFireAcc += coveringDps * dt;
+  // The timer runs on an unpaid bank as well as on live exposure, which is what
+  // caps the tail at one interval when the Warden walks out of the fire.
+  wd.groundFireAccTime += dt;
+  if (wd.groundFireAccTime < w.content.damageTypes.dotTickInterval - GROUND_FIRE_EPS) return;
+  const banked = wd.groundFireAcc;
+  wd.groundFireAcc = 0;
+  wd.groundFireAccTime = 0;
+  // An interval spent entirely inside i-frames banks nothing and pays nothing,
+  // which is what the per-frame path did too — a blocked frame returned from
+  // `damageWarden` before it could emit or touch `outOfCombat`.
+  if (banked > 0) wardenAreaDamage(w, banked, { preGated: true });
+}
+
+/**
+ * The same float slack `tickDots` uses: the timer is a sum of `1/60`s, so a
+ * whole number of intervals lands a few ULPs short and a strict `>=` would
+ * defer every flush by one extra frame, forever.
+ */
+const GROUND_FIRE_EPS = 1e-9;
+
+/**
+ * Set by run.ts alongside the damage handler, so this file can ask the Warden's
+ * untouchable-window question without importing run.ts (which imports it). Not
+ * exported: `setWardenBlockedPredicate` is the whole external surface, and a
+ * live-binding import of the mutable `let` is a hazard with no use case.
+ */
+let wardenGroundFireBlocked: (w: World) => boolean = () => false;
+export function setWardenBlockedPredicate(fn: (w: World) => boolean): void {
+  wardenGroundFireBlocked = fn;
 }
 
 /** Set by run.ts so ground fire routes through the Warden's mitigation rules. */

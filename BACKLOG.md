@@ -44,7 +44,79 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
-- [ ] (fb168) [bug] `tools/ui-audit.ts` starts its dev server with the same two
+- [x] (fb171) [bug] **DONE 2026-09-06, filed by code-reviewer on fb161.**
+      fb161's first shape banked ground-fire damage on each **field**, which
+      satisfies the acceptance line ("<= 4 events/second per ground field") and
+      still half-fixes the symptom: fields overlap (a Cinderling keeps ~7.5
+      alive and real geometry covers a point with ~2), measured **30 emits a
+      second**. And a partial bank was stranded until its 3 s field expired —
+      a Warden in the fire for 0.2 s took her only hit at **t = 3.000 s**,
+      wherever she stood by then, and through dash i-frames because the flush is
+      `preGated`. Fixed by moving the bank onto the Warden, fed by the summed
+      dps of every covering field, with the timer advancing on an open bank as
+      well as on live exposure so the tail caps at one interval; totals are
+      unchanged (summing dps and paying once is the same arithmetic). Also
+      closed: the totals case ran at armor 0, where the mitigation factor is 1,
+      so it was blind to the one semantic fb161 changes (nonzero armor now, with
+      a guard); and nothing covered the untouchable window, on which the whole
+      dash/god-mode guarantee for ground fire now rests. Three mutations re-run
+      red. See QUESTIONS Q189a.
+
+- [x] (fb169) [bug] **DONE 2026-09-06, filed by qa-playtester on fb168 and
+      fixed in the same session with a failing regression test first (working
+      rule 3).** `startDevServer` leaked the `ViteDevServer` — and its ~26
+      chokidar watchers — when `server.listen()` rejected, the one failure path
+      `strictPort: true` exists to create. `ui-audit`'s own `finally` could not
+      help: it closes a variable assigned from the function's *return* value,
+      and on that path there is none. QA measured the end-to-end consequence:
+      `npx tsx tools/ui-audit.ts` **hung forever** (exit 124 under `timeout 90`)
+      because the leaked watchers hold the event loop open. **New at fb168**,
+      not pre-existing — the old call passed `strictPort: false`, under which a
+      taken port is survivable and the path unreachable. Fixed with a
+      `try/catch` that closes the server before rethrowing; pinned by a case in
+      `tests/fb168-ui-audit-dev-server.test.ts` that loses the port race
+      deterministically (holding the `freePort` probe open) and counts surviving
+      `FSWatcher` handles — measured **564 before the fix, 0 after**.
+
+- [x] (fb170) [bug] **DONE 2026-09-06, qa-playtester on fb168** — four ways
+      fb168's own guards read stronger than they were, each closed with the
+      mutation that found it as its regression:
+      (a) nothing asserted what `ui-audit` *navigates*, so rewriting `page.goto`
+      to a hand-built `http://localhost:${port}/` — fb140's second red run,
+      reintroduced in that file alone — passed all twelve tests while leaving
+      `npm run ui-audit` dead with `ERR_CONNECTION_REFUSED` and no report
+      written; now `page.goto(url)` is pinned.
+      (b) the "no `createServer` of its own" rule read the call shape only, so
+      `import { createServer as bootVite } from 'vite'` walked past it with a
+      full local server carrying both original defects; the import specifier
+      list is matched now.
+      (c) the source stripper's two-regex form read `'**/bench/**'`'s trailing
+      `/**` as a block-comment opener and **deleted 11 lines of the file it was
+      scanning**, `await server.listen()` among them (163 lines in, 42
+      non-blank out). Replaced with a left-to-right pass that tracks string
+      and template literals — not `blankNonCode`, which also blanks string
+      *insides*, and half these rules match module specifiers — plus positive
+      guards so an over-strip cannot leave the negative rules vacuously green.
+      (d) `tests/helpers-browser.test.ts`'s concurrency case claimed to catch
+      the pre-fix config and did not: at `{ port: 0, strictPort: false }` Vite
+      increments 5173 -> 5174 and the URLs genuinely differ (measured 6/6 green
+      against it). The port identity is asserted now, and the comment corrected.
+      All four mutants re-run and red.
+
+- [x] (fb168) [bug] **DONE 2026-09-06** — `startDevServer` extracted to
+      `tools/dev-server.ts` (Playwright-free, so a tool importing it does not
+      trigger `tests/helpers/browser.ts`'s module-load browser probe);
+      `tests/helpers/browser.ts` re-exports it, so the four UI suites' import
+      path is unchanged; `tools/ui-audit.ts` uses it. Pinned by
+      `tests/fb168-ui-audit-dev-server.test.ts` — four source rules over
+      `ui-audit` (all four red against the pre-fix source), one over the helper's
+      own no-Playwright/no-`tests/` contract, and a live start asserting host,
+      `strictPort` and a served URL. `npm run ui-audit` control run: rule set,
+      per-scene check counts and summary byte-identical (5764/7710).
+      `tests/q47-cli-crash-coverage.test.ts`'s tool census moved 26 -> 27. See
+      QUESTIONS Q187, which also records that Q178's *other* half (ui-audit's
+      direct `chromium.launch`) is still open. Original text follows.
+      `tools/ui-audit.ts` starts its dev server with the same two
       defects `tests/helpers/browser.ts` was just fixed for — `server: { port: 0,
       strictPort: false }` (which Vite resolves to its default 5173, so a
       concurrent audit and UI suite collide) and no `server.host`, while it
@@ -164,7 +236,25 @@ therefore measure *after* `fb153`, not before.
       spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
       feedback `vs-spawn-from-gates`.
 
-- [ ] (fb165) [test] A10's worst-case perf fixture no longer resembles the
+- [x] (fb165) [test] **DONE 2026-09-06** — `tools/perf-ratio.ts` gains
+      `gateShapedWorstCaseWorld()`, a second fixture on the *same* board
+      (`buildWorstCaseBoard`, shared) whose horde comes from `pickSpawnPoint` —
+      the director's own function, so fliers take the edge ring exactly as they
+      do live. `worstCaseWorld()`'s body is unchanged, keeping the three places
+      its numbers are recorded (a10's ms budget, q13's ceiling, mutation-probe's
+      hollow-out anchor, all re-verified as still matching). Two new cases in
+      `tests/a10-performance.test.ts`: the gate-shaped world against the same
+      `SIM_BUDGET_MS`, and a fixture check that it really is gate-shaped.
+      Measured here, three rounds idle: scatter **0.062 / 0.040 / 0.039
+      ms/tick** against gates **0.494 / 0.619 / 0.583** — 8-15x, the effect QA
+      found at 6x — both far under the 8.35 ms budget, so **G17 is re-confirmed
+      against the live shape**. Shape, fresh worlds: 100% of the gate horde
+      within 3 tiles of a gate against 4.4% of the scatter, mean
+      nearest-neighbour 0.015 against 0.560 tiles. Distance-from-centroid was
+      tried first and is wrong here — three clusters at three map edges score
+      *wider* than an even field (17.85 vs 9.89) — recorded in the test so the
+      next reader does not repeat it. See QUESTIONS Q188. Original text follows.
+      A10's worst-case perf fixture no longer resembles the
       shape the game produces. `tools/perf-ratio.ts`'s `worstCaseWorld`
       scatters the 500-enemy alive cap evenly across the arena, but since
       fb154 the cap arrives through three fixed gate points. qa-playtester
@@ -176,7 +266,24 @@ therefore measure *after* `fb153`, not before.
       rather than the ring pattern, both are measured and recorded, and G17's
       budget is re-confirmed against the gate-shaped one — refs: SPEC-FINAL
       §14 G17, QUESTIONS Q182.
-- [ ] (fb161) [feat] the four per-frame `dot: true` sources fb152 deliberately
+- [x] (fb161) [feat] **DONE 2026-09-06** — the Warden-facing source takes
+      fb152's accrue-then-flush cadence, banked on the **field** (a zone has no
+      per-target stack to bank against): `GroundArea.acc`/`accTime`, flushed
+      once per `dotTickInterval` and once more at expiry so the trailing partial
+      interval is paid rather than dropped. Measured **60 `wardenhit` emits per
+      second before, <= 4 after**; a sub-interval field paid 6 times before and
+      exactly once after. The untouchable window is applied per frame while
+      banking and the flush is `preGated`, which is fb152's own measured lesson
+      carried over rather than rediscovered; `combat.ts` cannot import `run.ts`,
+      so the predicate is injected like the existing damage handler. **The other
+      three stay at 60 Hz, decided per source as the item asks**: all three
+      damage through `damageEnemy(..., { dot: true })`, which emits nothing, so
+      they carry no symptom, and banking them would move when enemies die —
+      re-rolling every run hash and every balance reading taken since P10 for no
+      player-visible change. That half is asserted by a test case, not prose, so
+      a later change reddens it instead of quietly outdating the reasoning.
+      See QUESTIONS Q189. Original text follows.
+      The four per-frame `dot: true` sources fb152 deliberately
       left at 60 Hz are **zones, not §3 DoT instances** — but one of them,
       `wardenAreaDamage`'s enemy ground fire (`src/sim/combat.ts:597`), still
       emits a `wardenhit` number every single frame, which is the owner's

@@ -67,14 +67,22 @@ describe('helpers/browser: the dev server the UI suites navigate', () => {
     // resolves a falsy port to its default 5173, so the four suites that
     // each asked for one all asked for the same one.
     const a = await startDevServer(ROOT);
-    // `b` is started inside the try: reverting the helper to `port: 0` makes
-    // this second start throw EADDRINUSE under strictPort — the exact mutation
-    // this test is here to catch — and `a`'s listener plus its repo-wide
-    // chokidar watch would leak from a bare `const b = await ...` above it.
+    // `b` is started inside the try: reverting the helper to `port: 0` while
+    // keeping `strictPort: true` makes this second start throw EADDRINUSE, and
+    // `a`'s listener plus its repo-wide chokidar watch would leak from a bare
+    // `const b = await ...` above it.
+    //
+    // Corrected at fb168 (QA): the comment used to call that "the exact
+    // mutation this test is here to catch", and it is not. The pre-fix state
+    // was `{ port: 0, strictPort: false }`, under which Vite increments
+    // 5173 -> 5174 and the two URLs genuinely differ — measured, this file
+    // stayed 6/6 green against it. So the port *identity* is asserted too:
+    // distinct is not enough when the shared default is what went wrong.
     let b: Awaited<ReturnType<typeof startDevServer>> | undefined;
     try {
       b = await startDevServer(ROOT);
       expect(a.url).not.toBe(b.url);
+      for (const u of [a.url, b.url]) expect(u, `${u} is Vite's default port`).not.toContain(':5173/');
     } finally {
       await Promise.allSettled([a.server.close(), b?.server.close()]);
     }

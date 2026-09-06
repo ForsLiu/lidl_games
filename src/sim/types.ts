@@ -450,7 +450,7 @@ export interface GroundArea {
   /** 'poison' | 'burn' */
   type: string;
   source: string;
-  /** Damage-over-time tick accumulator. */
+  /** Damage-over-time tick accumulator. Declared since this type was written; still unread. */
   acc: number;
   dead: boolean;
 }
@@ -498,6 +498,16 @@ export interface Warden {
   fx: number;
   fy: number;
   outOfCombat: number;
+  /**
+   * fb161: raw ground-fire damage banked but not yet paid, and the time that
+   * bank has been open. One bank for the Warden rather than one per field —
+   * `tickGroundFireBank` (combat.ts) has the measurements behind that. The
+   * timer advances on an open bank as well as on live exposure, so a Warden who
+   * walks out of the fire is paid within one `dotTickInterval` instead of when
+   * the field she left eventually expires.
+   */
+  groundFireAcc: number;
+  groundFireAccTime: number;
   secondWindUsed: boolean;
   /** SPEC-V3 §3: Burning shreds armor. Subtracted from derived armor. */
   armorShred: number;

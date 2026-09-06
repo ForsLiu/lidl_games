@@ -5,6 +5,178 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb161's code review moved the ground-fire bank off the field
+  and onto the Warden, and CI is green on the whole branch.** Run
+  [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)
+  passed on `616af59`, so every commit on this branch — both perf-tier moves,
+  fb168, fb165, fb169/fb170 and fb161's first shape — is green on the runner.
+
+  code-reviewer then returned **REQUEST-CHANGES** on fb161 with one Major and
+  three Minors, all now fixed (QUESTIONS Q189a). The Major is the one worth
+  remembering: banking on each *field* satisfies the acceptance line exactly —
+  "<= 4 events per second per ground field" — and still leaves the symptom half
+  fixed, because fields overlap. Measured 30 emits a second with fields dropped
+  on the Warden every 0.4 s, which is what a Cinderling does. Worse, a partial
+  bank was stranded until its 3 s field expired: a Warden in the fire for 0.2 s
+  took her only hit at t = 3.000 s, wherever she stood by then, and through dash
+  i-frames because the flush is `preGated`.
+
+  One bank on the Warden, fed by the summed dps of every covering field, fixes
+  both and changes no total. The timer now advances on an open bank as well as
+  on live exposure, which caps the tail at one interval. Three mutations
+  re-run: exposure-only timer reddens four cases, no per-frame i-frame gate
+  one, no interval gate three. The review's other two Minors are closed as
+  assertions — the totals case now runs with nonzero armor (at armor 0 the
+  mitigation factor is 1, so it could not see the change it guards), and the
+  untouchable window has cases of its own.
+
+  The lesson worth keeping: **an acceptance criterion can name the wrong
+  denominator.** "Per ground field" read fine for a mechanism nobody had
+  counted, and passing it exactly would have shipped a 2x improvement on a
+  complaint that needed 15x.
+
+  `npm run test:fast` after the redesign: 3909 passed, only the container-only
+  q15/q45. qa-playtester was still running against the first shape when this
+  landed; its findings are reconciled against the redesign next.
+
+- **2026-09-06 — BACKLOG fb161: ground fire stops spraying numbers.** fb152 put
+  every §3 DoT instance on a `dotTickInterval` cadence and left four `dot: true`
+  sources at 60 Hz as zones rather than DoT instances. One of them had the
+  owner's symptom anyway: `updateAreas`'s `enemyFire` branch reaches
+  `damageWarden` without a `dot` flag, and `damageWarden` emits `wardenhit` on
+  every call, so standing in a Cinderling trail emitted **60 damage numbers a
+  second**. It now banks on the `GroundArea` itself — the only thing a zone has
+  with the right lifetime — and flushes once per interval, plus once at expiry
+  so the trailing partial interval is paid. Measured 60 emits/second before,
+  **<= 4 after**; a sub-interval field paid 6 times before and once after.
+
+  The other three stay at 60 Hz and that half is asserted rather than argued:
+  they all emit nothing, so they carry no symptom, and banking them would move
+  when enemies die — re-rolling every run hash and every balance reading taken
+  since P10. QUESTIONS Q189 carries the reasoning and the three sub-decisions
+  (bank on the field; `accTime` advances only while the Warden is inside; the
+  raw amount is banked and mitigated once at the flush).
+
+  Two things checked rather than assumed: `outOfCombat` and `storeWrath` now
+  update 4x/second instead of 60x, and `outOfCombatSeconds` is 3, so the regen
+  gate cannot be reached in a 0.25 s gap. And the first probe read 51 emits per
+  second instead of 60 — at `numberScale` 0.1 the Warden holds ~10 HP and the
+  fixture was killing it mid-window, so it was measuring a death, not a cadence.
+
+  `npm run test:fast` afterwards: 3906 passed, no hash or gate test moved, only
+  the two container-only q15/q45 failures. code-reviewer and qa-playtester were
+  still in flight when this was committed to satisfy the working-tree hook;
+  anything they file lands as a follow-up with a regression test.
+
+- **2026-09-06 — CI green on the whole branch, and fb168's QA pass found a leak
+  fb168 itself introduced.** Run
+  [#34057777523](https://github.com/ForsLiu/lidl_games/actions/runs/34057777523)
+  passed the fast tier and the build on `d9c2a42`, carrying both perf-tier
+  moves (q13's anti-vacuity case and fb064z's retry ratio), fb168 and fb165.
+  The earlier run on `53ed3a8` shows `cancelled` — that is the workflow's own
+  concurrency group dropping an in-flight run when a newer push to the same ref
+  arrives, not a failure.
+
+  qa-playtester **PASSED** fb168's three acceptance criteria, each measured:
+  `ui-audit` routes through the shared helper and importing it launches no
+  browser; a before/after control run of `npm run ui-audit` produced identical
+  summary (5764/7710), identical scene list and *identical failing-check detail
+  strings*; and the port/host pin is live and non-vacuous in both directions.
+  It also ran the four browser UI suites for real against the extracted helper
+  (5 tests green — under plain `npm run test:fast` they skip on this host),
+  and 12 simultaneous `startDevServer` calls gave 12 distinct ports, none 5173.
+
+  It then filed two Majors and four Minors, all fixed here as **fb169** and
+  **fb170**. fb169 is the one that matters: `strictPort: true` — the whole point
+  of fb168's port reservation — makes a lost port race *reject*, and the
+  rejection escaped with the `ViteDevServer` already holding ~26 chokidar
+  watchers, so `npx tsx tools/ui-audit.ts` hung forever instead of failing.
+  Unreachable before fb168, since the old call passed `strictPort: false`. The
+  regression test lands first per working rule 3 and measured 564 leaked
+  watchers before the fix, 0 after. fb170 closes four holes in fb168's own
+  guards, each with the mutation that found it — most instructively, the source
+  stripper was silently deleting 11 lines of the file it scanned, including the
+  very `await server.listen()` line fb169 had to fix.
+
+- **2026-09-06 — BACKLOG fb165: G17 measures the shape the game produces
+  again.** `tools/perf-ratio.ts`'s `worstCaseWorld` scattered the 500-enemy
+  alive cap evenly across the arena, which stopped being what a VS horde looks
+  like at fb154 — ground spawns arrive through three gates now. qa-playtester
+  had measured the same world built both ways at 6x apart, against a budget
+  neither breaches, so G17 was not failing; it had gone quiet, which is the
+  more expensive kind of wrong for a perf gate. `gateShapedWorstCaseWorld()`
+  fills the same board from `pickSpawnPoint` — the director's own function, so
+  fliers take the edge ring exactly as they do live — and
+  `tests/a10-performance.test.ts` measures both.
+
+  Re-measured here, three idle rounds: scatter **0.062 / 0.040 / 0.039 ms/tick**
+  against gates **0.494 / 0.619 / 0.583** (8-15x), both far under
+  `SIM_BUDGET_MS` 8.35, so **G17's budget is re-confirmed against the live
+  shape**. The pair is a real control — one `buildWorstCaseBoard`, so only
+  positions differ. `worstCaseWorld()`'s own body is untouched, keeping the
+  three recordings that cite it valid (a10's budget, q13's ceiling,
+  mutation-probe's anchor — every mutation anchor in the repo re-verified as
+  still matching). QUESTIONS Q188 records why a second fixture rather than a
+  re-pointed one, and the clustering statistic that had to be thrown away:
+  distance-from-centroid reads three edge clusters as *wider* than an even
+  field (17.85 vs 9.89 tiles), so the shape check uses share-near-a-gate
+  (1.000 vs 0.044) and mean nearest-neighbour distance (0.015 vs 0.560) instead.
+
+- **2026-09-06 — BACKLOG fb168: the dev-server contracts now exist once, not
+  twice.** `tests/helpers/browser.ts` was fixed twice during fb140 for two
+  defects only a CI runner could show — `server: { port: 0 }`, which Vite
+  resolves to its default 5173 so concurrent callers collide, and a defaulted
+  `server.host`, which Vite resolves to the *name* `localhost` while the caller
+  navigates the literal `127.0.0.1`. `tools/ui-audit.ts` carried both in its own
+  `createServer` call and was never fixed, because `npm run ui-audit` is a
+  manual command with no CI job: the defect was invisible, not absent.
+  `startDevServer` (plus `freePort`, `assertServes`, `HOST`) now lives in
+  `tools/dev-server.ts`, deliberately Playwright-free — `tests/helpers/browser.ts`
+  decides Chromium availability with a **top-level `await chromium.launch()`**,
+  so a tool importing it would open a browser as a module-load side effect. That
+  module re-exports `startDevServer`, so the four UI suites' import path is
+  unchanged, and `ui-audit` imports the tool-side module. QUESTIONS Q187 records
+  the decision (it closes the owner call Q178 left open) and the half of Q178
+  still open: `ui-audit` launches Chromium directly and still hard-fails an
+  `--ignore-scripts` checkout.
+
+  `tests/fb168-ui-audit-dev-server.test.ts` holds it from both ends: four source
+  rules over `ui-audit` (each measured red against the pre-fix source), one over
+  the helper's own no-Playwright/no-`tests/` contract (red when a `playwright`
+  import is added), and a live start asserting the bound address, `strictPort`
+  and a served URL (red when the helper is reverted to `port: 0`). The audit's
+  own output is a control: pre- and post-change `audit/report.json` agree on
+  rule set, per-scene check counts and summary — 5764/7710 both times.
+  `tests/q47-cli-crash-coverage.test.ts`'s tool census moved 26 -> 27, which is
+  that test working as designed.
+
+- **2026-09-06 — CI is green again after the q13 timing case moved to the perf
+  tier.** Run
+  [#34054367074](https://github.com/ForsLiu/lidl_games/actions/runs/34054367074)
+  on master (`b44823e`) went red with exactly one failure in 270 files:
+  `tests/q13-perf-ratio.test.ts`'s "is actually sensitive to sim cost" case,
+  `worst=1821 empty=508` — **3.58x against a 4x floor**. Third instance of one
+  family (a10, then p10e at fb140, now this), and the same remedy: it is the
+  one q13 assertion that divides one timing measurement by another, and the
+  near-empty world's `msPerTick` already sits at timer resolution — which is
+  why it samples 5000 ticks instead of 500 — so under two workers and the rest
+  of the fast tier it inflates proportionally more than the worst case's does
+  and the ratio-of-ratios collapses toward the floor. Lowering the floor would
+  spend the anti-vacuity guard's whole margin on contention, so the case moved
+  to `tests/q13-perf-sensitivity.test.ts` under `vitest.perf.config.ts`'s
+  single-threaded run instead (QUESTIONS Q186). It stays live — `npm test`
+  runs both configs.
+
+  The parent file keeps everything that is *not* a cross-measurement timing
+  comparison and stays in the fast tier: the ceiling and granularity-stability
+  bounds (both recorded against contended medians, so they absorb contention
+  by design) plus the fixture-reachability and calibration-determinism checks,
+  neither of which measures time. `tools/mutation-probe.ts`'s
+  `perf-ratio-worstCaseWorld-hollow` still points at the parent file and is
+  still killed there, by the fixture check. No game code was touched.
+  Confirmed green on run
+  [#34056355605](https://github.com/ForsLiu/lidl_games/actions/runs/34056355605).
+
 - **2026-09-06 — CI is green.** Run
   [#34048887457](https://github.com/ForsLiu/lidl_games/actions/runs/34048887457)
   passed the fast tier and the build on `claude/backlog-processing-30e66t`

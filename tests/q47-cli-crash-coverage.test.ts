@@ -57,6 +57,14 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   'tools/a5probe.ts': 'pinned',
   'tools/cli-crash-coverage.ts': 'no-content-import',
   'tools/content-census.ts': 'pinned',
+  // fb168: the shared Vite dev-server bootstrap for tools/ui-audit.ts and
+  // (re-exported through tests/helpers/browser.ts) the four browser UI suites.
+  // The status is decided by the reason stated: it imports only vite and
+  // node:net, so `classifyTool` finds no route to src/sim/content.ts and never
+  // reaches the invocability question. (It is also a library rather than a CLI
+  // — no main(), no argv read — so a NOT_INVOCABLE entry, the bucket
+  // fuzz-data.ts sits in, would fit equally well; either way it is not a gap.)
+  'tools/dev-server.ts': 'no-content-import',
   'tools/fuzz-command-domain-worker.ts': 'not-invocable',
   'tools/fuzz-command-domain.ts': 'pinned',
   'tools/fuzz-data.ts': 'not-invocable',
@@ -95,11 +103,11 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
 };
 
 describe('q47 — CLI-crash coverage census', () => {
-  it("lists exactly today's 26 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts plus p10k's tools/p10k-sweep.ts plus fb038's tools/status.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
+  it("lists exactly today's 27 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts plus p10k's tools/p10k-sweep.ts plus fb038's tools/status.ts plus fb168's tools/dev-server.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
     const files = listToolFiles();
     expect(files).not.toContain('tools/gen-tree.mjs');
     expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
-    expect(files.length).toBe(26);
+    expect(files.length).toBe(27);
   });
 
   it("today's classification matches this session's hand-derived table exactly", () => {

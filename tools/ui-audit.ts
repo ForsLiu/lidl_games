@@ -17,13 +17,14 @@
  * (checked in) explains what each scene is for.
  */
 
-import { createServer, type ViteDevServer } from 'vite';
+import type { ViteDevServer } from 'vite';
 import { chromium, type Browser, type Page } from 'playwright';
 import { PNG } from 'pngjs';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { StonewakeAuditApi } from '../src/ui/audit-hook';
+import { startDevServer } from './dev-server';
 import {
   CONTRAST_MIN,
   COLOR_DISTANCE_MIN,
@@ -454,12 +455,16 @@ async function main(): Promise<void> {
   let server: ViteDevServer | null = null;
   let browser: Browser | null = null;
   try {
-    server = await createServer({ root: ROOT, server: { port: 0, strictPort: false } });
-    await server.listen();
-    const address = server.httpServer?.address();
-    const port = typeof address === 'object' && address ? address.port : null;
-    if (!port) throw new Error('ui-audit: could not determine the dev server port');
-    const url = `http://127.0.0.1:${port}/`;
+    // fb168: the shared helper, not a local `createServer`. This call used to
+    // be `{ port: 0, strictPort: false }` with a hand-built `127.0.0.1` URL —
+    // both halves of the defect fb140's CI runs 1 and 2 were red for, since
+    // Vite resolves a falsy port to its default 5173 and defaults `host` to the
+    // *name* `localhost`, which need not be the address in the URL. The suites'
+    // copy was fixed there; this one was missed because `npm run ui-audit` has
+    // no CI job to go red. See `tools/dev-server.ts` for both contracts.
+    const started = await startDevServer(ROOT);
+    server = started.server;
+    const url = started.url;
 
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });

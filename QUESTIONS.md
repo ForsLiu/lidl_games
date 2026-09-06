@@ -523,3 +523,177 @@ Q91 and Q102 corrections if not yet done.
 - **Q184. [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.** Regenerating `STATUS.md` for the first time since fb152/fb153a/fb154 shipped shows the 88-run snapshot (2 seeds/cell, T1) going from **win rate 1.0 on all ten policies and 0/88 timeouts** to **0-0.5 and 24/88 timeouts**, with mean run length 33.69 -> 31.63 min. Read carefully, that is one mechanism reported twice: a run sitting at the 45-minute cap is scored a loss by this snapshot, so a change that makes runs *longer* looks like a change that makes them *harder*. The two ordered changes that lengthen runs are fb152 (a DoT kill lands up to one interval late, so enemies live longer) and fb154 (VS enemies walk in from the gates instead of appearing at the rim — measured +13.3% run length over seeds 1-12 and censored seeds 1/12 -> 5/12); fb153a is proportional and moves nothing. The gate that is actually measured rather than snapshotted agrees: G1's 24-seed T3 win rate reads **9/24 wins, 40.9% of resolved seeds**, inside its `[35%,70%]` band, because it excludes censored seeds from the denominator by design (Q159/Q160's own reasoning). Chosen default: **record the snapshot honestly and do not tune** — the owner's orders are explicit that sweeps are re-recorded rather than softened, no balance tuning happens outside P10, and the cap itself is **p12e**, already filed as the blocker for the whole p12 arc with "zero `'running'` outcomes tolerated in any gate matrix" as its acceptance. What this session adds to p12e is the size of its bill: at T1, on the shipped content, a quarter of the snapshot is now censored. STATUS.md's gate table above the snapshot is read from HANDOFF.md and is stale relative to it (HANDOFF has been stale since m20a, per CLAUDE.md); regenerating it is `p10f`'s, and until then the two halves of that report describe different trees. — Reason: CLAUDE.md measurement rules ("a deferral is a measurement with an expiry date"); SPEC-FINAL §14 G1; QUESTIONS Q177/Q159.
 
 - **Q185. [fb140] CI caps the fast tier at two worker threads, and the cap is this item's decision rather than a deferral to one that does not own it.** The owner's `feature-ci-workflow` order says "worker cap env from the cpu-cap item (fb087)". Read against fb087's actual text, there is nothing to inherit: fb087's acceptance is retry-tolerant scratch cleanup and a load-scaled settle deadline (or moving the files to the excluded tier), and it defines no environment variable and no cap — so a deferral would have been recorded against a fiction that never lands (code review). Meanwhile this workflow sets `STONEWAKE_REQUIRE_BROWSER=1`, which turns the four Playwright UI suites from self-skipping into must-run on a shared 4-vCPU runner, and fb087's own text names those four plus `q45`/`q49`/`q52`, `q15` and `q13` as load-sensitive and "all green in isolation". A CI whose first run is expected red is not the visible signal the order asks for, so the fast tier runs at `--poolOptions.threads.maxThreads=2` (accepted by this tree's vitest 2.1) and `docs/CI.md` says fb087 owns making the family robust, not the cap. Two smaller calls in the same item, both recorded where they are read rather than only here: the **badge** lives at the top of `docs/CI.md` because the repository has no README (with the line to paste if one is ever created), and there is **no `/audit` PNG upload** — the order asks for one "if the ui-audit runs", nothing in CI runs `npm run ui-audit`, and `audit/` is gitignored, so the step would have been a permanent silent no-op. — Reason: CLAUDE.md rule 5 (choose, log, continue); owner feedback `feature-ci-workflow`.
+
+- **Q186. [CI q13] A timing assertion that divides one measurement by another
+  belongs in the single-threaded perf config, not in a looser bound.** CI run
+  34054367074 failed `tests/q13-perf-ratio.test.ts`'s anti-vacuity case at
+  3.58x against its 4x floor (`worst=1821 empty=508`) — the only failure in 270
+  files. Two options were available and only one keeps the assertion worth
+  something. Lowering the floor to ~3x spends the guard's entire margin: the
+  failure mode it exists to catch is a ratio dominated by fixed overhead, which
+  puts worst and empty within ~1x of each other, and the measured quiet-host
+  value is ~6.3x — so the floor is already the midpoint of a narrow band, and
+  every point of it bought back is a point the guard can no longer see. Moving
+  the case to `vitest.perf.config.ts` costs nothing instead: `npm test` runs
+  both configs, so the nightly still measures it, and it measures it on an
+  idle single-threaded host where the number means what it says.
+  **The split, rather than moving the whole file**, is the second choice here:
+  q13's other four assertions are not of this kind. The ceiling and
+  granularity-stability bounds were each *recorded against contended medians*
+  (see the parent file's header — three rounds of five concurrent with other
+  suites), so contention is inside their calibration rather than against it,
+  and the fixture-reachability and calibration-determinism checks measure no
+  time at all. Sending them to a single-threaded config would have removed
+  four cheap fast-tier assertions and, worse, re-based two bounds on quiet-host
+  numbers they were not measured at. The general rule this leaves: **a bound
+  measured under contention may stay in the fast tier; a ratio of two
+  independent timing measurements may not**, because contention does not divide
+  out of it — the cheaper measurement, being nearer timer resolution, inflates
+  proportionally more. That is why a10 (absolute ms), p10e (two granularities)
+  and now q13 (two worlds) all ended up in the same config from three
+  different-looking failures.
+
+- **Q187. [fb168] Q178's open owner call, decided: the shared dev-server helper
+  is a `tools/` file, and the census it moves is a census doing its job.** Q178
+  left `tools/ui-audit.ts`'s duplicate dev-server bootstrap unfixed because
+  sharing meant choosing between "a `tools/` file (which moves
+  `tests/q47-cli-crash-coverage.test.ts`'s exact 26-file census)" and "a tool
+  importing from `tests/`", and neither looked free. Measured, they are not
+  close. A tool importing `tests/helpers/browser.ts` would import a module
+  whose availability probe is a **top-level `await chromium.launch()`**, so
+  `npm run ui-audit` — and every other importer — would open a browser as a
+  side effect of loading the module, and would hard-fail in exactly the
+  `--ignore-scripts` checkout Q178 exists to protect. The `tools/` file costs a
+  two-line census edit (26 -> 27, classified `no-content-import`) in a test whose
+  entire purpose is to go red when a `tools/*.ts` file appears unclassified. So:
+  `tools/dev-server.ts`, with `tests/helpers/browser.ts` re-exporting
+  `startDevServer` so the four UI suites' import path is unchanged, and the
+  dependency pointing tools -> nothing rather than tools -> tests.
+  Three consequences worth recording. (1) `ui-audit` inherits `hmr: false` and
+  the `bench`/`audit`/`dist`/`.git` watch ignores along with the port and host
+  pins; `audit/` being watch-ignored removes a latent reload hazard, since the
+  audit writes its own PNGs into a directory its own dev server was watching.
+  (2) A control run measured the change is otherwise inert: the pre-change and
+  post-change `audit/report.json` agree on rule set, per-scene check counts and
+  summary (5764/7710), byte for byte. (3) **Q178 is only half closed.**
+  `tools/ui-audit.ts` still calls `chromium.launch({ headless: true })`
+  directly, so the `--ignore-scripts` hard-fail Q178 named is still live for the
+  browser, just no longer for the server. That is outside fb168's acceptance and
+  is not filed as fixed. — Reason: CLAUDE.md working rule 5 (choose, log,
+  continue) and rule 4's "a loader rule that refuses unpayable data is worth
+  more than a comment"; the same argument applies to a contract learned from a
+  red CI run, which is worth exactly as much as the number of copies that carry
+  it.
+
+- **Q188. [fb165] Two perf fixtures, not one re-pointed fixture — and the
+  clustering statistic that reads a gate-spawned horde backwards.**
+  `tools/perf-ratio.ts`'s `worstCaseWorld` scatters the alive cap evenly by a
+  fixed ring pattern, which is what a VS horde looked like before fb154 moved
+  ground spawns onto the TD gates. Two choices were open. **Re-pointing the
+  existing fixture** at `pickSpawnPoint` would have silently re-based every
+  number recorded against it — `tests/a10-performance.test.ts`'s ms budget,
+  `tests/q13-perf-ratio.test.ts`'s ceiling (whose header records the exact
+  contended medians it was set from) and `tools/mutation-probe.ts`'s hollow-out
+  anchor — so a single edit would have invalidated three separate recordings
+  and left no control. **A parameter with a default** is the same thing wearing
+  a flag: every one of those recordings becomes a measurement of whatever the
+  default happens to be. So: a second exported fixture, both measured, sharing
+  one `buildWorstCaseBoard` so the pair is a genuine control — the two worlds
+  differ in enemy positions and in nothing else. Keeping both is not
+  fence-sitting: a scatter is the harsher case for anything paying per *pair*
+  at range, clustering for anything paying per neighbour, and a budget that
+  survives only one has a blind side.
+  The second decision was forced by a measurement that came out backwards.
+  The obvious way to assert "this horde is clustered" is mean distance from its
+  own centroid, and the first draft did that — then read **17.85 tiles for the
+  gate fixture against 9.89 for the scatter**, i.e. the clustered horde scoring
+  as the *wider* one. It is correct and the statistic is wrong for the shape:
+  three dense clusters sitting at three map edges put their common centroid in
+  the middle of the arena, far from all of them, so centroid spread measures how
+  far apart the modes are rather than how tight each is. Replaced with two
+  statistics that mean what they say — share of the horde within 3 tiles of some
+  gate (1.000 vs 0.044) and mean nearest-neighbour distance (0.015 vs 0.560
+  tiles) — the second being the quantity a per-neighbour tick cost actually
+  pays. Both are asserted as wide-margin inequalities rather than pinned, so
+  terrain generation moving the gates is free and a fill that stops using them
+  is not. The false start is recorded in the test rather than deleted.
+  — Reason: CLAUDE.md's measurement rules ("my change improved X needs the
+  control run"; "check a `/data` row's blast radius before calling it narrow",
+  applied here to a fixture's readers) and working rule 5.
+
+- **Q189. [fb161] Which of fb152's four leftover per-frame sources take the
+  cadence: one, and the other three are asserted to stay.** The item asks for a
+  decision per source. The dividing line that survives measurement is not "is it
+  a zone" — all four are — but **does it emit**. `wardenAreaDamage`'s `enemyFire`
+  branch reaches `damageWarden` with no `dot` flag, and `damageWarden` emits
+  `wardenhit` unconditionally, so a Cinderling trail sprayed 60 numbers a
+  second: the owner's `dot-tick-cadence` complaint exactly, on a mechanism fb152
+  ruled out of scope. The other three (the enemy-facing fire field, Contagious
+  Flame's touch damage, the Time core's drain) go through
+  `damageEnemy(..., { dot: true })`, which suppresses the emit, so there is no
+  symptom to fix — and banking them would change *when enemies die*, which
+  re-rolls every run's end hash and invalidates every balance reading taken
+  since P10. Paying that for no visible change is the trade this refuses.
+  It is written as a **test case** rather than a comment
+  (`tests/fb161-ground-field-cadence.test.ts`), so if a later item does put them
+  on the cadence the assertion goes red and this entry is revisited, instead of
+  the reasoning silently going stale — the failure mode CLAUDE.md's "a deferral
+  is a measurement with an expiry date" names.
+  Three sub-decisions. (1) **The bank lives on the Warden, not on the field, and
+  not on a stack.** fb152 banks per DoT instance; a zone has no per-target
+  instance, so the first draft banked on the field — its lifetime being the only
+  other thing with a scope. Code review measured that wrong twice and it was
+  replaced (see the correction below), which is why the rate this file asserts is
+  a *total*, not the acceptance line's per-field one. (2) **The timer advances on
+  an open bank as well as on live exposure.** Exposure alone was the first
+  draft's rule and is what stranded a partial bank; running it on the bank caps
+  the tail at one interval while leaving the rate unchanged, because a flush
+  still costs a whole interval either way. (3) **The raw
+  amount is banked and mitigated once at the flush**, where the old path
+  mitigated each frame. Identical while armor holds still, which it does across
+  0.25 s for everything but a shred landing mid-window; the divergence there is
+  a fraction of one interval and is the price of not emitting sixty numbers a
+  second. `outOfCombat` and `storeWrath` also now update 4x/second instead of
+  60x — checked, not assumed: `outOfCombatSeconds` is 3, so a 0.25 s gap cannot
+  reach the regen gate.
+  One measurement worth recording because it cost a draft: the first probe read
+  **51** emits in a second rather than 60, and the missing nine were not a
+  cadence — at `numberScale` 0.1 the Warden holds ~10 HP and the probe was
+  killing it partway through the window. The fixture now uses a pool nothing can
+  exhaust. A cost probe that is quietly measuring a death is the same class of
+  error as fb165's centroid statistic. — Reason: CLAUDE.md working rule 5 and
+  the measurement rules; owner feedback `dot-tick-cadence`, SPEC-FINAL §3.
+
+- **Q189a. [fb161, code review] The per-field bank was measured wrong twice, and
+  the correction is why the emit rate is a total rather than per field.** The
+  acceptance line reads "<= 4 `wardenhit` events per second **per ground field**",
+  and a bank held on each field satisfies it exactly while leaving the owner's
+  actual symptom half-fixed. Two measurements, both from code review, neither
+  visible from the acceptance criterion:
+  (a) **fields overlap, so a per-instance rate is the wrong denominator.** A
+  Cinderling drops a 3 s field every 0.4 s, so ~7.5 are alive at once and real
+  trail geometry (radius 0.6, ~0.7 tiles between drops) covers a point with about
+  two. Measured steady state with fields dropped on the Warden every 0.4 s:
+  **30 emits a second**, against 60 before — an improvement of 2x on a complaint
+  about numbers on screen, dressed as a 15x one. Several Cinderlings make it
+  worse.
+  (b) **a partial bank was stranded until its field expired.** fb152's analogue
+  force-flushes when the stack ends, which bounds the delay at one interval; an
+  `enemyFire` field lives 3 s. Measured: a Warden in a field for 0.2 s took her
+  only hit at **t = 3.000 s** — 2.8 s after she left, at wherever she was
+  standing by then, and through dash i-frames and god mode, because the flush is
+  `preGated`. Crossing eight fields dripped eight late hits over the following
+  three seconds.
+  One bank on the Warden, fed by the summed dps of every covering field, fixes
+  both at once and changes no total (summing dps and paying once is the same
+  arithmetic as paying each field separately). Rate, stated exactly rather than
+  as the acceptance's round number: at most one emit per `dotTickInterval`, so
+  four in a window aligned to a flush and at most five in an arbitrary sliding
+  second. Both findings are now assertions rather than prose, and each was
+  re-run as a mutation: reverting the timer to exposure-only reddens four cases,
+  removing the per-frame i-frame gate one, removing the interval gate three.
+  The general lesson, and the reason this is written down: **an acceptance
+  criterion can name the wrong denominator.** "Per ground field" was a
+  reasonable reading of a mechanism nobody had counted, and passing it exactly
+  would have shipped a half-fix. Measure the thing the complaint is about.
+
