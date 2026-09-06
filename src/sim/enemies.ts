@@ -239,6 +239,19 @@ export interface DamageOptions {
    */
   dot?: boolean;
   /**
+   * fb162: this call is a fb152 bank flush (`tickDot`/`tickDotSplash`), where
+   * `amount` is however much accrued since the last flush rather than one
+   * frame's worth, and can overkill a near-dead target by up to a whole
+   * `dotTickInterval`. Ledgers at this choke point cap to what actually
+   * landed when this is set. Deliberately narrower than `dot`: several
+   * `dot: true` callers (Time Lord's Time Mark execute, the Corpse Core's
+   * execute) intentionally spend a kit-power-/ramp-scaled amount past the
+   * target's remaining hp and mean for the full scaled amount to be credited
+   * — that is a designed overkill, not a banking artifact, and must keep
+   * booking the raw amount the way `p12a-kit-power.test.ts` pins.
+   */
+  bankedTick?: boolean;
+  /**
    * The §3 damage type this hit is, when the caller knows it. SPEC-FINAL §2:
    * lifesteal heals from **normal** damage only, so a typed non-normal hit
    * must not leech. Untyped direct damage — V2 weapons, the manual attack,
@@ -385,7 +398,17 @@ export function damageEnemy(
 
   const hpBeforeHit = e.hp;
   e.hp -= dmg;
-  w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
+  // fb162: a banked DoT tick (fb152's cadence) can far outsize the sliver of
+  // hp actually left on a kill — a 1-hp husk banking 15 frames at 10 dps books
+  // 2.5, not the 1 that landed. Q91 already draws this exact "landed, not raw"
+  // line for lifesteal below; extend it to every ledger that reads this choke
+  // point, so a wider bank does not inflate damage-share metrics or hand the
+  // Corpse Core free store. Scoped to `bankedTick` (code review, Major): a
+  // direct hit's or a designed execute's overkill is not a banking artifact
+  // and must keep booking its full amount, `p-core-d-corpse.test.ts` and
+  // `p12a-kit-power.test.ts` pin those cases.
+  const landed = opts.bankedTick ? Math.min(dmg, hpBeforeHit) : dmg;
+  w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + landed;
   // p12a: the VS-only half of the same tally, summed across every VS block
   // (see `World.damageByWeaponVs`). `huntsWarden` is the established
   // "we are in the VS half" predicate — the same one the Corpse line below
@@ -394,10 +417,10 @@ export function damageEnemy(
   // still ticking after the block flips back to TD is credited to the TD
   // side, because `tickDot` calls in here under whatever phase is current at
   // tick time. It is bounded by one stack's remaining duration per block.
-  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + dmg;
-  w.damageTotal += dmg;
+  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + landed;
+  w.damageTotal += landed;
   const dmgType = opts.type ?? 'normal';
-  w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmg;
+  w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + landed;
   // §5.5 Corpse: "1% of all damage dealt to enemies on the map is stored"
   // (TD only) — the one Core effect that has to hook every damage source
   // rather than fire its own attack, so it lives at this single choke point
@@ -405,7 +428,7 @@ export function damageEnemy(
   // makes the designer note ("the execution counts as map damage, so 1% of
   // it flows back into the store") true for free: `updateCorpseExecute`
   // (cores.ts) spends the store by calling this same function.
-  if (!w.huntsWarden && w.core.corpseStoreRatio > 0) w.corpseStore += dmg * w.core.corpseStoreRatio;
+  if (!w.huntsWarden && w.core.corpseStoreRatio > 0) w.corpseStore += landed * w.core.corpseStoreRatio;
   // Ailment ticks do not spark. `World.emit` holds 512 events for the frame and
   // drops the rest, and a DoT bills every carrier every tick — Burning bills
   // every carrier's neighbours too, so a 350-strong burning horde is thousands
@@ -1030,7 +1053,7 @@ function tickDot(w: World, e: Enemy, d: DotStack, banked: number, bankedTime: nu
   if (shred > 0) shredArmor(e, shred * bankedTime);
   // `d.type` is a validated damagetypes key by the time a stack exists.
   const dotType = d.type as DamageTypeKey;
-  damageEnemy(w, e, banked, source, { pure: true, dot: true, type: dotType, preScaled: true });
+  damageEnemy(w, e, banked, source, { pure: true, dot: true, type: dotType, preScaled: true, bankedTick: true });
 }
 
 interface SplashAccum {
@@ -1063,7 +1086,7 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
     // The spread carries the row's effects, so it carries the row's immunity.
     if (immuneToDot(w, n, type)) continue;
     if (acc.shred > 0) shredArmor(n, acc.shred);
-    damageEnemy(w, n, acc.damage, acc.source, { pure: true, dot: true, type });
+    damageEnemy(w, n, acc.damage, acc.source, { pure: true, dot: true, type, bankedTick: true });
   }
 }
 

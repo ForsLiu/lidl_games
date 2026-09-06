@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb162: a DoT kill now books what landed, not what was
+  banked.** `damageEnemy`'s five ledgers (`damageByWeapon`/`damageByWeaponVs`/
+  `damageByType`/`damageTotal`/`corpseStore`) credited fb152's full banked tick
+  even when it overkilled a near-dead target, over-reporting by up to one
+  `dotTickInterval` per DoT kill. Fixed with a new `bankedTick` opt, narrower
+  than `dot` — code-reviewer's first-pass Major finding was that capping on
+  `dot` generally would have silently undercredited Time Lord's kit-power-
+  scaled execute abilities, which deliberately spend past a target's hp; the
+  flag is set only at the two real bank-flush sites (`tickDot`,
+  `tickDotSplash`), leaving every designed-overkill caller (both Time Lord
+  actives, the Corpse Core's execute/drain) untouched. `tests/fb162-dot
+  -overkill.test.ts` (6 cases) pins the 1-hp carrier and splash-neighbour
+  kills against exact totals, the Corpse store not inflating, the
+  non-overkilling and non-DoT-overkill cases staying unchanged, and the
+  designed kit-power execute still booking its full scaled amount. qa-
+  playtester's adversarial pass (concurrent stacks, multi-neighbour splash
+  with mixed remaining hp, the sibling `updateCorpseAutoFire` spend path)
+  found no way to re-inflate the ledgers. Re-verified green post-fix, against
+  the narrowed flag specifically: `fb013-timelord` (31), `p12a-kit-power`
+  (14), `p-core-d-corpse` (22), `g2-determinism`'s 100-seed hash, and
+  `p-core-f-gates`' G22 (each Core's fingerprint shift, both seeds) — the last
+  two because `corpseStore`'s growth rate feeds `updateCorpseExecute`'s
+  timing, the one place this fix can move something besides a stat. `npm run
+  test:fast`: 3915 passed, only the two container-only q15/q45 failures,
+  unchanged from before this item.
+
+  The acceptance's "G5/A5 damage-share suites re-measured, deltas recorded"
+  clause is **deferred on record** (QUESTIONS Q190), not silently skipped:
+  `tests/p10c-weapon-share.test.ts` (G13's live A5 successor) did not finish
+  inside a 15-minute budget, the same cost class as the already fast-tier-
+  excluded `p6e-class-diversity.test.ts` (~1h), and CLAUDE.md reserves runs at
+  that scale for phase completion, not an ordinary item. The fix only moves
+  which slice of an already-dealt DoT kill lands in the ledgers (bounded to at
+  most one tick interval of overkill, never more than fb152 already banked)
+  and touches no enemy hp trajectory, kill timing, or gold outside the Corpse
+  Core's store growth — the one surface G22's re-verified fingerprint gate is
+  built to catch. Whichever item next runs the full weapon-share/diversity
+  sweeps should note fb162 in that sweep's own delta writeup.
+
 - **2026-09-06 — fb161's code review moved the ground-fire bank off the field
   and onto the Warden, and CI is green on the whole branch.** Run
   [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)

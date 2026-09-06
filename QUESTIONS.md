@@ -697,3 +697,43 @@ Q91 and Q102 corrections if not yet done.
   reasonable reading of a mechanism nobody had counted, and passing it exactly
   would have shipped a half-fix. Measure the thing the complaint is about.
 
+- **Q190. [fb162] The overkill fix is scoped to a new `bankedTick` flag, not
+  the existing `dot` flag — and its acceptance's G5/A5 re-measurement clause is
+  deferred, on record, rather than run.** First shape capped every `dot: true`
+  ledger credit at `Math.min(dmg, hpBeforeHit)`. code-reviewer caught that this
+  silently undercredits **designed** overkill: Time Lord's Time Mark execute
+  and Time Lock burst (`classes.ts`) spend `e.hp` through `damageEnemy(...,
+  'class_active', { dot: true })` with no `preScaled`, so `dotVaryingMul`'s
+  `kitPowerMul` scales the credited amount past the target's hp **on purpose**
+  — `p12a-kit-power.test.ts:117` already pins that the *return value* carries
+  the full scaled amount, and the ledger is meant to agree. Capping on `dot`
+  generally would have quietly clawed back the Time Lord's own kit-share
+  numbers for a bug that has nothing to do with him. Fixed by adding a new,
+  narrower `bankedTick` flag set only at the two real fb152 bank-flush sites
+  (`tickDot`, `tickDotSplash`) and consumed only there — every other `dot:
+  true` caller (both Time Lord actives, the Corpse Core's execute and Time
+  Core's drain, the ground-fire zone) keeps booking its full raw amount,
+  unchanged. Re-verified against the narrowed flag: `tests/fb013-timelord
+  .test.ts` (31), `p12a-kit-power.test.ts` (14), `p-core-d-corpse.test.ts`
+  (22), `g2-determinism.test.ts` (100-seed hash, class_active/equip_item log,
+  auto-pick), and `p-core-f-gates.test.ts`'s G22 (each Core's fingerprint
+  shift, both seeds) all green — the two hash/fingerprint-sensitive gates
+  matter here because `corpseStore`'s growth rate, which now tracks *landed*
+  rather than *banked* damage, feeds `updateCorpseExecute`'s timing.
+  The acceptance line also asks that "the G5/A5 damage-share suites are
+  re-measured and their deltas recorded." Attempted: `tests/p10c-weapon-share
+  .test.ts` (G13's live A5 successor) did not finish inside a 15-minute budget
+  — the same order of cost as `p6e-class-diversity.test.ts`'s ~1h G8 sweep,
+  both already excluded from the fast tier for exactly that reason, and
+  CLAUDE.md reserves a run of that size for phase completion/lane merges, not
+  an ordinary item. Deferred rather than forced, on the same reasoning as
+  p6e/p10c's own existing `.skip`s: the fix changes **only** which of an
+  already-dealt DoT kill's damage lands in the ledgers (bounded to at most one
+  `dotTickInterval` of overkill per kill, never more than what fb152 already
+  banked), touches no enemy hp trajectory, kill timing, or gold outside the
+  Corpse Core's store growth — and that one behavioral surface is exactly what
+  G22's re-verified fingerprint-shift gate is built to catch. Re-enable point:
+  whichever item next runs the full `p10c-weapon-share`/`p6e-class-diversity`
+  sweeps (a phase gate, not this one) should note fb162 in that sweep's own
+  delta writeup.
+

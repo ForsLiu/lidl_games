@@ -297,7 +297,33 @@ therefore measure *after* `fb153`, not before.
       counts <= 4 `wardenhit` events per second per ground field; totals over a
       field's lifetime unchanged against a control; determinism holds — refs:
       QUESTIONS Q179 (7), owner feedback `dot-tick-cadence`.
-- [ ] (fb162) [bug] a DoT kill books its whole banked lump into
+- [x] (fb162) [bug] **DONE 2026-09-06** — `damageEnemy` now books `landed =
+      Math.min(dmg, hpBeforeHit)` into `damageByWeapon`/`damageByWeaponVs`/
+      `damageByType`/`damageTotal`/`corpseStore` instead of the raw banked
+      `dmg`, but only when a new `bankedTick` opt is set — narrower than `dot`,
+      per code-reviewer's Major finding that capping on `dot` generally would
+      have silently undercredited Time Lord's Time Mark execute and Time Lock
+      burst, whose `class_active`/`kitPowerMul` scaling deliberately spends
+      past the target's remaining hp (`p12a-kit-power.test.ts:117` already
+      pins the full scaled amount as correct). `bankedTick` is set only at the
+      two real fb152 bank-flush sites, `tickDot` and `tickDotSplash`; every
+      other `dot: true` caller is untouched. `tests/fb162-dot-overkill.test.ts`
+      pins the 1-hp carrier and 1-hp splash-neighbour cases (exact totals, not
+      loose bounds), the Corpse store not inflating, a non-overkilling tick's
+      total unchanged, a non-DoT overkill still booking its full raw swing
+      (existing `p-core-d-corpse.test.ts` behavior, preserved), and the
+      designed kit-power execute still booking its full scaled amount past hp.
+      Re-verified green against the final shape: `fb013-timelord`,
+      `p12a-kit-power`, `p-core-d-corpse`, `g2-determinism` (100-seed hash),
+      and `p-core-f-gates`' G22 (Corpse Core fingerprint-shift, both seeds) —
+      the last two matter because `corpseStore`'s growth rate feeds
+      `updateCorpseExecute`'s timing. The acceptance's G5/A5 damage-share
+      re-measurement is deferred on record (QUESTIONS Q190): `p10c-weapon-share
+      .test.ts` did not finish inside a 15-minute budget, the same cost class
+      as the already-fast-tier-excluded `p6e-class-diversity.test.ts`, and
+      CLAUDE.md reserves that scale of run for phase completion. Original text
+      follows.
+      a DoT kill books its whole banked lump into
       `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal` and the
       Corpse Core's `corpseStore`, while only the target's remaining hp
       actually lands — so overkill is over-reported by up to one tick interval
