@@ -125,7 +125,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, isScaledClassPath } from '../src/sim/content';
+import { isScaledClassPath, loadContent } from '../src/sim/content';
 
 const content = loadContent();
 
@@ -377,8 +377,10 @@ const LEDGER: readonly Claim[] = [
     // p12a (BALANCE DIRECTION v2 §A): 2 -> 6 with the x3 kit re-anchor. The
     // sentence is authored in `data/classes.json` beside the field it quotes,
     // so the re-anchor had to move both — this row is what makes that a
-    // decision rather than a silent desync.
-    token: '6',
+    // decision rather than a silent desync. fb164: fb153a's `numberScale`
+    // (0.1) then moved the *loaded* value to 0.6 without moving the sentence,
+    // which `readLoaded` now reads directly — so the token moves with it.
+    token: '0.6',
     means: "the burning aura's damage per second",
     // "/s" is outside the extractor's unit set, so the keyword is what holds
     // the rate: QA reworded it to "damage/minute" against a per-second field.
@@ -771,30 +773,24 @@ function readFrom(doc: RawClassesDoc, c: Claim): number | undefined {
   return as ? CONVERT[as](raw) : raw;
 }
 
-/** The same value as `loadContent()` carries it — what the sim actually runs on. */
+/**
+ * The same value as `loadContent()` carries it — what the sim actually runs
+ * on. fb164: this used to read a scaled path (`isScaledClassPath`) back
+ * through `numberScale` to compare against the *authored* number a sentence
+ * quoted — that measured "does the sentence match /data" rather than "does
+ * the sentence match what the sim runs on", and left the one scaled claim
+ * (pyromancer's Contagious Flame) free to quote a number six times too large.
+ * fb164 re-anchored every affected `/data` sentence (`classes.json` included)
+ * to the post-scale magnitude, so this now reads `loadContent()`'s value
+ * straight, with no un-scaling step.
+ */
 function readLoaded(c: Claim): number | undefined {
   const path = claimPath(c);
   if (!path) return undefined;
   const walked = walk(content.classByKey.get(c.cls), path);
   if (typeof walked !== 'number') return undefined;
-  // fb153a: `numberScale` divides every authored kit magnitude at load. A
-  // description sentence quotes the *authored* number and `data/classes.json`
-  // still holds it, so the claim is read back through the scale rather than
-  // rewritten in display units.
-  //
-  // **This narrows the guarantee, and the narrowing is tracked, not hidden**
-  // (code review, Major 5). This file's header states its purpose as "a retune
-  // moves the field and leaves the sentence behind, and the player is then told
-  // a number the sim does not run on". Between the sentence and the *authored*
-  // field that invariant still holds and is still checked here. Between the
-  // sentence and what the sim actually *runs on* it no longer does — every
-  // quoted magnitude in `/data` is now a factor of `numberScale` off what the
-  // player sees, uniformly. That is a real, shipped defect, filed as BACKLOG
-  // **fb164**, whose acceptance re-points this read back at the loaded value
-  // once the sentences derive their numbers instead of quoting them.
-  const raw = isScaledClassPath(path) ? walked / content.modifiers.numberScale : walked;
   const as = claimConvert(c);
-  return as ? CONVERT[as](raw) : raw;
+  return as ? CONVERT[as](walked) : walked;
 }
 
 function description(cls: string, slot: Slot): string {
@@ -1034,7 +1030,17 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       }
     }
     for (const c of DATA_HOMED) {
-      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(readFrom(RAW, c)!, 9);
+      const path = claimPath(c)!;
+      // fb164: `readLoaded` now reads the post-`numberScale` value, so a
+      // scaled path (today, only pyromancer's `flameDps`) diverges from the
+      // raw authored document by exactly that factor — the divergence
+      // fb164 exists to close between the *sentence* and the sim, not one
+      // this check should paper over between the loader and the raw file.
+      const factor = isScaledClassPath(path) ? content.modifiers.numberScale : 1;
+      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(
+        readFrom(RAW, c)! * factor,
+        9,
+      );
     }
   });
 

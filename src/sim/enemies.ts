@@ -385,7 +385,14 @@ export function damageEnemy(
 
   const hpBeforeHit = e.hp;
   e.hp -= dmg;
-  w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
+  // fb162: every ledger below counts damage *dealt to the target*, so an
+  // overkill hit books only the HP the target actually had left — the same
+  // Q91 rule already applied to lifesteal below, extended to the rest of the
+  // choke point. `dmg` itself stays the raw armor-reduced hit (used for the
+  // hp subtraction above and the visual hit number) so a kill still reads as
+  // a satisfying blow; only the accounting ledgers are clamped.
+  const dmgBooked = Math.min(dmg, hpBeforeHit);
+  w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmgBooked;
   // p12a: the VS-only half of the same tally, summed across every VS block
   // (see `World.damageByWeaponVs`). `huntsWarden` is the established
   // "we are in the VS half" predicate — the same one the Corpse line below
@@ -394,10 +401,10 @@ export function damageEnemy(
   // still ticking after the block flips back to TD is credited to the TD
   // side, because `tickDot` calls in here under whatever phase is current at
   // tick time. It is bounded by one stack's remaining duration per block.
-  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + dmg;
-  w.damageTotal += dmg;
+  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + dmgBooked;
+  w.damageTotal += dmgBooked;
   const dmgType = opts.type ?? 'normal';
-  w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmg;
+  w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmgBooked;
   // §5.5 Corpse: "1% of all damage dealt to enemies on the map is stored"
   // (TD only) — the one Core effect that has to hook every damage source
   // rather than fire its own attack, so it lives at this single choke point
@@ -405,7 +412,7 @@ export function damageEnemy(
   // makes the designer note ("the execution counts as map damage, so 1% of
   // it flows back into the store") true for free: `updateCorpseExecute`
   // (cores.ts) spends the store by calling this same function.
-  if (!w.huntsWarden && w.core.corpseStoreRatio > 0) w.corpseStore += dmg * w.core.corpseStoreRatio;
+  if (!w.huntsWarden && w.core.corpseStoreRatio > 0) w.corpseStore += dmgBooked * w.core.corpseStoreRatio;
   // Ailment ticks do not spark. `World.emit` holds 512 events for the frame and
   // drops the rest, and a DoT bills every carrier every tick — Burning bills
   // every carrier's neighbours too, so a 350-strong burning horde is thousands
@@ -443,6 +450,11 @@ export function damageEnemy(
     if (dmgType === 'poison') w.poisonKills++;
     killEnemy(w, e, source);
   }
+  // fb162: intentionally the raw, unclamped hit — callers that used to treat
+  // this as "what landed" would already have been wrong on overkill before
+  // this item, since it never reflected the ledgers even then. No caller
+  // reads it today; a future one wanting the booked amount should read
+  // `dmgBooked`'s definition above, not assume this return value matches it.
   return dmg;
 }
 

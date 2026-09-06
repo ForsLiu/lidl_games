@@ -5,6 +5,66 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb163: the two-economy owner call, decided (a) — no code or
+  `/data` change.** fb163 asked for a verdict among (a) keep one factor and
+  accept the coarse character sheet, (b) a second scale factor plus named
+  conversion constants at five crossing points (lifesteal, Blood Tithe,
+  Wrath, the Corpse store, Vampire Heart), or (c) leave the sim alone and
+  format large numbers compactly in the HUD. Checked (c) first: the display
+  layer already comma-groups every DPS-panel total (`formatDamage`/
+  `formatDps`, `hud.ts`) and rounds/decimals floating combat numbers
+  (`damageText`, `canvas.ts`) — nothing left to add there. (b) is a
+  multi-day balance-revalidation effort that would re-open every sentence
+  fb164 just re-anchored, for a purely cosmetic gain. Chose (a): the single
+  `numberScale` (0.1) stays as fb153a shipped it; the "single-digit early
+  hits" sub-clause is accepted as unmet (its main "single/double-digit on
+  typical hits" clause is met). Logged as QUESTIONS Q191. No tests to run —
+  no code changed.
+
+- **2026-09-06 — fb162: `damageEnemy`'s ledgers now book what landed, not what
+  was banked.** `src/sim/enemies.ts`'s single damage choke point clamps
+  `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/the Corpse
+  Core's `corpseStore` to `Math.min(dmg, hpBeforeHit)`, the same Q91 clamp
+  already applied to lifesteal a few lines below. `e.hp -=`, the visual hit
+  popup and the function's own return value stay the raw hit (nothing reads
+  the return value downstream). Two `tests/p-core-d-corpse.test.ts` cases that
+  had pinned the old "full amount, not what landed" behaviour as intended were
+  corrected; `tests/fb162-dot-kill-overkill.test.ts` (5 tests, confirmed
+  failing pre-fix) covers a direct overkill, an exact-kill, a DoT kill on a
+  1-hp carrier under fb152's cadence, a Burning splash-neighbour overkill and
+  a Corpse-store overkill. code-reviewer: no Critical/Major (one Minor,
+  documented). qa-playtester: adversarial multi-kill/chained-explode/
+  re-entrancy/exact-zero probes all correct, damage-share sanity re-measured,
+  no bugs filed.
+
+- **2026-09-06 — fb164: player-facing prose re-anchored to fb153a's
+  `numberScale`.** fb153a's 0.1 scale divided every authored HP/damage
+  magnitude at load but left the hand-typed sentences beside them unscaled, so
+  the game told players numbers the sim didn't run on (vitality's "+15 Max
+  HP" granting 1.5; Bleeding's "1 damage per second" dealing 0.1). Took the
+  "match the loaded value" branch of the acceptance's disjunction rather than
+  building a new derive-at-render templating layer across the UI (logged as
+  future work in QUESTIONS.md): every affected sentence in
+  `data/damagetypes.json`, `data/vsupgrades.json`, `data/equipment.json`
+  (all 12 items), `data/tree.json`, `data/cores.json` (including the tricky
+  forward-scaling `overhealGoldRatio` ratios and the Time core's decay
+  coefficient), `data/modifiers.json`, `data/quests.json` and one
+  `data/classes.json` sentence (pyromancer's Contagious Flame) was hand-edited
+  to the post-scale figure. `tests/class-descriptions.test.ts`'s `readLoaded`
+  stopped un-scaling (it now reads `loadContent()` straight, per the item's
+  acceptance), with its "loader and raw document agree" check re-deriving the
+  one scaled claim's expected value through `numberScale` instead of assuming
+  parity. New `tests/fb164-prescale-prose.test.ts` (26 tests) pins every fixed
+  sentence's number against the live loaded value via regex extraction, so a
+  future retune that moves a field without moving its sentence reddens here.
+  Two pre-existing tests also assumed the pre-rescale prose:
+  `tests/equip-spec-numbers.test.ts`'s c012 desc-vs-§7 checks now scale
+  `maxHp`/`atkFlat` (not `armor`) before comparing, and its Effect-quote check
+  rebuilds the expected substring's numeral for a scaled stat rather than
+  loosening the containment check. code-reviewer: no Critical/Major (one
+  cosmetic alignment nit in `modifiers.json`, fixed). Full `npm run test:fast`
+  green after both fixes.
+
 - **2026-09-06 — BACKLOG-UI fb114: found already fixed, not re-implemented.**
   qa-playtester's real-Chromium fold test (`tests/b036-help-fold.test.ts`)
   was filed as deterministically red on master, reported independently by
