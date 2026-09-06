@@ -26,7 +26,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { GATES, GRID_H, GRID_W } from '../src/sim/grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
   describeTerrain,
   flatTerrain,
@@ -51,6 +51,13 @@ import {
 import { HEADER_KEYS } from '../src/sim/terrain/describe';
 
 const cfg = loadTerrain();
+
+/**
+ * fb065f: `world.ts`'s Fourth Gate list, in the order `World` builds it. The
+ * `gates` header line is the one line whose key set is not closed, so a few
+ * cases here need the maximal dump rather than the default three-gate one.
+ */
+const FOUR_GATES: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 function withConfig(patch: (raw: Record<string, unknown>) => void): TerrainConfig {
   const raw = JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>;
@@ -762,8 +769,18 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     // created. Review reproduced it: `legacyGhost` added to `HEADER_KEYS.counts`
     // left every test in this file green and let
     // `counts ... legacyGhost=1` parse clean.
+    //
+    // **fb065f made `gates` the one line with an optional declared key**, so it
+    // is compared against the *maximal* dump — the four-gate one — rather than
+    // against `good`. The guarantee is unchanged in the direction that matters:
+    // every key the table declares must be a key the writer can emit. What it
+    // no longer says is that every declared key appears in *every* dump, which
+    // was never the claim the table made (its own doc block calls it a
+    // no-extras-in-this-order list, never a required-key list).
+    const maximal = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
     for (const head of HEADS) {
-      const emitted = headerLine(good, head)
+      const from = head === 'gates' ? maximal : good;
+      const emitted = headerLine(from, head)
         .split(' ')
         .slice(1)
         .map((f) => f.slice(0, f.indexOf('=')));
@@ -772,12 +789,59 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect([...Object.keys(HEADER_KEYS)].sort()).toEqual([...HEADS].sort());
   });
 
+  it('pins the gates line’s refusal text, which fb065f changed silently', () => {
+    // fb065f widened `HEADER_KEYS.gates`, which widened the key set these two
+    // messages enumerate — from `west north east` to `west north east south`.
+    // That is forced by the design and is fine; what was not fine is that the
+    // item claimed the messages were unchanged and no test could have caught
+    // it, because the existing coverage pins only the `seed` and `counts`
+    // lines. Pinned here so the next modifier gate makes the text change
+    // visible in review instead of in a QA report.
+    const dump = describeTerrain(generateTerrain(7, cfg), cfg);
+    const line = headerLine(dump, 'gates');
+    expect(() => parseTerrainDump(dump.replace(line, `${line} bogus=1,1`))).toThrow(
+      'parseTerrainDump: unknown "bogus" on the "gates" line; expected west north east south',
+    );
+    expect(() =>
+      parseTerrainDump(dump.replace(line, 'gates north=18,0 west=0,10 east=35,17')),
+    ).toThrow(
+      'parseTerrainDump: "gates" line has "west" after "north"; ' +
+        'fields are in a fixed order, expected west north east south',
+    );
+  });
+
+  it('keeps the optional gate key last, which is what keeps the order pin total', () => {
+    // The argument that lets `gates` carry an optional key without weakening
+    // fb064w. `fields()` refuses a declared key that appears after one further
+    // down the list, and a *missing* declared key falls through to `req` — so
+    // an optional key is only safe where no declared key can follow it, i.e.
+    // last. Pinned mechanically: a future modifier gate name inserted anywhere
+    // but the end reddens here rather than silently reopening the hole.
+    const base = GATES.map((g) => g.key);
+    expect(HEADER_KEYS.gates.slice(0, base.length)).toEqual(base);
+    // Every optional key trails the required ones. A *second* trailing optional
+    // key would still be safe by the same argument — one declared among the
+    // base three would not, and that is what this pins.
+    expect(HEADER_KEYS.gates.slice(base.length)).toEqual(MODIFIER_GATES.map((g) => g.key));
+    // ...and it really is refused out of order, not merely declared last.
+    const four = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
+    expect(() =>
+      parseTerrainDump(four.replace('gates west=0,10', 'gates south=12,19 west=0,10')),
+    ).toThrow(/fields are in a fixed order/);
+  });
+
   it('requires every field it declares, which is what makes the order pin total', () => {
     // The unstated invariant `HEADER_KEYS` now documents: the order check only
     // sees the fields that are *present*, so an optional field would be
     // accepted anywhere the indices still increase and the seed line's layout
     // would stop being a contract. Pinned mechanically rather than asserted in
     // a comment — drop each emitted field in turn and every one is refused.
+    //
+    // fb065f's optional `south` does not weaken this: `good` is a three-gate
+    // dump so it never appears here, and the case above pins it as the *last*
+    // declared key, which is the one position from which nothing can follow it.
+    // A modifier gate declared anywhere else would be exactly the hole this
+    // case is written against, and would redden that one.
     for (const head of HEADS) {
       const line = headerLine(good, head);
       const parts = line.split(' ');
