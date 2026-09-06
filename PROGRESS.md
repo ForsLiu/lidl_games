@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c029 done, measurement only.**
+  `c014`'s shared `tests/class-board.ts` module promises every `class-*`
+  liveness file a legal, footprint-clear Warden spot, bounded by
+  `EAST_REACH`/`SOUTH_REACH` — but that bound covers the module's own terrain
+  check, not an importer's actual reach, and the static scan that verifies it
+  only reads literal `WX + <number>` source text. Swept every
+  `tests/class-*.test.ts` file for board-relative reaches computed at runtime
+  instead (a tower's authored range/aoe, or a skill card's rank-scaled
+  budget) and found three: `class-wide-grove-reach.test.ts`'s Mortar-shell-
+  splash consumer, and `class-line-bonus.test.ts`'s `archer_pierce_cap` and
+  `stormcaller_jump_cap` rows. Confirmed by editing `PROBE_ORIGIN` directly and
+  running the *real* files: shifting to `25,12` or `30,15` (both still legal,
+  footprint-clear boards per `c014`'s own shifted-origin suite) runs these
+  windows off the east edge near the Core's column, even though each window's
+  reach is smaller than the nominal `EAST_REACH`. New
+  `tests/class-board-windows.test.ts` replicates the three formulas
+  independently off the same `/data` reads and asserts a red/green survival
+  table across 5 origins, so the dependency is a declared, asserted fact
+  rather than a silent one; `tests/class-board.ts`'s header no longer claims
+  every importer moves with the board unconditionally. No engine or `/data`
+  change. code-reviewer approved (no Critical/Major; two Minor/Nit notes
+  logged in BACKLOG-CONTENT.md's c029 entry). qa-playtester independently
+  reproduced the real-file failures, verified the formulas match the real
+  sites byte-for-byte, and ran the full `tests/class-*.test.ts` glob plus
+  `npm run test:fast` green apart from the pre-existing, unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (confirmed present on unmodified HEAD via `git stash`). This closed out
+  BACKLOG-CONTENT.md's `c001`-`c031` queue (all Done/Skipped/Blocked); the
+  generation rule ran again and appended `c032`-`c036`.
+
 - **2026-09-06 — fb161's code review moved the ground-fire bank off the field
   and onto the Warden, and CI is green on the whole branch.** Run
   [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)

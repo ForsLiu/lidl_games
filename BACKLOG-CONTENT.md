@@ -36,6 +36,8 @@ executed from the main lane or after the merge widens this Scope. The
 generation rule (CLAUDE.md, "fewer than 3 actionable items remain") was run
 scoped to this lane and appended `c001`-`c005` below them. Run again in
 session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
+Run again 2026-09-06 (`c029` was the last actionable one left, all of
+`c001`-`c031` now Done/Skipped/Blocked), appending `c032`-`c036`.
 
 ### Actionable in this lane
 
@@ -645,7 +647,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       reader finds first and the one `c023` proved nothing reads. The two are
       held to each other here.**
 
-- [ ] (c029) [bug] **`c014`'s "the importers move with the board" property is
+- [x] (c029) [bug] **DONE 2026-09-06.** `c014`'s "the importers move with the board" property is
       not true of the importers it was built for**, measured this session while
       converting `class-kit-whiff` (`c025`). Shifting `PROBE_ORIGIN` to
       `25,12` (board `26,12`) leaves the newly converted whiff file green at
@@ -664,6 +666,47 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       cannot move is a declared, asserted dependency with its measured reason,
       never silence; and `class-board.ts`'s header stops claiming the strong
       form of the property - refs: c014, c025, c013, c016.
+      **Measured, not fixed — no engine or `/data` change.** The root cause:
+      `EAST_REACH`/`SOUTH_REACH` bound `footprintClear`'s *terrain* check, not
+      an importer's actual reach, and the static "EAST_REACH covers the
+      deepest offset" scan only reads literal `WX + <number>` source text — so
+      a window computed at runtime from `/data` (a tower's authored
+      range/aoe, or a skill card's rank-scaled budget) is invisible to it and
+      can still run off the east edge near the Core's column even though its
+      reach is smaller than `EAST_REACH`. Swept every `class-*.test.ts` file
+      for this shape (`(WX|BUILD_TX|p\.x) \+ <ident> \*`) and found exactly
+      three such windows, all traced to source and confirmed by running the
+      *real* files (not just the new measurement) under shifted
+      `PROBE_ORIGIN`: `class-wide-grove-reach.test.ts`'s Mortar-shell-splash
+      consumer, and `class-line-bonus.test.ts`'s `lineOfDummies`-based
+      `archer_pierce_cap` and `stormcaller_jump_cap` rows. New
+      `tests/class-board-windows.test.ts` replicates each formula
+      independently off the same public `/data` reads (never importing the
+      `.test.ts` files, which export nothing) and asserts a red/green survival
+      table across 5 origins — the shipped default plus the same four
+      `class-board.test.ts`'s own shifted-origin suite already uses
+      (`25,12`/`15,6`/`30,15`/`22,3`) — measured: mortar fails at `25,12` and
+      `30,15`; stormcaller the same two; archer only at `30,15` (its reach is
+      shorter). Added to `class-board.test.ts`'s `EXCEPTIONS` (it probes five
+      origins at once and has no single shared spot to pin — code review
+      confirmed the entry, while accurate, is belt-and-suspenders rather than
+      load-bearing, since the file never parks or builds anyway). Softened
+      `class-board.ts`'s header to state the guarantee's actual scope. Five
+      more dynamic (`p.y + n * m`) placements in `class-wide-grove-reach.
+      test.ts` were swept for and cleared (never reddened across all 5
+      origins) rather than given their own row. code-reviewer approved with no
+      Critical/Major findings (two Minor/Nit notes: the EXCEPTIONS entry is
+      unneeded-but-harmless, and that file's own pre-existing "worst case
+      lands near x = 23.7" comment is stale against current `/data`, now
+      22.89 — logged here rather than touched, out of this item's scope).
+      qa-playtester independently reproduced the real-file failures under
+      `25,12` and `30,15` by editing `PROBE_ORIGIN` directly (reverted after),
+      confirmed the formula fields match the real sites byte-for-byte, and
+      ran the full `tests/class-*.test.ts` glob (765 tests) and `npm run
+      test:fast` (3980 tests) green apart from the pre-existing, unrelated
+      `q15`/`q45` `tools/fuzz-command-domain` scratch-directory
+      module-resolution failures (confirmed present on HEAD via `git stash`,
+      nothing to do with this change) — no bugs filed.
 
 - [x] (c030) [polish] **DONE 2026-09-06.** Two of this lane's own recorded measurements were taken
       on a board that no longer exists.** CLAUDE.md's measurement rules: "a
