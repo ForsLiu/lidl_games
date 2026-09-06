@@ -4,7 +4,7 @@
  * `Grid.syncTerrain` is private and neither `markDirty` nor `refresh` calls it,
  * so a raw `tile[]` write that lands *after* the last `applyTerrain`/
  * `placeCore` updates `blocked` (through `staticBlocked`) and leaves every
- * terrain array untouched. Measured at fb065c: after writing a Gate at
+ * terrain array untouched. Measured at fb065c (36x20): after writing a Gate at
  * (12, 19) the tile reads `tile=Gate`, `blocked=0` — the sim walks through it —
  * while `terrainKind` still says `Rock`, so a repro taken with
  * `gridTerrain` draws a mountain on a walkable gate.
@@ -15,6 +15,19 @@
  * such write in the repo today and it is *ordered safely* — it opens the gate
  * before `applyRunTerrain`, so `syncTerrain` covers it — but nothing enforces
  * that ordering, and fb065c made the resulting dump reachable from a real run.
+ *
+ * **fb166 note (36x20 -> 56x32 resize).** `world.ts`'s real Fourth Gate write
+ * is the literal tile (12, 19); at 56x32 the border moved to y=31 and that
+ * literal is now 12 rows short of it, deep in the ordinary interior —
+ * `MODIFIER_GATES`' coordinates are literal integers, not `GRID_W`/`GRID_H`
+ * expressions, and fixing that is a separate, already-logged, out-of-scope
+ * item for a different team (BACKLOG-TERRAIN.md's fb166 filing; the fix is
+ * main-lane's fb153b, same file). `openGate` refuses a non-border tile, so
+ * this file's `SOUTH` fixture below is the real south wall in the same
+ * column — (12, GRID_H - 1) — rather than `world.ts`'s literal, so the tests
+ * below keep exercising an actual border tile instead of one that no longer
+ * is one. This is a stand-in for the mechanism `openGate` implements, not a
+ * claim that `world.ts` itself opens this exact tile.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -31,8 +44,14 @@ import { applyRunTerrain } from '../src/sim/world';
 
 const cfg = loadTerrain();
 
-/** The south wall tile `world.ts` opens as the Fourth Gate. */
-const SOUTH = { tx: 12, ty: 19 };
+/**
+ * The south wall tile these tests open as a stand-in for `world.ts`'s Fourth
+ * Gate. fb166: `world.ts`'s own literal is (12, 19), which no longer sits on
+ * the border at 56x32 (see the file header) — this is the real border tile in
+ * the same column instead, so `openGate` (which refuses a non-border tile)
+ * still has something legal to exercise.
+ */
+const SOUTH = { tx: 12, ty: GRID_H - 1 };
 
 /** Every border tile that is not already a gate, in a fixed order. */
 function borderTiles(): Array<readonly [number, number]> {
@@ -80,15 +99,18 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // all of that is true, but none of it is what causes the staleness. Any
     // structural `tile[]` write after the last sync leaves the terrain arrays
     // holding the old answer, wherever it lands. Measured on an *interior*
-    // tile: (6,1) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
+    // tile: (6,2) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
     // there gives `Gate`/`Rock`/`blocked=0` — identical to the border case.
+    // (fb166, 56x32: (6,1), the fixture measured at 36x20, is `Rough` rather
+    // than `Rock` on this seed at the new size, so it no longer shows the
+    // `blocked` flip; (6,2) is the nearest tile that still does.)
     //
     // No shipped API can produce this (`openGate` refuses a non-border tile and
     // `placeCore` refuses non-normal terrain), so it is a defect in the
     // *record* rather than a new hole; recorded here so the accepted case is
     // stated as wide as it is.
     const g = applied(7);
-    const i = g.idx(6, 1);
+    const i = g.idx(6, 2);
     expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
       TileType.Open,
       TerrainKind.Rock,
@@ -102,10 +124,11 @@ describe('fb065e — opening a gate after terrain is applied', () => {
       TerrainKind.Rock,
       0,
     ]);
-    // The border framing was not wrong about the border, though: every border
-    // tile that is not one of the three gates is `Rock` on every generated map
-    // (5400 border tiles over seeds 1..50; the 150 exceptions are exactly the
-    // 3 gates x 50 seeds).
+    // The border framing was not wrong about the border, though: every one of
+    // these two border rows that is not the (one, at 56x32 — `north` is the
+    // only base gate left on a top/bottom row) gate on it is `Rock` on every
+    // generated map (5550 checked over seeds 1..50; the 50 exceptions are the
+    // 1 gate x 50 seeds).
     for (const seed of [1, 7, 40]) {
       const map = generateTerrain(seed, cfg);
       for (let x = 0; x < GRID_W; x++) {
@@ -168,8 +191,10 @@ describe('fb065e — opening a gate after terrain is applied', () => {
   it('does not check that the gate it opened is reachable, and that is a decision', () => {
     // `openGate` refuses what cannot *be* a gate (a non-border tile, a corner)
     // but not what no map can *reach*. Measured over seeds 1, 7, 40, 52, 99 and
-    // every legal single opening: **131 of 505 (25.9%)** leave some gate
+    // every legal single opening: **203 of 830 (24.5%)** leave some gate
     // unreachable, because the border tile chosen may sit behind a rock shelf.
+    // (fb166, 56x32: was 131/505 (25.9%) at 36x20 — a bigger border perimeter
+    // means more legal openings to try, at about the same stranding rate.)
     //
     // Left to the caller on purpose: the reachable set depends on the whole
     // board, `applyRunTerrain` already re-checks `allGatesReachable()` and
@@ -192,7 +217,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         if (!g.allGatesReachable()) stranded++;
       }
     }
-    expect({ opened, stranded }).toEqual({ opened: 505, stranded: 131 });
+    expect({ opened, stranded }).toEqual({ opened: 830, stranded: 203 });
   });
 
   it('openGate writes the tile and re-derives the terrain in one step', () => {
@@ -279,13 +304,15 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // again, so an unreachable gate stays unreachable and a wave spawns into a
     // sealed pocket.
     //
-    // A 40-seed window of the 300-seed reading recorded in BACKLOG-TERRAIN.md
-    // (77/300 = 25.7% sealed when opened late, 0/300 under world's ordering).
-    // This window reads 7/40 = 17.5%, which is the sampling noise a 40-seed
-    // window has and not a disagreement — it is pinned as the window's own
-    // exact count, because a golden that moves is the point. The claim the
-    // case exists to hold is the *contrast*: late opening seals gates, world's
-    // ordering never does.
+    // A 40-seed window, compared against the 300-seed, 36x20 reading recorded
+    // in BACKLOG-TERRAIN.md (77/300 = 25.7% sealed when opened late, 0/300
+    // under world's ordering). Re-measured at fb166 on the `SOUTH` fixture
+    // above (the real border tile in the same column, since `world.ts`'s own
+    // (12, 19) is no longer border at 56x32): this window reads 10/40 = 25%,
+    // in the same range as the 36x20 reading and not a disagreement — it is
+    // pinned as the window's own exact count, because a golden that moves is
+    // the point. The claim the case exists to hold is the *contrast*: late
+    // opening seals gates, world's ordering never does.
     let sealedLate = 0;
     let sealedReal = 0;
     const warn = console.warn;
@@ -309,7 +336,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     } finally {
       console.warn = warn;
     }
-    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 7, sealedReal: 0 });
+    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 10, sealedReal: 0 });
   });
 
   it('refuses what it cannot honestly open', () => {

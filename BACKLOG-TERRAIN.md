@@ -1268,6 +1268,40 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-06, fb166 filing) **A second out-of-scope config need, same shape
+  as fb065g's item 1 below.** `tests/terrain-generation.test.ts`'s "stays
+  bounded under the most expensive schema-legal config" is a wall-clock
+  `performance.now()` ratio, and per this session's own standing instruction
+  ("timing-based assertions belong in `vitest.perf.config.ts`, never in the
+  fast tier") it should move there — mirroring `terrain-cost-retry-ratio`'s
+  precedent, already split out and excluded from `vitest.fast.config.ts` for
+  exactly this reason. This lane re-measured and re-pinned its numbers in
+  place instead (blob fixture 612 -> 1620, `COST_RATIO_CEILING` 80 -> 160)
+  rather than moving it, because the move needs `vitest.fast.config.ts` and
+  `vitest.perf.config.ts`, both outside this lane's Scope. Filed for the
+  merge: extract the test into its own `tests/terrain-*.test.ts` file (in
+  scope for this lane, so that half can be done here if asked) and register it
+  the same way the three existing perf-only files are registered (both
+  configs, one line each, with a comment naming why).
+- (2026-09-06, fb166 filing) **The flip itself is clean; the fixed geometry
+  next to it is not, and this lane cannot fix it.** `GATES` and
+  `MODIFIER_GATES` (`src/sim/grid.ts`) are literal tile coordinates, not
+  expressions in `GRID_W`/`GRID_H` — `west (0,10)` and `north (18,0)` still
+  land on the border at 56x32, but `east (35,17)` and the Fourth Gate
+  modifier's `south (12,19)` do not: the border moved to `x=55`/`y=31` and
+  those two tiles are now 20 and 12 tiles short of it, deep in the ordinary
+  interior. `CORE_X/CORE_Y (25,9)` is the same shape of problem one item over
+  (fb064c already owns moving it). Nothing in this lane's own measurement
+  catches it — `terrain-legality.ts` asks whether gates connect to each other
+  and to the Core, never whether a gate touches an edge — so 1000-seed
+  legality at the new size reads clean (0 fallbacks, 0 band failures, unchanged
+  `data/terrain.json`) while two of four spawn points are, geometrically, no
+  longer spawn points. The item's own text scopes the `grid.ts` touch to
+  "those two lines," so the fix (new border-adjacent coordinates for `east`
+  and `south`, `56x32`-relative rather than literal) is main-lane's, same file
+  fb153b is already touching for the resize — do it in the same change rather
+  than two edits to the same two lines. Filed before the band re-fit below so
+  it cannot be read as this lane having missed it.
 - (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
   terrain-four-gates.md`) has three consumers outside this lane's Scope, filed
   here for the merge: (1) wave composition must split across 4 gates

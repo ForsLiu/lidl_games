@@ -19,26 +19,31 @@
  *   - `displacement` — how far the pick is from `CORE_X/CORE_Y`, which is the
  *     quantity `suggestCoreAnchor` actually minimises.
  *
+ * Re-measured whole at fb166's 56x32 resize — every number in this file moved,
+ * because `CORE_X/CORE_Y` (still the pre-resize (25,9); moving it is fb064c's
+ * job, logged in BACKLOG-TERRAIN.md) is no longer near the centre of a bigger
+ * arena, so far fewer seeds find it legal at all.
+ *
  * **The verdict: an accepted band, not a changed selection.** The rule
  * optimises fidelity to the tuned spot on purpose — `analyze.ts` says why, and
  * where the Core sits relative to each gate is what every wave's travel time is
  * tuned against, i.e. a balance order, which is not this lane's to take.
- * Measured, that rule is doing its job: **432 of 500 seeds put the default on
- * `CORE_X/CORE_Y` exactly**, no seed moves it further than 4 tiles, and the two
- * properties the flat arena's own tuning fixed come back essentially unchanged
- * — mean `centroidDist` 7.8529 against the flat 7.9992 and mean `gateDist`
- * 9.0020 against the flat 9. `buildRoom` is the one that drops, 36.06 against
- * the flat 48, and the cause is the terrain rather than the selection: holding
- * the anchor fixed at (25,9) on the same 500 maps scores 35.7920, *below* what
- * the rule picks, so the 48 -> 36 fall is the rough and rock inside the build
- * radius and not where the Core went. (On 432 of those 500 the fixed anchor
- * *is* the pick, so the whole 0.272 gap is earned on the 68 seeds where (25,9)
- * is illegal and the rule had to choose — the only population where the two
- * can differ at all.) The centroid figure decomposes the same
- * way and the decomposition is worth stating, because the raw comparison
- * flatters the rule: fixed (25,9) measures 7.9072 on these maps, so of the
- * 0.146 the pick sits nearer the centroid than the flat control, 0.092 is the
- * walkable centroid itself moving and only 0.054 is the selection.
+ * Measured, that rule is doing its job on the population it can still reach:
+ * **327 of 500 seeds** (not 432 — the smaller arena-relative footprint of the
+ * old anchor is the resize's own cost) put the default on `CORE_X/CORE_Y`
+ * exactly, no seed moves it further than 3 tiles, and the two properties the
+ * flat arena's own tuning fixed come back close to it — mean `centroidDist`
+ * 6.0853 against the flat 6.3051 and mean `gateDist` 8.7300 against the flat 9.
+ * `buildRoom` is the one that drops, 39.35 against the flat 48, and the cause
+ * is the terrain rather than the selection: holding the anchor fixed at
+ * (25,9) on the same 500 maps scores 39.2240, *below* what the rule picks, so
+ * the fall is the rough and rock inside the build radius and not where the
+ * Core went. (On 327 of those 500 the fixed anchor *is* the pick, so the whole
+ * 0.122 gap is earned on the 173 seeds where (25,9) is illegal and the rule had
+ * to choose — the only population where the two can differ at all.) The
+ * centroid figure decomposes the same way: fixed (25,9) measures 6.1241 on
+ * these maps, so the pick sits nearer the centroid than the fixed reading by
+ * 0.039, and the flat control itself (6.3051) is a further step beyond that.
  *
  * **"The share of seeds where a strictly better anchor exists" needs a
  * direction before it means anything, and the obvious direction is the one this
