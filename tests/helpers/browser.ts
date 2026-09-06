@@ -131,12 +131,27 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Brows
  * bind-release-rebind window is tiny, and `strictPort` turns losing that race
  * into a loud startup error rather than a server quietly listening somewhere
  * else while the test navigates to the wrong place.
+ *
+ * **The interface has to be pinned too, not just the port.** Vite's default
+ * `server.host` is the *name* `localhost`, which Node resolves in DNS order
+ * without reordering (`--dns-result-order=verbatim`, the default since Node
+ * 17). This container's `localhost` has one A record, 127.0.0.1, so the
+ * server lands exactly where the suites navigate; a GitHub runner's
+ * `/etc/hosts` lists `::1 localhost` first, so Vite bound IPv6-only and every
+ * suite reported `ERR_CONNECTION_REFUSED at http://127.0.0.1:<its own port>/`
+ * — distinct ports, so plainly not the 5173 collision above, and invisible on
+ * any host whose `localhost` is v4. Binding the literal `127.0.0.1` removes
+ * the name resolution from the question entirely, and the address is checked
+ * on the way out so a future mismatch fails at startup naming both ends
+ * instead of surfacing as a refused connection in `page.goto`.
  */
 export async function startDevServer(root: string): Promise<{ server: ViteDevServer; url: string }> {
   const port = await freePort();
   const server = await createServer({
     root,
     server: {
+      // The literal address, never the name `localhost` — see above.
+      host: HOST,
       port,
       strictPort: true,
       // **No HMR, and no watching the repo's scratch directories.** These are
@@ -156,21 +171,27 @@ export async function startDevServer(root: string): Promise<{ server: ViteDevSer
   });
   await server.listen();
   const address = server.httpServer?.address();
-  const bound = typeof address === 'object' && address ? address.port : null;
-  if (bound !== port) {
+  const bound = typeof address === 'object' && address ? address : null;
+  if (bound?.address !== HOST || bound.port !== port) {
     await server.close();
-    throw new Error(`dev server bound ${String(bound)}, not the reserved ${port}`);
+    throw new Error(
+      `dev server bound ${bound ? `${bound.address}:${bound.port}` : String(address)}, `
+      + `not the reserved ${HOST}:${port}`,
+    );
   }
-  return { server, url: `http://127.0.0.1:${port}/` };
+  return { server, url: `http://${HOST}:${port}/` };
 }
 
-/** The port the kernel hands out for `0`, released immediately. */
+/** The one interface these suites bind and navigate. */
+const HOST = '127.0.0.1';
+
+/** The port the kernel hands out for `0` on {@link HOST}, released immediately. */
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const probe = createNetServer();
     probe.unref();
     probe.on('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
+    probe.listen(0, HOST, () => {
       const address = probe.address();
       const port = typeof address === 'object' && address ? address.port : null;
       probe.close(() => (port ? resolve(port) : reject(new Error('no port from the OS'))));
