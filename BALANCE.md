@@ -1,5 +1,19 @@
 # BALANCE.md — enemy pacing intent (fb025, supersedes fb020)
 
+> **fb154 (2026-09-05) — VS spawn distance changed, and every band below was
+> fitted before it.** VS-wave ground enemies now walk out of the TD gates
+> instead of appearing on the rim near the Warden, so they live longer and more
+> of them die on the way in. Measured over seeds 1-12 (`tools/sim.ts`, hybrid,
+> full tree), against the pre-fb154 tree: mean run **120,988 -> 137,073 ticks
+> (+13.3%), 10 of 12 seeds longer**; mean kills 38,324 -> 44,790 (+17%); mean
+> leaks 66.3 -> 56.8 (-14%); seeds censored at the 45-minute cap **1/12 ->
+> 5/12**; the 12-seed hybrid sweep's median run 36.6 -> 40.1 min. G1's live
+> win-rate clause re-measures **9/24 wins, 40.9% of resolved seeds, mean 38.11
+> min** — inside its [35%,70%] band. Per-run sim cost rises ~60% (0.0899 ->
+> 0.1269 ms/tick) for the same reason. None of this was tuned back: the owner's
+> order is explicit that the sweeps get re-recorded, and P10 remains the one
+> balance pass.
+
 > **fb153a (2026-09-05) — every number in this file is an AUTHORED number.**
 > The owner's rescale order divides every HP and damage magnitude in `/data`
 > by `data/modifiers.json`'s `numberScale` (shipped at **0.1** ⚖) as the

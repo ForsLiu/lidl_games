@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb154 (owner order, top priority): VS waves spawn from
+  the TD gates.** `pickSpawnPoint(w, key?)` (act2.ts) routes every non-flying VS
+  spawn through a round-robin over `w.gates` — a hashed `World.vsGateCursor`,
+  the same in-tile jitter the TD path uses, `nudgeToOpen`-ed onto walkable
+  ground — with the old edge ring (now `edgeSpawnPoint`) kept for fliers, per the
+  owner's own designer note, and as the fallback. Elites, rift bursts, the
+  leak-coupled surge and the final boss all go through it; the practice-mode
+  `dev spawn` command passes its key too, so a flier summoned in VS still enters
+  from the edge.
+
+  **Both subagents found real defects and the two biggest were the same one.**
+  code-reviewer measured G1's live win-rate clause (`p10d-run-length`, T3, 24
+  seeds — fast-tier-excluded, so `test:fast` cannot see it) going green -> red at
+  6/21 = 28.6%, and separately found that the gate path had dropped
+  `spawns.spawnDistance` — which qa-playtester then measured at its worst: with
+  the Warden standing on a gate, **60 of 217 spawns landed inside contact range,
+  the closest at 0.048 tiles, the Warden-Eater at 0.204, and the Warden died at
+  tick 217**. Adding the distance rule (prefer a gate that clears
+  `min(spawnDistance, 12)`, fall back only when every gate is close) fixed both:
+  G1 re-measures **9/24 wins, 40.9% of resolved seeds, mean 38.11 min** — inside
+  its band and level with the pre-fb154 baseline. It costs something the order
+  did not anticipate and QUESTIONS **Q182** now records: "all gates active" is
+  conditional on where the player stands (all three gates live from 19.4% of the
+  map's tiles), so the suite pins a 15%-per-gate floor over a walked circuit
+  rather than an even split.
+
+  **The balance re-record the item asks for**, seeds 1-12 against the parent:
+  mean run **120,988 -> 137,073 ticks (+13.3%), 10 of 12 longer**, kills +17%,
+  leaks -14%, censored seeds **1/12 -> 5/12**, hybrid sweep median 36.6 -> 40.1
+  min, per-tick cost +41%. Written into BALANCE.md; not tuned back (P10 is the
+  one balance pass, and the order says re-record). qa-playtester's independent
+  sweep: 7,200 director picks over 300 real-terrain seeds, **0 off a gate tile**;
+  in a live run 26% of *bodies* sit exactly on a gate tile and 99.94% within 2
+  tiles, the spread being pack scatter, with the >2.5 tail traced to splitling
+  death-splits rather than the director. Determinism held at every tick over
+  40,000 ticks and through a replay.
+
+  Also in this commit, and **not** fb154's work: `tests/boss.test.ts:122`'s tier
+  assertion was left red by fb153a (it scaled line 114 and missed 122; the file
+  is fast-tier-excluded, so nothing caught it). Fixed here rather than left red,
+  and named rather than buried — qa-playtester filed it as a process finding.
+  Two more of its findings became items: **fb165** (A10's perf fixture no longer
+  resembles the shape the game produces — gate-clustered hordes cost 6x the
+  scattered fixture) and the still-untested practice `dev spawn` flier path,
+  which is now covered by this item's own suite.
+
 - **2026-09-05 — BACKLOG fb153a (owner order, top priority): every HP and damage
   number in `/data` is divided by one authored factor.** `data/modifiers.json`
   gains `numberScale` (shipped **0.1** ⚖, optional, `1.0` identity, bounded

@@ -118,7 +118,12 @@ therefore measure *after* `fb153`, not before.
         re-recorded — refs: SPEC-FINAL §10, owner feedback
         `balance-damage-rescale-and-bigger-map` item 2.
 
-- [ ] (fb154) [feat] **top priority** — VS waves spawn from the TD spawn gates,
+- [x] (fb154) [feat] **DONE 2026-09-05** — round-robin over the gates behind a
+      hashed cursor, fliers keeping the edge ring, and a Warden-distance rule
+      that review/QA proved was also the cause of a G1 band regression (see
+      PROGRESS; QUESTIONS Q182 carries the "all gates active is conditional on
+      where the player stands" trade and the re-recorded sweep). Original text
+      follows. **top priority** — VS waves spawn from the TD spawn gates,
       not from the screen edges: all gates active, budget split round-robin
       across them, rift/burst events spawning at gates too. Fliers keep their
       edge spawn to preserve their bypass role (owner's own designer note; a
@@ -128,6 +133,18 @@ therefore measure *after* `fb153`, not before.
       spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
       feedback `vs-spawn-from-gates`.
 
+- [ ] (fb165) [test] A10's worst-case perf fixture no longer resembles the
+      shape the game produces. `tools/perf-ratio.ts`'s `worstCaseWorld`
+      scatters the 500-enemy alive cap evenly across the arena, but since
+      fb154 the cap arrives through three fixed gate points. qa-playtester
+      measured the same world built both ways: **scatter 0.03 ms/tick vs gates
+      0.18 ms/tick — 6x** — against an 8.35 ms budget, so G17 does not fail,
+      it simply stops measuring the live shape while real runs cost +41% per
+      tick post-fb154. Acceptance: a second fixture (or a second case in
+      `tests/a10-performance.test.ts`) seeds its horde from `pickSpawnPoint`
+      rather than the ring pattern, both are measured and recorded, and G17's
+      budget is re-confirmed against the gate-shaped one — refs: SPEC-FINAL
+      §14 G17, QUESTIONS Q182.
 - [ ] (fb161) [feat] the four per-frame `dot: true` sources fb152 deliberately
       left at 60 Hz are **zones, not §3 DoT instances** — but one of them,
       `wardenAreaDamage`'s enemy ground fire (`src/sim/combat.ts:597`), still

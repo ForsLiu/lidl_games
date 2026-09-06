@@ -119,7 +119,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(365000 * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(scaled(365000) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
   });
 

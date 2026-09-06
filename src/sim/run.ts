@@ -426,7 +426,10 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
       if (!enemyKey || !w.content.enemyByKey.has(enemyKey)) break;
       const count = clamp(Math.round(amount), 1, 50);
       for (let i = 0; i < count; i++) {
-        const p = w.huntsWarden ? pickSpawnPoint(w) : gateSpawnPoint(w, i);
+        // fb154: the key is passed so a flier summoned here in VS keeps its
+        // edge spawn, exactly as one the director spawns does — the one place
+        // the owner's designer note would otherwise be contradicted.
+        const p = w.huntsWarden ? pickSpawnPoint(w, enemyKey) : gateSpawnPoint(w, i);
         // gate: matches updateAct1Wave's own spawns so a later split (TRAIT.splits)
         // hands its children the gate this enemy actually entered from.
         spawnEnemy(w, enemyKey, p.x, p.y, { gate: i % Math.max(1, w.gates.length) });
@@ -1131,6 +1134,7 @@ export function hashWorld(w: World): string {
   // are the same class of future-damage-gating state as the cooldowns above.
   h.num(w.warden.active1Ammo).num(w.warden.active1AmmoCooldown);
   h.num(w.warden.active2Ammo).num(w.warden.active2AmmoCooldown);
+  h.int(w.vsGateCursor);
   h.int(w.warden.dots.length);
   // fb152: the cadence accumulators are live state — two runs agreeing on
   // `dps`/`remaining` but differing on what is banked will diverge on the next
