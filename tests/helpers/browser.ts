@@ -113,6 +113,9 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Brows
   return chromium.launch(launchOptions(options));
 }
 
+/** The one interface these suites bind and navigate. */
+const HOST = '127.0.0.1';
+
 /**
  * A Vite dev server on a port nothing else is using, plus the URL to reach it.
  *
@@ -132,18 +135,25 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Brows
  * into a loud startup error rather than a server quietly listening somewhere
  * else while the test navigates to the wrong place.
  *
- * **The interface has to be pinned too, not just the port.** Vite's default
- * `server.host` is the *name* `localhost`, which Node resolves in DNS order
- * without reordering (`--dns-result-order=verbatim`, the default since Node
- * 17). This container's `localhost` has one A record, 127.0.0.1, so the
- * server lands exactly where the suites navigate; a GitHub runner's
- * `/etc/hosts` lists `::1 localhost` first, so Vite bound IPv6-only and every
- * suite reported `ERR_CONNECTION_REFUSED at http://127.0.0.1:<its own port>/`
- * — distinct ports, so plainly not the 5173 collision above, and invisible on
- * any host whose `localhost` is v4. Binding the literal `127.0.0.1` removes
- * the name resolution from the question entirely, and the address is checked
- * on the way out so a future mismatch fails at startup naming both ends
- * instead of surfacing as a refused connection in `page.goto`.
+ * **The interface has to be pinned too, not just the port.** Vite's
+ * `server.host` defaults to `undefined`, which it resolves to the *name*
+ * `localhost` before calling `httpServer.listen(port, host)` — and `listen`
+ * binds only the first address the name resolves to. What was actually
+ * observed on the runner (run 34048137111) is narrower than a mechanism: four
+ * suites, four distinct ports, four `ERR_CONNECTION_REFUSED` at the 127.0.0.1
+ * URL each was handed, with no reading of what the server had bound. The
+ * leading hypothesis is that the name resolved to `::1` there and to 127.0.0.1
+ * here, which would explain why the suites pass on this container and on every
+ * developer machine; it is a hypothesis, not a measurement, and Ubuntu's stock
+ * `/etc/hosts` argues against it.
+ *
+ * The fix does not depend on which explanation is right. Binding the literal
+ * `127.0.0.1` takes name resolution out of the question entirely, and the
+ * server is then checked two ways before the caller ever sees it: the bound
+ * address must be the reserved one, and the URL must actually serve. That
+ * second check is the one that pays for itself — every cause this helper has
+ * not thought of now fails here, named, in ~100 ms, instead of surfacing four
+ * suites later as an anonymous refused connection inside `page.goto`.
  */
 export async function startDevServer(root: string): Promise<{ server: ViteDevServer; url: string }> {
   const port = await freePort();
@@ -179,11 +189,34 @@ export async function startDevServer(root: string): Promise<{ server: ViteDevSer
       + `not the reserved ${HOST}:${port}`,
     );
   }
-  return { server, url: `http://${HOST}:${port}/` };
+  const url = `http://${HOST}:${port}/`;
+  await assertServes(server, url);
+  return { server, url };
 }
 
-/** The one interface these suites bind and navigate. */
-const HOST = '127.0.0.1';
+/**
+ * The URL this helper hands out actually answers. Cheap (~100 ms against a
+ * warm dev server) and the only check that covers causes not enumerated above:
+ * whatever stops Playwright reaching the page, it stops `fetch` too, and this
+ * reports it against the helper rather than against a layout assertion.
+ */
+async function assertServes(server: ViteDevServer, url: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    await server.close();
+    const cause = (err as { cause?: { code?: string } }).cause?.code;
+    throw new Error(
+      `dev server started but ${url} is unreachable${cause ? ` (${cause})` : ''}: `
+      + `${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!res.ok) {
+    await server.close();
+    throw new Error(`dev server at ${url} answered ${res.status} ${res.statusText}`);
+  }
+}
 
 /** The port the kernel hands out for `0` on {@link HOST}, released immediately. */
 function freePort(): Promise<number> {

@@ -42,6 +42,21 @@ still in test headers.
 
 ## Queue
 
+### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
+
+- [ ] (fb168) [bug] `tools/ui-audit.ts` starts its dev server with the same two
+      defects `tests/helpers/browser.ts` was just fixed for — `server: { port: 0,
+      strictPort: false }` (which Vite resolves to its default 5173, so a
+      concurrent audit and UI suite collide) and no `server.host`, while it
+      navigates to a hardcoded `http://127.0.0.1:${port}/`. Both cost fb140 a red
+      CI run in the suites; `ui-audit` has the same exposure and no test to catch
+      it. — acceptance: `tools/ui-audit.ts` reuses `startDevServer()` from
+      `tests/helpers/browser.ts` (or the shared helper it is extracted into)
+      rather than building its own `createServer` call, `npm run ui-audit` still
+      writes an `audit/report.json` with the same rule set, and the port/host
+      pin has a live assertion the way `tests/helpers-browser.test.ts` now does.
+      — refs: code-reviewer Minor 4 on commit `b8d9742`; SPEC-FINAL §12
+
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
 Eight owner files landed in `feedback/` on 2026-09-05 (commit `f74f156`, "fb:
