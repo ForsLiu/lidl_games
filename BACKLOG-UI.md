@@ -127,16 +127,37 @@ logs a blocker below rather than editing `/data` itself.
       pre-existing container-only q15/q45 failures — refs: SPEC-FINAL §9/§11,
       owner feedback `ui-enemy-attack-indicators` (render half).
 
-- [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
-      `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),
-      clamped to a max; crit/execute keep their extra styling; DoT aggregate
-      numbers use the same rule at 80% size. Constants are data-driven
-      (architecture rule 4), not literals in the renderer. Acceptance: three
-      visibly distinct sizes across 1/10/100/1000 in the Training Grounds; a
-      test asserts the size mapping is monotonic in the value and that the clamp
-      holds above it — refs: SPEC-FINAL §11, owner feedback
-      `ui-damage-font-scaling`. Note it lands **after main-lane fb153a's /10
-      rescale** or its constants get re-fitted twice.
+- [x] (fb159) [feat] **DONE 2026-09-06** — landed after main-lane fb153a's /10
+      rescale (already shipped), so no re-fit needed. `floatingNumberFontSize`/
+      `floatingNumberFontWeight` (`render/theme.ts`) implement `base +
+      k*log10(value)`, clamped to `[base, max]`, bold at/above the
+      `boldThreshold` anchor (1000) or unconditionally at `fontScale > 1`.
+      `FloatingNumber` gained a `value: number` field (the raw magnitude,
+      never re-derived from the already-rounded display `text`) that every
+      push site in `canvas.ts` now supplies; `drawNumbers` computes size/
+      weight from it instead of a fixed 12px. Crit/execute's existing
+      `executeFontScale` (already data-driven, `data/damagetypes.json`)
+      still multiplies on top of the value-based size rather than replacing
+      it. The DoT aggregate tick (fb060) now uses
+      `FLOATING_NUMBER_FONT.dotFontScale` (0.8) of the same value-based size,
+      replacing the old flat, value-blind `DOT_NUMBER_FONT_SCALE` (0.7 of a
+      fixed 12px). **Constants stay a literal in `render/theme.ts`, not
+      `/data`** — logged in this file's Log section as an out-of-scope need
+      for the main-lane merge, since `/data` is outside this lane's Scope.
+      `tests/fb159-damage-font-scaling.test.ts` (10 tests) covers monotonicity
+      (both the four named anchors and a dense sweep), the clamp holding
+      above the max anchor, the bold threshold, a fontScale multiplier
+      compounding on the clamped size, and three real end-to-end renders
+      (a real `hit:` event, a real `execute` event confirming a small-value
+      crit still renders large/bold, and a real ticking DoT aggregate number)
+      rather than only the pure formula. Re-verified the two existing tests
+      whose assertions depended on the old fixed-12px/flat-0.7 behavior
+      (`render-fb060-dot-tick-numbers.test.ts`'s "must render smaller than
+      12px" line, `fb005-damage-colors.test.ts`'s execute-vs-ordinary size
+      comparison) still hold arithmetically under the new formula — both
+      green, unedited. `npm run test:fast`: only the pre-existing
+      container-only q15/q45 failures — refs: SPEC-FINAL §11, owner feedback
+      `ui-damage-font-scaling`.
 
 - [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
@@ -4156,6 +4177,22 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-06, fb159: implemented in-scope (`render/theme.ts`'s
+  `FLOATING_NUMBER_FONT`/`floatingNumberFontSize`/`floatingNumberFontWeight`,
+  consumed by `canvas.ts`), but the item's own acceptance line ("Constants
+  are data-driven (architecture rule 4), not literals in the renderer") asks
+  for `base`/`k`/`max`/`boldThreshold`/`dotFontScale` to live in `/data` —
+  genuinely out of this lane's Scope (`/data` isn't `src/ui/**`/
+  `src/render/**`). Left as a literal table in `render/theme.ts` (the same
+  file already holds `ATTACK_KIND_COLORS`/`ENEMY_COLORS`/etc. as literals,
+  so this is consistent with existing precedent there even though it falls
+  short of the acceptance line) rather than blocking the whole item on a
+  file this lane cannot touch. Main-lane follow-up at the merge: add a
+  small section (new file or an addition to an existing one, e.g.
+  `data/damagetypes.json` alongside its existing `executeFontScale`) with
+  these five numbers, validated by `loadContent()`, and swap
+  `render/theme.ts`'s literal for a read of it.
 
 - 2026-09-06, merge: `origin/master` merged into this branch for its CI
   workflow (fb140) and the three PRs that landed beside it. **The merged tree

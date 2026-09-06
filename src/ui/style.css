@@ -715,6 +715,12 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
   background: var(--atk-color);
   border: 2px solid var(--atk-color);
 }
+/* Explicit no-op against `.sw-atk-icon`'s own default (code-reviewer nit:
+   without this rule "filled" had no CSS of its own at all, relying on the
+   base class alone matching what "filled" means — real today, but a future
+   change to the base could silently stop being filled with nothing here to
+   catch it). */
+.sw-atk-icon-filled { background: var(--atk-color); border-color: var(--atk-color); }
 .sw-atk-icon-ring { background: transparent; }
 .sw-atk-icon-big { width: 14px; height: 14px; }
 .sw-atk-icon-faded { opacity: 0.55; }

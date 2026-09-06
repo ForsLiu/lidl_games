@@ -127,8 +127,8 @@ describe('fb158: every enemy always shows its attack-kind icon', () => {
       const r = Math.max(3, e.radius * TILE);
       const px = e.x * TILE;
       const py = e.y * TILE;
-      const ix = px + r + 5;
-      const iy = py - r - 4.5;
+      const ix = px + r + 7;
+      const iy = py - r - 7;
       const shape = attackKindIconShape(def.attackKind);
       const expectedR = shape.big ? 4.5 : 3;
       const hits = circleAt(arcs, ix, iy, expectedR);
@@ -152,6 +152,26 @@ describe('fb158: every enemy always shows its attack-kind icon', () => {
       expect(seen.has(key), `${k} shape collides with an earlier kind`).toBe(false);
       seen.add(key);
     }
+  });
+
+  it("the icon never overlaps the poison DoT corner dot, even at the icon's largest (\"big\") radius", () => {
+    // code-reviewer finding: an earlier offset put the icon's edge and the
+    // poison dot's edge (`px + r, py - r`, radius 3) within ~0.8px of each
+    // other for a "big" kind (bomber/healer/phaser, icon radius 4.5).
+    // Distance scales with `r` identically for both markers, so one measurement
+    // at the smallest legal radius (3, `Math.max(3, e.radius * TILE)`'s floor)
+    // is the tightest case and stands for every enemy size.
+    const r = 3;
+    const px = 0;
+    const py = 0;
+    const iconX = px + r + 7;
+    const iconY = py - r - 7;
+    const poisonX = px + r;
+    const poisonY = py - r;
+    const dist = Math.hypot(iconX - poisonX, iconY - poisonY);
+    const bigIconRadius = 4.5;
+    const poisonDotRadius = 3;
+    expect(dist).toBeGreaterThan(bigIconRadius + poisonDotRadius);
   });
 });
 
@@ -186,6 +206,24 @@ describe('fb158: the attack-range ring draws on hover and on selection', () => {
     const hits = circleAt(arcs, cx, cy, expectedR);
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[hits.length - 1].globalAlpha).toBeCloseTo(0.85, 5);
+  });
+
+  it('an enemy that is both hovered AND selected rings once, at the bolder selected style — not twice', () => {
+    // code-reviewer finding: `drawEnemyAttackRing`'s guard against drawing
+    // both styles when the cursor sits on the currently-selected enemy was
+    // implemented but untested.
+    const w = new World(cfg());
+    const e = spawnEnemy(w, 'husk', 10, 10)!;
+    const def = content.enemyByKey.get('husk')!;
+    const cx = e.x * TILE;
+    const cy = e.y * TILE;
+    const expectedR = def.attackRange * TILE;
+
+    const { canvas, arcs } = recordingCanvas();
+    new Renderer(canvas).draw(w, view({ selection: { kind: 'enemy', id: e.id }, cursorX: e.x, cursorY: e.y }));
+    const hits = circleAt(arcs, cx, cy, expectedR);
+    expect(hits.length, 'exactly one ring, not one per style').toBe(1);
+    expect(hits[0].globalAlpha, 'the selected (bolder) style wins, not the hover one').toBeCloseTo(0.85, 5);
   });
 
   it("a non-elite enemy's specialRange never rings, even selected", () => {

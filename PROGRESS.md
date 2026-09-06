@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — code-reviewer's fb158/fb157-qa-fix pass (REQUEST-CHANGES,
+  no Critical/Major correctness bugs) fixed; BACKLOG-UI fb159: floating
+  damage numbers scale with their own value.**
+
+  code-reviewer confirmed the fb157 qa-fix and fb158 correct (all 7
+  `attackKind` shapes pairwise distinct, the hover-equals-selected ring
+  guard sound, architecture rule 3 respected) but flagged one Major: the two
+  qa-playtester-confirmed fb157 bugs (left-dock/Build-rail collision,
+  `modalOpen` still blocking) had landed with no regression test, against
+  CLAUDE.md's explicit "confirmed bugs get a failing regression test" rule.
+  Fixed by adding a `describe` block to `tests/ui-input.test.ts` mirroring
+  fb051's own DPS-panel dock tests: right-edge docking (not `.sw-dock-left`),
+  `modalOpen === false` with the canvas still clickable, the bottom bar and
+  a real spawned boss's banner staying visible in both Act I and Act II, the
+  right info rail collapsing to match, and the DPS/VS mutual-exclusion still
+  holding now that they share an edge. Two Minor findings also fixed: an
+  `.sw-atk-icon-filled` DOM class with no CSS rule of its own (added an
+  explicit no-op rule so a future change to the base class can't silently
+  stop it looking filled), and the attack-kind icon's fixed offset
+  overlapping the poison DoT dot by ~0.8px at the icon's largest ("big")
+  radius — nudged from `(+5,-4.5)` to `(+7,-7)`, with a geometry test
+  locking in the clearance rather than just the new numbers. A third Minor
+  (no test for the hover-equals-selected no-double-draw case) also got one.
+
+  BACKLOG-UI fb159 (owner feedback `ui-damage-font-scaling`): floating
+  damage numbers now scale with their own value — `base + k*log10(value)`,
+  clamped, bold at 1000+ — instead of a fixed 12px. `FloatingNumber` gained a
+  `value` field every push site in `canvas.ts` supplies; crit/execute's
+  existing `executeFontScale` (data-driven, `data/damagetypes.json`) still
+  multiplies on top rather than being replaced, and the DoT aggregate tick
+  (fb060) renders at 80% of the same value-based size instead of a flat,
+  value-blind fraction of the old fixed size. The formula's own five
+  constants stay a literal in `render/theme.ts` rather than `/data` — the
+  item's acceptance line asks for `/data`, which is out of this lane's
+  Scope, so the gap is logged in BACKLOG-UI.md's Log section for the
+  main-lane merge rather than silently left non-compliant.
+  `tests/fb159-damage-font-scaling.test.ts` (10 tests) covers monotonicity
+  (named anchors and a dense sweep), the clamp, the bold threshold, a
+  fontScale multiplier compounding on the clamp, and three real end-to-end
+  renders; also hand-verified (not just re-run) that two pre-existing tests
+  whose assertions depended on the old fixed-size behavior
+  (`render-fb060-dot-tick-numbers.test.ts`, `fb005-damage-colors.test.ts`)
+  still hold arithmetically under the new formula.
+
+  `npm run test:fast` after all of the above: only the pre-existing
+  container-only q15/q45 module-resolution failures.
+
 - **2026-09-06 — BACKLOG-UI fb157 follow-up: qa-playtester's real-browser pass
   found the left-docked character panel colliding with the Build rail, plus
   two stale "still a full-stage modal" gates — both fixed; and BACKLOG-UI

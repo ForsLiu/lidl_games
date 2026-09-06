@@ -32,6 +32,9 @@ import {
   ATTACK_KIND_COLORS,
   attackKindIconShape,
   ENEMY_COLORS,
+  FLOATING_NUMBER_FONT,
+  floatingNumberFontSize,
+  floatingNumberFontWeight,
   GATE_PATH_COLORS,
   PALETTE,
   TERRAIN_COLORS,
@@ -107,6 +110,14 @@ export interface FloatingNumber {
   color: string;
   /** fb005: Corpse Core execution kills render larger (>1); fb060's DoT ticks render smaller (<1); every other number is 1. */
   fontScale: number;
+  /**
+   * fb159: the raw magnitude driving `floatingNumberFontSize`'s log10 curve
+   * — not re-derived from `text`, which is already rounded/formatted
+   * (`damageText`) and would compound that rounding into the size too. A
+   * non-damage number (`LEVEL UP`) gets a fixed representative value instead
+   * of a real one.
+   */
+  value: number;
 }
 
 /**
@@ -184,8 +195,6 @@ const DOT_NUMBER_DENSITY_CUTOFF = 150;
 const DOT_NUMBER_NEAR_RADIUS = 8;
 /** fb068: extra distance an already-"near" enemy is allowed to drift before it's dropped, to avoid boundary flicker. */
 const DOT_NUMBER_NEAR_HYSTERESIS = 2;
-/** Smaller than a direct hit's default 1 (`FloatingNumber.fontScale`). */
-const DOT_NUMBER_FONT_SCALE = 0.7;
 
 /** Sum of every live stack's dps for one damage type on this enemy (`e.dots`, sim state). */
 function dotTypeDps(e: Enemy, type: string): number {
@@ -344,6 +353,7 @@ export class Renderer {
             life: 0.6,
             color: damageStyleColor(w, e.k.slice(4), view.settings.accessiblePalette),
             fontScale: 1,
+            value: e.a,
           });
         }
         continue;
@@ -360,7 +370,15 @@ export class Renderer {
           // numbers on screen without flattening the feedback behind them.
           view.shake = Math.max(view.shake, Math.min(9, 2 + (e.a / damageFloor(w)) * 0.25));
           if (e.a >= damageFloor(w) && view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
-            this.numbers.push({ x: e.x, y: e.y, text: `-${damageText(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: `-${damageText(e.a)}`,
+              life: 0.8,
+              color: '#ff8080',
+              fontScale: 1,
+              value: e.a,
+            });
           }
           break;
         case 'execute': {
@@ -373,6 +391,7 @@ export class Renderer {
               life: 1,
               color: style.color,
               fontScale: style.fontScale,
+              value: e.a,
             });
           }
           break;
@@ -387,7 +406,18 @@ export class Renderer {
           break;
         case 'levelup':
           if (this.numbers.length < MAX_OTHER_NUMBERS) {
-            this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff', fontScale: 1 });
+            // fb159: not a damage number, so `value` is a fixed stand-in
+            // (the "large and bold" anchor) rather than a real magnitude —
+            // a level-up announcement earns the emphasis on its own merits.
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: 'LEVEL UP',
+              life: 1.2,
+              color: '#9ff',
+              fontScale: 1,
+              value: FLOATING_NUMBER_FONT.boldThreshold,
+            });
           }
           break;
         case 'sunder':
@@ -635,7 +665,11 @@ export class Renderer {
               text: damageText(amount),
               life: 0.6,
               color: damageStyleColor(w, type, view.settings.accessiblePalette),
-              fontScale: DOT_NUMBER_FONT_SCALE,
+              // fb159: 80% of the same value-based size (`floatingNumberFontSize`),
+              // not a flat fraction of a fixed 12px — replaces the old
+              // value-blind `DOT_NUMBER_FONT_SCALE`.
+              fontScale: FLOATING_NUMBER_FONT.dotFontScale,
+              value: amount,
             });
           }
           perType.set(type, next - 1);
@@ -1009,11 +1043,14 @@ export class Renderer {
         }
       }
       // fb158 (owner feedback `ui-enemy-attack-indicators`): every enemy
-      // always shows a small attack-kind marker beside its HP bar — unlike
-      // the DoT/time-mark dots above (which sit right at `py - r`), this
-      // sits one row higher, level with the bar itself, so it never
-      // collides with them.
-      this.drawAttackKindIcon(px + r + 5, py - r - 4.5, def.attackKind);
+      // always shows a small attack-kind marker beside its HP bar. The
+      // offset (7,7) rather than the DoT/time-mark dots' own `py - r` row
+      // is deliberate: code-reviewer measured the marker's largest ("big")
+      // radius (4.5) against the poison dot's fixed radius-3 corner marker
+      // at `(px + r, py - r)` and found a sub-pixel overlap at a smaller
+      // offset — (7,7) clears it with margin at every enemy radius, since
+      // both markers scale with `r` identically.
+      this.drawAttackKindIcon(px + r + 7, py - r - 7, def.attackKind);
     }
   }
 
@@ -1896,14 +1933,25 @@ export class Renderer {
     }
   }
 
+  /**
+   * fb159 (owner feedback `ui-damage-font-scaling`): size is `n.value`'s own
+   * `floatingNumberFontSize` curve, not a fixed 12px — a crit/execute's
+   * `fontScale` (data-driven, `executeFontScale`) still multiplies on top,
+   * and a DoT aggregate tick's `fontScale` (`FLOATING_NUMBER_FONT.dotFontScale`)
+   * shrinks it, so "extra styling" survives the rescale rather than being
+   * replaced by it. Weight follows the same value (bold at/above the
+   * large-number anchor, or unconditionally for a crit/execute's own >1
+   * `fontScale`).
+   */
   private drawNumbers(): void {
     const ctx = this.ctx;
     ctx.textAlign = 'center';
     for (const n of this.numbers) {
       ctx.globalAlpha = Math.min(1, n.life * 2);
       ctx.fillStyle = n.color;
-      // fb005: Corpse Core execution kills render larger via `fontScale`.
-      ctx.font = `bold ${Math.round(12 * n.fontScale)}px system-ui, sans-serif`;
+      const size = Math.round(floatingNumberFontSize(n.value, n.fontScale));
+      const weight = floatingNumberFontWeight(n.value, n.fontScale);
+      ctx.font = `${weight} ${size}px system-ui, sans-serif`;
       ctx.fillText(n.text, n.x * TILE, n.y * TILE);
     }
     ctx.globalAlpha = 1;

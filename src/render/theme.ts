@@ -197,3 +197,41 @@ export function projectileStyle(source: string): ProjectileStyle {
   const key = source.startsWith('terrain_') ? source.slice('terrain_'.length) : source;
   return STYLES[key] ?? DEFAULT_STYLE;
 }
+
+/**
+ * fb159 (owner feedback `ui-damage-font-scaling`): floating damage numbers
+ * scale with their own value instead of a fixed 12px, so a 10-damage tick and
+ * a several-thousand-damage boss nova don't render identically. Size is
+ * `base + k*log10(value)`, clamped to `[base, max]`; `boldThreshold` is the
+ * value at and above which a number renders bold rather than normal weight
+ * ("10 small, 100 medium, 1000+ large and bold" — the owner feedback's own
+ * three anchors). Crit/execute keeps its own multiplier on top of this
+ * (`executeFontScale`, already data-driven in `data/damagetypes.json`) rather
+ * than losing it; a DoT aggregate tick (fb060) renders at `dotFontScale` of
+ * the same computed size instead of the flat, value-blind 0.7 it used before.
+ *
+ * BACKLOG-UI.md Log: this table belongs in `/data` per this item's own
+ * acceptance line ("Constants are data-driven... not literals in the
+ * renderer") — genuinely out of this lane's Scope (`/data` isn't
+ * `src/ui/**`/`src/render/**`), so it stays a literal here and the migration
+ * is logged for the main-lane merge rather than silently left non-compliant.
+ */
+export const FLOATING_NUMBER_FONT = {
+  base: 9,
+  k: 4,
+  max: 26,
+  boldThreshold: 1000,
+  dotFontScale: 0.8,
+};
+
+/** The `base + k*log10(value)` size in px, clamped, times any crit/execute multiplier. */
+export function floatingNumberFontSize(value: number, fontScale = 1): number {
+  const f = FLOATING_NUMBER_FONT;
+  const raw = f.base + f.k * Math.log10(Math.max(1, value));
+  return Math.min(f.max, Math.max(f.base, raw)) * fontScale;
+}
+
+/** Bold once `value` reaches the large-number anchor, or unconditionally for a crit/execute's own extra styling. */
+export function floatingNumberFontWeight(value: number, fontScale: number): 'bold' | 'normal' {
+  return fontScale > 1 || value >= FLOATING_NUMBER_FONT.boldThreshold ? 'bold' : 'normal';
+}
