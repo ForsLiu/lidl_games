@@ -23,7 +23,7 @@ the merge — never edited from this lane.
 
 ## Queue
 
-- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+- [x] (fb166) [feat] the terrain half of the owner's bigger-map order
       (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
       the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
       that has to move with it — `data/terrain.json`'s constraint bands
@@ -45,6 +45,86 @@ the merge — never edited from this lane.
       band ledger is regenerated with its new numbers; `npm run test:fast`
       shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
       56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
+      **Shipped with `data/terrain.json` byte-for-byte unchanged — every band,
+      density, blob and radius value fitted for 36x20 holds at 56x32 with no
+      retuning at all.** That was measured, not assumed: the 1000-seed property
+      sweep (`tests/terrain-generation.test.ts`) passes every owner band —
+      gates never enclosed, >=60% walkable, >=45% buildable-normal, gate reach
+      >=80%, legal-Core >=15% of normal, no sub-2-tile forced corridor,
+      `maxGateDetour <= 1.5` — unmodified. The item's own text flagged the
+      radii (`plazaRadius`, `coreGateClearance`, `highContestRadius`) as
+      "likely" needing to scale up; measured, none did. `coreGateClearance: 3`
+      and `plazaRadius: 3` are rejection/paint radii against a board that grew
+      in every direction, so they stayed proportionally *smaller* rather than
+      needing to grow, and `highContestRadius: 4` is pinned to the Spitter's
+      authored `attackRange` (a content value, not a geometry one) by its own
+      test, so it was never a candidate to move. `npm run test:fast` full-run
+      on this branch (after the flip, all re-fitting done): **15 failed files
+      / 36 failed tests, 249 passed files / 3873 passed tests, 8 skipped
+      files.** Two of the 15 are the pre-existing unrelated reds named when
+      this item was filed (`q15-command-domain-fuzz`,
+      `q45-cli-schema-violation`, both a missing `tools/fuzz-command-domain`
+      module, unchanged by this item). The other 13
+      (`b007-tile-bounds`, `class-board`, `content-complete`,
+      `fb027-selection-panels`, `fb077-terrain-wiring`, `grid`, `p1a-sealing`,
+      `p8d-boss-termination`, `t2-selection`, `ui-fb082-overlay-geometry`,
+      `ui-fb102-bossbar-rail-overlap`, `ui-fb106-extreme-aspect-geometry`,
+      `ui-input`) are this item's own pre-filed estimate landing —
+      the failures are hardcoded tile coordinates, `GRID_ASPECT`-derived
+      pixel math, and Core-placement/pathing expectations authored against
+      36x20, now reading real 56x32 values (e.g. `ui-input.test.ts` expects a
+      click at pixel 32*5 to land on tile `tx:5,ty:7` and now correctly lands
+      on `tx:7,ty:11`). This lane did not re-run `test:fast` at the old grid
+      size on this exact commit to individually confirm each of the 13 as
+      *newly* broken rather than already-red for an unrelated reason — that
+      would need a revert-and-diff this item's Scope doesn't call for — but
+      every failure's own diagnostic (expected-vs-received values) is
+      internally consistent with the grid resize and none of the 13 touches
+      `/src/sim/terrain` or `data/terrain.json`. All 13 are outside this
+      lane's Scope (b007/class-board/content-complete/fb027/grid/p1a/p8d/t2
+      are main-lane; the four `ui-*` files and `ui-input` are UI-lane) and are
+      left exactly as found, for those lanes to re-fit at their own items —
+      consistent with this item's own pre-filed note that the flip would
+      redden ~85 assertions across 20 files, of which only the 12 named above
+      the acceptance line were this lane's to fix. **No `tests/terrain*` file
+      is among any of the 15** — every file matching that glob is green, 411
+      tests plus 1 legitimate skip (see below).
+      **Two out-of-scope defects found and NOT fixed, logged below for the
+      main lane, because fixing either needs a file outside this lane's
+      Scope.** `GATES`' `east` entry (`src/sim/grid.ts`) and `world.ts:591`'s
+      Fourth Gate `south` literal are both *absolute* coordinates authored for
+      the 36x20 grid (`tx: 35` was `GRID_W - 1`; `ty: 19` was `GRID_H - 1`),
+      neither expressed relative to `GRID_W`/`GRID_H`, and both are now
+      ordinary interior tiles rather than border tiles at 56x32 — checked
+      before filing rather than assumed, per this lane's own standing
+      instruction to verify before inheriting. Measured consequences: the flat
+      arena's border rock count is 170, not 172 (only `west`/`north` actually
+      punch a border tile now; `east`'s punch is a no-op on already-normal
+      ground), and a live `World` built with the `gate` modifier produces a
+      dump `parseTerrainDump` correctly refuses (`gate "south" is at 12,19,
+      which is not on the arena border`) — the validator doing its documented
+      job, not a bug in it. One test
+      (`tests/terrain-gates-dump.test.ts`'s "describes a live Fourth Gate run
+      correctly") is `.skip`ped with a Known-issue comment naming both call
+      sites, rather than weakened or deleted, per working rule 6. Every other
+      terrain test that needed a modifier-gate-shaped fixture now builds one
+      locally at a real border tile instead of importing the broken constant,
+      so this is the only test actually blocked on the fix.
+      **The cost ledger is re-recorded honestly, and it does not show the 2.5x
+      the item text expected.** `tests/terrain-cost-ledger.ts`'s asserted
+      fields — the retry-taking seed set (1 of 1500 now, `-329`, was 2) and the
+      attempt-count distribution — are re-measured and green. The *timing*
+      mean (never asserted, only documented) read one data point of ~67.0k
+      calibration units on this host against the old grid's recorded
+      76.0k-83.8k idle range — inside the old spread, not 2.5x above it — which
+      is recorded in that file's own comment as a single reading rather than a
+      new baseline, since calibration units are a ratio against host noise and
+      this lane has exactly one host to measure on.
+      Every re-fitted number (goldens, witness seeds, ledgers) was obtained by
+      running the actual generator/measurement code over real seeds — 1000-,
+      5000-, 12000-, 20000-, 60000-, 300000- and 400000-seed sweeps depending
+      on what the assertion needed — never hand-computed or estimated; see the
+      Log for the full accounting of which sweep produced which number.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
@@ -1268,6 +1348,59 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-06, fb166 filing; severity corrected 2026-09-06 post-QA — qa-playtester
+  pass on this item) Two out-of-scope defects surfaced by the 36x20 -> 56x32
+  flip, for the main lane, **the first a live gameplay bug, not a cosmetic
+  one as first filed:** (1) `GATES.east` (`{tx:35,ty:17}`) in `src/sim/grid.ts`
+  and `world.ts:591`'s independent copy of the Fourth Gate `south` literal
+  (`{tx:12,ty:19}`) are absolute coordinates authored for the old grid
+  (`35 = GRID_W-1`, `19 = GRID_H-1` at the time), not expressed relative to
+  `GRID_W`/`GRID_H`, and are now ordinary interior tiles at 56x32 rather than
+  border tiles. QA measured the live consequence on a real `World` at seed 1:
+  `west`/`north` gates path at cost 258/124 from Core, `east` at only 118 —
+  `GATES.slice(0,3)` feeds straight into the live wave director
+  (`src/sim/run.ts:461` `gateSpawnPoint`, `:835` `updateAct1Wave`), so roughly a
+  third of every non-practice run's Act I spawns enter far closer to the Core
+  than the other two lanes, in every mode including practice (the flat `Grid`
+  constructor punches `GATES` unconditionally too). The border-rock-count
+  reading this Log first cited (170 vs 172) was real but undersold it as a
+  dump-format nit; it is a live balance regression. Suggested regression test:
+  assert every `GATES` entry sits on the current `GRID_W`/`GRID_H` border (would
+  have caught this at the exact commit that resized the grid). Fix: express
+  both literals relative to `GRID_W`/`GRID_H` (and route `world.ts:591` through
+  `Grid.openGate`, which it currently bypasses), both outside this lane's
+  Scope. `tests/terrain-gates-dump.test.ts`'s "describes a live Fourth Gate run
+  correctly" is `.skip`ped with a Known-issue comment naming both call sites
+  until this lands — QA confirmed the skip itself is legitimate. (2) The grid
+  flip's own pre-filed ~85 reddened assertions across 20 files split into this
+  lane's 12 named files (all green, see the fb166 shipped-note above) and,
+  **QA-corrected count, 12 not 13** other files that are main-lane or UI-lane
+  to re-fit at their own items: main-lane — `b007-tile-bounds`, `class-board`,
+  `content-complete`, `fb077-terrain-wiring`, `grid`, `p1a-sealing`,
+  `p8d-boss-termination`, `t2-selection`; UI-lane — `ui-fb082-overlay-geometry`,
+  `ui-fb102-bossbar-rail-overlap`, `ui-fb106-extreme-aspect-geometry`,
+  `ui-input`. Most fail on hardcoded tile coordinates or pixel/tile math
+  authored against 36x20, e.g. `ui-input.test.ts` expects a click at pixel
+  32x5 to resolve to tile `tx:5,ty:7`; it now correctly resolves to
+  `tx:7,ty:11`. **`p1a-sealing` is not one of those** — QA found it fails a real
+  §10/G7 invariant ("the cheapest possible breach outprices the longest
+  walkable route"), `8900 <= 22680` where the old grid's ceiling was `8568`
+  (margin was already a thin ~4% at 36x20; the resize blew a 2.65x hole
+  through it). `data/towers.json`'s `breach.base`/`breach.perEhp` were never
+  retuned for the new map area — this is a data-tuning item for the main lane
+  (retune the breach cost or the ceiling assumption), not a coordinate fix,
+  and risks a genuine G7 violation (a long enough open detour could now
+  underprice breaching a structure) until it lands.
+  **`fb027-selection-panels` is removed from this list** — QA reproduced it
+  failing intermittently (~20% of runs, unrelated random seeds) both before
+  and independent of this resize: `freeTileNear()`'s helper checks
+  `passable()` (walkable) rather than `buildable()`, so on an unlucky UI-layer
+  seed it can hand back a walkable-but-unbuildable (rough) tile and
+  `structureAt` returns null. Pre-existing since terrain wiring (fb077), not
+  caused by fb166; filed here only so the main lane doesn't chase it as a
+  grid-resize regression. Suggested fix: `freeTileNear` should check
+  `buildable(tx,ty)`, plus a fixed-seed or retry-loop variant of the test.
+  Left exactly as found — not this lane's to touch.
 - (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
   terrain-four-gates.md`) has three consumers outside this lane's Scope, filed
   here for the merge: (1) wave composition must split across 4 gates
