@@ -22,7 +22,7 @@
  * re-measurement** of Time Lord's band under exactly p10v's harness, and the
  * answer is that the number did not move.
  *
- * **Harness**: byte-for-byte p6e's `runClassScripted` — T1 (`tier: 1`,
+ * **Harness**: p6e's `runClassScripted` — T1 (`tier: 1`,
  * `modifiers: []`), `cycles: 6` (the full 18 TD / 6 VS / boss run), the full
  * Constellation tree (`allTreeNodeIds`, fb049/Q138: what a real Hub-started
  * run allocates, which `cfg()`'s `[]` default does not match), the `hybrid`
@@ -32,6 +32,12 @@
  * fixed seed set, never medians". The band arithmetic matches too: a `rate`
  * in [0.35, 0.70] over 12 seeds is p6e's `wins` in
  * [ceil(12*0.35), floor(12*0.70)] = [5, 8].
+ *
+ * **`c030`: p6e's harness, no longer p6e's tier.** `tests/helpers.ts`'s
+ * `GATE_TIER` is **3** since `p12b`, so the gate this file reports against
+ * runs at T3 while this file still measures T1 — deliberately, since its
+ * recorded history is T1 and `p12d` owns the rewrite. Every figure below is a
+ * T1 figure.
  *
  * One divergence worth stating rather than leaving implicit: p6e measures
  * Time Lord inside a same-process 12-class sweep, this file measures it
@@ -52,20 +58,43 @@
  * lever has been found that moves any class into this band; `p10r` (main
  * lane) owns the roster-wide retune.
  *
- * -- RECORDED (2026-09-03, this lane, `TIME_LORD_MEASURE=1`, seeds 1-12,
- * against commit `80538e9` = c001) --
+ * -- RECORDED (2026-09-06, `c030`, `TIME_LORD_MEASURE=1`, seeds 1-12, on this
+ * branch's HEAD, **measured at T1**) --
+ *
+ *   time_lord: **11/12 (91.7%)** — margins landslide-win:9 close-win:2
+ *   contested-loss:1. Seed 3 is `defeat_core` at wave 16; seeds 5 and 6 are
+ *   `close-win`. No `timeout`.
+ *
+ * -- SUPERSEDED (2026-09-03, this lane, same command, against commit
+ * `80538e9` = c001, on the flat arena and before master's T1 re-anchor) --
  *
  *   time_lord: 12/12 (100%) — every seed `victory` at wave 18, every one
  *   classified `landslide-win` (`classifyMargin`, p10z). Margins:
  *   landslide-win:12. No `timeout`, no `defeat_core`, no `defeat_warden`.
+ *   Identical to p10v's pre-c001 number, seed for seed.
  *
- * Identical to p10v's pre-c001 number, seed for seed: **c001 did not move
- * Time Lord's G8 band.** The reading is over G8's 70% ceiling, not under its
- * 35% floor — the same place fb049/Q138 re-measured the rest of the roster
- * into once `allocated` was corrected from `[]` to the full Constellation
- * tree. No tune is landed here: a twelfth-class-only tune against a uniform
- * roster-wide result would be a fragile local fix, against CLAUDE.md's
- * measurement rules and against Q160's four-session finding.
+ * **What moved, and what this file does *not* claim about why.** The number
+ * moved and the margin spread moved with it — this class's first
+ * `defeat_core` and its first two `close-win`s. An earlier draft of this note
+ * attributed that to the board (master's `fb077` wires `generateTerrain` into
+ * every non-practice run), and code review was right that this is the
+ * "plausible story instead of the control run" CLAUDE.md's measurement rules
+ * name: **88 commits touch `/src` or `/data` between the two readings**, and
+ * the most likely cause is not terrain but `p12c` (`9368fd4`, "re-anchor T1 to
+ * contested margins"), whose `data/enemies.json` `baseHpMul: 20` is a
+ * roster-wide T1 enemy-HP multiplier landing between them *for exactly this
+ * purpose* — its own commit records 16/24 with 33% close-win as the intent.
+ * `fb076`, `fb099`, `fb054` and `fb077` are also in the diff. Nothing here is
+ * attributed to any of them; the reading is a **baseline on the current
+ * tree**, and separating the causes needs a control tree, which is main-lane.
+ *
+ * **And the band this is read against has moved out from under it.**
+ * `tests/helpers.ts`'s `GATE_TIER` is **3** since `p12b`, so G8's reference
+ * tier is T3 while this file measures T1; `p12c` sets T1's own band at
+ * `[55%,90%]` with >=25% close-win (BACKLOG p12c), not 35-70%. 91.7% is over
+ * both ceilings, so the assertion below stays `.skip`-ed either way — but a
+ * reader comparing this figure to G8's text is comparing across tiers until
+ * `p12d` rewrites the gate.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -131,12 +160,15 @@ beforeAll(() => {
 
 describe('c003: G8 win-rate clause, Time Lord — post-c001 re-measurement', () => {
   /**
-   * Measured 2026-09-03 (this lane, `TIME_LORD_MEASURE=1`): **12/12 (100%),
-   * all twelve `victory`/w18/`landslide-win`**, identical to p10v's pre-c001
-   * number. Over the 70% ceiling, so this assertion is red as written
-   * (`1 > 0.7`). `.skip`-ed with its measurement, the same disposition p6e
-   * gives all twelve of its cases — see this file's header and Q160/Q161.
-   * Re-enable point is `p10r` (main lane), alongside the rest of the roster.
+   * Measured 2026-09-06 (`c030`, `TIME_LORD_MEASURE=1`, at T1):
+   * **11/12 (91.7%)** — landslide-win:9 close-win:2 contested-loss:1. Over the
+   * 70% ceiling this case asserts, and over `p12c`'s T1 band ceiling of 90%
+   * too, so it is still red as written (`0.917 > 0.7`) and stays `.skip`-ed
+   * with its measurement, the disposition p6e gives all twelve of its cases.
+   * The superseded 2026-09-03 reading (12/12, all landslide, on the flat arena
+   * and before the T1 re-anchor) is kept in this file's header beside it, with
+   * what is and is not claimed about why it moved. Re-enable point is `p10r` /
+   * `p12d` (main lane), alongside the rest of the roster.
    */
   it.skip('clears T1 at a 35-70% win rate under the scripted kit bot', () => {
     // Without the sweep `wins` is 0, and this case would report a confident

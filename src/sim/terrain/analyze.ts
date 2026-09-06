@@ -574,13 +574,18 @@ export function suggestCoreAnchor(
     const dy = y - CORE_Y;
     const dist = dx * dx + dy * dy;
     if (best !== null && dist > bestDist) continue;
-    const room = buildRoom(map, x, y);
+    const room = coreAnchorRoom(map, x, y);
     // Both comparisons are strict, and both matter. `anchors` is ascending, so
     // strictness leaves the lowest index winning a full tie — a stable answer
     // that does not depend on the enumeration order of a set the generator
     // happens to produce. The room key is not decoration either: over seeds
-    // 1..500 the nearest-anchor set is tied on 25 seeds and this line moves the
+    // 1..500 the nearest-anchor set is tied on 24 seeds and this line moves the
     // pick on 17 of them, i.e. on ~3% of runs it chooses the Core's tile.
+    // (The tie count read 25 until fb065b re-measured it — a stale number from
+    // before fb064l's `density.jitter`; the 17 is unchanged, so the two
+    // readings used the same method. Both are pinned by
+    // `tests/terrain-anchor-quality.test.ts` now, so the next generator change
+    // moves a test rather than only this comment.)
     if (best === null || dist < bestDist || room > bestRoom) {
       best = anchor;
       bestDist = dist;
@@ -608,8 +613,34 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
   return true;
 }
 
-/** Normal tiles in the ring `ROOM_RADIUS` out from the 2x2 footprint. */
-function buildRoom(map: TerrainGrid, tx: number, ty: number): number {
+/**
+ * Normal tiles in the `ROOM_RADIUS`-wide **block** around the 2x2 footprint —
+ * the quantity `suggestCoreAnchor` breaks a distance tie on.
+ *
+ * Block, not ring: the loops run `ty - 2 .. ty + CORE_H + 1` by the same in x,
+ * a filled 6x6 that *includes* the footprint. The footprint contributes a
+ * constant 4 (every caller has passed `isNormalFootprint` first), so it never
+ * changes an ordering — but the shape is now exported, and the doc said "ring"
+ * while the test file next door uses that word for a genuinely different
+ * radius-1 ring. `coreAnchorRoom(flatTerrain(), 25, 9)` is **36**, which is
+ * 6x6 and not 6x6 minus the footprint; that reading is pinned in
+ * `tests/terrain-anchor-quality.test.ts`.
+ *
+ * Exported at fb065b because it is not an implementation detail: `ROOM_RADIUS`'
+ * doc block above records that this tie-break decides `maxGateDetour`, which
+ * `terrainLegal` reads, so this number decides whether a map ships. A quantity
+ * that picks the Core's tile on ~3% of runs and can refuse a whole map should
+ * be measurable from outside the module, and `tests/terrain-anchor-quality.test.ts`
+ * asserts the rule through it: the chosen anchor carries the maximum of this
+ * over its own minimum-distance tie set.
+ *
+ * Not re-exported from `index.ts`: that barrel is the public surface, and this
+ * is a tie-break internal a test measures through. It keeps tile coordinates
+ * rather than the flat anchor index its callers in that test hold, because the
+ * one caller in *this* module has `(x, y)` already and because it is the same
+ * shape as `gateDistance` beside it.
+ */
+export function coreAnchorRoom(map: TerrainGrid, tx: number, ty: number): number {
   let room = 0;
   for (let y = ty - ROOM_RADIUS; y < ty + CORE_H + ROOM_RADIUS; y++) {
     for (let x = tx - ROOM_RADIUS; x < tx + CORE_W + ROOM_RADIUS; x++) {

@@ -287,12 +287,30 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
 
     for (let i = 0; i < 60 * 30; i++) run.step(emptyInput());
 
-    // Both reach the Warden's tile on essentially the same timeline — no
-    // divergence from being tagged, even after the taunt window itself
-    // (6s) has long since lapsed.
-    const reach = 0.6;
-    expect(Math.hypot(control.x - w.warden.x, control.y - w.warden.y)).toBeLessThan(reach);
-    expect(Math.hypot(taunted.x - w.warden.x, taunted.y - w.warden.y)).toBeLessThan(reach);
+    // Both route around the wall and arrive — no divergence from being tagged,
+    // even after the taunt window itself (6s) has long since lapsed. The
+    // pre-fix beeline branch this case was written against would leave the
+    // tagged one stalled *at* the wall (x <= 15), which is what the crossing
+    // check states directly.
+    //
+    // fb154 loosened the arrival radius from 0.6 to 2: VS enemies now spawn at
+    // the gates rather than the rim, so the crowd this 30-second window builds
+    // around the Warden is denser and separation holds an arriving enemy a
+    // little further out. Measured either side of that change, both probes
+    // cross the wall and close to within 2 tiles; the pre-fb154 numbers were
+    // 0.29 (control) and 0.30 (taunted), the post numbers 0.29 and 1.16. The
+    // claim — "the tag changes nothing" — is now stated as the *gap* between
+    // the two rather than an absolute radius neither controls.
+    const reach = 2;
+    const dControl = Math.hypot(control.x - w.warden.x, control.y - w.warden.y);
+    const dTaunted = Math.hypot(taunted.x - w.warden.x, taunted.y - w.warden.y);
+    expect(control.x, 'the control never crossed the wall').toBeGreaterThan(15.5);
+    expect(taunted.x, 'the tagged enemy stalled at the wall — the beeline bug is back').toBeGreaterThan(15.5);
+    expect(dControl).toBeLessThan(reach);
+    expect(dTaunted).toBeLessThan(reach);
+    // The claim the comment above makes, asserted rather than described: the
+    // tag must not open a gap between two otherwise identical enemies.
+    expect(Math.abs(dTaunted - dControl), 'the tagged enemy diverged from its control').toBeLessThan(1.5);
   });
 
   it("a taunted enemy beelining into an unrelated wall is blocked but does not breach it — G7's \"incidental shove on an open path deals nothing\" still holds for a taunt override", () => {

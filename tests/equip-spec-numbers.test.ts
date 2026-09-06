@@ -90,7 +90,17 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
-import type { StatKey } from '../src/sim/statkeys';
+import {
+  blockBody,
+  decoyKeys,
+  pointerProblems,
+  defaultReads,
+  positiveLines,
+  readsStat,
+  sourceOf as source,
+  type Behaviour,
+} from './equip-spec-ledger';
+import { STAT_KEYS, STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -262,6 +272,22 @@ interface StatusInCode {
 
 type Status = StatusMatch | StatusRetuned | StatusInCode;
 
+/**
+ * c022: an Effect row's **behavioural pointer** — the `describe`/`it` that
+ * proves *this row's own stat* moves something in a real `World`.
+ *
+ * Why a numeric row does not need one and an Effect row does: `NUMERIC_STAT`
+ * pins the five numeric columns to one stat key each, so a numeric row cannot
+ * quietly change which stat it audits. The 13 Effect rows choose their key
+ * freely, and QA measured what that costs — moving `normal_necklace`'s
+ * `"towerCost": -0.2` to `"goldFind": -0.2` **and this row's `stat` with it**
+ * left the whole ledger green, with §7's "tower upgrade cost −20%" authored on
+ * gold find. The figure was still right, the reach was still checked, and the
+ * *meaning* had moved.
+ *
+ * The type and the machinery behind it are `tests/equip-spec-ledger.ts`'s since
+ * `c028` — that header carries the eight mutations that shaped them.
+ */
 interface Figure {
   /** `data/equipment.json` item key. */
   item: string;
@@ -299,6 +325,8 @@ interface Figure {
   /** Effect rows only: why `fromQuote` is impossible (a flag, or a number written as a word). */
   unquantified?: string;
   status: Status;
+  /** Effect rows only: c022's behavioural pointer. Required for every Effect row. */
+  behaviour?: Behaviour;
   note?: string;
 }
 
@@ -378,6 +406,13 @@ const LEDGER: readonly Figure[] = [
     item: 'sleeve_sword',
     col: 'effect',
     figure: 'classFallback: if not Swordsman, atk speed x1.2',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /"if not Swordsman" fallback: a non-Swordsman gets an extra \+20% attack speed source instead/,
+      why:
+        'The fallback bag reaches `attackSpeed` as its own `equipment:sleeve_sword:fallback` source, ' +
+        'with the Swordsman\'s own exclusion asserted by the sibling `it` beneath it.',
+    },
     quote: 'if not Swordsman: atk speed ×1.2 (so 1.2×1.2)',
     fromQuote: { pattern: /atk speed ×([\d.]+)/ },
     spec: 1.2,
@@ -442,6 +477,14 @@ const LEDGER: readonly Figure[] = [
     item: 'swordsman_armor',
     col: 'effect',
     figure: 'classFallback: if not Swordsman, atk speed x1.5',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /the fallback contributes to the attackSpeed stat for a non-Swordsman/,
+      why:
+        'The one classFallback line with no dedicated block anywhere before c022 — fb015 covered it ' +
+        'only through the generic three-item loop, which names no stat and would read identically if ' +
+        'this item\'s fallback moved to another key.',
+    },
     quote: 'if not Swordsman: atk speed ×1.5 (so 1.1×1.5)',
     fromQuote: { pattern: /atk speed ×([\d.]+)/ },
     spec: 1.5,
@@ -501,6 +544,16 @@ const LEDGER: readonly Figure[] = [
     item: 'swordsman_shoes',
     col: 'effect',
     figure: 'double Dash Slash distance — the x2 itself',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /reaches an enemy beyond the un-doubled dash range/,
+      reads: [/swordsman_shoes/],
+      why:
+        'The one Effect row with `stat: null`, so there is no stat key for the default `reads` to ' +
+        'look for: the figure is a `/src` literal, already pinned by this row\'s `anchors` and ' +
+        '`capture`. The pointer\'s job here is the other half — that the doubling is observed in a ' +
+        'real World — so it reads the item key the block equips instead.',
+    },
     quote: 'double Dash Slash distance',
     descQuote: 'doubles dash slash distance',
     unquantified:
@@ -538,6 +591,11 @@ const LEDGER: readonly Figure[] = [
     item: 'swordsman_shoes',
     col: 'effect',
     figure: 'classFallback: if not Swordsman, x1.1 movement',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /"if not Swordsman" fallback: a non-Swordsman gets \+10% movement instead/,
+      why: 'Same shape as Sleeve Sword\'s fallback row: the source lands on `moveSpeedPct` by name.',
+    },
     quote: 'if not Swordsman: ×1.1 movement',
     fromQuote: { pattern: /×([\d.]+) movement/ },
     spec: 1.1,
@@ -573,6 +631,13 @@ const LEDGER: readonly Figure[] = [
     item: 'normal_ring',
     col: 'effect',
     figure: 'life regen +1',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /raises the hpRegen stat by exactly 1 over the same world without the ring/,
+      why:
+        '`hpRegen` had no equipment-side block at all before c022 — `p-core-b-effects` proves the ' +
+        'Core\'s step grants it, which says nothing about this item\'s point.',
+    },
     quote: 'life regen +1',
     fromQuote: { pattern: /life regen \+([\d.]+)/ },
     spec: 1,
@@ -606,6 +671,13 @@ const LEDGER: readonly Figure[] = [
     item: 'bleeding_ring',
     col: 'effect',
     figure: '+0.01% lifesteal',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /the healed amount is the damage dealt times the leech stat/,
+      why:
+        'fb015\'s two Bleeding blocks prove the *flag* routes bleed damage into leech; neither reads ' +
+        'the magnitude, so the 0.0001 could have been any positive number.',
+    },
     quote: '+0.01% lifesteal',
     fromQuote: { pattern: /\+([\d.]+)% lifesteal/, as: PCT },
     spec: 0.0001,
@@ -620,6 +692,14 @@ const LEDGER: readonly Figure[] = [
     item: 'bleeding_ring',
     col: 'effect',
     figure: 'lifesteal now also applies to Bleeding damage (the flag)',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /the ring sets bleedLifesteal and nothing else does/,
+      why:
+        'fb015:422 proves the ring heals off a Bleeding tick, but it equips the *item* and never ' +
+        'names the stat — the row\'s own note pointed at it in prose, which is what c022 turns into an ' +
+        'anchor. The sibling `it` drives `bleedLifesteal` directly, holding leech constant.',
+    },
     quote: 'lifesteal now also applies to Bleeding damage',
     unquantified:
       '§7 states this clause as a rule with no numeral. It is a boolean in stat form ' +
@@ -661,6 +741,13 @@ const LEDGER: readonly Figure[] = [
     item: 'normal_necklace',
     col: 'effect',
     figure: 'EXP +20%',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /raises the xpGain stat into xpMul/,
+      why:
+        '`xpGain` had no equipment-side block: the only other reader is the VS Core\'s own ' +
+        '`vsXpGainPct`.',
+    },
     quote: 'EXP +20%',
     fromQuote: { pattern: /EXP \+([\d.]+)%/, as: PCT },
     spec: 0.2,
@@ -671,6 +758,14 @@ const LEDGER: readonly Figure[] = [
     item: 'normal_necklace',
     col: 'effect',
     figure: 'tower upgrade cost -20%',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /discounts the towerCost stat, which prices both the build and the upgrade step/,
+      why:
+        '**The row c022 was filed on.** QA moved this figure to `goldFind` in `/data` and in this row ' +
+        'and the ledger stayed green; the covering block reads `towerCost` and prices an upgrade with ' +
+        'it, so the same mutation now has nowhere to point.',
+    },
     // U+2212, §7's own minus sign — not a hyphen.
     quote: 'tower upgrade cost −20%',
     fromQuote: { pattern: /tower upgrade cost −([\d.]+)%/, as: NEG_PCT },
@@ -713,6 +808,15 @@ const LEDGER: readonly Figure[] = [
     item: 'builders_necklace',
     col: 'effect',
     figure: 'all towers +1 flat attack',
+    behaviour: {
+      coveredBy: 'tests/equip-effect-behaviour.test.ts',
+      anchor: /the \+1 is authored on the towerAtkFlat stat/,
+      why:
+        'fb015\'s Builder\'s Necklace blocks observe `towerDamage()` moving, which is the right ' +
+        'observable and names no stat — they would read identically if the +1 were authored on any ' +
+        'other key that happened to raise tower damage. The block here pins the key; fb015\'s two keep ' +
+        'the ordering and VS-count clauses, which `RULES` already anchors.',
+    },
     quote: 'all towers +1 flat attack',
     fromQuote: { pattern: /all towers \+([\d.]+) flat attack/ },
     spec: 1,
@@ -746,6 +850,13 @@ const LEDGER: readonly Figure[] = [
     item: 'normal_bracelet',
     col: 'effect',
     figure: 'character and tower area +10%',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /Normal Bracelet raises areaMul, which already covers both character and tower area/,
+      why:
+        '`areaMul` is `area`\'s own derived factor, read by name. The *reach* of that factor is c013\'s ' +
+        'measurement, not this pointer\'s.',
+    },
     quote: 'character and tower **area** +10%',
     fromQuote: { pattern: /\*\*area\*\* \+([\d.]+)%/, as: PCT },
     spec: 0.1,
@@ -784,6 +895,13 @@ const LEDGER: readonly Figure[] = [
     item: 'sniper_bracelet',
     col: 'effect',
     figure: 'range +10% — the tower half',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /Sniper Bracelet raises both towerRangeMul and the character-only charRangeMul/,
+      why:
+        'The one block that reads both halves of §7\'s single sentence by name, which is why the two ' +
+        'rows share it: it is the split that makes them two rows.',
+    },
     quote: 'character and tower **range** +10%',
     fromQuote: { pattern: /\*\*range\*\* \+([\d.]+)%/, as: PCT },
     spec: 0.1,
@@ -798,6 +916,13 @@ const LEDGER: readonly Figure[] = [
     item: 'sniper_bracelet',
     col: 'effect',
     figure: 'range +10% — the character half',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /Sniper Bracelet raises both towerRangeMul and the character-only charRangeMul/,
+      why:
+        'The character half of the same block; `charRangeMul` and `towerRangeMul` are asserted on ' +
+        'adjacent lines, so a row that lost its half would still be red here.',
+    },
     quote: 'character and tower **range** +10%',
     fromQuote: { pattern: /\*\*range\*\* \+([\d.]+)%/, as: PCT },
     spec: 0.1,
@@ -1015,17 +1140,70 @@ function readLoaded(f: Figure): number | undefined {
     | Record<string, number>
     | undefined;
   if (f.bag === 'fallback' && bag === undefined) return undefined;
-  const raw = bag?.[f.stat] ?? 0;
+  let raw = bag?.[f.stat] ?? 0;
+  // fb153a: `numberScale` divides every HP/damage-denominated stat at load, so
+  // the loaded view is the authored figure times that factor. §7 states the
+  // *authored* number and `data/equipment.json` still holds it, so the ledger
+  // reads the loaded value back through the scale rather than restating §7 in
+  // display units. The bridge test ("the loaded content and data/equipment.json
+  // agree at every ledger row") then proves the scaler applied exactly that
+  // factor to exactly these stats and nothing else.
+  if (STAT_SCALED[f.stat as StatKey]) raw /= content.modifiers.numberScale;
   return f.as ? f.as(raw) : raw;
 }
 
-const SOURCES = new Map<string, string>();
-function source(file: string): string {
-  const cached = SOURCES.get(file);
-  if (cached !== undefined) return cached;
-  const text = readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), 'utf8');
-  SOURCES.set(file, text);
-  return text;
+/* -------------------------- c022's device, owned by `equip-spec-ledger.ts` */
+
+/*
+ * The reader, the `reads` default and the decoy derivation moved to
+ * `tests/equip-spec-ledger.ts` at **c028**, unchanged in behaviour and with their
+ * reasoning intact in that module's header. They left this file because `c027`
+ * needs the same device on the §4 ledger, and a hand-copy loses whichever of
+ * the eight mutations behind them the copier does not notice. What stays here
+ * is what is about *§7*: which rows must carry a pointer, which one may
+ * override `reads`, and which names a covering block reads for a reason other
+ * than the stat.
+ */
+
+/** Every Effect row — the rows c022 requires a behavioural pointer on. */
+const EFFECT_ROWS = LEDGER.filter((f) => f.col === 'effect');
+
+/**
+ * The Effect rows allowed to override `reads`. One, and it is the row with no
+ * stat at all. Declared as a roster rather than as a per-row flag so a second
+ * override is a visible edit to this list, not a quiet field on a row.
+ */
+const READS_OVERRIDES: readonly string[] = ['swordsman_shoes · effect · double Dash Slash distance — the x2 itself'];
+
+/** Every stat key `data/equipment.json` authors today, in either bag. */
+const AUTHORED_STATS: ReadonlySet<string> = new Set(
+  RAW.items.flatMap((i) => [...Object.keys(i.mods ?? {}), ...Object.keys(i.classFallback?.mods ?? {})]),
+);
+
+/**
+ * Names that appear in a covering block for a reason **other** than the stat
+ * of that name being read — a function `/src` exports under the same word.
+ * Declared with the reason, because the alternative is to drop the whole
+ * decoy check over one collision.
+ */
+const DECOY_EXEMPT: Readonly<Record<string, string>> = {
+  towerDamage:
+    "`towers.ts` exports a `towerDamage()` function, which the Builder's Necklace covers call to " +
+    'observe the flat point landing. The *stat* `towerDamage` is a multiplier no equipment authors; ' +
+    'the call is not a read of it.',
+};
+
+/**
+ * Every stat key `/data` authors on no equipment item — the shape of the
+ * mutation c022 was filed on (`towerCost` -> `goldFind`). No covering block
+ * may read one, so re-pointing any Effect row's `stat` at any of them fails
+ * the `reads` check rather than passing in agreement with itself.
+ */
+const MUTATION_DECOYS: readonly StatKey[] = decoyKeys(STAT_KEYS, AUTHORED_STATS, DECOY_EXEMPT);
+
+/** This ledger's own `reads` default, in terms of a `Figure`. */
+function readsFor(f: Figure): readonly RegExp[] {
+  return f.behaviour?.reads ?? defaultReads(f.stat!, f.item);
 }
 
 const DATA_HOMED = LEDGER.filter((f) => f.stat !== null);
@@ -1498,6 +1676,118 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
     expect(
       [...new Set(RULES.map((r) => r.item))].filter((i) => i !== null && excused.has(i)),
       'RULES entry for a "none" cell',
+    ).toEqual([]);
+  });
+
+  /* ------------------------------------------- c022: behavioural pointers */
+
+  it('every §7 Effect row carries a behavioural pointer, and only Effect rows carry one', () => {
+    for (const f of EFFECT_ROWS) {
+      expect(f.behaviour, `${id(f)}: no behavioural pointer - which block proves this stat does anything?`).toBeDefined();
+      expect(f.behaviour!.why.trim().length, `${id(f)}: no reason given for the pointer`).toBeGreaterThan(20);
+    }
+    // A numeric row is pinned by `NUMERIC_STAT` instead, which is stronger:
+    // one declared key per column for all twelve items. A pointer there would
+    // read as a second, weaker authority for the same claim.
+    expect(
+      LEDGER.filter((f) => f.col !== 'effect' && f.behaviour !== undefined).map(id),
+      'a numeric row with a behavioural pointer - NUMERIC_STAT already pins its key',
+    ).toEqual([]);
+    // The roster is 13 rows across 9 items; a 14th Effect row (fb056) has to
+    // land here deliberately rather than inherit somebody else's cover.
+    expect(EFFECT_ROWS).toHaveLength(13);
+  });
+
+  it("each Effect row's pointer names exactly one live block, and that block reads the row's own stat", () => {
+    for (const f of EFFECT_ROWS) {
+      const b = f.behaviour!;
+      expect(
+        existsSync(fileURLToPath(new URL(`../${b.coveredBy}`, import.meta.url))),
+        `${id(f)}: ${b.coveredBy} does not exist`,
+      ).toBe(true);
+      // The five rules a pointer must satisfy live in `equip-spec-ledger.ts`
+      // with the reader (c028, code review): each is a mutation that got past
+      // an earlier draft, and a ledger that re-implements the loop keeps only
+      // the ones its author noticed. §7 keeps the row identity in the message.
+      expect(
+        pointerProblems(blockBody(b.coveredBy, b.anchor), readsFor(f)),
+        `${id(f)}: the pointer at "${b.anchor.source}"`,
+      ).toEqual([]);
+    }
+  });
+
+  it('a pointer may only skip the stat-key check on the declared row, and only that row has no stat', () => {
+    expect(
+      EFFECT_ROWS.filter((f) => f.behaviour!.reads !== undefined).map(id).sort(),
+      'an undeclared `reads` override - the one way this check can be loosened',
+    ).toEqual([...READS_OVERRIDES].sort());
+    // And the reason the exemption exists is itself asserted, so it cannot
+    // outlive its cause: the row is exempt *because* it has no stat key.
+    for (const f of EFFECT_ROWS.filter((x) => READS_OVERRIDES.includes(id(x)))) {
+      expect(f.stat, `${id(f)}: exempt from the stat-key check but it has a stat key`).toBeNull();
+      expect(f.status.kind, `${id(f)}: a stat-less row that is not in_code`).toBe('in_code');
+    }
+    // The converse: every other row does have one, so `defaultReads` never
+    // dereferences a null.
+    for (const f of EFFECT_ROWS.filter((x) => !READS_OVERRIDES.includes(id(x)))) {
+      expect(f.stat, `${id(f)}: no stat and no declared override`).not.toBeNull();
+    }
+  });
+
+  it('re-pointing an Effect row at a stat no equipment authors is red, not green - the c022 mutation', () => {
+    // The mutation QA measured on c012: move `normal_necklace`'s -0.2 from
+    // `towerCost` to `goldFind` in `/data` **and** edit this row's `stat` to
+    // match. Every other device in this file stays green - the figure is
+    // still -0.2, the quote still says -20%, the cell is still claimed. What
+    // is now red is the pointer: no covering block reads `goldFind`.
+    //
+    // The `reads` check above already catches that row. This one generalises
+    // it to the whole unauthored half of `STAT_KEYS`, so the barrier does not
+    // depend on which key a mutation happens to pick.
+    expect(MUTATION_DECOYS.length, 'every StatKey is authored on some item - there is no decoy left').toBeGreaterThan(5);
+    for (const f of EFFECT_ROWS) {
+      const { body } = blockBody(f.behaviour!.coveredBy, f.behaviour!.anchor);
+      // Negative controls are exempt, and QA is why: adding
+      // `expect(wWith.derived.goldFindMul).toBeCloseTo(wNone.derived.goldFindMul)`
+      // to the towerCost block — an assertion that the discount does *not*
+      // leak into gold find, which is exactly the kind of control this ledger
+      // asks for elsewhere — reddened this row. A rule that punishes proving a
+      // decoy unaffected is a rule that gets deleted the first time someone
+      // strengthens a block.
+      // §7's covers name their control world `wNone`; the shape is this
+      // suite's convention, not a language rule, so it is named here rather
+      // than baked into the shared module (c027's §4 covers name theirs
+      // `full`, `plain`, `both`, ...).
+      const positive = positiveLines(body, /toBeCloseTo\(w[A-Za-z]*\./);
+      for (const decoy of MUTATION_DECOYS) {
+        expect(
+          positive,
+          `${id(f)}: its covering block reads ${decoy}, so re-pointing the row there would stay green`,
+        ).not.toMatch(readsStat(decoy));
+      }
+    }
+    // An exemption may only excuse a name `/src` really exports as something
+    // other than the stat, and it must say which.
+    for (const [key, why] of Object.entries(DECOY_EXEMPT)) {
+      expect(STAT_KEYS, `DECOY_EXEMPT excuses "${key}", which is not a StatKey`).toContain(key);
+      expect(AUTHORED_STATS, `DECOY_EXEMPT excuses "${key}", which equipment authors - it is audited, not a decoy`).not.toContain(key);
+      expect(why.trim().length, `DECOY_EXEMPT["${key}"]: no reason given`).toBeGreaterThan(20);
+    }
+  });
+
+  it("the device's own self-tests live with the device, in tests/equip-spec-ledger.test.ts", () => {
+    // c028 moved the reader, the `reads` default and the decoy derivation into
+    // `tests/equip-spec-ledger.ts`, and their synthetic-source self-tests with them.
+    // This row is the pointer, so the move cannot quietly become a deletion:
+    // the same shape `RULES.anchor` uses on `/src`.
+    // Through the device itself, not as a prose substring: code review put
+    // `describe.skip(` on that file and this row stayed green with all five
+    // self-tests disarmed — the exact hole c022 closed for its own rows.
+    const self = blockBody('tests/equip-spec-ledger.test.ts', /the block reader stops at its own block, on synthetic source/);
+    expect(self.matches, "the device's self-tests are gone — the reader is unguarded").toBe(1);
+    expect(
+      self.ancestors.filter((a) => /\.(skip|todo)\(/.test(a)),
+      "the device's self-tests sit inside a skipped describe",
     ).toEqual([]);
   });
 

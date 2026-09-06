@@ -8,14 +8,15 @@
  * but the last built their probe tower at `11,10`. Seven copies of one
  * assumption: that those tiles are open ground on the seed `cfg()` hands out.
  *
- * **Six of the seven import this module; `class-kit-whiff` does not** — it
- * stays pinned, for the reason `class-board.test.ts`'s `EXCEPTIONS` records
- * and asserts. An earlier draft of this header claimed all of them moved
- * together, which was false, and QA caught it. `BACKLOG-TERRAIN.md` makes that seed generate a real map,
- * at which point all six fail together as `harness could not build ...` — a
- * harness error indistinguishable, to whoever picks it up, from a product
- * regression in the class kits. Logged three times (c005, c006, c009) and
- * never fixed until now.
+ * **Every one of them imports this module since `c025`.** `class-kit-whiff` was the
+ * hold-out — an earlier draft of this header claimed otherwise, which was
+ * false, and QA caught it — and it joined once this module learned to export
+ * the Ice Wall *column* it needs (`WALL_TX`/`WALL_TYS`) and its p6d agreement
+ * was restated as an offset. `BACKLOG-TERRAIN.md` made that seed generate a
+ * real map, at which point every pinned file would have failed as `harness
+ * could not build ...` — a harness error indistinguishable, to whoever picks
+ * it up, from a product regression in the class kits. Logged three times
+ * (c005, c006, c009) and never fixed until c014.
  *
  * This module owns that geometry once, and *probes* for it with the same
  * side-effect-free `checkBuild` the Engineer's reach clause already probes
@@ -32,43 +33,18 @@
  * the board edges from that spot. `class-board.test.ts` shifts the origin to
  * prove the geometry follows it rather than the constant.
  *
- * **What "valid" means here, and why the whole footprint is checked.** The six
- * files reach east as far as `tilePastBaseRange`'s `dx < 14` probe and
- * Stormcaller's chain lines, and south as far as `WY + 6`;
- * `EAST_REACH`/`SOUTH_REACH` below carry those numbers, and every tile in that
- * rectangle must be `grid.buildable` — not merely inside the border and clear
- * of the Core.
- *
- * Checking only the one build tile was this module's first draft and it did
- * not survive review. `tilePastBaseRange` (class-passive-liveness) scans
- * `dx = 4..13` for a tile `checkBuild` calls `'out_of_range'`; `checkBuild`
- * tests `grid.buildable` *before* `inBuildRange`, so an unbuildable tile
- * answers `'occupied'` instead and the scan finds nothing, at which point that
- * file dies on its own harness assertion. A terrain map that leaves `11,10`
- * open and turns `14..23,10` to rock would have passed a build-tile-only check
- * and reddened the file anyway — the exact failure c014 exists to remove, at
- * the deepest reach the module claims to guard.
- *
- * **The rectangle is a bounding box, and that is a real cost.** It is
- * `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)` = 128 tiles, every one of
- * which must be buildable, while the deep east arm is only actually used along
- * row `WY`. On the empty shipped board only 119 of 720 candidate spots
- * qualify, and under obstacle density `p` a candidate survives with
- * `(1-p)^128` — so at even a few percent density the expected number of legal
- * spots board-wide falls below one and `probeBoard` throws at module load
- * rather than walking (code review sized this). That is a *named* failure, one
- * error instead of six confusing ones, which is the improvement this module
- * actually delivers on a dense map; it is not the unlimited "walks to the next
- * tile that is buildable" a reader might infer. Narrowing the footprint to the
- * union of the shapes really used, rather than their bounding box, is the
- * obvious next step and is logged rather than done here.
- *
- * `grid.buildable` is the right predicate for all of it rather than a mix:
- * it is `tile === Open && occ === 0`, which already implies in-bounds,
- * non-border, non-Gate, non-Core, unoccupied *and* `passable`, so it covers
- * the tiles that only ever hold an enemy as well as the ones that hold a
- * tower. The border/Core rejects are kept ahead of it as a cheap pre-filter
- * that can also name which rule a candidate broke.
+ * **What "valid" means here** is `footprintClear`'s four clauses below, and
+ * the two paragraphs that used to stand here described a different function:
+ * they said every tile of a `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)`
+ * rectangle must be `grid.buildable`, sized the cost of that bounding box, and
+ * logged narrowing it as the obvious next step. `c026` did the narrowing —
+ * forced by the terrain epic, which left **zero of 512 candidate origins** able
+ * to supply that block — so the requirement is now the union of the shapes the
+ * importers really use: passable floor where dummies stand, a legal build tile,
+ * one buildable tile past the base build range in the Warden's row, and (for
+ * `class-kit-whiff`, `c025`) a three-tile buildable column two east. The
+ * function's own doc comment carries the reasoning; this header no longer
+ * restates it in a form that can drift out of step with it again.
  */
 
 import { loadContent, type Content } from '../src/sim/content';
@@ -85,10 +61,32 @@ export interface Board {
   readonly BUILD_TX: number;
   readonly BUILD_TY: number;
   /**
+   * `class-kit-whiff`'s Ice Wall column: the three tiles a vertical wall aimed
+   * at `WX + 2, WY` occupies, all buildable and none of them path-sealing.
+   *
+   * A tile is not enough for that file — c007 pre-builds all three so the wall
+   * has nowhere to land — and `footprintClear` does not imply them: since
+   * `c026` the footprint asks for **passable** floor plus *one* buildable tile
+   * out east, which a wall column can fail while every other importer is
+   * served. So the column is probed with the spot rather than assumed from it.
+   */
+  readonly WALL_TX: number;
+  readonly WALL_TYS: readonly [number, number, number];
+  /**
+   * Whether the column above is real. `false` means the scan could not find a
+   * spot that also hosts it and fell back to one that serves everyone else —
+   * `class-kit-whiff` then fails on its own named harness row instead of the
+   * other six losing their board. `c026`'s rule: the shared footprint asks for
+   * what the importers need, and one importer's extra need degrades alone.
+   */
+  readonly hasWall: boolean;
+  /**
    * `full` when the whole `EAST_REACH x SOUTH_REACH` footprint was clear;
    * `reduced` when only a smaller one was, which means a deep-east consumer
-   * (`tilePastBaseRange`) may not have the ground it needs. Asserted `full` on
-   * the shipped board, so a degraded map fails as a named row.
+   * (`tilePastBaseRange`) may not have the ground it needs. The shipped board
+   * measures **`reduced`** since terrain landed, and `class-board.test.ts`
+   * asserts that value — it used to require `full`, which `c026` showed was a
+   * statement about the old flat arena rather than about the importers.
    */
   readonly tier: 'full' | 'reduced';
 }
@@ -147,6 +145,11 @@ function isCore(tx: number, ty: number): boolean {
  *  3. **Room to place enemies**, which is `passable`, not `buildable`: every
  *     dummy in these files is spawned with `speed = 0` and never paths, so it
  *     needs open floor rather than a tower site.
+ *  4. **The Ice Wall column**, for the tiers that ask for it (`c025`):
+ *     `class-kit-whiff` pre-builds all three tiles a vertical wall aimed two
+ *     east occupies, so those need to be tower sites too. One file's need, so
+ *     it is asked for on its own rungs of the ladder and given up before
+ *     anyone else's reach is.
  *
  * Asking for `buildable` where only `passable` was needed is what made the old
  * check both too strict to satisfy and no more informative.
@@ -155,7 +158,7 @@ function footprintClear(
   w: World,
   wx: number,
   wy: number,
-  reach: { east: number; south: number },
+  reach: Reach,
 ): boolean {
   for (let ty = wy - NORTH_MARGIN; ty <= wy + reach.south; ty++) {
     for (let tx = wx - WEST_MARGIN; tx <= wx + reach.east; tx++) {
@@ -172,7 +175,37 @@ function footprintClear(
   for (let dx = 4; dx <= reach.east && !farGround; dx++) {
     if (w.grid.buildable(wx + dx, wy)) farGround = true;
   }
-  return farGround;
+  if (!farGround) return false;
+  // (4), `c025`: `class-kit-whiff` pre-builds the whole Ice Wall column, so
+  // those three tiles have to be tower sites, not merely floor. Asked for in
+  // the tiers that want it and dropped in the ones that do not.
+  //
+  // Measured on the shipped map rather than assumed: of the 612 candidate
+  // spots, 12 are legal boards without the column and **11 with it** — the one
+  // it costs is `10,5`, and the shipped `10,6` is not it. Small, but not zero,
+  // which is why it degrades on its own rung instead of narrowing the board
+  // every importer shares.
+  if (!reach.wall) return true;
+  for (const ty of wallTys(wy)) {
+    if (!w.grid.buildable(wx + WALL_DX, ty)) return false;
+  }
+  return true;
+}
+
+/** One rung of the degradation ladder `probeBoard` walks. */
+interface Reach {
+  east: number;
+  south: number;
+  /** Whether this rung also requires the Ice Wall column (`c025`). */
+  wall: boolean;
+}
+
+/** The Ice Wall column's own east offset: `class-kit-whiff` aims at `WX + 2, WY`. */
+export const WALL_DX = 2;
+
+/** The three rows a vertical wall aimed at `WALL_DX, wy` occupies (`fireIceWall`). */
+function wallTys(wy: number): [number, number, number] {
+  return [wy - 1, wy, wy + 1];
 }
 
 /** Candidate Warden spots, nearest first: the origin, then Chebyshev ring 1, 2, ... */
@@ -197,7 +230,7 @@ function* candidates(origin: { tx: number; ty: number }): Generator<{ tx: number
 function probeAt(
   origin: { tx: number; ty: number },
   c: Content,
-  reach: { east: number; south: number },
+  reach: Reach,
 ): Board | null {
   const w = new World(cfg({ classKey: PROBE_CLASS }), c);
   w.gold = 1e6;
@@ -212,7 +245,27 @@ function probeAt(
     // already asked for this, privately).
     if (checkBuild(w, id, tx + 1, ty) !== null) continue;
     if (w.grid.wouldBlockPath([[tx + 1, ty]])) continue;
-    return { WX: tx, WY: ty, BUILD_TX: tx + 1, BUILD_TY: ty, tier: reach.east === EAST_REACH ? 'full' : 'reduced' };
+    // The whiff column goes up as three towers at once, so the seal check has
+    // to be asked of the three together — each one alone can be harmless while
+    // the column closes the last corridor.
+    const wall = wallTys(ty).map((wty) => [tx + WALL_DX, wty] as [number, number]);
+    if (reach.wall && w.grid.wouldBlockPath(wall)) continue;
+    // `footprintClear` pre-filters the column with `grid.buildable`, which is
+    // cheap and runs before the Warden is parked. `class-kit-whiff` places it
+    // with `buildTower`, so the probe asks the same question `buildTower` asks
+    // — phase, range, gold and terrain, not just occupancy — now that there is
+    // a parked Warden to ask it from.
+    if (reach.wall && wall.some(([wtx, wty]) => checkBuild(w, id, wtx, wty) !== null)) continue;
+    return {
+      WX: tx,
+      WY: ty,
+      BUILD_TX: tx + 1,
+      BUILD_TY: ty,
+      WALL_TX: tx + WALL_DX,
+      WALL_TYS: wallTys(ty),
+      hasWall: reach.wall,
+      tier: reach.east === EAST_REACH ? 'full' : 'reduced',
+    };
   }
   return null;
 }
@@ -223,9 +276,10 @@ function probeAt(
  * legality `buildTower` runs but without the side effects, so one probe world
  * serves every candidate.
  *
- * **It degrades before it throws, and QA is why.** The full footprint is 128
- * tiles, all required buildable. On a dense map no candidate satisfies it, and
- * the first version of this module then threw — at *module scope*, which
+ * **It degrades before it throws, and QA is why.** On a dense map no candidate
+ * satisfies the full footprint — since the terrain epic none does even on the
+ * shipped map, which is why the answer below is `reduced` — and the first
+ * version of this module then threw — at *module scope*, which
  * vitest reports as a collection error: `Tests no tests`, **259 rows across
  * six files silently not running while a pass-counting dashboard sees zero
  * failures**. That is a worse failure than the one c014 set out to fix, and it
@@ -244,12 +298,27 @@ export function probeBoard(
   origin: { tx: number; ty: number } = PROBE_ORIGIN,
   c: Content = defaultContent,
 ): Board {
-  // Full reach first, then the east arm trimmed, then the near box only. The
-  // shipped board always lands on the first, which the test asserts.
-  const tiers = [
-    { east: EAST_REACH, south: SOUTH_REACH },
-    { east: Math.floor(EAST_REACH / 2), south: SOUTH_REACH },
-    { east: 1, south: 1 },
+  // Full reach first, then the east arm trimmed, then the near box. The
+  // shipped board lands on the *third* rung (`reduced`, with a wall), which
+  // `class-board.test.ts` asserts and this comment used to get wrong.
+  const tiers: Reach[] = [
+    { east: EAST_REACH, south: SOUTH_REACH, wall: true },
+    // `c025`: the Ice Wall column is one file's need, so it is given up before
+    // anyone else's *reach* is — which is why the wall-free full rung sits
+    // above the reduced-reach one with a wall. On a rung without it,
+    // `class-kit-whiff` fails on its own named `hasWall` row and every other
+    // importer still has the board it needs.
+    //
+    // The near-box floor is `east: 4`, not 1, and that is a fix rather than a
+    // taste: `footprintClear`'s far-ground clause scans `dx = 4..east`, so at
+    // `east: 1` the loop never runs, `farGround` stays false and the rung can
+    // never succeed. It was dead code, and the throw below advertised a floor
+    // ("down to a single build tile") the ladder could not reach. Measured: 0
+    // legal spots at `east: 1` anywhere on the shipped map.
+    { east: EAST_REACH, south: SOUTH_REACH, wall: false },
+    { east: Math.floor(EAST_REACH / 2), south: SOUTH_REACH, wall: true },
+    { east: Math.floor(EAST_REACH / 2), south: SOUTH_REACH, wall: false },
+    { east: 4, south: 1, wall: false },
   ];
   for (const reach of tiers) {
     const hit = probeAt(origin, c, reach);
@@ -268,3 +337,8 @@ export const WX = BOARD.WX;
 export const WY = BOARD.WY;
 export const BUILD_TX = BOARD.BUILD_TX;
 export const BUILD_TY = BOARD.BUILD_TY;
+export const HAS_WALL = BOARD.hasWall;
+export const WALL_TX = BOARD.WALL_TX;
+export const WALL_TYS = BOARD.WALL_TYS;
+/** The Ice Wall aim point — the column's own middle tile, which is `WALL_TX, WY`. */
+export const WALL_TY = BOARD.WY;

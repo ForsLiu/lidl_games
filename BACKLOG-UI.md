@@ -28,6 +28,84 @@ not already expose it) logs that need below instead of reaching into
 
 ## Queue
 
+- [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
+      `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
+      going **36x20 -> 56x32**, the whole arena no longer fits a screen at a
+      readable tile size, so the camera **follows the character** with zoom
+      limits and clamps at the map edges. Everything this needs is in this
+      lane's Scope: `src/render/**`'s viewport/letterboxing (it currently sizes
+      to a fixed 36:20 aspect), `src/ui/input.ts`'s click-to-tile math (which
+      must un-project through the camera, not the fixed board), and the overlay
+      geometry suites. Measured on the main lane before filing: flipping the two
+      grid constants reddens **~85 assertions across 20 files**, of which this
+      lane's are `tests/ui-input` 7, `tests/class-board` 6,
+      `tests/ui-fb082-overlay-geometry` 3, `tests/ui-fb106-extreme-aspect-
+      geometry` 2 and `tests/ui-fb102-bossbar-rail-overlap` 1. **Blocked on
+      BACKLOG-TERRAIN.md fb166**, which owns the constant flip; this item is
+      what makes the result playable. Acceptance: the camera follows the
+      character, clamps at both zoom limits and at all four map edges, and
+      click-to-tile is correct at every zoom; the geometry suites are re-fitted
+      and green at 56x32; the reduced-motion setting is respected — refs:
+      SPEC-FINAL §11, BACKLOG.md fb153b.
+
+### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
+
+Four of the eight owner files in that round are UI-lane; ids unchanged from the
+main-lane allocation. `fb157` carries `Priority: top` and goes above the rest of
+this queue. `fb158`'s `/data` half is **main-lane `fb155`** (`data/enemies.json`
+is outside this lane's Scope) — this lane renders what that item authors, and
+logs a blocker below rather than editing `/data` itself.
+
+- [ ] (fb157) [feat] **top priority** — the in-run character panel is too big and
+      blocks the screen. Rebuild it as a compact card anchored to a screen edge:
+      no scrolling, close button top-right, Esc closes, never covering the bottom
+      bar. Remove the passive/active entries (the bottom bar already carries
+      them). Show the equipped equipment slots with each item's effect text,
+      **read-only** — equipment cannot be changed during a run, only in the Hub,
+      with a tooltip saying so. Always-visible important stats: HP
+      (current/max), attack, attack speed, defense, movement speed, range, life
+      regen, lifesteal. Everything else — area, CDR, pickup, luck, per-source
+      multiplier breakdowns, active boons and ranks — moves behind a "Details"
+      pull-down. Acceptance: the panel fits a 1080p screen with no scrolling;
+      close works from both the button and Esc; equipment is read-only in-run
+      and says why; a test asserts the important-stat set and the Details
+      contents match the derived stats — refs: SPEC-FINAL §11, owner feedback
+      `ui-character-panel-compact`.
+
+- [ ] (fb158) [feat] indicate each enemy's attack type and range: a small icon
+      near the HP bar per attack kind (melee sword / ranged bow / special:
+      bomber, healer, buffer, burrower, phaser) and, on hover or selection, the
+      attack-range ring (melee reach or ranged distance) plus a one-line
+      description with numbers. Elites/bosses show their special attack ranges
+      when selected. Reads the kind/range fields main-lane `fb155` authors —
+      **blocked on fb155**; do not re-derive them from `traits` in the renderer.
+      Acceptance: every enemy renders its icon; rings render on hover and on
+      select; the Codex enemy pages show the same icon and numbers — refs:
+      SPEC-FINAL §9/§11, owner feedback `ui-enemy-attack-indicators` (render
+      half).
+
+- [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
+      `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),
+      clamped to a max; crit/execute keep their extra styling; DoT aggregate
+      numbers use the same rule at 80% size. Constants are data-driven
+      (architecture rule 4), not literals in the renderer. Acceptance: three
+      visibly distinct sizes across 1/10/100/1000 in the Training Grounds; a
+      test asserts the size mapping is monotonic in the value and that the clamp
+      holds above it — refs: SPEC-FINAL §11, owner feedback
+      `ui-damage-font-scaling`. Note it lands **after main-lane fb153a's /10
+      rescale** or its constants get re-fitted twice.
+
+- [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
+      total damage at the top, then one horizontal bar per source — each tower
+      type, each wielded attack, each class active, basic attack, Core — each
+      bar segmented by damage TYPE in the damage-type colors, with the source's
+      total printed at the right end of its bar, sorted by total. Hovering a
+      segment shows that type's amount and percent. Keeps the docked,
+      semi-transparent side style. Acceptance: bars render from the run report;
+      a test reconciles the rendered numbers against the sim's damage ledger;
+      colors come from `data/damagetypes.json` — refs: SPEC-FINAL §11, owner
+      feedback `ui-dps-panel-bars`.
+
 - [x] (fb055) [feat] top priority: the three visible classes' basic
       attacks currently look like recolors of each other rather than
       distinct weapons. Give Swordsman a sword-swing-arc melee sweep,
@@ -3332,7 +3410,7 @@ not already expose it) logs that need below instead of reaching into
       "Reset settings to defaults" writes `reducedMotion: false` permanently
       for an OS-"reduce" player, closing the same accessibility hole from the
       other side — is outside this item's "first run only" acceptance and is
-      filed as fb152 below rather than folded in. `npx tsc --noEmit` clean;
+      filed as fb169 below rather than folded in. `npx tsc --noEmit` clean;
       the whole lane surface (`tests/ui-*` + `tests/render-*`, 55 files)
       367 passed / 0 failed. `npm run test:fast` (pre-fb142-fix run): 5 failed
       files / 4 failed tests, of which fb142 was the only real one — the rest
@@ -3386,8 +3464,8 @@ not already expose it) logs that need below instead of reaching into
       `x,y,hp` byte-identical. Its coverage-gap note is also folded in as a
       12th case pinning exactly one `visibilitychange` binding across a
       Hub -> run -> quit -> Hub -> run cycle. Two follow-ups filed rather than
-      folded in: **fb153** (the hidden branch does not flush fb074's persisted
-      run) and **fb154** (a run that STARTS hidden is never auto-paused —
+      folded in: **fb170** (the hidden branch does not flush fb074's persisted
+      run) and **fb171** (a run that STARTS hidden is never auto-paused —
       inherited from fb071, not introduced here). `npx tsc --noEmit` clean;
       `npm run test:fast` 3660 passed / 3 failed, the failures being
       `q15`/`b028`/`q41`/`q45`, all tools/CLI-subprocess suites importing no
@@ -3527,7 +3605,7 @@ not already expose it) logs that need below instead of reaching into
       antecedent, `syncActiveSlotKey` un-exported so the switch-time hazard its
       own doc warns about has no reachable caller, the recursive scan, the
       hoisted regex). One residual is deliberately NOT fixed and is filed as
-      **fb155**: `switchToSlot` still flushes `SAVE_KEY` over the outgoing slot
+      **fb172**: `switchToSlot` still flushes `SAVE_KEY` over the outgoing slot
       key unconditionally, so an out-of-process restore of one file alone is
       still lost at the next switch — the reverse direction of the acceptance,
       carrying an unresolved question about which copy wins. `npx tsc --noEmit`
@@ -3663,7 +3741,7 @@ not already expose it) logs that need below instead of reaching into
       observable at all). (b) the new `liveOverrides.dashRange` branch shipped
       with no pin — it was the only surviving mutant of QA's seven — and now
       has one, driven through a synthetic kind with no sentence entry. Two more
-      filed rather than fixed: **fb156** (every radius/width in these same
+      filed rather than fixed: **fb173** (every radius/width in these same
       sentences ignores the live Area multiplier — the same defect family, on
       the other number in the sentence this item just edited) and, in the Log,
       the `swordsman_shoes` `desc` bug, which is `/data` and so main-lane.
@@ -3751,9 +3829,9 @@ not already expose it) logs that need below instead of reaching into
       so a balance tune cannot redden a wording test. An exhaustiveness guard
       requires every Active kind in `data/classes.json` to sit in exactly one
       of a decaying, patch or flat bucket, and forbids either bucket naming a
-      kind that no longer ships. Three follow-ups filed: **fb157** (the
-      measured form of that guard), **fb158** (`tower-info.ts`'s `single`
-      blurb has the same undisclosed `lineHit` drop-off) and **fb159** (the
+      kind that no longer ships. Three follow-ups filed: **fb174** (the
+      measured form of that guard), **fb175** (`tower-info.ts`'s `single`
+      blurb has the same undisclosed `lineHit` drop-off) and **fb176** (the
       falloff floor). Blanking the clause at any one of the six sentence sites
       reddens the file; `npx tsc --noEmit` clean; `npm run sim -- --seed 1
       --policy hybrid` byte-identical to the control (`endHash 952d7be8`);
@@ -3873,7 +3951,7 @@ not already expose it) logs that need below instead of reaching into
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
 
-- [ ] (fb152) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
+- [ ] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
       fb144 seeds `reducedMotion` from `matchMedia('(prefers-reduced-motion:
       reduce)')` on a first run only, but fb075's Settings reset
@@ -3893,7 +3971,7 @@ not already expose it) logs that need below instead of reaching into
       plus its control with no preference — refs: fb144, fb075, QUALITY.md 1.0
       (Accessibility re-check).
 
-- [ ] (fb153) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
+- [ ] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
       hiding the tab pauses but does not flush the persisted run. fb145's
       `visibilitychange` handler (`main.ts`) is the last reliable moment
       before a mobile freeze/discard — its own comment says so — but it only
@@ -3912,7 +3990,7 @@ not already expose it) logs that need below instead of reaching into
       hide with `persistDisabled` write nothing — refs: fb145, fb074, fb087,
       QUALITY.md BETA.
 
-- [ ] (fb154) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+- [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
       covers the hidden `visibilitychange` edge, but neither fires for a run
       that begins in an already-backgrounded document: fb074's boot-resume
@@ -3931,7 +4009,7 @@ not already expose it) logs that need below instead of reaching into
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
 
-- [ ] (fb155) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
+- [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
       per-file cloud restore is lost at the next switch. fb147 made the active
       slot's own key stay in step with `SAVE_KEY` on every save, which is the
@@ -3954,7 +4032,7 @@ not already expose it) logs that need below instead of reaching into
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
 
-- [ ] (fb156) [bug] filed 2026-09-05 by qa-playtester during fb148
+- [ ] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
       ignores the live Area multiplier, exactly the way `dashRange` ignored
       move speed before fb148. Measured twice, identical: Dash Slash's
@@ -3980,7 +4058,7 @@ not already expose it) logs that need below instead of reaching into
       than the Area stat — refs: fb148, fb146, fb112, fb108, `classArea`
       (`src/sim/classes.ts`).
 
-- [ ] (fb157) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
+- [ ] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
       the measured form of fb149's kind-classification guard. fb149 ships a
       DECLARED table (`DECAYS`/`PATCH`/`FLAT` in
       `tests/ui-fb149-falloff-wording.test.ts`) plus an exhaustiveness check,
@@ -3999,7 +4077,7 @@ not already expose it) logs that need below instead of reaching into
       a deliberately misclassified kind (not just a new one) reddens it —
       refs: fb149, fb146, fb148.
 
-- [ ] (fb158) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [ ] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the
       same `lineHit` drop-off the class sentences now name, and does not name
       it. Measured twice: `arrow_spire` at tier 5 (`attackProfile` ->
@@ -4016,7 +4094,7 @@ not already expose it) logs that need below instead of reaching into
       mechanism legs — refs: fb149, `fireTower`'s `single`/`pierce` cases
       (`src/sim/towers.ts`).
 
-- [ ] (fb159) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [ ] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — the falloff floor makes "each one behind it takes less"
       stop being literally true past a reachable target count. Measured twice,
       identical: `scale = max(0.2, 0.82^(n-1))` clamps at the TENTH body on a
@@ -4036,6 +4114,45 @@ not already expose it) logs that need below instead of reaching into
 
 ## Log
 
+- 2026-09-06, merge: `origin/master` merged into this branch for its CI
+  workflow (fb140) and the three PRs that landed beside it. **The merged tree
+  is byte-identical to master**: PR #9 had already squash-merged this branch's
+  six items (fb144-fb149), so the merge carries no source change at all in
+  either direction — `src/sim/**`, `/data`, `tools/` and `.github/` come
+  through as master's, and every `src/ui/**`, `src/render/**` and `tests/ui-*`
+  file this lane wrote is byte-identical to what it pushed. One conflict,
+  PROGRESS.md, and only because master's own newer entries were inserted above
+  this session's; both sides kept, in date order.
+
+  **Id collision, caught by audit rather than by git — and this time it was
+  every id the session filed.** Ids are global across all four backlog files,
+  and while this lane was filing fb152-fb159, master took fb152-fb155 for the
+  owner orders (BACKLOG.md), fb156 for a terrain item (BACKLOG-TERRAIN.md) and
+  fb157-fb159 for owner feedback in **this same file's** top-of-queue. Git
+  merged all eight without a murmur, because the duplicates land in different
+  regions of each file — the identical failure mode the 2026-09-05 merge entry
+  below already records. Renumbered this session's eight into the free range
+  **fb169-fb176** (max id anywhere was 168), master's keeping the originals
+  since they are the ones other files already reference. Mapping:
+  fb152->fb169 (fb075 Settings reset re-buries the OS reduced-motion
+  preference), fb153->fb170 (a hidden tab does not flush the persisted run),
+  fb154->fb171 (a run that STARTS hidden is never auto-paused), fb155->fb172
+  (a switch-away flushes over an intact slot copy), fb156->fb173 (the Area
+  multiplier is missing from every radius/width sentence), fb157->fb174 (the
+  measured form of fb149's classification guard), fb158->fb175
+  (`tower-info.ts`'s `single` blurb hides the same drop-off), fb159->fb176
+  (the falloff floor). Two committed test files referenced their follow-up by
+  id in a comment and were updated with them (`ui-fb149-falloff-wording`,
+  `ui-fb096-save-slots`); **the six commit messages still carry the
+  pre-renumber ids**, which is why the mapping is spelled out here rather than
+  just applied.
+
+  Worth saying plainly for whoever merges next: this is the third consecutive
+  merge in this lane to find a cross-file id collision, and the second where
+  it was *all* of the session's new ids. Allocating from a shared high-water
+  mark at filing time — rather than from the max in the file being edited —
+  is the only thing that would stop it.
+
 - 2026-09-05, fb149: implemented fully in-scope (`src/ui/class-info.ts`,
   `src/ui/info-format.ts`, `src/ui/tower-info.ts`, one new `tests/ui-*` file).
   Notes for the merge:
@@ -4049,7 +4166,7 @@ not already expose it) logs that need below instead of reaching into
   by both `class-info.ts` and `tower-info.ts`. A main-lane change that adds a
   multi-target ability needs to pick one of the three clauses, and the
   exhaustiveness guard in the fb149 test will fail until it does.
-  (c) three follow-ups filed above: **fb157**, **fb158**, **fb159**.
+  (c) three follow-ups filed above: **fb174**, **fb175**, **fb176**.
 
 - 2026-09-05, fb149 (informational, not filed as an item): qa-playtester
   verified two asymmetries that must NOT be "fixed" by anyone applying the
@@ -4074,12 +4191,12 @@ not already expose it) logs that need below instead of reaching into
   the ability sentences belongs there rather than at a call site.
   (c) `dashRange` joins `dashWidth` as a field with a standing source rule in
   `src/ui/class-info.ts`. This is the fourth defect in this family (fb108,
-  fb112, fb146, fb148) and fb156 above is the fifth, still open — if a sixth
+  fb112, fb146, fb148) and fb173 above is the fifth, still open — if a sixth
   appears, the answer is probably a single "every sentence number is resolved
   through a live helper" rule rather than one guard per field.
   (d) QA's proposed ids for its two filings collided with this file's existing
-  fb150/fb151; renumbered to fb156 and, for the `/data` one, the Log entry
-  below.
+  fb150/fb151; renumbered — the survivor is fb173 (after the master-merge
+  renumber below) and the `/data` one is the Log entry beneath this.
 
 - 2026-09-05, fb148 (out-of-lane, for the main lane at the merge):
   `swordsman_shoes`'s `desc` in `data/equipment.json` promises "If not
@@ -4113,11 +4230,12 @@ not already expose it) logs that need below instead of reaching into
   may reference `saveMeta` by name. A main-lane change that adds a save site in
   `src/ui` will hit it; the fix is to call `saveMetaToActiveSlot` instead, not
   to relax the rule.
-  (c) one residual filed as **fb155** above rather than fixed here. Two others
-  that QA proposed as items (fb156, fb157 in its report) were fixed INSIDE this
+  (c) one residual filed as **fb172** above rather than fixed here. Two others
+  that QA proposed as items (fb156 and fb157 in its own report, before this
+  session's ids were renumbered at the master merge) were fixed INSIDE this
   item instead — they were regressions fb147 itself introduced, not
   pre-existing gaps, and shipping them would have traded a missing backup for a
-  destroyed one. Those ids are therefore unused and free.
+  destroyed one, so no item was ever filed for either.
   (d) `syncActiveSlotKey` is pinned to the slot this page load booted on. A
   future item that wants a switch to take effect without a reload has to move
   that pin too — `switchToSlot` deliberately does not.
@@ -4146,7 +4264,7 @@ not already expose it) logs that need below instead of reaching into
 
 - 2026-09-05, fb145: implemented fully in-scope (`src/ui/main.ts`, one new
   `tests/ui-*` file). Two follow-ups filed from QA rather than folded in:
-  **fb153** and **fb154** above. Two observations QA recorded that are not
+  **fb170** and **fb171** above. Two observations QA recorded that are not
   items:
   (a) the prompt's standing hostile checklist still names `soulpick`, `dusk`
   and `dawn` phases and a "Dawn Rekindle, both choices" money path — none of
@@ -4178,7 +4296,7 @@ not already expose it) logs that need below instead of reaching into
   dependency respectively, each already logged as out-of-scope in the 2026-09-04
   entries below, and nothing about the Scope section has changed since. Executed
   fb144 instead, the first actionable item.
-  One follow-up filed from the review rather than folded in: **fb152** above
+  One follow-up filed from the review rather than folded in: **fb169** above
   (fb075's Settings reset re-buries the OS preference).
 
 - 2026-09-05, merge: `origin/master` merged into `lane/ui`. Only two files

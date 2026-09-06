@@ -94,7 +94,7 @@ describe('p12a — kitPowerMul', () => {
       const w = world();
       w.wavesCleared = waves;
       const e = husk(w);
-      e.dots = [{ type: 'poison', dps: 100, remaining: 5, source: 'venom_spore' }];
+      e.dots = [{ type: 'poison', dps: 100, remaining: 5, source: 'venom_spore', accTime: 0, accDamage: 0, accScaled: 0, accSource: 'venom_spore' }];
       const target = husk(w);
       return damageEnemy(w, target, dotOutstanding(e), 'spreading_plague', { pure: true, dot: true });
     };

@@ -33,7 +33,21 @@ export const SAVE_KEY = 'stonewake.save.v1';
  * Every destructive migration bumps this and gets a round-trip test, or a
  * save written by an older client will not survive an upgrade.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
+/**
+ * fb153a: the SAVE_VERSION at which every damage-denominated quest metric moved
+ * into the rescaled units the sim now runs on. `data/quests.json`'s
+ * `lifetime_damage` target is divided by `numberScale` at load, and a run's
+ * banked progress is a `report.damageTotal` in the same divided units — but a
+ * save written before this item banked pre-rescale damage, which would have
+ * unlocked the Corpse Core off a fraction of the intended grind (qa-playtester
+ * measured a zero-damage run completing it). Converted once, here.
+ *
+ * A **future** re-tune of `numberScale` needs its own step: this converts from
+ * the pre-rescale world (an implicit scale of 1), not from "whatever the last
+ * scale was", because a save does not record the scale it was written at.
+ */
+export const DAMAGE_METRICS_RESCALED_AT = 5;
 /** fb023: the SAVE_VERSION that first drops relics — see `migrateWithNotice`. */
 const RELICS_DROPPED_AT = 3;
 /** p7d: the SAVE_VERSION that converts Ember and drops the economy it priced. */
@@ -391,6 +405,22 @@ function migrate(meta: MetaState, version: number): MetaState {
  * type at all past this migration (p7f: nor does `out` below copy them in by
  * name or by any other route — see that field's own comment).
  */
+/** fb153a: damage-denominated quest metrics, in the units the live content uses. */
+const DAMAGE_METRICS = new Set(['lifetime_damage']);
+
+function migrateQuestProgress(progress: unknown, version: number): Record<string, number> {
+  if (!progress || typeof progress !== 'object' || Array.isArray(progress)) return {};
+  const out = { ...(progress as Record<string, number>) };
+  if (version >= DAMAGE_METRICS_RESCALED_AT) return out;
+  const k = loadContent().modifiers.numberScale;
+  if (k === 1) return out;
+  for (const key of DAMAGE_METRICS) {
+    const v = out[key];
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v * k;
+  }
+  return out;
+}
+
 function migrateWithNotice(
   meta: MetaState,
   version: number,
@@ -464,10 +494,7 @@ function migrateWithNotice(
     // p7g: guarded like `equipmentStash` — a corrupt non-object `questProgress`
     // (a string, an array) would otherwise object-spread character-by-
     // character/index-by-index into junk numeric keys.
-    questProgress:
-      meta.questProgress && typeof meta.questProgress === 'object' && !Array.isArray(meta.questProgress)
-        ? { ...meta.questProgress }
-        : {},
+    questProgress: migrateQuestProgress(meta.questProgress, version),
     // p7g: same not-iterable throw as `allocated` above.
     completedQuests: Array.isArray(meta.completedQuests) ? [...meta.completedQuests] : [],
     // fb012: guarded rather than left to the bare `...meta` spread above (the

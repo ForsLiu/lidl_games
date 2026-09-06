@@ -37,6 +37,7 @@ import {
 import {
   gateComponent,
   generateTerrain,
+  gridTerrain,
   loadTerrain,
   terrainOverlay,
   TerrainKind,
@@ -47,11 +48,6 @@ import { Hasher } from '../src/sim/hash';
 import type { TerrainGrid } from '../src/sim/terrain/types';
 
 const cfg = loadTerrain();
-
-/** The Grid's own view of its terrain, as a `TerrainGrid` the analyzer reads. */
-function gridView(g: Grid): TerrainGrid {
-  return { w: g.w, h: g.h, kind: g.terrainKind };
-}
 
 /** A rock-bordered map with a hand-placed patch of one kind in the interior. */
 function handMap(patch: Array<[number, number, TerrainKind]>): TerrainGrid {
@@ -395,7 +391,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     const field = Grid.makeField();
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
-      const view = gridView(g);
+      const view = gridTerrain(g);
       for (const gate of GATES) {
         const gi = g.idx(gate.tx, gate.ty);
         g.computeField(field, [gi], false);
@@ -437,7 +433,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
-      const comp = gateComponent(gridView(g), cfg);
+      const comp = gateComponent(gridTerrain(g), cfg);
       let coreInComponent = true;
       for (let dy = 0; dy < CORE_H; dy++) {
         for (let dx = 0; dx < CORE_W; dx++) {
@@ -882,6 +878,9 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       // Already guarded, and by a *throw*: it is the one member with no caller
       // that could sensibly continue past a bad anchor.
       ['placeCore', 'throws'],
+      // fb065e: same shape as `placeCore` — it re-derives the whole board, so a
+      // fractional coordinate has nothing sensible to continue past either.
+      ['openGate', 'throws'],
       // Takes coordinates and returns a point; it never indexes a tile, so a
       // fraction in gives a fraction out and there is nothing to alias onto.
       ['tileCenter', 'exempt'],
@@ -917,12 +916,26 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     for (const [name, rule] of DECLARED) {
       if (rule === 'accepted' || rule === 'write') continue;
       if (rule === 'throws') {
-        expect(() => g.placeCore(3.5, 1), `${name}(3.5, 1)`).toThrow(/not an integer tile/);
-        expect(() => g.placeCore(3, 1.5), `${name}(3, 1.5)`).toThrow(/not an integer tile/);
-        expect(() => g.placeCore(NaN, 1), `${name}(NaN, 1)`).toThrow(/not an integer tile/);
+        // Bound by name, not hardcoded. This branch used to call `placeCore`
+        // whatever `name` said, so fb065e's `openGate` — the second `throws`
+        // row — would have been declared, probed as `placeCore` a second time,
+        // and gone green completely unguarded. That is the same hole fb064y's
+        // re-review closed for the `accessor` bucket, one branch further in.
+        const throwing = (g as unknown as Record<string, (a: number, b: number) => unknown>)[name];
+        expect(typeof throwing, `${name} is callable`).toBe('function');
+        for (const [tx, ty] of BAD) {
+          expect(() => throwing.call(g, tx, ty), `${name}(${tx}, ${ty})`).toThrow(
+            /not an integer tile/,
+          );
+        }
         continue;
       }
       if (name === 'tileCenter') {
+        // The rule is asserted before the special case: this branch is
+        // name-hardcoded, so without this line `['tileCenter', 'refuses']`
+        // would pass green through the `exempt` probe. Same shape as the
+        // `throws` branch fb065e just fixed one branch above.
+        expect(rule, 'tileCenter must be declared exempt').toBe('exempt');
         // Not a tile read at all: a fraction in, a fraction out.
         expect(Grid.tileCenter(3.5, 1)).toEqual({ x: 4, y: 1.5 });
         continue;

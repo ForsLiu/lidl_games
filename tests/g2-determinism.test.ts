@@ -141,9 +141,15 @@ describe('G2 determinism', () => {
    */
   it('replays correctly against Tuner-edited content when the recorded hash matches, and rejects a stale one', () => {
     const base = loadContent();
+    // fb153a: built from the **raw** document. A `ContentOverrides` entry is an
+    // authored document — the same thing the Tuner saves — so `numberScale` is
+    // applied to it on the way in; deriving one from the loaded view would
+    // model a doubly-scaled world, which is exactly the Tuner bug this item's
+    // review caught (qa-playtester).
+    const baseTowersRaw = base.raw.towers as { towers: { cost: number }[] };
     const editedTowersDoc = {
-      ...base.towers,
-      towers: base.towers.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 5 } : t)),
+      ...baseTowersRaw,
+      towers: baseTowersRaw.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 5 } : t)),
     };
     const edited = loadContent({ towers: editedTowersDoc });
     const editedHash = contentHash(edited);
@@ -200,9 +206,11 @@ describe('G2 determinism', () => {
 
     // contentHash must still be sensitive to a *real* /data edit — the raw
     // bundle, not just the parsed shape, has to move for that to hold.
+    // fb153a: raw document, same reason as above.
+    const rawTowers = base.raw.towers as { towers: { cost: number }[] };
     const editedTowersDoc = {
-      ...base.towers,
-      towers: base.towers.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 1 } : t)),
+      ...rawTowers,
+      towers: rawTowers.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 1 } : t)),
     };
     const edited = loadContent({ towers: editedTowersDoc });
     expect(contentHash(edited)).not.toBe(contentHash(base));
