@@ -15,6 +15,14 @@ import { fileURLToPath, URL } from 'node:url';
  * comparison run under contention — so the file moves to the conditions where
  * the number means something rather than having its bound loosened. It stays
  * live: `npm test` runs both configs, so the nightly still measures it.
+ *
+ * `q13-perf-sensitivity` joined them the same way (2026-09-06). It is the
+ * anti-vacuity half of `tests/q13-perf-ratio.test.ts`, split out of that file
+ * so the rest of q13 can stay in the fast tier: it divides the worst-case
+ * world's ratio by a near-empty world's and asserts at least 4x, and on the
+ * shared runner the near-empty tick — already close to timer resolution —
+ * inflated proportionally more than the worst case's, measuring **3.58x**.
+ * Same reading, same remedy: measure it where the number means something.
  */
 export default defineConfig({
   resolve: {
@@ -23,7 +31,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/a10-performance.test.ts', 'tests/p10e-perf-budget.test.ts'],
+    include: [
+      'tests/a10-performance.test.ts',
+      'tests/p10e-perf-budget.test.ts',
+      'tests/q13-perf-sensitivity.test.ts',
+    ],
     testTimeout: 240000,
     fileParallelism: false,
     poolOptions: { threads: { singleThread: true, minThreads: 1, maxThreads: 1 } },

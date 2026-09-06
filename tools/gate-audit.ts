@@ -271,6 +271,7 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       'tests/a10-performance.test.ts',
       'tests/q12-soak.test.ts',
       'tests/q13-perf-ratio.test.ts',
+      'tests/q13-perf-sensitivity.test.ts',
       'tests/p10e-perf-budget.test.ts',
     ],
     note:

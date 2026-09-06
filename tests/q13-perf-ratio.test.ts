@@ -14,16 +14,23 @@
  * This suite does not re-assert the absolute ms budget A10 already owns — it
  * proves the *ratio itself* is a sound instrument: stable when the iteration
  * counts that produced it change (the A10 failure mode, reproduced here on
- * purpose and shown not to move the ratio), and actually sensitive to real
- * sim cost rather than measuring the calibration loop against itself
- * (anti-vacuity, the standing lesson from every prior lane session that
- * shipped a metric nothing could move).
+ * purpose and shown not to move the ratio), under its recorded ceiling, and
+ * measured against a fixture that really is the worst case.
+ *
+ * The instrument's other half — anti-vacuity, that the ratio is *sensitive*
+ * to real sim cost rather than measuring the calibration loop against itself
+ * — lives in `tests/q13-perf-sensitivity.test.ts`, split out at fb-CI-q13
+ * (2026-09-06) because it compares two timing measurements against each other
+ * and so needs `vitest.perf.config.ts`'s single-threaded run; that file's
+ * header records the CI reading (3.58x against a 4x floor) that forced the
+ * split. Everything left here either absorbs contention by design (the two
+ * bounds below) or measures no time at all, so this file stays in the fast
+ * tier.
  */
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { wieldedAttacks } from '../src/sim/vswield';
 import { measureRatioForWorld, worstCaseWorld, calibrationWork } from '../tools/perf-ratio';
-import { cfg } from './helpers';
 
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
@@ -76,9 +83,8 @@ function medianWorstCaseRatio(calibIters: number, tickSamples: number, warmupTic
  * at the "A" config below on this host *while contended* (three rounds of 5,
  * samples 1,416-2,063, concurrent with the merge's other test runs). This
  * test still runs inside `npm test`'s own parallel file execution and has to
- * tolerate that contention rather than avoid it (this lane's Scope cannot
- * move it into `vitest.perf.config.ts`'s single-threaded run the way A10 is
- * isolated) — see `tools/perf-ratio.ts`'s `measureRatioForWorld` doc comment
+ * tolerate that contention rather than avoid it — see `tools/perf-ratio.ts`'s
+ * `measureRatioForWorld` doc comment
  * for the interleaved-measurement design that keeps the ratio steady under
  * exactly that load. That gave the prior ceiling of 6,000 (~4x the contended
  * median).
@@ -124,44 +130,11 @@ describe('q13 — host-normalized perf ratio', () => {
     expect(a, `ratio=${a.toFixed(0)} ceiling=${RECORDED_CEILING}`).toBeLessThan(RECORDED_CEILING);
   });
 
-  it('is actually sensitive to sim cost, not vacuous — an empty world scores several times lower', () => {
-    // Anti-vacuity: if the ratio were dominated by fixed overhead (Run.step's
-    // dispatch, the calibration loop's own noise) rather than by what the
-    // worst-case world actually costs to tick, a near-empty world would score
-    // close to the worst case instead of far below it.
-    //
-    // An empty tick is cheap enough that its msPerTick sits near timer
-    // resolution, so a single sample (or even a median of 5 at CONFIG_A's
-    // 500 ticks) is itself noisy — session 9 measured a single-sample empty
-    // ratio low enough by chance to fail this check even though the
-    // mechanism was sound. Sampling far more ticks (cheap, since each one is
-    // near-empty work) averages that noise down before taking the median.
-    const EMPTY_TICK_SAMPLES = 5000;
-    const worstRatio = medianRatio(livingWorstCaseWorld, CONFIG_A.calibIters, CONFIG_A.tickSamples, CONFIG_A.warmupTicks, REPEATS);
-    const emptyRatio = medianRatio(
-      () => new World(cfg({ seed: 1 })),
-      CONFIG_A.calibIters,
-      EMPTY_TICK_SAMPLES,
-      CONFIG_A.warmupTicks,
-      REPEATS,
-    );
-    expect(emptyRatio).toBeGreaterThan(0);
-    // Merge port, re-measured: the old sim's worst case scored >10x its empty
-    // world; the SPEC-FINAL sim's spatial-bucket and cache work brought the
-    // horde's *relative* cost down to ~6.3x on this host (worst ~1420, empty
-    // ~227, contended run). The floor is what anti-vacuity needs — a ratio
-    // dominated by fixed overhead would put the two within ~1x of each other
-    // — set clear of both that failure mode and the measured value.
-    expect(worstRatio, `worst=${worstRatio.toFixed(0)} empty=${emptyRatio.toFixed(0)}`).toBeGreaterThan(
-      emptyRatio * 4,
-    );
-  });
-
   it('the worst-case world actually reaches the alive cap and full wielded attack set the ratio is measured against', () => {
     // If worstCaseWorld regressed to a small or empty world, the ceiling and
     // stability checks above would still pass trivially — they would just be
-    // measuring nothing, the same trap the anti-vacuity test above exists to
-    // catch from the other direction (a fixture check rather than a
+    // measuring nothing, the same trap `tests/q13-perf-sensitivity.test.ts`
+    // exists to catch from the other direction (a fixture check rather than a
     // measurement-mechanism check).
     //
     // Ported to SPEC-FINAL §6.1: `World.weapons` (the granted-weapon roster)

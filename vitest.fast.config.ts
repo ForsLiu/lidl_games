@@ -26,6 +26,15 @@ export default mergeConfig(
         // and 250 other files on a shared runner, where it measured 25.6% and
         // failed. Runs single-threaded under vitest.perf.config.ts instead.
         'tests/p10e-perf-budget.test.ts',
+        // CI 2026-09-06: same class again. `q13-perf-sensitivity` is the
+        // anti-vacuity half of tests/q13-perf-ratio.test.ts (split out of it
+        // so the rest of q13 — the ceiling, granularity-stability and fixture
+        // checks — stays here). It divides a worst-case tick's ratio by a
+        // near-empty tick's and asserts >=4x; the near-empty tick sits near
+        // timer resolution, so under two workers and the rest of this tier it
+        // inflates more than the worst case does and the comparison collapsed
+        // to 3.58x. Runs single-threaded under vitest.perf.config.ts instead.
+        'tests/q13-perf-sensitivity.test.ts',
         // ~1 h: 11 classes × multi-seed full-run diversity measurement (G8).
         'tests/p6e-class-diversity.test.ts',
         // Multi-seed full-run gate measurements over the Core roster.
