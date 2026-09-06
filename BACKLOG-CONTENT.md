@@ -735,6 +735,122 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       the band comparison is to G8's text, not to the band governing T1
       (`p12c`: `[55%,90%]`).**
 
+- [ ] (c032) [bug] `kitPowerMul`'s reach across the kit is asserted nowhere in this lane, for the
+      mechanism BALANCE DIRECTION v2 §A/`p12a` shipped as part of G8's fix.
+      `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
+      applies to every source `scalesWithKitPower` accepts — any `class_`-prefixed
+      `damageEnemy` source — and is deliberately withheld from `spreading_plague`
+      (`enemies.ts:326-330`'s own comment: re-scaling the plague transfer would
+      double-count a pool whose own contribution was already scaled). Nobody in
+      this lane has audited that `classes.ts` actually tags every one of the 24
+      Actives, 12 Passives, 12 basic attacks and the 4 summon families
+      (skeletons, spirits, Pop Turrets, Bone Pylons) with a `class_`-prefixed
+      source string, and nobody has pinned the flip side — that Spreading
+      Plague's transfer and Poison Boost's "double the remaining poison" stay
+      flat regardless of `w.wavesCleared`. A single mistyped source string
+      silently opts a kit source out of the growth curve `p12a`'s own acceptance
+      measured only in aggregate (own-kit-share %), and nothing today catches it
+      at the source-string level. Acceptance: a new
+      `tests/class-kit-power-reach.test.ts` fires every Active1/Active2/passive-
+      proc/summon-hit once at `wavesCleared = 0` and again at `wavesCleared = 18`,
+      asserts each of the ~48 non-`spreading_plague` sources scales by exactly
+      `kitPowerMul(18)/kitPowerMul(1)`, and asserts Spreading Plague's transfer
+      and Poison Boost's doubled remainder are byte-identical at both wave
+      counts (the deliberate exception, pinned rather than silent). In-lane only
+      — reads `classes.ts`/`enemies.ts`, edits only `tests/class-*` - refs:
+      SPEC-FINAL §4.1/§4.2, BALANCE DIRECTION v2 §A, BACKLOG.md p12a/p12f,
+      CLAUDE.md measurement rules ("check a data row's blast radius").
+
+- [ ] (c033) [balance] G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
+      verdict, `feedback/processed/20260904-223211-verdicts-q155-167.md`) into
+      two checks: (i) every class's own-kit VS share >=35% from wave 12
+      (p12a/p12f's target) and (ii) pairwise class-kit fingerprint distance
+      >=0.15 using G22's existing damage-source/damage-type vector method —
+      replacing the retired "top damage source distinct across >=9/12" count.
+      `c030` (this session) re-measured only the retired count and clause (i)'s
+      own-kit-share numbers on the current tree; nobody has run clause (ii) at
+      all, and `p12d` (BACKLOG.md, still `[ ]`) needs exactly this number to
+      write its gate test. Acceptance: a `tests/class-kit-fingerprint.test.ts`
+      builds each of the 12 classes' T1 scripted-kit damage vector (reusing
+      `describeSource`/G22's fingerprint-distance function rather than
+      inventing a new metric), computes all 66 pairwise distances, and records
+      the count meeting the >=0.15 floor plus the 3 closest pairs by name and
+      distance, as a control-run measurement (no `/data` change) matching this
+      lane's `c002`/`c030` precedent; if a `data/classes.json`-only tune plainly
+      raises the passing-pair count without moving any class outside its
+      win-rate band, take it and log the before/after as a control-run pair —
+      if not, log the numbers for `p12d` rather than force a fragile tune
+      (CLAUDE.md rule 6). In-lane measurement plus optional
+      `data/classes.json` tune only - refs: SPEC-FINAL §14 G8, BALANCE
+      DIRECTION v2 §D, BACKLOG.md p12d, c002, c030.
+
+- [ ] (c034) [bug] `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
+      accepted with G10/G11's absolute pins converted to ratio form "and still
+      pass" (BACKLOG.md p12a acceptance), but that verification lived in
+      `tests/p6d-nine-classes.test.ts`/`tests/p6b-swordsman.test.ts` — both
+      outside this lane's Scope — so this lane has never independently
+      re-derived G11's <=x3.6 Stormcaller chain ceiling or G10's finite-
+      dps-optimal-Archer-charge property against the *current* shipped
+      `data/classes.json` (`chainGrowth: 0.20`, `chainCap: 8`, `chainCount: 6`;
+      `compoundPerSecond: 0.40`, `chargeCapSeconds: 5`, `pierceCap: 6`). Both
+      formulas are pure functions of `/data` fields this lane owns, so a
+      lane-owned control check costs little and closes the same "verify
+      independently, don't inherit the claim" gap `c024`/`c027`/`c030` each
+      found real drift through. Acceptance: `tests/class-line-bonus.test.ts` or
+      a sibling computes Stormcaller's max chain multiplier directly from the
+      shipped `chainGrowth`/`chainCap` (`(1+chainGrowth)^chainCap`) and asserts
+      it is <=3.6, and separately computes Archer's dps-optimal charge length
+      from `compoundPerSecond`/`chargeCapSeconds`/`pierceCap` and asserts it
+      lands in G10's 2-6 s window; both assertions proven live (not vacuous)
+      under a synthetic mutation (`chainCap` 8->10, `chargeCapSeconds` 5->30)
+      that must turn them red. In-lane only, no `/data` change - refs:
+      SPEC-FINAL §14 G10/G11, BACKLOG.md p12a.
+
+- [ ] (c035) [bug] the three Swordsman-locked equipment items' off-class fallbacks are proven
+      individually and never jointly. `tests/equip-spec-numbers.test.ts`
+      proves `sleeve_sword` alone composes to §7's 1.2x1.2 and `swordsman_armor`
+      alone to 1.1x1.5 on an Engineer, and `tests/fb015-equipment.test.ts`
+      loops every `classFallback` item with exactly one item equipped — but no
+      test anywhere equips two or three of
+      `sleeve_sword`/`swordsman_armor`/`swordsman_shoes` together on a
+      non-Swordsman (the only combined-equip case, `fb015.test.ts`, is
+      `classKey: 'swordsman'`, the in-class synergy, not the off-class
+      fallback). SPEC-FINAL §2's stacking rule says different sources multiply
+      and each equipped item is its own source, so a non-Swordsman wearing both
+      weapon and armor should read attack-speed factor 1.44x1.65 = 2.376x, and
+      wearing all three should additionally carry the shoes' 1.1x movement
+      fallback — untested, and a plausible bug shape (e.g. an accidental
+      last-write-wins instead of a running product across equipped items) would
+      pass every existing single-item test. Acceptance:
+      `tests/equip-spec-numbers.test.ts` or a sibling extends
+      `equipmentAttackSpeedFactor` (or an equivalent taking an item array) to
+      assert the two-item product on an Engineer/Cryomancer, and a third case
+      wearing all three items asserts both the attack-speed product and the
+      shoes' 1.1x movement fallback simultaneously. In-lane only
+      (`tests/equip-*`, no `/data` or `/src` edit needed unless the check finds
+      a real bug, in which case only `data/equipment.json` moves) - refs:
+      SPEC-FINAL §2 (stacking), §7, §14 G5.
+
+- [ ] (c036) [bug] equipment-sourced and class-tower-passive-sourced bonuses on the same stat
+      key have never been jointly measured, though both are explicitly separate
+      §2 "sources" that must multiply. `sniper_bracelet` (+10% `towerRange`)
+      and Archer's *Ranger's Eye* (+10% `towerRange`, `data/classes.json`
+      `archer.towerPassive.mods`) both write the same key; so do
+      `normal_bracelet` (+10% `area`) and Animist's *Wide Grove* (+10% `area`,
+      the same global key `c013` found reaches all 24 class Actives too). Every
+      existing test (`tests/equip-spec-numbers.test.ts`,
+      `tests/class-tower-passive-liveness.test.ts`) grants one such source at a
+      time; if the engine ever collapsed same-key sources into one additive
+      pool instead of two multiplicative ones, both would pass individually and
+      the combined case would silently read +20% instead of the correct x1.21
+      (+21%). Acceptance: a `tests/class-tower-passive-liveness.test.ts` case
+      builds an Archer with `sniper_bracelet` equipped and asserts a built
+      tower's effective range is base x1.21, not base x1.20; a second case
+      builds an Animist with `normal_bracelet` and asserts effective AoE area
+      x1.21 — both read the real `derived`/`effectiveTowerRange` path the file
+      already uses, not a hand-rolled formula. In-lane only - refs: SPEC-FINAL
+      §2 (stacking), §14 G5, c013.
+
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
