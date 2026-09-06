@@ -3943,15 +3943,21 @@ logs a blocker below rather than editing `/data` itself.
       measured furthest struck enemy — refs: fb112, `canvas.ts`'s
       `class_active2` draw.
 
-- [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
-      red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
-      1080 fold b036 exists to defend, in Training Grounds with a tower
-      selected and the practice panel open. Deterministic (4 s, `npx vitest
-      run tests/b036-help-fold.test.ts`), reported independently by the
-      content and terrain lanes and first misfiled as a load flake. Acceptance:
-      the existing test goes green without loosening the 1080 fold; the
-      practice panel + selected-tower layout keeps the help block inside the
-      fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
+- [x] (fb114) [bug] **RE-CONFIRMED GREEN 2026-09-06, no code change** — filed as
+      red on master (`.sw-help`'s bottom edge measuring 1095.4 against the
+      1080 fold), reported independently by the content and terrain lanes.
+      Measurement rules ("a deferral is a measurement with an expiry date; a
+      deferred assertion re-measures before being inherited"): re-ran
+      `npx vitest run tests/b036-help-fold.test.ts` (the real-Chromium suite
+      the item names) — green on this branch, and green 3/3 on current
+      `origin/master` (`513f718`, checked in an isolated `git worktree` so
+      the branch itself was never touched) at the exact scenario fb114
+      describes (Training Grounds, a tower selected, the practice panel
+      open, 1920x1080). Master has moved since fb114 was filed and whatever
+      pushed `.sw-help`'s bottom edge past the fold is no longer reproducible
+      — not re-implemented, since there is nothing left to fix. Left `[x]`
+      rather than deleted so a future reader can see it was checked, not
+      missed — refs: SPEC-FINAL §11, b036.
 - [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
       renderer/UI previews reading the authored `/data` radius unscaled, so
       they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001

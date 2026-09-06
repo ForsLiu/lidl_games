@@ -76,6 +76,7 @@ describe("fb150: Dash Slash's rewritten merge wording matches what actually fire
     applyCommand(w, { k: 'class_active2', aimX: w.warden.x + 5, aimY: w.warden.y }); // aimed forward (+X), merges the charge
 
     expect(w.warden.active1Charging, 'the charge was consumed by the merge').toBe(false);
+    expect(w.warden.active1Cooldown, 'Active1 goes to full cooldown, same as a normal release').toBeGreaterThan(0);
     expect(behind.hp, 'the merged hit never reaches behind the Warden').toBe(DUMMY_HP);
     expect(side.hp, 'the merged hit never reaches beside the Warden').toBe(DUMMY_HP);
   });

@@ -5,6 +5,18 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG-UI fb114: found already fixed, not re-implemented.**
+  qa-playtester's real-Chromium fold test (`tests/b036-help-fold.test.ts`)
+  was filed as deterministically red on master, reported independently by
+  two lanes. Per the measurement rules ("a deferral is a measurement with
+  an expiry date"), re-ran it before touching anything: green on this
+  branch, and green 3/3 in an isolated `git worktree` of current
+  `origin/master` (`513f718`) at the exact repro scenario. Master has moved
+  since the item was filed and whatever pushed `.sw-help`'s bottom edge past
+  1080px is no longer reproducible. Marked done with no code change, same
+  treatment BACKLOG f002 got on 2026-08-25 for the same reason — checked,
+  not missed.
+
 - **2026-09-06 — BACKLOG-UI fb160 skipped (needs new main-lane sim state,
   logged); fb150 done: Dash Slash's misleading merge wording fixed.**
 
