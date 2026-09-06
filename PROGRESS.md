@@ -5,6 +5,65 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
+  `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
+  compounds on any `class_`-prefixed `damageEnemy` source, deliberately
+  excluding `spreading_plague`; nobody in this lane had audited that every
+  kit damage call site actually carries a recognised bucket, or measured the
+  curve landing end to end. Found the item's own "~48 sources" premise
+  overstated — every kit mechanism routes through just five generic buckets
+  (`class_active`/`class_active2`/`class_passive`/`class_summon`/
+  `class_basic`) across ~13 call sites, not 48 per-Active strings — so
+  `tests/class-kit-power-reach.test.ts` does two things instead: a
+  single-pass tokenizer sweeps `classes.ts` for every class/plague-shaped
+  string literal outside a comment and asserts the set is exactly the five
+  buckets (catches a typo or missing prefix at any call site, present or
+  future, without knowing where it lives), and a live-fire proof fires one
+  real mechanism per bucket at `wavesCleared` 0 and 18 and asserts the
+  hp-loss ratio equals the real `kitPowerMul(18)`, plus both named flat
+  exceptions (Spreading Plague's transfer, Poison Boost's in-place doubling)
+  asserted unscaled. Verified by mutation throughout (disabling the curve,
+  excluding a bucket, typo'ing a source, faking scaling into Poison Boost —
+  each caught by exactly the row that should). code-reviewer's Major (the
+  acceptance's named Poison Boost exception was missing from the first
+  draft) and Minor (the two-pass comment-stripper could be fooled by a `//`
+  comment containing a literal `/*`) findings are both fixed, the latter by
+  replacing the regex strip with a proper tokenizer; qa-playtester's finding
+  (the tokenizer missed template-literal/double-quoted sources) is fixed
+  too, each with a regression test pinning the exact repro. Full
+  `tests/class-*.test.ts` glob (19 files, 783 tests) and `npx tsc --noEmit`
+  green. No engine or `/data` change.
+
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c029 done, measurement only.**
+  `c014`'s shared `tests/class-board.ts` module promises every `class-*`
+  liveness file a legal, footprint-clear Warden spot, bounded by
+  `EAST_REACH`/`SOUTH_REACH` — but that bound covers the module's own terrain
+  check, not an importer's actual reach, and the static scan that verifies it
+  only reads literal `WX + <number>` source text. Swept every
+  `tests/class-*.test.ts` file for board-relative reaches computed at runtime
+  instead (a tower's authored range/aoe, or a skill card's rank-scaled
+  budget) and found three: `class-wide-grove-reach.test.ts`'s Mortar-shell-
+  splash consumer, and `class-line-bonus.test.ts`'s `archer_pierce_cap` and
+  `stormcaller_jump_cap` rows. Confirmed by editing `PROBE_ORIGIN` directly and
+  running the *real* files: shifting to `25,12` or `30,15` (both still legal,
+  footprint-clear boards per `c014`'s own shifted-origin suite) runs these
+  windows off the east edge near the Core's column, even though each window's
+  reach is smaller than the nominal `EAST_REACH`. New
+  `tests/class-board-windows.test.ts` replicates the three formulas
+  independently off the same `/data` reads and asserts a red/green survival
+  table across 5 origins, so the dependency is a declared, asserted fact
+  rather than a silent one; `tests/class-board.ts`'s header no longer claims
+  every importer moves with the board unconditionally. No engine or `/data`
+  change. code-reviewer approved (no Critical/Major; two Minor/Nit notes
+  logged in BACKLOG-CONTENT.md's c029 entry). qa-playtester independently
+  reproduced the real-file failures, verified the formulas match the real
+  sites byte-for-byte, and ran the full `tests/class-*.test.ts` glob plus
+  `npm run test:fast` green apart from the pre-existing, unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (confirmed present on unmodified HEAD via `git stash`). This closed out
+  BACKLOG-CONTENT.md's `c001`-`c031` queue (all Done/Skipped/Blocked); the
+  generation rule ran again and appended `c032`-`c036`.
+
 - **2026-09-06 — fb163: the two-economy owner call, decided (a) — no code or
   `/data` change.** fb163 asked for a verdict among (a) keep one factor and
   accept the coarse character sheet, (b) a second scale factor plus named
