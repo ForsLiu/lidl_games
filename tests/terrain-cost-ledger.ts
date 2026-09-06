@@ -220,50 +220,58 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  * right response is to re-measure and re-record, never to relax a ceiling.
  */
 export const MEASURED = {
-  /** Mean cost of one generation, calibration units. This host: 76.0k-83.8k
-   * idle across two agents' probes (~10% spread), rising with load to ~95k at
-   * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
-   * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
-   * spread *within* one is why nothing here is asserted tighter than a
-   * same-run ratio. */
-  meanUnits: 80_000,
-  /** p95 as a multiple of the same run's mean — the host-free number. Three
-   * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
-   * one (0.90-0.95), because there the mean is dragged up by a handful of
-   * interrupted seeds; the ceiling holds either way. */
+  /** Mean cost of one generation, calibration units. Re-measured at fb166's
+   * 56x32 resize (a single reading this session, not the multi-probe range the
+   * pre-resize numbers below were): ~78.9k idle on this host — inside the old
+   * 76.0k-83.8k pre-resize range despite generation now touching 2.5x the
+   * tiles, because the unit is a ratio to `calibrationWork` and both the
+   * generator's per-tile cost and its total tile count moved. Review's host
+   * pre-resize: ~45k idle. The spread *between hosts* is the point of the
+   * `MEAN_CEILING` note below; the spread *within* one is why nothing here is
+   * asserted tighter than a same-run ratio. */
+  meanUnits: 79_000,
+  /** p95 as a multiple of the same run's mean — the host-free number.
+   * Re-measured: 1.035 (one idle reading this session; pre-resize idle range
+   * was 1.034-1.038). Under contention it can read *below* one, because the
+   * mean is dragged up by a handful of interrupted seeds; the ceiling holds
+   * either way. */
   p95OverMean: 1.035,
-  /** p99 over mean, same idle reading: 1.062, 1.056, 1.059 (4.2-7.0 at
-   * 10-way, which is why it is recorded and not asserted). */
-  p99OverMean: 1.055,
-  /** The costliest seed in the sample, and what it costs: 2.053, 2.033, 2.118
-   * times the mean over idle runs *on this host* (re-measured after both
-   * estimator fixes: 2.012-2.055). Review's host names
-   * the other retry seed at 2.06x on every idle probe, which is why the
-   * identity is recorded per-host and never asserted — a per-seed maximum is
-   * the one statistic no normalisation can rescue. What the test asserts
-   * instead is the aggregate behind it: a retry-taking seed's raw cost against
-   * the plain population's median. */
-  worstSeed: 2147483532,
-  worstSeedOtherHost: 2485897837,
-  worstOverMean: 2.07,
-  /** A retry seed's raw cost against the plain population's median. Idle it is
-   * the tightest number in the file and the only one calibration-free on both
-   * sides: 1.93-2.09 over 28 observations across two agents. **Under load it is
-   * not a band at all** — QA measured 9.1, 12.7 and 16.6 at 12- and 24-way
-   * contention, because a population of two has no averaging and a seed
-   * interrupted in all three rounds keeps its inflated minimum. What carries
-   * there is the one-sided floor: contention can only inflate a raw timing, so
-   * `> 1.5` is a claim noise cannot manufacture a failure for, which is the
-   * whole reason this assertion has no upper bound. */
-  retryOverPlain: 2.0,
-  /** The unsatisfiable config, warm, against the same run's mean: 8.42-10.49
-   * across two agents' probes.
-   * Cold it reads 42x, which is V8 specialising for a second config shape and
-   * not the generator — see the test. */
-  hostileOverMean: 9.5,
-  /** 2 of 1500 seeds retried, both at 2 attempts. */
-  retryCount: 2,
-  retrySeeds: [2485897837, 2147483532] as const,
+  /** p99 over mean, same idle reading: 1.074 this session (pre-resize idle
+   * range 1.056-1.062; recorded and not asserted either way, since load can
+   * push it to 4-7x). */
+  p99OverMean: 1.074,
+  /** The costliest seed in the sample, and what it costs: 1.973x the mean this
+   * session — and, at this sample size (1 retry-taking seed, see
+   * `retryCount`), the costliest seed *is* the retry seed, so this reading and
+   * `retryOverPlain` below are the same measurement. Pre-resize, with 2
+   * retry-taking seeds, the two could differ; per-seed identity is still never
+   * asserted, since a per-seed maximum is the one statistic no normalisation
+   * can rescue. What the test asserts instead is the aggregate: a retry-taking
+   * seed's raw cost against the plain population's median. */
+  worstSeed: -329,
+  worstOverMean: 1.97,
+  /** A retry seed's raw cost against the plain population's median. Re-measured
+   * this session at 1.977 (pre-resize idle range was 1.93-2.09 across 28
+   * observations on two hosts). **Under load it is not a band at all**
+   * (pre-resize QA measured 9.1-16.6x at 12- and 24-way contention), because a
+   * population of one or two has no averaging and an interrupted seed keeps
+   * its inflated minimum. What carries there is the one-sided floor:
+   * contention can only inflate a raw timing, so `> 1.5` is a claim noise
+   * cannot manufacture a failure for, which is the whole reason this assertion
+   * has no upper bound. */
+  retryOverPlain: 1.97,
+  /** The unsatisfiable config, warm, against the same run's mean: 15.2x this
+   * session (pre-resize range was 8.42-10.49 across two agents' probes — a
+   * single fresh reading is expected to land outside a two-agent range).
+   * Cold it can read far higher, which is V8 specialising for a second config
+   * shape and not the generator — see the test. */
+  hostileOverMean: 15.2,
+  /** 1 of 1500 seeds retried, at 2 attempts. (Pre-resize this was 2 of 1500;
+   * the resize moved which seeds land in this 1500-seed sample and how many of
+   * them retry — expected, since retries are driven by the same bands whose
+   * lattice moved with the grid.) */
+  retryCount: 1,
+  retrySeeds: [-329] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
    * Named apart because `expect(worst).toBe(MEASURED.maxAttemptsObserved)` read as
    * "the cap is 2". */
