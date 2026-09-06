@@ -85,6 +85,7 @@ function updatePoisonTrail(w: World, dt: number): void {
     type: 'poison',
     source: found.towerKey,
     acc: 0,
+    accTime: 0,
     dead: false,
   });
 }

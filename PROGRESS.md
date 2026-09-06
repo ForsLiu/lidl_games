@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG fb161: ground fire stops spraying numbers.** fb152 put
+  every §3 DoT instance on a `dotTickInterval` cadence and left four `dot: true`
+  sources at 60 Hz as zones rather than DoT instances. One of them had the
+  owner's symptom anyway: `updateAreas`'s `enemyFire` branch reaches
+  `damageWarden` without a `dot` flag, and `damageWarden` emits `wardenhit` on
+  every call, so standing in a Cinderling trail emitted **60 damage numbers a
+  second**. It now banks on the `GroundArea` itself — the only thing a zone has
+  with the right lifetime — and flushes once per interval, plus once at expiry
+  so the trailing partial interval is paid. Measured 60 emits/second before,
+  **<= 4 after**; a sub-interval field paid 6 times before and once after.
+
+  The other three stay at 60 Hz and that half is asserted rather than argued:
+  they all emit nothing, so they carry no symptom, and banking them would move
+  when enemies die — re-rolling every run hash and every balance reading taken
+  since P10. QUESTIONS Q189 carries the reasoning and the three sub-decisions
+  (bank on the field; `accTime` advances only while the Warden is inside; the
+  raw amount is banked and mitigated once at the flush).
+
+  Two things checked rather than assumed: `outOfCombat` and `storeWrath` now
+  update 4x/second instead of 60x, and `outOfCombatSeconds` is 3, so the regen
+  gate cannot be reached in a 0.25 s gap. And the first probe read 51 emits per
+  second instead of 60 — at `numberScale` 0.1 the Warden holds ~10 HP and the
+  fixture was killing it mid-window, so it was measuring a death, not a cadence.
+
+  `npm run test:fast` afterwards: 3906 passed, no hash or gate test moved, only
+  the two container-only q15/q45 failures. code-reviewer and qa-playtester were
+  still in flight when this was committed to satisfy the working-tree hook;
+  anything they file lands as a follow-up with a regression test.
+
 - **2026-09-06 — CI green on the whole branch, and fb168's QA pass found a leak
   fb168 itself introduced.** Run
   [#34057777523](https://github.com/ForsLiu/lidl_games/actions/runs/34057777523)

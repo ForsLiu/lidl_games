@@ -450,8 +450,20 @@ export interface GroundArea {
   /** 'poison' | 'burn' */
   type: string;
   source: string;
-  /** Damage-over-time tick accumulator. */
+  /**
+   * fb161: the Warden-facing damage this field has accrued but not yet paid,
+   * with `accTime` the exposure it represents. `enemyFire` banks here and
+   * flushes once per `dotTickInterval` (and once more when the field expires,
+   * so the final partial interval is paid rather than dropped) — fb152's
+   * accrue-then-flush shape, moved onto the field because a zone has no
+   * per-target stack to bank against. Enemy-facing fields never touch these:
+   * they damage through `damageEnemy(..., { dot: true })`, which emits nothing,
+   * so they have no spraying symptom and banking them would only move when
+   * enemies die. `acc` predates fb161 as a declared-but-unread field with this
+   * exact stated purpose; fb161 is the first code to read it.
+   */
   acc: number;
+  accTime: number;
   dead: boolean;
 }
 

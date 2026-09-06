@@ -363,6 +363,7 @@ export function slam(w: World, e: Enemy): void {
     type: 'bossSlam',
     source: 'warden_eater',
     acc: 0,
+    accTime: 0,
     dead: false,
   });
   w.emit('bossslam', e.x, e.y, slamRadius(e), 0);

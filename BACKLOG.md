@@ -248,7 +248,24 @@ therefore measure *after* `fb153`, not before.
       rather than the ring pattern, both are measured and recorded, and G17's
       budget is re-confirmed against the gate-shaped one — refs: SPEC-FINAL
       §14 G17, QUESTIONS Q182.
-- [ ] (fb161) [feat] the four per-frame `dot: true` sources fb152 deliberately
+- [x] (fb161) [feat] **DONE 2026-09-06** — the Warden-facing source takes
+      fb152's accrue-then-flush cadence, banked on the **field** (a zone has no
+      per-target stack to bank against): `GroundArea.acc`/`accTime`, flushed
+      once per `dotTickInterval` and once more at expiry so the trailing partial
+      interval is paid rather than dropped. Measured **60 `wardenhit` emits per
+      second before, <= 4 after**; a sub-interval field paid 6 times before and
+      exactly once after. The untouchable window is applied per frame while
+      banking and the flush is `preGated`, which is fb152's own measured lesson
+      carried over rather than rediscovered; `combat.ts` cannot import `run.ts`,
+      so the predicate is injected like the existing damage handler. **The other
+      three stay at 60 Hz, decided per source as the item asks**: all three
+      damage through `damageEnemy(..., { dot: true })`, which emits nothing, so
+      they carry no symptom, and banking them would move when enemies die —
+      re-rolling every run hash and every balance reading taken since P10 for no
+      player-visible change. That half is asserted by a test case, not prose, so
+      a later change reddens it instead of quietly outdating the reasoning.
+      See QUESTIONS Q189. Original text follows.
+      The four per-frame `dot: true` sources fb152 deliberately
       left at 60 Hz are **zones, not §3 DoT instances** — but one of them,
       `wardenAreaDamage`'s enemy ground fire (`src/sim/combat.ts:597`), still
       emits a `wardenhit` number every single frame, which is the owner's

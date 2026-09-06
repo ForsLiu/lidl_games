@@ -19,7 +19,7 @@ import {
 import { applyDamageSplit, applyDamageType } from './damagetypes';
 import { applyTowerLifesteal } from './cores';
 import { dcos, dist2, normalize } from './math';
-import type { Enemy, Projectile, TowerClassBonus } from './types';
+import type { Enemy, GroundArea, Projectile, TowerClassBonus } from './types';
 import { World } from './world';
 
 export interface HitEffects {
@@ -576,6 +576,7 @@ function spawnBurningPatch(w: World, p: Projectile): void {
     type: 'burn',
     source: p.source,
     acc: 0,
+    accTime: 0,
     dead: false,
   });
 }
@@ -588,14 +589,18 @@ export function updateAreas(w: World, dt: number): void {
     a.remaining -= dt;
     if (a.remaining <= 0) {
       a.dead = true;
+      // fb161: the final partial interval is paid, never dropped — a field
+      // shorter than one interval holds its whole total in this bank.
+      if (a.type === 'enemyFire') flushGroundFire(w, a, 0);
       continue;
     }
     // Boss slam rings grow and damage on their leading edge; boss.ts owns them.
     if (a.type === 'bossSlam') continue;
     if (a.type === 'enemyFire') {
       if (dist2(a.x, a.y, w.warden.x, w.warden.y) <= a.radius * a.radius) {
-        wardenAreaDamage(w, a.dps * dt);
+        accrueGroundFire(w, a, dt);
       }
+      flushGroundFire(w, a, w.content.damageTypes.dotTickInterval);
       continue;
     }
     // Ground fields get the same many-target damping as blasts and cones.
@@ -618,6 +623,71 @@ export function updateAreas(w: World, dt: number): void {
       if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
     }
   }
+}
+
+
+/**
+ * fb161: ground fire pays the Warden on `dotTickInterval`, not every frame.
+ *
+ * `updateAreas` called `wardenAreaDamage` once per frame with `a.dps * dt`, and
+ * `damageWarden` emits `wardenhit` on every call, so standing in a Cinderling's
+ * trail sprayed 60 damage numbers a second — the owner's `dot-tick-cadence`
+ * complaint on a mechanism fb152 deliberately left alone. fb152 was right that
+ * a zone is not a §3 DoT instance and has no per-target stack to bank against;
+ * the answer is to bank on the **field**, which is the thing with a lifetime.
+ *
+ * Two details carried over from fb152 rather than rediscovered:
+ *  - the untouchable window is applied **per frame**, not at the flush.
+ *    `damageWarden` drops a hit outright while dashing, reforming or in god
+ *    mode, so pricing a banked interval at the flush instant would let a 0.2 s
+ *    dash erase a whole 0.25 s including damage accrued before it began. The
+ *    flush passes `preGated` for the same reason.
+ *  - `accTime` advances only while the Warden is *in* the field, so a player
+ *    dipping in and out is billed per 0.25 s of exposure rather than per 0.25 s
+ *    of wall clock, and the emit rate stays at or under 4/s either way.
+ *
+ * The raw amount is banked and mitigated once at the flush, where the per-frame
+ * path mitigated each frame. Identical while armor holds still, which it does
+ * across 0.25 s for everything but an armor-shred landing mid-window; the
+ * difference there is a fraction of one interval's damage and is the price of
+ * not emitting sixty numbers a second.
+ *
+ * The three sources fb152 left at 60 Hz that this does *not* touch — the
+ * enemy-facing fire field below, Contagious Flame's touch damage and the Time
+ * core's drain — all damage through `damageEnemy(..., { dot: true })`, which
+ * emits nothing. They have no symptom, and banking them would move when
+ * enemies die, re-rolling every run hash and every balance reading taken since
+ * P10 for no visible gain (QUESTIONS Q189).
+ */
+function accrueGroundFire(w: World, a: GroundArea, dt: number): void {
+  a.accTime += dt;
+  if (!wardenGroundFireBlocked(w)) a.acc += a.dps * dt;
+}
+
+/** Pays the bank if it has reached `interval` (0 forces it, for an expiring field). */
+function flushGroundFire(w: World, a: GroundArea, interval: number): void {
+  if (a.accTime < interval - GROUND_FIRE_EPS) return;
+  if (a.accTime <= 0) return;
+  const banked = a.acc;
+  a.acc = 0;
+  a.accTime = 0;
+  if (banked > 0) wardenAreaDamage(w, banked, { preGated: true });
+}
+
+/**
+ * The same float slack `tickDots` uses: `accTime` is a sum of `1/60`s, so a
+ * whole number of intervals lands a few ULPs short of the interval and a strict
+ * `>=` would defer every flush by one extra frame, forever.
+ */
+const GROUND_FIRE_EPS = 1e-9;
+
+/**
+ * Set by run.ts alongside the damage handler, so this file can ask the Warden's
+ * untouchable-window question without importing run.ts (which imports it).
+ */
+export let wardenGroundFireBlocked: (w: World) => boolean = () => false;
+export function setWardenBlockedPredicate(fn: (w: World) => boolean): void {
+  wardenGroundFireBlocked = fn;
 }
 
 /** Set by run.ts so ground fire routes through the Warden's mitigation rules. */

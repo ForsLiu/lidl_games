@@ -1492,6 +1492,7 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
         type: 'enemyFire',
         source: 'cinderling',
         acc: 0,
+        accTime: 0,
         dead: false,
       });
     }

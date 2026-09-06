@@ -621,3 +621,43 @@ Q91 and Q102 corrections if not yet done.
   control run"; "check a `/data` row's blast radius before calling it narrow",
   applied here to a fixture's readers) and working rule 5.
 
+- **Q189. [fb161] Which of fb152's four leftover per-frame sources take the
+  cadence: one, and the other three are asserted to stay.** The item asks for a
+  decision per source. The dividing line that survives measurement is not "is it
+  a zone" — all four are — but **does it emit**. `wardenAreaDamage`'s `enemyFire`
+  branch reaches `damageWarden` with no `dot` flag, and `damageWarden` emits
+  `wardenhit` unconditionally, so a Cinderling trail sprayed 60 numbers a
+  second: the owner's `dot-tick-cadence` complaint exactly, on a mechanism fb152
+  ruled out of scope. The other three (the enemy-facing fire field, Contagious
+  Flame's touch damage, the Time core's drain) go through
+  `damageEnemy(..., { dot: true })`, which suppresses the emit, so there is no
+  symptom to fix — and banking them would change *when enemies die*, which
+  re-rolls every run's end hash and invalidates every balance reading taken
+  since P10. Paying that for no visible change is the trade this refuses.
+  It is written as a **test case** rather than a comment
+  (`tests/fb161-ground-field-cadence.test.ts`), so if a later item does put them
+  on the cadence the assertion goes red and this entry is revisited, instead of
+  the reasoning silently going stale — the failure mode CLAUDE.md's "a deferral
+  is a measurement with an expiry date" names.
+  Three sub-decisions. (1) **The bank lives on the field, not on a stack.** fb152
+  banks per DoT instance; a zone has no per-target instance, and its lifetime is
+  the only thing with the right scope. That makes the acceptance's "per ground
+  field" rate natural rather than incidental. (2) **`accTime` advances only
+  while the Warden is inside.** Billing per 0.25 s of *exposure* rather than of
+  wall clock means a player dipping in and out pays the same total as one
+  standing still, and the emit rate is at or under 4/s either way. (3) **The raw
+  amount is banked and mitigated once at the flush**, where the old path
+  mitigated each frame. Identical while armor holds still, which it does across
+  0.25 s for everything but a shred landing mid-window; the divergence there is
+  a fraction of one interval and is the price of not emitting sixty numbers a
+  second. `outOfCombat` and `storeWrath` also now update 4x/second instead of
+  60x — checked, not assumed: `outOfCombatSeconds` is 3, so a 0.25 s gap cannot
+  reach the regen gate.
+  One measurement worth recording because it cost a draft: the first probe read
+  **51** emits in a second rather than 60, and the missing nine were not a
+  cadence — at `numberScale` 0.1 the Warden holds ~10 HP and the probe was
+  killing it partway through the window. The fixture now uses a pool nothing can
+  exhaust. A cost probe that is quietly measuring a death is the same class of
+  error as fb165's centroid statistic. — Reason: CLAUDE.md working rule 5 and
+  the measurement rules; owner feedback `dot-tick-cadence`, SPEC-FINAL §3.
+
