@@ -62,6 +62,7 @@ export {
   canCharacterEnter,
   canCharacterEnterKind,
 } from './character';
+export { gridTerrain } from './grid-view';
 export { terrainOverlay } from './overlay';
 export {
   approachField,

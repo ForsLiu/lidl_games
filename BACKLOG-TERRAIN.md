@@ -759,7 +759,7 @@ improvement.
       that guard found a sign bug (zero slack is *inside* the band) and settled
       the `maxGateDetour < 1` sentinel as a flat `-1` rather than a
       misleadingly-safe 2.5.
-- [ ] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
+- [x] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
       pre-highlighted, and nothing measures whether it is a *good* default.
       fb064o bounded the gate detour *to* it and fb064h pins that it is legal
       and deterministic, but legal-and-deterministic is satisfied by an anchor
@@ -773,7 +773,54 @@ improvement.
       improved to clear the floors or the current one recorded as an accepted
       band with its numbers — refs: fb064h, fb064o, owner feedback "a default
       suggested spot is pre-highlighted".
-- [ ] (fb065c) [polish] the repro format cannot describe the thing that
+      **Shipped as the recorded accepted band, and the acceptance's fourth
+      measure turned out to need a direction before it meant anything.** "The
+      share of seeds where a strictly better anchor exists" is **500/500** under
+      plain Pareto dominance over the three properties — and that number says
+      nothing about the rule, which is proved by the *control* rather than
+      argued: run the same measure on the flat arena, where the Core sits on the
+      spot every wave was tuned on, and the authored anchor is dominated by **86
+      of its 498 legal anchors**. A measure that condemns the hand-authored
+      ideal is measuring the objective, not the selection. So two orderings are
+      recorded — monotone (more central, more room, further from a gate) and
+      fidelity (nearer the flat control's own readings) — and they pick out
+      **disjoint** seeds, which is the finding: "a better default" is not
+      decidable here without a balance order, and balance orders are main-lane.
+      The verdict rests on what the rule actually does: **432 of 500 seeds put
+      the default on `CORE_X/CORE_Y` exactly**, none moves it further than 4
+      tiles, and against the fixed authored anchor on the same 500 maps the rule
+      is *better* on build room (36.0640 vs 35.7920), so the 48 -> 36 fall from
+      the flat arena is terrain and not selection.
+      **Both "free improvement" figures are shares of 24, not of 500**, and the
+      file says so: the pick is the unique minimiser of the primary key, so only
+      a tie can produce a free dominator, and there are 24 tie seeds. 5 of 24
+      monotone, 1 of 24 fidelity.
+      **Shipped with two `src/sim/terrain/analyze.ts` changes the acceptance did
+      not ask for, both recorded.** The private `buildRoom` is renamed
+      `coreAnchorRoom` and exported, because `ROOM_RADIUS`' own doc block
+      records that this tie-break decides `maxGateDetour` and so decides whether
+      a map ships — a quantity that can refuse a map should be measurable from
+      outside the module, and the test now asserts the rule directly (the pick
+      carries the maximum `coreAnchorRoom` over its own minimum-distance tie
+      set) rather than only its consequences. And the same doc block's "tied on
+      25 seeds" was stale — re-measured at 24 against fb064l's generator, with
+      the 17 unchanged, so both are now pinned by a test.
+      code-reviewer **REQUEST-CHANGES** on the first pass with three Majors, all
+      real: the declined change was priced on `buildRoom` alone, which is the
+      axis where its own data shows the smallest effect (3 of the 5 free seeds
+      gain no room at all and qualify purely on centrality); the dominance
+      directions embedded the very balance objective the file declines to take;
+      and the 500-seed sweep ran at module scope with an `expect` inside it, the
+      pattern `terrain-band-ledger.test.ts` already had reviewed out — a null
+      anchor would have surfaced as a collection error deleting every test in
+      the file. qa-playtester **PASS** on every acceptance clause, re-deriving
+      every recorded figure with its own implementations and filing six
+      findings, all acted on. Its sharpest: the floors have no effective
+      headroom against the one plausible regression — inverting only the
+      tie-break lands the sample on min room **12** and min gate **6**, exactly
+      on both floors — which is why the tie-break is now asserted directly
+      instead of being left to the floors. See the Log.
+- [x] (fb065c) [polish] the repro format cannot describe the thing that
       actually goes wrong. `describeTerrain` takes a `TerrainGrid`, and a live
       run holds a `Grid` — whose terrain has been through `terrainOverlay`,
       `applyTerrain`, `placeCore` and any post-construction `tile[]` write
@@ -786,6 +833,27 @@ improvement.
       had `placeCore` and a post-construction tile write applied, and the dump
       of such a Grid carrying honest provenance (it is no seed's output, so
       `source=-`) — refs: fb064k, fb064s, fb064q.
+      **Shipped as `gridTerrain` in `src/sim/terrain/grid-view.ts`, and the
+      item's premise was one copy short: there was exactly ONE hand-rolled
+      helper (`tests/terrain-grid.test.ts`'s `gridView`), not one "each" — no
+      other construction of a `TerrainGrid` from a `Grid` exists anywhere in
+      `src/`, `tests/` or `tools/`.** Recorded rather than quietly satisfied, so
+      the record does not overstate what this consolidated.
+      **The adapter copies rather than aliases**, which the acceptance did not
+      ask for and which is the whole design: `Grid.syncTerrain` rebuilds
+      `terrainKind` in place on every `applyTerrain` and every `placeCore`, so an
+      aliasing view is a "snapshot" whose tiles change under the reader — a dump
+      taken before a Core move and printed after it would describe neither state.
+      The old `gridView` aliased; nothing depended on it, and a dump is exactly
+      the caller that would have been bitten.
+      **The premise is measured rather than asserted, and the honest number is
+      smaller than the list of overrides suggests** — which is what makes the
+      adapter worth having rather than optional. Over `applyRunTerrain` on seeds
+      1..100 the live grid is identical to its own generated map on **84** of
+      them, differs by a mean of **0.66** tiles and by **13** on the worst (seed
+      40). The 84 is as important as the 13: a repro taken from the generator is
+      usually right, which is precisely why the 16% where it is wrong were
+      invisible — nothing in a bug report said which kind you were holding.
 
 - [x] (fb065d) [bug] *(QA-filed, fb064w)* `terrain-generation.test.ts`'s "stays
       bounded under the most expensive schema-legal config" asserts
@@ -832,6 +900,372 @@ improvement.
       on the retry path and would drag the healthy reading from ~36 to ~27
       without anyone editing this file.
 
+### Generated 2026-09-05 (lane generation rule, second run of the day)
+
+fb065b and fb065c were the last two actionable items — fb064c–fb064f all need
+files this lane may not touch — so the rule ran with zero left.
+
+**Leg (a), the sweep, was PERFORMED for the first time.** It had been skipped
+three times, each time with the reason re-verified rather than inherited
+("nothing outside `src/sim/terrain/` calls `generateTerrain`, so a sweep would
+measure zero terrain"). That reason is **retired**: master wired the generator
+into every non-practice run at `967463d P10 fb077`, and `tools/sweep.ts`'s
+`buildRunConfig` leaves `practice` unset, so every sweep run now plays generated
+terrain. What it found is the most important thing in this file, and it is in
+the Log below under **"the sweep leg, finally run"**: at T1/engineer the win
+rate is **2/12 with terrain against 8/12 on the flat arena**, on the same seeds
+and the same bot. Terrain is an uncontrolled variable in every G1/G8/G14/G23
+reading taken since fb077 merged.
+
+**Leg (b)**, the clause-by-clause diff against the owner feedback file, found no
+unbuilt in-scope clause: rendering, the Tuner page and the Core-placement wiring
+are the only ones outstanding and each needs files this lane may not touch.
+So two of the five below come from defects the fb065b/fb065c review and QA
+rounds found, one from leg (a), and two from **leg (c)**, engineer's judgment in
+the spirit of HANDOFF §7.
+
+Bugs lead the list per working rule 3, and both are small. **fb065g is the
+highest-impact item here by a wide margin** and sits third only for that reason.
+
+- [x] (fb065e) [bug] `Grid.terrainKind` goes stale after a `tile[]` write that
+      lands after the last `applyTerrain`/`placeCore`: `syncTerrain` is private
+      and neither `markDirty` nor `refresh` calls it, so the write updates
+      `blocked` through `staticBlocked` and leaves the terrain arrays alone.
+      Measured at HEAD on `tests/terrain-grid-view.test.ts`'s fixture: after
+      writing a Gate at (12, 19) the tile reads `tile=Gate`, `blocked=0` — the
+      sim walks through it — while `terrainKind` still says `Rock`, so a dump
+      draws `#` on a walkable gate. (12, 19) is on the border row, which
+      `syncTerrain`'s override loop skips, and it is non-normal on 200/200
+      generated maps, so this is the ordinary case for such a write. A real run
+      does not reach it (`world.ts` opens the Fourth Gate *before*
+      `applyRunTerrain`) and nothing enforces that ordering. Acceptance: a
+      failing regression test first; either the Grid re-syncs its terrain when
+      structural tiles change after terrain is applied, or the staleness is
+      recorded as a measured accepted case with the reason and every reader of
+      `terrainKind` named; `tests/terrain-grid*`, `tests/terrain-core-placement`
+      and `tests/fb077-terrain-wiring` green, and `npm run sim -- --seed 1
+      --policy hybrid` unchanged at `endHash 952d7be8` — refs: fb065c review
+      Major, `grid.ts` `syncTerrain`.
+      **Shipped as `Grid.openGate(tx, ty)`: it writes the tile and re-derives
+      through the same one loop `placeCore` uses, so the override and its undo
+      still cannot drift.** Making `tile` private is a wider refactor than this
+      item (`enemies.ts:1171` and `canvas.ts:723` read it). Folding the re-sync
+      into `markDirty` is the alternative, and **the reason first given for
+      rejecting it was false** — "it re-derives 720 tiles on every occupancy
+      change, i.e. on every tower built". `setOcc` does not call `markDirty`; it
+      updates `blocked[i]` itself and sets `dirty`. Outside `grid.ts`,
+      `markDirty()` has exactly **two** call sites in all of `src/` and
+      `tools/`: `world.ts:582` (the Fourth Gate, once per run) and
+      `sundering.ts:120` (inside `if (w.cfg.stripTerrain)`, a harness path). The
+      honest objection is smaller and structural: `syncTerrain` *ends* with
+      `markDirty()`, so folding one into the other recurses, and separating them
+      means extracting the blocked-rebuild. `openGate` is still the better fix —
+      it refuses what cannot be a gate, where a `markDirty` hook would silently
+      accept any tile write — but the record should not have claimed a
+      per-build cost that does not exist.
+      **It fixes no live bug, and it does NOT make late opening safe.** The
+      first version of this entry, of `grid.ts`'s doc block and of the commit
+      message all said `openGate` "gives the same board either way", i.e. that
+      it removed the ordering constraint. **Measured, that is false, and
+      dangerously so.** Terrain generation is gate-aware
+      (`generateTerrain(seed, cfg, gates)`) and `applyRunTerrain` retries
+      `seed + 1 …` until `allGatesReachable()` over the gate list *it* was
+      handed, so a gate opened afterwards gets neither. Over seeds 1..300,
+      opening (12, 19) after a three-gate `applyRunTerrain` leaves that gate
+      **unreachable from the Core on 77 of 300 seeds (25.7%)** — terrain never
+      changes again, so the distance stays `-1` and a wave spawns into a sealed
+      pocket. World's real ordering (open first, generate against the four-gate
+      list) seals it on **0 of 300**, and the two boards differ on **300 of
+      300**. The equivalence test passed only because both its arms were fed the
+      same three-gate overlay, which is not the ordering `world.ts` uses. The
+      rule is therefore unchanged — open gates *before* `applyRunTerrain` — and
+      the correction is pinned by its own case rather than only corrected in
+      prose. What `openGate` buys is that the terrain arrays are right either
+      way, which is a real bug closed and is all it is.
+      **Also from the review: corners are now refused.** `openGate` accepted the
+      four corner tiles, and a corner gate cannot work by construction — its
+      only interior neighbour is diagonal, so the flow field never reaches it
+      and `allGatesReachable()` goes false the moment one exists (verified:
+      `new Grid(); openGate(0,0); refresh()` gives `allGatesReachable false`,
+      `distAt(0,0) === -1`).
+      **The raw-write staleness is NOT claimed closed**: `tile` is still a
+      public array, so the defect stays pinned as its own case in
+      `tests/terrain-gate-open.test.ts`. The acceptance also asked for every
+      reader of `terrainKind` to be named, and there is exactly **one** outside
+      `grid.ts` — `gridTerrain` in `src/sim/terrain/grid-view.ts`, through which
+      every dump and repro flows (`enemies.ts:1171` and `canvas.ts:723` read
+      `tile`, not `terrainKind`). That module's doc block now points at
+      `openGate` as the supported route and states that a raw write is still
+      stale.
+      **A latent hole in fb064x's own enumeration table was found on the way
+      in.** Its `throws` branch called `g.placeCore` regardless of the row's
+      name, so `openGate` — the second `throws` row it has ever had — would have
+      been declared, probed as `placeCore` a second time, and gone green
+      completely unguarded. That is the same shape fb064y's re-review closed for
+      the `accessor` bucket, one branch further in. The branch now binds by
+      name, and removing `openGate`'s integer guard in a worktree reddens the
+      enumeration test, which it would not have before.
+      **The equivalence test needed strengthening twice, and the second attempt
+      was also wrong.** It compared `terrainKind`/`tile`/`blocked` only, and the
+      review showed a patch-style `openGate` (set those two arrays at the one
+      tile, call `markDirty`) passed the whole file. Adding the public
+      predicates did **not** fix it — reproduced: every mask `syncTerrain`
+      re-derives beyond those two is read only through a predicate that first
+      requires `tile === Open`, and a gate tile never is, so the divergence is
+      invisible from outside. The test now compares the four private masks
+      directly, and the patch mutant dies.
+      **Verification:** 432 tests across 25 suites green (all `tests/terrain*`
+      plus `grid`, `b007-tile-bounds`, `fb077-terrain-wiring`,
+      `fb078-terrain-build-rejection`), `npx tsc --noEmit` clean,
+      `npm run sim -- --seed 1 --policy hybrid` unchanged at
+      `endHash 952d7be8`, `npm run test:fast` 3662 passed with only the
+      pre-existing `b028`/`q41`/`q45`. code-reviewer **REQUEST-CHANGES** with three Majors, every one of them real and
+      every one re-measured here before acting: the false late-opening safety
+      claim (77/300), the non-existent `markDirty` per-build cost (two call
+      sites, neither per-build), and the corner guard gap. Its Minors are taken
+      too — the overclaimed equivalence, the undocumented early-return ordering
+      (now pinned by a test), the unnamed `terrainKind` reader, the stale
+      `grid-view.ts` doc, and a name-hardcoded `tileCenter` branch in fb064x's
+      table carrying the same hole as the `throws` branch this item fixed.
+      qa-playtester was still running at the follow-up commit.
+- [x] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
+      header line (`describe.ts:244`) and its `measureTerrain(map, cfg)` call
+      (`:231`), while a run plays on `World.gates` — so a Fourth Gate run's
+      repro prints three gates and measures `gateReach`, `gateDetour`,
+      `corridors` and `gatesConnected` against the wrong set. Harmless until
+      fb065c made a wrong-gate dump reachable from a real run. Measured by
+      the whole `bands` line (and the `counts` line with it) differs from
+      `measureTerrain(view, cfg, w.gates)` on **30 of 30** four-gate seeds. The
+      per-band breakdown, because "bands" alone hid which: **`coreLegal` 30/30**
+      (worst delta 0.056757 at seed 29) and **`legalCoreCount` 30/30** on the
+      `counts` line, **`maxGateDetour` 8/30** (worst 0.144578 at seed 1, printed
+      1.000000 against a real 1.144578), and `walkable`, `buildableNormal`,
+      `gateReach`, `corridors`, `gatesOpen`, `gatesConnected` **0/30**. An
+      earlier version of this entry and of the commit message named `gateReach`,
+      `corridors` and `gatesConnected` as affected — none of them are — and
+      never named `coreLegal`, which is the band wrong on every seed. **The "8/30" that stood here first was fb065c's QA figure
+      inherited without re-measurement**: it is the `gateDetour`-only count
+      reported as though it were the whole line, and it understated the defect
+      fourfold — the failure CLAUDE.md's measurement rules name outright,
+      committed by the lane that has been citing them all session.
+      regression test first; `describeTerrain` takes an optional gate list
+      (defaulting to `GATES`) that feeds both the header line and the
+      measurement, and `parseTerrainDump` reads a 4-gate line back; a four-gate
+      dump round-trips byte-identically and its printed bands equal
+      `measureTerrain(map, cfg, gates)`; every existing refusal message is
+      unchanged — refs: fb065c QA bug 2, fb077 `World.gates`, fb064s.
+      **Shipped, and the parser half needed a design decision the acceptance
+      did not anticipate.** The writer half is small: `describeTerrain(map, cfg,
+      gates = GATES)` feeds both the header line and `measureTerrain`, so the
+      default is byte-identical and every existing golden is untouched. The
+      parser is where fb064w's "refuse what the writer never emits" and a
+      variable gate set collide.
+      **The first attempt — free-form extras on the `gates` line — was
+      abandoned because it broke an existing refusal**, which this item's own
+      acceptance forbids. With extras accepted, `bogus=1` on the gates line
+      stopped being an unknown key and became a confusing complaint about
+      coordinates (`gate "bogus" is not "tx,ty"`), which fb064w's own test
+      caught immediately. Shipped instead as a **declared optional key**:
+      `HEADER_KEYS.gates` is the base three plus `south`, fb077's Fourth Gate.
+      Every fb064w guarantee survives verbatim, including that message.
+      **The cost is a real coupling, named rather than hidden**: a new modifier
+      gate adds its name to that table. That is the same discipline every other
+      line in the table follows, and the alternative traded a legible refusal
+      for an illegible one.
+      **The optionality is safe because the key is declared last, and that is
+      pinned rather than argued.** `fields()` refuses a declared key appearing
+      after one further down the list, and a *missing* declared key falls
+      through to `req` — so an optional key is only harmless where nothing can
+      follow it. A new test asserts `south` is last and that a dump putting it
+      first is refused with fb064w's order message, so a future modifier gate
+      declared in the middle reddens instead of silently reopening the hole.
+      fb064w's own bidirectional check now compares the `gates` line against the
+      *maximal* four-gate dump rather than the default, which keeps the
+      direction that matters — every declared key must be emittable — while
+      dropping the claim that every declared key appears in every dump, which
+      the table never made.
+      **The motivating case is pinned end to end**: a real `World` under the
+      `gate` modifier, dumped through fb065c's `gridTerrain`, now prints
+      `south=12,19` and bands equal to `measureTerrain(view, cfg, w.gates)`, and
+      the test also asserts the three-gate reading *differs* on that run so the
+      assertions are not pinning a distinction without one.
+      **The review round found five more things, all taken.** (1) The headline
+      measurement above, inherited rather than re-measured. (2) `HEADER_KEYS`'
+      own doc block still asserted "every key here is `req`'d by some reader
+      below" — an invariant this item deliberately broke — while the new comment
+      cited it as authority; it now states the trailing-optional exception and
+      names the test that pins it. (3) A modifier gate's coordinates escaped the
+      one-spelling-per-value rule: `south=012,019` parsed and re-described as
+      `12,19`, and `south=-0,19` put a negative zero in a `GateDef` and moved
+      the gate to column 0. The base three were immune only by accident (their
+      parsed values are discarded), so the strict pattern applies to the branch
+      where the value survives. (4) Two refusal *messages* did change, so the
+      "verbatim" claim was wrong: the unknown-key and order messages now name
+      the wider key set, which is unavoidable, and the position-mismatch message
+      had started printing the parsed numbers instead of the dump's own text —
+      that one is restored, so `west=007,10` again complains about `007,10`.
+      (5) The writer had become one-sided, emitting gate lists the parser
+      refuses, which is the exact principle `describeTerrain`'s own doc block
+      states it is written to. It now refuses an undeclared name, a duplicate,
+      an out-of-order list and an empty one — which is also what makes the
+      coupling this entry called "named rather than hidden" actually enforced.
+      **`MODIFIER_GATES` now lives in `src/sim/grid.ts` beside `GATES`**, so the
+      `south` literal is declared once instead of in three places; `world.ts`
+      still writes its own copy, and folding that in is out of lane and logged
+      for the merge.
+      **The QA round then found the parser was still too lenient about *where* a
+      modifier gate is, and the comment excusing it was false.** It read
+      "nothing in this build knows where a modifier gate belongs" — but
+      `Grid.openGate`, added by fb065e one commit earlier, already refuses every
+      tile that cannot carry a gate, and those rules are properties of the arena
+      rather than of any modifier. Measured: `south=18,10` (the middle of the
+      board), all four corners, `south=25,9` (on the Core) and `south=0,10` (on
+      top of the `west` gate) all parsed clean, each reading back as a legal
+      arena whose bands were measured somewhere the reader cannot see — the same
+      class of defect this item exists to close. Now refused on the border,
+      corner and collision rules, each with its own message.
+      **Two test gaps from the same round, both closed.** The gates line's
+      refusal *text* was pinned nowhere — existing coverage pins only the `seed`
+      and `counts` lines — which is how the widened key set changed two messages
+      while the record claimed they had not. And QA's M4 (make the optional key
+      required) passed this item's whole file, because every three-gate case in
+      it expected a throw for some other reason and none ever parsed one
+      successfully: the claim the item rests on was pinned nowhere in the file
+      that makes it.
+      **One thing left open, recorded rather than fixed:** `describeTerrain` has
+      no non-test caller, so the gate list is opt-in and any future repro path
+      that forgets the third argument reproduces the defect exactly. Whether
+      `gridTerrain` should carry the run's gate list rather than leaving it to
+      the call site is a question for fb064e/fb064f's wiring, not for this item.
+      **Verification:** 6 new cases plus 1 in `terrain-describe`; all 22
+      `tests/terrain*` suites green (400) and `grid`/`fb077-terrain-wiring`
+      green; `npx tsc --noEmit` clean; `npm run test:fast` 3670 passed with only
+      the pre-existing `b028`/`q41`/`q45`.
+- [x] (fb065g) [test] terrain's contribution to the §14 balance gates is
+      unmeasured, and leg (a) shows it is large. Since `fb077` every
+      non-practice run plays generated terrain, so every G1/G8/G14/G23 reading
+      taken since includes terrain as an uncontrolled variable — and STATUS.md
+      records all four red, with G8 alone carrying four separate `/data`-only
+      tuning sessions that "only ever traded cells against each other".
+      Measured here (hybrid, T1, engineer, seeds 1..12, `practice: true` as the
+      flat-arena control — it gates only `applyDevCommand`, and
+      `src/bots/policies.ts` issues zero dev commands): **2/12 wins with terrain
+      against 8/12 flat**, mean 34.8 min against 38.7. Acceptance: the A/B
+      widened to a recorded sample (>= 24 seeds, both arms, at least `hybrid`
+      and `maxbuild`), reporting win rate, mean minutes and outcome class per
+      arm with the per-seed table; the control's validity argued from the code
+      rather than assumed; the reading pinned in a test a generator retune
+      moves; and either a recorded decision that the shift is intended or the
+      number named so a main-lane retune controls for it. **No `/data` balance
+      value changes** — this measures, it does not tune; the retune is main-lane
+      — refs: STATUS.md G1/G8/G14/G23, fb077, CLAUDE.md measurement rules.
+      **Measured. Terrain costs the game most of its win rate, and the effect
+      holds in both policies.** 24 seeds (1..24), T1, engineer, default core,
+      arm B `practice: true`:
+
+      | policy | arm | W | T | L | win rate | mean min |
+      |---|---|---|---|---|---|---|
+      | hybrid | flat | 18 | 4 | 2 | **75.0%** | 37.9 |
+      | hybrid | terrain | 7 | 8 | 9 | **29.2%** | 35.6 |
+      | maxbuild | flat | 6 | 1 | 17 | **25.0%** | 32.8 |
+      | maxbuild | terrain | 2 | 4 | 18 | **8.3%** | 31.8 |
+
+      **-45.8 points on `hybrid` (2.57x) and -16.7 on `maxbuild` (3.00x)**, same
+      seeds, same bot, same `/data`. The 12-seed pilot that opened this item read
+      66.7% -> 16.7% on `hybrid`, so the two samples agree on direction and
+      roughly on size. Per-seed tables are in the harness's header.
+      **The control is argued from the code and then asserted, not assumed.**
+      `cfg.practice` gates exactly two things — `applyRunTerrain` (the terrain
+      being controlled for) and `applyDevCommand`, which returns immediately
+      without it — and `src/bots/policies.ts` contains zero `dev` commands and
+      never reads the flag. `tests/terrain-balance-ab.test.ts` pins the
+      mechanism in 1.2 s: same seed, one flag apart, the flat arm is all-normal
+      with an open interior while the ordinary arm carries rock, and gates, Core,
+      Warden spawn, Core HP and the whole structural `tile` map are identical
+      across the arms. That is what makes it one arena with and without terrain
+      rather than two arenas.
+      **One acceptance clause is deferred, and deliberately rather than
+      quietly: "the reading pinned in a test a generator retune moves".** 96 full
+      runs is ~25 minutes; adding that to the fast tier is not defensible, and
+      moving a file to `vitest.fast.config.ts`'s exclude list is outside this
+      lane's Scope. So the harness ships as a committed *script*
+      (`tests/terrain-balance-ab.ts`, not a `.test.ts`, so vitest does not
+      collect it) with the reading recorded in its header, here, and in
+      PROGRESS.md — and the CI pin is a main-lane follow-up, logged below. What
+      is pinned in-lane is the control's mechanism, which is the part a reader
+      must trust before the reading means anything.
+      **No `/data` value changed**, per the item's own instruction: this
+      measures, it does not tune.
+      **Noted on the way past:** on the *flat* arena `hybrid` reads 75.0%, above
+      G8's 35-70% band, and `maxbuild` reads 25.0%, below it. Terrain is a large
+      uncontrolled term; it is not the only thing out of band.
+- [x] (fb065h) [test] a run's map is not always its seed's map, and the rate is
+      unmeasured. `applyRunTerrain` retries at `seed + 1 … seed + 16` whenever
+      the hardcoded `CORE_X/CORE_Y` Core comes out unreachable, so
+      `RunConfig.seed` does not identify the map a run played — the exact
+      provenance question fb064j, fb064s and fb065c exist to answer, one layer
+      above where they answered it. `tests/terrain-grid.test.ts` measures the
+      raw generator's stranding rate at about 1 in 2500 over seeds 1..5000, but
+      that reading predates `clearOverlayBlock`'s 3x3 Warden clearing, which
+      changes reachability and is applied before the check. Acceptance: the
+      retry rate measured over the domain-spanning sample in
+      `tests/terrain-sample.ts`, with the retrying seeds named and their attempt
+      counts; the jitter-off control fb064l's precedent requires; and an
+      explicit statement of what a reader holding only `RunConfig.seed` can and
+      cannot reproduce, next to fb065c's `source=-` — refs: `world.ts`
+      `applyRunTerrain`, fb064j, fb065c.
+      **The answer is that a run plays its own seed's map on every seed
+      measured — the retry path is not rare, it is unexercised.** Measured in
+      two layers, because only one of them is cheap.
+      **Layer 1, the upper bound**, over all 12,000 seeds of
+      `tests/terrain-sample.ts`: three seeds' own maps strand the Core before
+      the Warden clearing — `-349`, `-169`, `3000001834`, i.e. **0.0250%**. This
+      is a *provable* bound rather than an estimate: `clearOverlayBlock` only
+      ever sets tiles walkable, so the walkable set can only grow and
+      reachability can only improve, which makes the retry rate at most this.
+      **Layer 2, the exact answer for those three**: each is *rescued* by the
+      3x3 clear, so the retry count over the sample is **0 of 12,000** and the
+      bound is not tight. That the clear closes this path is a side effect — it
+      exists because 1.0% of seeds otherwise spawn the character in rock — and
+      it is worth knowing it carries this too, since a change to it would move a
+      number nothing else measures.
+      **The jitter-off control**, per fb064l's precedent: at `density.jitter: 0`
+      the same sweep strands **2** (476740782, 3157512897) against the shipped
+      3, and the two sets are **disjoint** — so the per-seed density budgets
+      move *which* seeds strand rather than how many. Only the named seeds are
+      re-measured in the test; the full second sweep is another 17 seconds and
+      its result is recorded as a string.
+      **What a reader holding only `RunConfig.seed` can and cannot do**, which
+      is the sentence the item asked for and is now an assertion: they can
+      regenerate the map, on every seed measured; they cannot assume the *grid*
+      matches it. On seed 40 the run's grid differs from the seed's own map on a
+      Grid by exactly **9** tiles — the Warden clearing — which is fb065c's 13
+      minus the 4 Core tiles that cancel when both sides are Grids. The seed
+      reproduces the map; only `gridTerrain`'s dump reproduces the board.
+      **Out of scope, for the merge:** `applyRunTerrain` returns only a fallback
+      boolean, so the retry count is not observable and this file has to *infer*
+      it from which tiles differ. One extra field on its return would make the
+      number directly measurable and would let a run report say which seed's map
+      it played. `world.ts` is not this lane's to edit.
+      **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
+      halved from a first version that called `generateTerrain` twice per seed);
+      26 suites green (446); `npx tsc --noEmit` clean.
+- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+      was taken under, and it carries no trace of one. `describe.ts`'s own
+      header says so — "a dump is only meaningful next to the config it was
+      taken under" — and `parseTerrainDump` deliberately never re-measures, so a
+      dump pasted after a `data/terrain.json` tune parses clean and its printed
+      bands quietly describe a different rule set. fb064b folded
+      `data/terrain.json` into `contentHash()` so a stale *replay* fails loudly;
+      the repro format has no equivalent, which leaves the one artefact built
+      for bug reports as the one place a `/data` edit is silent. Acceptance: the
+      dump carries a short fingerprint of the `TerrainConfig` it was written
+      under; `parseTerrainDump` reads it back and refuses a malformed one the
+      way it refuses every other header field, but *reports* rather than throws
+      on a mismatch against the current config, so a stale dump stays readable;
+      the round trip stays byte-identical and every existing refusal message is
+      unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
+
 ## Log
 
 - (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
@@ -843,6 +1277,543 @@ improvement.
   4th color (UI lane). Also main-lane: `fb153b` moves the default grid to
   56x32, so this lane's constraint bands are re-fitted at the new size — do
   not tune them against 36x20 in the meantime.
+- (2026-09-05, fb065g) **The A/B, widened from the pilot and confirming it.**
+  `npx tsx tests/terrain-balance-ab.ts 24 hybrid,maxbuild`, ~25 minutes:
+  `hybrid` 18/24 flat against 7/24 with terrain, `maxbuild` 6/24 against 2/24.
+  Both arms of both policies are in the harness header with per-seed tables.
+
+  **What the main lane needs from this, stated as plainly as the lane can state
+  it.** Four §14 gates are red and being retuned — G1, G8, G14, G23 — and every
+  reading behind those retunes was taken with terrain on, because master wired
+  it into every non-practice run at `967463d P10 fb077` and nothing downstream
+  re-based. STATUS.md's G8 entry records four separate `/data`-only sessions
+  (`p10r`, `p10s`, `p10t`, `p10z`) that "found real elasticity but only ever
+  traded cells against each other". That is what tuning against an uncontrolled
+  variable looks like from the inside, and the control costs one command.
+
+  This lane is not proposing to change terrain. Its bands are the owner's, each
+  one measured, and wave difficulty is a balance order for BACKLOG.md. The claim
+  is only that the variable exists and has now been measured.
+
+  **Out-of-scope needs, for the merge:**
+  1. **Pin the A/B in CI.** It needs `vitest.fast.config.ts`'s exclude list,
+     which this lane may not edit. Until then the reading is a recorded string
+     and a generator retune moves it silently.
+  2. **`npm run status` is stale.** Its balance snapshot records win rate 1.0
+     for all ten policies at T1/engineer; a fresh `tools/sweep.ts --seeds 12`
+     reads 0.17, and `--seeds 2` — matching the snapshot's own sample — reads
+     0.0. `tools/status.ts` is main-lane.
+  3. **`tools/sweep.ts` reports medians.** CLAUDE.md's measurement rules say
+     §14 uses means and pass-rates, never medians, and the sweep's `medMin` /
+     `medWaves` columns are what a reader reaches for first.
+
+- (2026-09-05, fb065h review round) **The conclusion held; the sentence stating
+  it did not.** The file answered "does `RunConfig.seed` identify the map a run
+  played?" unconditionally, and measured only the base three-gate arena. The
+  gate list is a generator input: seed 40 is hash `c8dc0fa7` on three gates and
+  `566b7585` on four, **239 tiles apart**. A reader following "just regenerate
+  from the seed" on a `modifiers: ['gate']` bug report gets the wrong map —
+  which is a *bigger* hole than the retry the item studies, and is the same
+  blind spot the immediately preceding item (fb065f) had just closed for the
+  dump's bands. Two items running, this lane measured the three-gate arena and
+  wrote "a run".
+
+  The conclusion survives the wider population and is now measured on it: over
+  the same 12,000 seeds with the four-gate list, **5** seeds strand rather than
+  3 (`804589548`, `1542607185`, `-1638`, `-929`, `2147483230`), the two sets are
+  **disjoint**, and all five are rescued by the Warden clearing exactly as the
+  three are — so the retry count is 0 of 12,000 on either list.
+
+  **Three more from the same round, all taken.**
+  1. The sweep reported `sampled`, not `checked`: `strandedIn`'s `fallback` skip
+     silently shrank the denominator, so a `/data` regression pushing half the
+     sample onto the flat arena would have left the bound reading over 12,000
+     seeds while covering 6,000. It now returns and asserts `checked`.
+  2. The discriminator ("differs only inside the 3x3 ⇒ no retry") was an
+     inference. The separation is enormous in practice — 3-6 tiles against ~290
+     for `seed+1`, measured — but the exact form costs nothing: the run's grid
+     must now equal the seed's own map with the 3x3 forced normal, on **every**
+     tile. That also pins the clearing's *shape*, so a 5x5 version fails here
+     rather than passing unnoticed.
+  3. The sweep allocated a `Grid` per seed and called `refresh()`, neither of
+     which `allGatesReachable` needs — it dijkstras `blocked`, which
+     `applyTerrain` already rebuilt. Hoisting one `Grid` and dropping the
+     refresh took the sweep from 23.0 s to 16.4 s on an identical result list
+     (13.8 s of that is generation, the floor). The four-gate arm is recorded
+     rather than swept in-test for the same reason: running both took the file
+     to 34.6 s, the wrong side of the fast tier, so its five witnesses are
+     re-measured (milliseconds) and the distribution is a recorded string —
+     fb064r's two-layer pattern.
+
+  **And a stale comment this measurement exposes, for the main lane:**
+  `tests/fb077-terrain-wiring.test.ts`'s header says its fixture seeds "resolve
+  via `applyRunTerrain`'s seed+1 retry". Measured here, they are rescued by the
+  Warden clearing and the retry never runs at all — the review confirmed the
+  retry loop survives a `tries < 0` mutant against that suite, `terrain-gate-open`
+  and `terrain-grid-view` alike. The retry path has no test anywhere.
+
+  **The monotonicity proof is also narrower than it read**, and is now stated
+  that way: "the clearing only opens tiles" is not sufficient on its own, since
+  `clearOverlayBlock` also zeroes `high` and `charBlock`, which are *not*
+  monotone-safe for other predicates. What makes the bound provable is that
+  `allGatesReachable` dijkstras `blocked` <- `staticBlocked` <- `terrainBlock`
+  <- `overlay.walkable` and nothing else.
+
+- (2026-09-05, fb065e + fb065f, QA rounds) **Both PASS on the current head, and
+  between them they found four things worth keeping.**
+
+  **fb065e.** QA re-derived the defect and found it *wider* than the record
+  stated in two ways. The staleness is not border-only: on seed 7 the interior
+  tile (6, 1) is `Open`/`Rock`/`blocked=1`, and a raw Gate write there gives
+  `Gate`/`Rock`/`blocked=0` — identical to the border case. No shipped API can
+  produce that (`openGate` refuses a non-border tile, `placeCore` refuses
+  non-normal terrain), so it is a defect in the *record*, and the accepted case
+  is now stated as wide as it is. The border framing was not wrong about the
+  border, though, and the sharper version is now pinned: every border tile that
+  is not one of the three gates is `Rock` on every generated map (5400 border
+  tiles over seeds 1..50, the 150 exceptions being exactly 3 gates x 50 seeds).
+  Second: `openGate` re-derives all 720 tiles, so it silently *repairs* drift
+  anywhere on the board — which is desirable, was documented nowhere, and is
+  the one behaviour a patch-style implementation cannot imitate through the
+  public surface. It is now its own case, and it kills QA's surviving M11
+  mutant through the public API rather than only through the private-mask
+  comparison. QA's reasoning for why the public predicates provably *could not*
+  kill it is worth keeping: at a Gate tile `staticBlocked` returns before
+  reading `terrainBlock`, `wardenPassable` returns `true` on any non-`Open`
+  tile before reading `terrainCharBlock`, and `buildable`/`isHighGround`/
+  `unbuildableForTerrain` all require `tile === Open` — so `terrainKind` is the
+  only mask observable there at all.
+  Third, recorded as an accepted case rather than fixed: `openGate` refuses
+  what cannot *be* a gate but not what no map can *reach*. Over seeds 1, 7, 40,
+  52, 99 and every legal single opening, **131 of 505 (25.9%)** leave some gate
+  unreachable. Left to the caller deliberately — `applyRunTerrain` already
+  re-checks `allGatesReachable()` and regenerates, and a refusal here would turn
+  a recoverable situation into a throw out of a World constructor — and the rate
+  is pinned so a generator retune moves a number.
+  **And the answer to the question the merge needs**, measured by QA before the
+  retraction landed: wiring `world.ts`'s Fourth Gate through `openGate` changes
+  **nothing** — 200 `World` constructions (seeds 1..100 x with/without the
+  modifier) hash byte-identically over `tile|blocked|terrainKind` and both flow
+  fields, and 10 full sims match on `endHash`, `ticks` and `outcome`. The merge
+  note should say it is safe as a drop-in **because that call site is correctly
+  ordered**, not because ordering stopped mattering.
+
+  **fb065f.** QA's Major is the one to keep: the parser was still too lenient
+  about *where* a modifier gate is, and the comment excusing it was false.
+  `south=18,10` (mid-board), all four corners, `south=25,9` (on the Core) and
+  `south=0,10` (on top of the `west` gate) all parsed clean — each reading back
+  as a legal arena whose bands were measured somewhere the reader cannot see.
+  The excuse was "nothing in this build knows where a modifier gate belongs",
+  and `Grid.openGate` — added by *this lane*, one commit earlier — refuses every
+  one of those tiles. Two test gaps came with it, both closed: the gates line's
+  refusal *text* was pinned nowhere, which is how a widened key set changed two
+  messages while the record claimed otherwise; and QA's M4 (make the optional
+  key required) passed the item's whole file, because every three-gate case in
+  it expected a throw for some other reason and none ever parsed one
+  successfully — the claim the item rests on was pinned nowhere in the file that
+  makes it.
+  QA also sharpened the corrected headline one step further: of the nine
+  measures, only `coreLegalFrac` (30/30), `legalCoreCount` (30/30) and
+  `maxGateDetour` (8/30) ever differ. The commit message named `gateReach`,
+  `corridors` and `gatesConnected` as affected; they differ on **0/30**.
+
+  **A process note both rounds hit.** Each QA agent found the main working tree
+  changing under it mid-run, because this loop commits at green stable points
+  while verification is still going. Both re-took every number in a detached
+  worktree, which is the right answer and is now the standing instruction to
+  them — but the loop should say up front which commit is under test rather than
+  leaving an agent to notice.
+
+- (2026-09-05, generation rule) **The sweep leg, finally run — and terrain is
+  costing the game most of its win rate.**
+
+  The lane skipped leg (a) three times on a reason it re-verified each time.
+  PROGRESS.md retired that reason at this branch's `origin/master` merge:
+  master wired `generateTerrain` into every non-practice run at `967463d P10
+  fb077`. `tools/sweep.ts`'s `buildRunConfig` never sets `practice`, so every
+  sweep run has been playing generated terrain since.
+
+  **`npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`** (T1,
+  engineer, default core, tree/modifiers default):
+
+  | policy | win | medMin | medWaves |
+  |---|---|---|---|
+  | maxbuild | **0.17** | 30.7 | 17 |
+  | hybrid | **0.17** | 38.2 | 18 |
+
+  STATUS.md's recorded balance snapshot has **win rate 1.0 for all ten
+  policies** at the same T1/engineer cell (2 seeds/cell). Re-run at `--seeds 2`
+  to match its sample exactly: **0.0** for both. STATUS.md's snapshot is stale,
+  and `npm run status` is main-lane.
+
+  **The A/B, which is what makes this the lane's business.** Same 12 seeds,
+  `hybrid`, T1, engineer; arm B sets `practice: true`, which is a clean
+  flat-arena control here and is argued from the code rather than assumed —
+  `cfg.practice` gates exactly one thing outside terrain (`applyDevCommand`,
+  `run.ts:373`), and `src/bots/policies.ts` issues **zero** dev commands and
+  never reads the flag.
+
+  ```
+  TERRAIN  win 2/12  mean 34.8 min
+    1:defeat_core 2:running 3:defeat_core 4:running 5:victory 6:defeat_core
+    7:running 8:victory 9:running 10:running 11:defeat_core 12:defeat_core
+  FLAT     win 8/12  mean 38.7 min
+    1:running 2:victory 3:victory 4:victory 5:defeat_core 6:victory
+    7:victory 8:running 9:victory 10:running 11:victory 12:victory
+  ```
+
+  **A four-fold drop in win rate, from terrain alone.** Every §14 reading taken
+  since fb077 merged — G1's 21/24, G8's per-class table, G14's 20/20, G23's
+  per-Core table — includes terrain as an uncontrolled variable. STATUS.md's own
+  G8 entry records **four separate `/data`-only tuning sessions** (`p10r`,
+  `p10s`, `p10t`, `p10z`) that "found real elasticity but only ever traded cells
+  against each other". That is what tuning against an uncontrolled confound
+  looks like, and it is CLAUDE.md's own measurement rule — "my change improved X
+  needs the control run" — failing at project scale rather than at item scale.
+
+  **What this lane is and is not saying.** Not that terrain should be softened:
+  the bands it satisfies are the owner's own, every one of them measured, and
+  wave difficulty is a balance order that belongs to BACKLOG.md. Only that the
+  four red gates are being retuned against a variable nobody has held fixed, and
+  that a control run is cheap. Filed as **fb065g**; flagged here for the merge
+  because the main lane needs it before the next balance pass, not after.
+
+  Caveat carried honestly: 12 seeds and one class/policy cell. fb065g's
+  acceptance widens it to >= 24 seeds and two policies before anything is
+  concluded from it, and the two arms differ by 6 wins in 12, which is large but
+  is not yet a pass-rate anyone should quote as a gate reading.
+
+- (2026-09-05, fb065c, QA round) **FAIL on acceptance clause 3, and the miss was
+  exactly the clause the acceptance names.** QA confirmed the adapter, the
+  deleted copy and the `source=-` provenance, could not break the round trip in
+  8172 `placeCore` placements plus every `TileType` written at four positions,
+  and re-derived the drift ledger element for element (84 identical, mean 0.66,
+  worst 13 at seed 40, the same 16-seed drift list). It also attributed seed
+  40's 13 tiles for us: **9** from `clearOverlayBlock` at the Warden spawn,
+  **4** from the Core footprint override, **0** from `terrainOverlay` and **0**
+  from the gate override — the generator already writes the three gates as
+  normal, so the gate half of the doc's attribution contributes nothing on any
+  seed in 1..100.
+
+  **The failure.** The round-trip fixture did neither of the two things it
+  claimed. `suggestCoreAnchor` returns the anchor *closest to* `CORE_X/CORE_Y`,
+  and `Grid` forces its own Core footprint to normal, so the authored anchor is
+  always legal and always chosen: measured, the suggestion is (25,9) on
+  **200/200** `applyTerrain` grids, and the `placeCore` was a self-place. The
+  raw tile write lands on (12,19), a Border tile `syncTerrain` skips, so it
+  changed **0** kind bytes. The dump was therefore **byte-identical** to one
+  taken from a plain `applied(7)`, and QA proved the case was dead weight by
+  deleting all three lines and watching 6/6 still pass. The claim in this entry
+  and in `d1779de`'s commit body — "the Core moved off `CORE_X/CORE_Y`" — was
+  false as written, and is corrected above rather than quietly dropped.
+
+  **The fix.** Seed **4426**, where the generator strands the authored Core
+  behind rock, and an anchor explicitly `!== (25,9)`. Moving there hands 4 tiles
+  back their real terrain (measured: 4 kind bytes change on 4426, and **0** on
+  seed 7 — which is why the old fixture could not have worked whatever anchor it
+  picked). The tile write is made load-bearing by asserting `blocked` flips
+  **1 -> 0** across it (Border tiles are blocked, Gate tiles never are), so the
+  sim demonstrably starts walking through a tile the dump still draws as rock.
+  Dimensions are asserted against the **Grid's** `w`/`h` rather than the view's,
+  and a second `placeCore` after the dump is captured pins the snapshot
+  semantics inside the round trip.
+
+  **Measured before and after, because "the fixture is stronger now" is a claim.**
+  QA's four adapter mutants (alias instead of copy, `w`/`h` swapped, guard
+  dropped, raw pre-override buffer) were killed by the file but by *other*
+  cases: the acceptance-named round trip killed **0 of 4**. It now kills
+  **3 of 4** — alias, swap and raw all fail on it directly (reproduced in a
+  worktree); the length guard remains its own case's job.
+
+  **Also shipped from this round: the fallback provenance limitation, recorded.**
+  A run that exhausts every generation attempt plays a grid byte-identical to
+  `flatTerrain()` — provenance that *is* knowable, and that `describeTerrain`
+  has a mark for — but `applyRunTerrain` returns the fallback flag to its caller
+  and writes nothing on the `Grid`, so the dump says `source=-`. Not a lie, but
+  the one state where the dash discards the most important fact about the run.
+  Pinned by a test using the `minWalkableFrac: 0.853` fixture; carrying it needs
+  `Grid` to hold the flag, which is `grid.ts` work and its own item.
+
+  **QA's remaining Major is fb065f's**, filed rather than fixed here: a live
+  Fourth Gate run's dump prints three gates and three-gate bands. QA measured it
+  end to end. **Its figure is corrected here by fb065f's own re-measurement**,
+  because this entry is where it was first written down: over 30 four-gate
+  seeds the whole `bands` line differs from `measureTerrain(view, cfg, w.gates)`
+  on **30 of 30**, not 8 — the 8 is `gateDetour` alone (worst delta 0.1446 at
+  seed 1), and `coreLegal` is wrong on every seed. It is `describeTerrain`'s
+  hardcoding, harmless until fb065c made a wrong-gate dump reachable from a real
+  run.
+
+- (2026-09-05, fb065c) The Grid-to-dumpable-grid adapter.
+  `src/sim/terrain/grid-view.ts` exports `gridTerrain(grid)`, re-exported from
+  `index.ts`; `tests/terrain-grid-view.test.ts` (6 cases, ~0.5 s) is its ledger
+  and round trip; `tests/terrain-grid.test.ts`'s `gridView` is deleted in favour
+  of it.
+
+  **The drift ledger, which is the item's premise made measurable.** Between
+  `generateTerrain` and the grid a run actually plays there are four
+  transformations: `terrainOverlay`, `world.ts`'s `clearOverlayBlock` (a 3x3
+  block of forced normal ground at the Warden's spawn — 1.0% of seeds otherwise
+  land rock or high ground on that tile), `Grid.applyTerrain`'s gate/Core
+  override, and `Grid.placeCore`. Over `applyRunTerrain` on seeds 1..100:
+  identical on **84**, mean **0.66** tiles, worst **13** at seed 40, zero
+  fallbacks. Sixteen seeds drift at all (2, 9, 13, 24, 31, 38, 40, 47, 50, 83,
+  88, 91, 93, 96, 97, 99).
+
+  **A measurement taken against a tree another agent was mutating, and the
+  correction.** The first reading of that ledger was 85 / 0.52 / 10 at seed 9,
+  and it was taken while a QA subagent had `suggestCoreAnchor` mutated in the
+  working tree — which moves `maxGateDetour`, hence `terrainLegal`, hence which
+  maps the generator ships. The clean-tree reading (84 / 0.66 / 13 at seed 40)
+  reproduces twice and is what shipped. Worth recording as a hazard rather than
+  only as a corrected number: a lane running subagents that mutate `src/` has to
+  check `git status` before trusting any sweep it runs beside them.
+
+  **What the round trip is pinned on** (corrected — see the QA round below; the
+  first version of this paragraph was false). A `Grid` with terrain applied, the
+  Core moved off `CORE_X/CORE_Y` via `placeCore`, and then a raw `tile[]` write
+  in `world.ts`'s Fourth Gate shape — `describeTerrain` -> `parseTerrainDump` gives
+  a byte-identical `kind` buffer, and re-describing the parse gives the same
+  string. The provenance is `source=-` on every field, which fb064s's parser
+  already supported and which is the honest answer: these tiles are no seed's
+  output, and the seed line offers nothing to paste. The generated map's own
+  dump still says `source=generator`, so the two artefacts stay distinguishable
+  at a glance.
+
+  **Out-of-scope needs, for the merge.** None. `gridTerrain` reads
+  `Grid.terrainKind`, which is already public, and the test imports
+  `applyRunTerrain` from `src/sim/world.ts` read-only. fb064e's renderer and
+  fb064f's Tuner page are the callers that would most want this adapter, and
+  both remain out of this lane.
+
+  **Two gaps the review found that ARE this lane's, filed rather than waved
+  through.** The first draft of this entry said "none new", which was wrong:
+  1. **`terrainKind` goes stale after a post-terrain `tile[]` write.**
+     `syncTerrain` is private and `refresh` does not call it, so a raw write
+     after the last `applyTerrain`/`placeCore` updates `blocked` and leaves
+     `terrainKind` alone. Measured on this file's own fixture: (12, 19) reads
+     `tile=Gate`, `blocked=0` — the sim walks it — while `terrainKind` says
+     `Rock`, so the dump draws `#` on a walkable gate. It is the border row,
+     which `syncTerrain`'s override loop skips, and it is non-normal on 200/200
+     generated maps, so this is the ordinary case for such a write. A real run
+     does not reach it (`world.ts` opens the Fourth Gate *before*
+     `applyRunTerrain`) but nothing enforces that ordering. Pinned by a test
+     here; the fix is `grid.ts` work, filed as fb065e.
+  2. **`describeTerrain` takes no gate list**, so its `gates` line and every
+     gate-derived band (`gateReach`, `gateDetour`, `corridors`,
+     `gatesConnected`) are computed over the base three even on a Fourth Gate
+     run — the exact modifier this item's own fixture imitates. Filed as fb065f.
+
+  **A claim corrected in the same round.** This entry and the commit message
+  both called the test's tile write "`world.ts`'s own Fourth Gate write,
+  verbatim in shape". The shape is right and the *ordering* is deliberately
+  inverted — `world.ts` writes the gate before terrain, the test writes it
+  after — which is what makes it the hostile case. The test now says so.
+
+- (2026-09-05, fb065b, QA round) **PASS on all four acceptance clauses, with
+  every recorded figure re-derived independently** — QA wrote its own flood,
+  centroid, disc count and Chebyshev loop rather than importing this file's
+  helpers, and reproduced the four ledger rows, the flat control (86 of 498),
+  the fixed-anchor means, the 24/17 tie counts, seed 112's row, the buildable
+  row, the fidelity figures and all five per-seed price strings exactly. It also
+  applied the disc swap itself and got the same six moved seeds, the same
+  unmoved 381 and the same seed-112 regeneration, and it hit the
+  "dominators are not gate-maximisers" error independently with the identical
+  histogram. Its mutation battery killed 13 of 14; the survivor (drop
+  `isNormalFootprint`) is killed by `tests/terrain-core-placement.test.ts`,
+  which is the right division of labour and was verified rather than assumed.
+
+  **Four findings on the committed state, all fixed here.**
+  1. **`tieTakesMaxRoom` was unreachable under exactly the two mutants its own
+     comment named.** An inverted tie-break dies at `worstGate.seed === 88`
+     (reads 284) and a dropped one at `farthestCentroid.seed === 411` (reads
+     211), both before the tie-break lines ran — so what actually killed those
+     mutants was a worst-seed identity golden, not the assertion written for
+     them. QA measured that the property *is* violated by them (21 and 16
+     seeds), i.e. the assertions were sound and simply never executed. They are
+     now their own `it`, and the inverted mutant fails it with `expected 479 to
+     be 500` (500 − 21, exactly QA's count).
+  2. **`tieTakesMaxRoom` is self-referential about the metric**, and the comment
+     oversold it. `maxTieRoom` is computed with the same `coreAnchorRoom` the
+     rule uses, so it pins the *selection loop* and is invariant to what the
+     metric measures: `ROOM_RADIUS` 1 or 3, an asymmetric block, counting
+     non-Rock, and counting Rock instead of Normal all leave it green — and the
+     last of those changes the pick on 13 of the 17 moved tie seeds. Reproduced
+     here in a worktree. The comment now says so, and three **absolute** metric
+     readings are pinned beside it: `coreAnchorRoom(flatTerrain(), 25, 9)` is
+     **36**, the clipped corner (1,1) is **16**, and seed 411's (28,9) is
+     **14**. The 36 alone pins radius (1 reads 16, 3 reads 64), shape (a ring
+     excluding the footprint would read 32) and that it counts `Normal`.
+  3. **The vacuity control was not commensurable with the number it retires.**
+     86-of-498 is a share of *anchors on one map*; 500/500 is a share of
+     *seeds*. The seed-wise version is now recorded beside it: on **432 of 432**
+     seeds where the authored (25,9) is legal, that anchor is itself dominated,
+     by a mean of **42.7** anchors against **44.2** at the pick. Verified
+     independently here before adding.
+  4. **`coreAnchorRoom`'s doc called it a ring; it is a filled block** that
+     includes the footprint (`ty-2 .. ty+CORE_H+1` square, 6x6 at the shipped
+     radius). Arithmetically harmless — the footprint contributes a constant 4
+     — but it is exported surface now, and the test file uses "ring" for a
+     genuinely different radius-1 ring two screens away.
+
+  **A process hazard QA reported rather than filed, and it is the second
+  sighting this session.** fb065b was committed into the shared working tree
+  while QA's mutation battery had `analyze.ts` mutated; the committed blob was
+  verified byte-identical to its pre-mutation backup afterwards, so nothing
+  leaked, but the window was real. It is the same hazard that made fb065c's
+  first drift ledger wrong (85/0.52/10 against the true 84/0.66/13). The rule
+  the lane should keep: **a mutation battery runs in a `git worktree`, never in
+  the working tree**, and any sweep run beside one checks `git status` first.
+
+  **Runtime and money paths, measured by QA:** the file is 2.9 s alone, 7.4 s
+  under 8 spinners on 4 cores, 9.7 s under spinners plus three sibling terrain
+  suites — against a 120 s timeout, and with no `Date.now`/`performance.now`/
+  `Math.random` anywhere in it, so it carries no fb065d-shaped exposure.
+  `tools/sim.ts` output is byte-identical across the change but for `simMs`
+  (`endHash` 952d7be8 / 3df6bb2f / 90e960af on seeds 1/7/42).
+
+- (2026-09-05, fb065b, second review round) **Three things this file claimed
+  and had not measured, all caught by the re-review and all now asserted rather
+  than written down.** They are recorded because each is the same failure
+  shape — a plausible sentence next to a measured number — and the file's whole
+  argument is that the difference matters.
+
+  1. **The golden blast radius was inherited, not measured**, in the paragraph
+     headed "measured by running the change rather than by reasoning about it".
+     The five-file list was copied verbatim from `tests/terrain-headroom.test.ts`,
+     where it describes a *different* change, and three of its five entries are
+     wrong here. Measured by applying the disc swap in a `git worktree` at HEAD
+     and running the suites: `terrain-approach` (fb064o, 4 cases),
+     `terrain-band-ledger` (fb064r, 2), `terrain-cost` (fb064z, 2),
+     `terrain-headroom` (fb065a, 2) and `terrain-core-placement`'s anchor golden
+     (fb064h, 1) go red; `terrain-describe` (fb064k), `terrain-variety`
+     (fb064l), `terrain-grid` (fb064x) and `terrain-generation` stay **green**,
+     because none of them reads the suggested anchor. The re-review's own list
+     missed `terrain-headroom`; this reading is a superset of it.
+  2. **"The dominators are not gate-maximisers" was false.** The 86 flat-arena
+     dominators distribute `gateDist` as 9:15, 10:19, 11:19, 12:15, 13:11, 14:7
+     — 71 of 86 beat the authored 9. What is actually true is stronger and is
+     what the file now says: every one of the 86 carries the maximum `buildRoom`
+     of 48, so each wins on centrality, on gate distance, or on both. The
+     histogram and the room set are asserted beside the count, so the claim
+     cannot go false in prose again.
+  3. **The `displacement <= 4` bound was credited to the wrong mechanism.**
+     `ROOM_RADIUS` cannot influence it: the tie-break only chooses *within* the
+     minimum-distance set, so the pick's displacement is the minimum over
+     `legalCoreAnchors` at any ring radius, and a denser `data/terrain.json` can
+     legitimately put the nearest legal anchor 5 tiles out with the rule
+     untouched. It is a sample max over seeds 1..500 with zero headroom, and it
+     is expected to go red on a density retune.
+
+  Also corrected: "three of the five free seeds win on nothing else" is two
+  (184 and 315 — 381 gains a tile of gate distance); the grossly-bad-rule
+  displacements are 19.70 / 22.47 / 11.31 at their worst-room seeds with sample
+  maxima 25.30 / 25.30 / 13.89, not "25+ tiles out"; and "the pick is the
+  *unique* minimiser of displacement" is wrong in the one word that matters,
+  since non-uniqueness is exactly what a tie is.
+
+  Two structural changes from the same round: `coreAnchorRoom` is **not**
+  re-exported from `index.ts` after all — that barrel is documented as the
+  public surface, and the test reaches into `./analyze` the way
+  `terrain-describe.test.ts` reaches for `HEADER_KEYS`. And `tieSet`'s
+  re-derivation of the primary key (which cannot be imported — the key lives
+  inline in `suggestCoreAnchor`'s loop) is now guarded by asserting the pick is
+  a *member* of the tie set the file derived, so the two cannot end up measuring
+  different populations. The re-review confirmed independently that
+  `tieTakesMaxRoom` is not tautological (it reddens on an inverted tie-break)
+  and noted that it is invariant to `ROOM_RADIUS` on its own, with the load
+  carried by the companion `movedOffLowestIndex: 17`.
+
+- (2026-09-05, fb065b) The suggested Core anchor, measured. Everything below
+  is over seeds 1..500 against shipped `/data`, and every figure is pinned in
+  `tests/terrain-anchor-quality.test.ts` so a retune moves a test.
+
+  **The ledger.** `centroidDist` min 5.2599 @284 · mean 7.8529 · median 7.8691 ·
+  max 10.7451 @411. `buildRoom` (normal tiles inside the base `buildRange` 4,
+  footprint excluded) min 15 @411 · mean 36.0640 · max 47 @172. `gateDist` min
+  7 @88 · mean 9.0020 · max 11 @96. `displacement` from `CORE_X/CORE_Y` min 0
+  · mean 0.1899 · max 4.0000 @315, with **432 seeds at exactly 0**. Flat-arena
+  control: anchor (25,9), `centroidDist` 7.9992, `buildRoom` 48, `gateDist` 9.
+  At the wider radii a real run reaches (Engineer +2, tree node 22 +1) the room
+  is r5 min 29 · mean 54.03, r6 min 47 · mean 74.53, r7 min 73 · mean 101.83.
+
+  **The controls, because a difference needs one.** Holding the anchor fixed at
+  (25,9) on the same 500 maps: `buildRoom` mean **35.7920** against the rule's
+  36.0640 — the rule is *better*, so the 48 -> 36 fall is terrain, not
+  selection. `centroidDist` mean **7.9072** against the rule's 7.8529 — so of
+  the 0.146 the rule sits nearer the centroid than the flat arena, 0.092 is the
+  walkable centroid itself moving (mean generated centroid (18.1010, 10.0855)
+  vs the flat (18.0008, 9.9976)) and only 0.054 is the pick. The first draft
+  claimed the whole 0.146 for the rule; QA's decomposition corrected it.
+  (25,9) is legal on exactly the 432 displacement-zero seeds, which is provable
+  rather than lucky: `dist2 = 0` is the unique minimum of the primary key.
+
+  **Why "500/500 strictly better" is not a finding.** Not because "every seed
+  has a more central anchor" — that does not even entail the number, since
+  dominance needs `>=` on all three properties — but because the *flat arena*
+  fails the same measure: the authored anchor is dominated there by **86 of 498
+  legal anchors**, with a Pareto front on the centre column eight tiles away.
+  Recorded as an assertion on the control row, not as prose.
+
+  **The population the free-improvement measures can actually reach is 24
+  seeds, not 500.** The pick is the unique minimiser of squared distance from
+  `CORE_X/CORE_Y`, so the "no further from the tuned spot" filter is exactly an
+  equality and only a primary-key *tie* can yield a free dominator. 24 tie
+  seeds in 500; the tie-break moves the pick off the lowest-index tied anchor on
+  17 of them. So monotone free is 5 of 24 and fidelity free is 1 of 24 — 21% and
+  4% of what they can measure, not 1.0% and 0.2% of runs.
+
+  **The cost of the change, measured by making it rather than reasoning about
+  it.** Swapping `coreAnchorRoom`'s `ROOM_RADIUS: 2` ring for a `buildRange`-4
+  disc in `analyze.ts` and re-running seeds 1..500: the pick moves on **six**
+  seeds — 13, 112, 177, 184, 189, 315 — and **381 does not move at all**, so the
+  header's first draft ("all five are ties the disc resolves differently") was
+  wrong in both directions and QA caught it. Two moves raise the detour (13:
+  1.0870 -> 1.1091; 315: 1.1519 -> 1.1772). On **seed 112 the change refuses the
+  map**: its two tied anchors are (23,9) at detour 1.1091 and (27,9) at 1.7302,
+  the ring metric ties them (22 each) so the *index* rule picks the legal one,
+  the disc prefers (27,9) by one tile of room, and 1.7302 is past
+  `maxGateDetour`'s 1.5 ceiling — `attempts` 1 -> 2, hash `b4348308` ->
+  `8a8315a9`. A different map handed to a run, not golden churn. That is the
+  argument for declining, and it is pinned as its own test.
+
+  **What the floors do and do not catch.** They kill every grossly bad rule,
+  including the failure mode the item names: minimise-ring-room scores min
+  `buildRoom` **0**, first-legal-anchor 2, maximise-gate-distance 1, all 25+
+  tiles out on `displacement`. They have **no effective headroom** against the
+  one plausible regression: inverting only the tie-break (least room among the
+  primary-key ties) lands the sample on min room **12** and min gate **6** —
+  exactly the two floors — and passes all four, killed only by the named-seed
+  identity goldens. That is why the rule itself is now asserted: the pick
+  carries the maximum `coreAnchorRoom` over its own tie set, on 500/500 seeds.
+  `ROOM_RADIUS: 1` also reads min room 12, so the floor is calibrated at the
+  boundary of the plausible neighbourhood and is honest about it in the file.
+
+  **Two `src/sim/terrain/analyze.ts` changes shipped inside a `[test]` item.**
+  `buildRoom` renamed `coreAnchorRoom` and exported (and from `index.ts`), so
+  the tie-break that decides `terrainLegal` is measurable from outside the
+  module; and the stale "tied on 25 seeds" in `suggestCoreAnchor`'s comment
+  corrected to 24 — a reading from before fb064l's `density.jitter`, with the
+  companion 17 unchanged, so the two readings used the same method. Both counts
+  are now pinned by a test rather than living only in a comment.
+
+  **A mutant that survived this file, checked rather than assumed.** QA's M10
+  (drop `isNormalFootprint`'s guard in `suggestCoreAnchor`) passes all 11 tests
+  here, because a legal-set-only ledger cannot see a guard that exists for
+  untrusted caller input. Verified that it is not a hole:
+  `tests/terrain-core-placement.test.ts`'s "does not hand back an illegal tile
+  from a caller-supplied anchor list" kills it (reproduced by applying the
+  mutant and watching that one test go red). The other nine mutants QA ran —
+  first-legal-anchor, maximise-gate-distance, minimise-ring-room, drop the room
+  key, flip the room key, `CORE_X + 1`, Manhattan distance, reversed tie
+  ordering, `ROOM_RADIUS: 4` — are all killed here.
+
+  **Process note.** The first QA run moved the untracked deliverable out of the
+  repo for ~15 s to prove four `test:fast` failures were pre-existing, which
+  read from outside as the file having been deleted. It had not been; the
+  accusation was wrong and is corrected here. The four
+  (`b028`, `q15`, `q41`, `q45`) are pre-existing on this branch, confirmed both
+  by QA with the deliverable absent and by PROGRESS.md's merge entry.
 
 - (2026-09-05, fb064z) **Two things this item learned the hard way, both
   cheaper to read than to rediscover.**

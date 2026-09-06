@@ -81,13 +81,22 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { isScaledClassPath, loadContent } from '../src/sim/content';
 import { scaled } from './helpers';
+import {
+  blockBody,
+  killEntries,
+  killRegion,
+  pointerProblems,
+  sourceOf,
+  type Behaviour,
+  type KillEntry,
+} from './equip-spec-ledger';
 
 const content = loadContent();
 
@@ -208,6 +217,24 @@ interface Figure {
   slot?: Slot;
   /** Converts the authored encoding into §4's units and sign. */
   as?: (v: number) => number;
+  /**
+   * c027: the **behavioural pointer**, for a figure authored on a stat key.
+   *
+   * This ledger already pins the authored *path*, so moving a value to
+   * another key is red here in a way §7's Effect rows were not (c022). What
+   * it cannot see is whether the key is the one §4's *sentence* means — and
+   * that is the failure this lane has already found twice: `c013` (Animist
+   * *Wide Grove*, "all towers +10% area", authored on the **global** `area`,
+   * which since `c001` widens all 24 class Actives) and `c024` (Time Lord's
+   * Chronal Surge, the same wording, nine times larger). Two findings, one
+   * hole, and no barrier between them.
+   *
+   * The pointer names the block that observes this clause's own effect. It is
+   * paired with the kill-table check below, which is the half a text anchor
+   * cannot state: that deleting *this row's exact key* from `/data` kills that
+   * observable.
+   */
+  behaviour?: Behaviour;
   status: Status;
   note?: string;
 }
@@ -302,6 +329,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% attack speed',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerAttackSpeed'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Swordsman \*Wind Slash\* — a spire fires faster than under a class that authors no cadence bonus/,
+      why:
+        "Measured as ticks to the Nth shot, not as a bigger number: `attackSpeedFor`'s only " +
+        'consumer is the cooldown.',
+    },
     status: { kind: 'match' },
   },
 
@@ -386,6 +420,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% poison damage',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerPoisonDamage'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Plaguebringer \*Miasma\* — a spore volley stamps a higher dps on its own Poison stack/,
+      why:
+        "The dps lands on the Poison stack the volley applies, which is where §4.1's 'tower " +
+        "poison damage' has to show up.",
+    },
     status: { kind: 'match' },
   },
 
@@ -446,6 +487,11 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% range',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerRange'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Archer \*Ranger's Eye\* — a spire reaches further, and hits a target the control cannot/,
+      why: 'Range is proven by reach, not by the number: a target the control cannot hit.',
+    },
     status: { kind: 'match' },
   },
 
@@ -456,6 +502,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'builds & upgrades cost −10%',
     spec: -0.1,
     path: ['passive', 'mods', 'towerCost'],
+    behaviour: {
+      coveredBy: 'tests/class-passive-liveness.test.ts',
+      anchor: /engineer Efficient Engineering: builds and upgrades cost less, and builds reach further/,
+      why:
+        '§4.2 states one clause over three prices; the block covers all of them, and ' +
+        '`upgradeCost` is a second reader of the same stat.',
+    },
     status: { kind: 'match' },
   },
   {
@@ -464,6 +517,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'build range +2',
     spec: 2,
     path: ['passive', 'mods', 'buildRange'],
+    behaviour: {
+      coveredBy: 'tests/class-passive-liveness.test.ts',
+      anchor: /engineer Efficient Engineering: builds and upgrades cost less, and builds reach further/,
+      why:
+        "The 'builds reach further' half of the same block — the two clauses share an `it` " +
+        'because they share the passive.',
+    },
     status: { kind: 'match' },
   },
   {
@@ -521,6 +581,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% HP',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerHp'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Engineer \*Reinforced Frames\* — a spire is built with more max HP/,
+      why:
+        'Read off the built structure rather than the def, so the mod has to survive ' +
+        '`structureMaxHp`.',
+    },
     status: { kind: 'match' },
   },
 
@@ -589,6 +656,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% damage vs Burning enemies',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerDamageVsBurning'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Pyro \*Kindling\* — a volley into a Burning enemy hurts more/,
+      why:
+        'A conditional clause, so the cover is the condition met; the c009 block below it proves ' +
+        'the unmet case does nothing.',
+    },
     status: { kind: 'match' },
   },
 
@@ -667,6 +741,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +15% damage while below full HP',
     spec: 0.15,
     path: ['towerPassive', 'mods', 'towerLowHpDamageBonus'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Necromancer \*Wounded Fury\* — a damaged spire's shot is worth more/,
+      why:
+        'The negative-signed row: the figure is a penalty threshold, and the observable is the ' +
+        "damaged tower's own shot.",
+    },
     status: { kind: 'match' },
   },
 
@@ -745,6 +826,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% damage vs frosted/frozen',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerDamageVsChilled'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Cryomancer \*Deep Winter\* — a volley into a frosted enemy hurts more/,
+      why:
+        'One key, two clause halves (frosted and frozen); the sibling `it` carries the other, and ' +
+        'KILLS names both.',
+    },
     status: { kind: 'match' },
   },
 
@@ -822,6 +910,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers deal +10% of their damage as extra Electric',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerExtraElectricPct'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Stormcaller \*Live Wire\* — a plain volley lands extra Electric on top/,
+      why:
+        'The extra damage type has to arrive as Electric on top of the volley, not as more of the ' +
+        'volley.',
+    },
     status: { kind: 'match' },
   },
 
@@ -832,6 +927,13 @@ const LEDGER: readonly Figure[] = [
     figure: '3% lifesteal on normal damage',
     spec: 0.03,
     path: ['passive', 'mods', 'leech'],
+    behaviour: {
+      coveredBy: 'tests/class-passive-liveness.test.ts',
+      anchor: /bloodlord Blood Frenzy: lifesteal banks in VS, and the attack multiplier flips with the phase/,
+      why:
+        '`signal.bloodLeech` reads the banked heal, and the block hands the same signal the ' +
+        'Engineer as its control.',
+    },
     status: { kind: 'match' },
     note: "Pinned independently by `tests/fb022-info-surfacing.test.ts`'s b053 string test.",
   },
@@ -916,6 +1018,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% damage',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerDamage'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Bloodlord \*Sanguine Pact\* — the one passive with a negative term: damage up, HP down/,
+      why:
+        'The clause is a trade, so both halves are observed in one block — and KILLS deletes each ' +
+        'key separately.',
+    },
     status: {
       kind: 'retuned',
       authorised: P10S,
@@ -929,6 +1038,11 @@ const LEDGER: readonly Figure[] = [
     figure: '−10% max HP',
     spec: -0.1,
     path: ['towerPassive', 'mods', 'towerHp'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Bloodlord \*Sanguine Pact\* — the one passive with a negative term: damage up, HP down/,
+      why: 'The HP-down half of the same trade.',
+    },
     status: { kind: 'match' },
     note: 'The cost half of the pact was left alone while the benefit half was cut — see the row above.',
   },
@@ -1021,6 +1135,15 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% area',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'area'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Animist \*Wide Grove\* — a spore's splash covers more ground/,
+      why:
+        "**A named reach divergence, not a clean row.** §4.2 says 'all towers', and the key is " +
+        'the global `area`: `c013` enumerates every consumer it reaches and `c024` measures the ' +
+        'Time Lord twin. The pointer covers the tower half the sentence does claim; the rest is ' +
+        "those two items' measurement, not a second one here.",
+    },
     status: { kind: 'match' },
     note:
       'The value matches. The *key* is the global `area` stat for want of a `towerArea` one — a ' +
@@ -1116,6 +1239,13 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% HP',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerHp'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Paladin \*Consecrated Stone\* — both clauses: a spire has more max HP \*\*and\*\* more armour/,
+      why:
+        'Both clauses in one block because §4.2 states them in one sentence; KILLS deletes each ' +
+        'key on its own.',
+    },
     status: { kind: 'match' },
   },
   {
@@ -1124,6 +1254,11 @@ const LEDGER: readonly Figure[] = [
     figure: '+5 defense',
     spec: 5,
     path: ['towerPassive', 'mods', 'towerDefenseBonus'],
+    behaviour: {
+      coveredBy: 'tests/class-tower-passive-liveness.test.ts',
+      anchor: /Paladin \*Consecrated Stone\* — both clauses: a spire has more max HP \*\*and\*\* more armour/,
+      why: 'The armour half of the same sentence.',
+    },
     status: { kind: 'match' },
   },
 
@@ -1329,6 +1464,17 @@ const LEDGER: readonly Figure[] = [
     spec: 0.1,
     path: ['towerPassive', 'bonusAoeMul'],
     status: { kind: 'match' },
+    note:
+      '**The second of the two reach divergences `c027` exists because of, and the larger one.** The ' +
+      'figure is right and its *key* is not a `mods` key at all — `bonusAoeMul` is a required field ' +
+      'of the `chronal_surge` kind — so `applyChronalSurge` (`run.ts`) spends it as ' +
+      "`stats.add(source, 'area', ...)`, the **global** stat, on the line after a `towerRange` " +
+      'sibling. §4.2 says "all towers"; `area` is read by `towers.ts`, `vswield.ts`, ' +
+      '`damagetypes.ts`, `enemies.ts` and, since `c001`, every class Active. `c024` measures it — ' +
+      '19 consumer rows flip under a main-lane `towerArea` fix that touches `run.ts:817` alone, and ' +
+      "the surge compounds where the Animist's flat +10% (`c013`) does not. Recorded here rather " +
+      'than left as a clean-looking row, which is exactly how this one went unnoticed after c013 ' +
+      'found its twin.',
   },
 ];
 
@@ -1800,5 +1946,252 @@ describe('c008 — the two figures §4 states in another section’s units', () 
     // so the unit itself is pinned rather than assumed.
     expect(BURNING!.dps).toBeCloseTo(scaled(1), 12);
     expect(BURNING_AUTHORED_DPS).toBe(1);
+  });
+});
+
+/* --------------------------------------- c027: the key, and what it drives */
+
+/**
+ * A liveness file's `KILLS` entry, tagged with the file it came from.
+ *
+ * The parse itself is `equip-spec-ledger.ts`'s (`killEntries`), for c028's
+ * reason: it is a second source parser with its own earned rules — a brace
+ * scan over *blanked* source, one `classKey` per entry — and a private copy
+ * would keep whichever of them its author remembered.
+ */
+interface Kill extends KillEntry {
+  file: string;
+}
+
+const KILL_FILES = ['tests/class-passive-liveness.test.ts', 'tests/class-tower-passive-liveness.test.ts'];
+
+const KILLS_DECLARED: readonly Kill[] = KILL_FILES.flatMap((file) =>
+  killEntries(sourceOf(file)).map((k) => ({ ...k, file })),
+);
+
+/** The file with its `KILLS` table cut out — what a "somebody observes this" check must search. */
+function sourceOutsideKills(file: string): string {
+  const src = sourceOf(file);
+  const { start, end } = killRegion(src);
+  return src.slice(0, start) + src.slice(end);
+}
+
+/**
+ * The one class whose covers write its §4 name short. Declared as an alias, the
+ * way `equip-spec-numbers`'s `SLOT_ALIAS` declares §7's `shoe`/`shoes`, so the
+ * title binding can stay exact everywhere else — a fuzzy "starts with" match
+ * would also accept `pyro` for a future `pyroblade`.
+ */
+const TITLE_ALIAS: Readonly<Record<string, string>> = { pyromancer: 'pyro' };
+
+/** Rows whose figure is authored on a stat key — the rows c027 is about. */
+const MODS_ROWS = LEDGER.filter((f) => f.path !== null && f.path[1] === 'mods');
+
+/** The liveness entries that delete this row's own authored key. */
+function killsFor(f: Figure): Kill[] {
+  const [slot, , key] = f.path!;
+  return KILLS_DECLARED.filter((k) => k.classKey === f.cls && k.slot === slot && k.key === key);
+}
+
+/**
+ * What the covering block must contain: every signal a kill for this row's key
+ * measures — so the block, the key and the deletion are one chain. No row
+ * overrides it, and the pointer check refuses one that tries: a cover that
+ * cannot name its own signal is a finding, not a configuration.
+ */
+function readsFor(f: Figure): readonly RegExp[] {
+  if (f.behaviour?.reads) return f.behaviour.reads;
+  const alts = killsFor(f).map((k) => k.measure);
+  // Never an empty alternation: `signal\.(?:)\b` matches *any* `signal.` call,
+  // so a row with no kill would report a spurious pass from the one check
+  // whose whole point is not passing vacuously (code review).
+  if (alts.length === 0) throw new Error(`c027: ${id(f)} has no liveness kill, so there is no signal to read`);
+  // `expect(signal.X`, not `signal.X`: QA replaced an assertion with a bare
+  // call plus `expect(true).toBe(true)` and the cover stayed green. Calling
+  // the signal is not observing it.
+  //
+  // **At least one**, as an alternation, not all of them. One authored key can
+  // carry two clause halves in two sibling blocks — Deep Winter's `frosted`
+  // and `frozen` ride the same `towerDamageVsChilled` — and demanding one
+  // block call both signals would force the two halves into one `it` purely to
+  // satisfy this check. The other halves are not dropped: the file-level row
+  // below requires every kill's signal to be asserted outside the kill table.
+  return [new RegExp(`expect\\(\\s*signal\\.(?:${alts.join('|')})\\b`)];
+}
+
+describe('c027 — every §4 figure authored on a stat key points at what that key drives', () => {
+  it('the parse found the liveness tables it is reading, in both files', () => {
+    // A regex that silently matched nothing would make every check below
+    // vacuous — the shape c012's own table parse learned to fail loudly on.
+    for (const file of KILL_FILES) {
+      // Exact, not a floor: a silently dropped entry should be loud here
+      // rather than surfacing later as whichever ledger row happened to
+      // reference it (code review).
+      const EXPECTED: Readonly<Record<string, number>> = {
+        'tests/class-passive-liveness.test.ts': 4,
+        'tests/class-tower-passive-liveness.test.ts': 14,
+      };
+      expect(
+        KILLS_DECLARED.filter((k) => k.file === file).length,
+        `${file}: the KILLS parse found a different number of mods-deleting entries — the table moved, was reshaped, or grew`,
+      ).toBe(EXPECTED[file]);
+    }
+    expect(MODS_ROWS.length, 'the ledger has no stat-key rows — the path shape changed').toBe(16);
+  });
+
+  it('every stat-key row carries a behavioural pointer, and only stat-key rows do', () => {
+    for (const f of MODS_ROWS) {
+      expect(f.behaviour, `${id(f)}: no behavioural pointer — which block proves this key does anything?`).toBeDefined();
+      expect(f.behaviour!.why.trim().length, `${id(f)}: no reason given for the pointer`).toBeGreaterThan(20);
+      // `reads` is derived from the kills; a row that declares its own is
+      // stating that its cover cannot name the signal, which needs saying.
+      // None does today, and a first one should be a visible edit.
+      expect(f.behaviour!.reads, `${id(f)}: declares its own \`reads\` — say why in the item, not here`).toBeUndefined();
+    }
+    // A row whose figure is not a stat key is pinned by its own path and by
+    // the `in_code`/`unimplemented`/`defect` statuses; a pointer there would
+    // be a second, weaker authority for a claim those already make.
+    expect(
+      LEDGER.filter((f) => f.behaviour !== undefined && !MODS_ROWS.includes(f)).map(id),
+      'a non-stat-key row with a behavioural pointer',
+    ).toEqual([]);
+  });
+
+  it("each pointer names exactly one live block, and that block names the row's own class", () => {
+    for (const f of MODS_ROWS) {
+      const b = f.behaviour!;
+      expect(
+        existsSync(fileURLToPath(new URL(`../${b.coveredBy}`, import.meta.url))),
+        `${id(f)}: ${b.coveredBy} does not exist`,
+      ).toBe(true);
+      // `pointerProblems` carries the five rules the device earned (c028):
+      // exactly one match, a non-empty body, no skipped ancestor, and every
+      // `reads`. §4's covers observe through named signal helpers rather than
+      // through `w.derived.<stat>`, so `reads` is the class key — the stat
+      // key's own half is the structural check below, which is stronger.
+      // **`reads` is derived, not declared**: the signals the liveness tables
+      // measure when they delete *this row's key*. That binds three things
+      // together — the row's authored key, the deletion that proves the key
+      // load-bearing, and the block this row points at — where a hand-written
+      // `reads` would only bind the row to a word.
+      const block = blockBody(b.coveredBy, b.anchor);
+      expect(pointerProblems(block, readsFor(f)), `${id(f)}: the pointer at "${b.anchor.source}"`).toEqual([]);
+      // **The owner half of c028's rule**, which an earlier draft dropped:
+      // `signal.towerHpUp` is measured under *two* classes (Engineer's
+      // Reinforced Frames and Paladin's Consecrated Stone), so without this
+      // the two rows' pointers are freely swappable — QA and code review each
+      // measured the swap staying green. It is bound on the **title** rather
+      // than the body, because §4's covers name their class there
+      // (`Paladin *Consecrated Stone*`) and several read it from a signal
+      // that hardcodes the class instead of taking it as an argument.
+      expect(
+        block.title.toLowerCase(),
+        `${id(f)}: its covering block's title does not name ${f.cls} — is this the right clause's block?`,
+      ).toContain(TITLE_ALIAS[f.cls] ?? f.cls.replace('_', ' '));
+    }
+  });
+
+  it('every clause half sharing a key is observed somewhere outside the kill table', () => {
+    // The other side of the alternation above. One key can carry two halves
+    // (Deep Winter's frosted and frozen), and the pointer only has to find one
+    // of them — so the file has to carry the rest, or a half could be deleted
+    // with its own `it` and nothing would notice.
+    //
+    // **The first draft of this row was a strict tautology**, and review and
+    // QA both caught it: it matched `signal.<measure>` against the whole file,
+    // but `<measure>` was *parsed out of that file's own `KILLS` table*, whose
+    // text is literally `measure: signal.<name>`. The needle was guaranteed
+    // present by construction. Measured: deleting the frozen half's only `it`
+    // left it green. The table is cut out of the haystack now, and the
+    // assertion is the `expect(` form, so the observation has to be real.
+    for (const f of MODS_ROWS) {
+      expect(
+        existsSync(fileURLToPath(new URL(`../${f.behaviour!.coveredBy}`, import.meta.url))),
+        `${id(f)}: ${f.behaviour!.coveredBy} does not exist`,
+      ).toBe(true);
+      const outside = sourceOutsideKills(f.behaviour!.coveredBy);
+      for (const k of killsFor(f)) {
+        expect(
+          outside,
+          `${id(f)}: nothing in ${f.behaviour!.coveredBy} asserts signal.${k.measure}, which "${k.name}" kills`,
+        ).toMatch(new RegExp(`expect\\(\\s*signal\\.${k.measure}\\b`));
+      }
+    }
+  });
+
+  it('the kill table really is excluded from that search, and the file is not', () => {
+    // The tautology fix, asserted rather than described: the sliced region has
+    // to be the table (it contains the `measure:` lines) and the remainder has
+    // to be the rest of the file (it contains the covers).
+    for (const file of KILL_FILES) {
+      const src = sourceOf(file);
+      const outside = sourceOutsideKills(file);
+      expect(outside.length, `${file}: the slice removed the whole file`).toBeGreaterThan(src.length / 2);
+      expect(outside, `${file}: the KILLS table is still in the haystack`).not.toMatch(/measure: signal\./);
+      expect(src, `${file}: the KILLS table has no measure lines to remove`).toMatch(/measure: signal\./);
+      expect(outside, `${file}: the covers were sliced away with the table`).toMatch(/expect\(\s*signal\./);
+    }
+  });
+
+  it("each row's own authored key is somebody's declared mutation target", () => {
+    // **The half a text anchor cannot state.** A pointer proves the clause is
+    // observed; this proves the observable dies when *this row's exact key* is
+    // deleted from `/data`. Move a figure to a neighbouring key and edit the
+    // row's path to match — the mutation c022 was filed on, in §4's form — and
+    // the row now names a key no liveness table deletes.
+    const missing: string[] = [];
+    for (const f of MODS_ROWS) {
+      const [slot, , key] = f.path!;
+      const hit = KILLS_DECLARED.find((k) => k.classKey === f.cls && k.slot === slot && k.key === key);
+      if (!hit) missing.push(`${id(f)}: no liveness row deletes ${f.cls}.${slot}.mods.${key}`);
+    }
+    expect(missing, 'a §4 figure authored on a key nothing proves load-bearing').toEqual([]);
+  });
+
+  it('the pointer and the kill agree about which file covers the clause', () => {
+    // Otherwise a row could be anchored in one file and killed in another,
+    // and neither half would notice that the block it points at is not the
+    // block the deletion reddens.
+    for (const f of MODS_ROWS) {
+      const [slot, , key] = f.path!;
+      const hit = KILLS_DECLARED.find((k) => k.classKey === f.cls && k.slot === slot && k.key === key);
+      // Asserted, not `!`-ed: without this the row above's own failure mode
+      // arrives here as `Cannot read properties of undefined (reading 'file')`
+      // instead of a named row (QA).
+      expect(hit, `${id(f)}: no liveness row deletes ${f.cls}.${slot}.mods.${key}`).toBeDefined();
+      expect(hit!.file, `${id(f)}: pointed at ${f.behaviour!.coveredBy} but killed in ${hit!.file}`).toBe(
+        f.behaviour!.coveredBy,
+      );
+    }
+  });
+
+  it('the two known reach divergences are named on their rows, not left silent', () => {
+    // c013 and c024 are the two cases this whole item exists because of: a
+    // figure that is right, on a key whose reach is wider than §4's sentence.
+    // Neither is fixable from this lane (`statkeys.ts` has no `towerArea`), so
+    // the requirement is that the rows *say so* — a silent correct-looking row
+    // is exactly what let the second one go unnoticed after the first.
+    const grove = MODS_ROWS.find((f) => f.cls === 'animist' && f.path![2] === 'area')!;
+    expect(grove.behaviour!.why, "Wide Grove's row does not name c013/c024").toMatch(/c013[\s\S]*c024|c024[\s\S]*c013/);
+    // The Time Lord twin is not a `mods` row at all — `bonusAoeMul` is a
+    // required field of the `chronal_surge` kind — so it cannot carry a
+    // pointer. It carries a `note` instead, and the note is asserted: a row
+    // that reads `{ kind: 'match' }` and says nothing is precisely how this
+    // divergence went unnoticed after c013 found its twin.
+    const surge = LEDGER.find((f) => f.cls === 'time_lord' && f.path?.[1] === 'bonusAoeMul')!;
+    expect(surge.note ?? '', "Chronal Surge's area row does not name c024 or the global stat").toMatch(/c024/);
+    expect(surge.note ?? '').toMatch(/'area'/);
+    // And its measurement is still live, through the device rather than a
+    // grep: `/time_lord/` matched three unrelated identifiers in that file, so
+    // the whole `c024:` describe could have been deleted (code review, QA).
+    const c024 = blockBody(
+      'tests/class-wide-grove-reach.test.ts',
+      /c024: Chronal Surge fired for real, and its area half reaches the same footprints/,
+    );
+    expect(c024.matches, "c024's Time Lord measurement is gone — the other half of this divergence is unwatched").toBe(1);
+    expect(
+      c024.ancestors.filter((a) => /\.(skip|todo)\(/.test(a)),
+      "c024's measurement sits inside a skipped describe",
+    ).toEqual([]);
   });
 });

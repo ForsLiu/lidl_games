@@ -444,6 +444,251 @@
   p12d/p12f/p12h measure after it, not before — a pre-rescale reading cannot be
   inherited across it without a control run.
 
+- **2026-09-05 (lane `lane/terrain`): `fb065g` closed — terrain's contribution
+  to the balance gates is measured, and it is large.** 24 seeds, T1, engineer,
+  `practice: true` as the flat-arena control: `hybrid` **18/24 flat against
+  7/24 with terrain** (75.0% -> 29.2%, 2.57x), `maxbuild` **6/24 against 2/24**
+  (25.0% -> 8.3%, 3.00x). Same seeds, same bot, same `/data`. The 12-seed pilot
+  agreed (66.7% -> 16.7% on `hybrid`).
+
+  So every G1/G8/G14/G23 reading taken since master's `fb077` wiring has terrain
+  in it as an uncontrolled variable — including the four `/data`-only tuning
+  sessions STATUS.md's G8 entry records as having "only ever traded cells
+  against each other". **This lane proposes no change to terrain**; wave
+  difficulty is a balance order for BACKLOG.md. It has measured the variable.
+
+  Deferred deliberately: pinning the reading in CI needs
+  `vitest.fast.config.ts`'s exclude list (25-minute sweep), which is out of lane
+  — so the harness ships as a committed script, the reading is recorded, and the
+  pin is a merge item. What is pinned in-lane (1.2 s) is the control's
+  mechanism: one flag apart, terrain is the only difference between the arms.
+
+  Also logged for the merge: `npm run status`'s balance snapshot is stale (it
+  records win rate 1.0 where a fresh sweep reads 0.17), and `tools/sweep.ts`
+  reports medians where CLAUDE.md's rules ask for means.
+
+- **2026-09-05 (lane `lane/terrain`): `fb065h` closed — a run plays its own
+  seed's map.** `applyRunTerrain` retries at `seed + 1 …` when the hardcoded
+  Core comes out unreachable, so `RunConfig.seed` did not provably identify the
+  map a run played. Measured over the 12,000-seed domain sample: three seeds
+  strand the Core on their own map (a *provable* upper bound on the retry rate,
+  since the Warden clearing only ever opens tiles), and all three are rescued by
+  that clearing — so the retry count is **0 of 12,000** and the path is
+  unexercised rather than rare. Jitter-off control: 2 stranded, a disjoint set,
+  so the density budgets move which seeds strand rather than how many.
+
+  The limit is now an assertion too: the seed reproduces the *map*, not the
+  *board* — a run's grid differs from its own seed's map by the Warden's 9
+  tiles. Logged for the merge: `applyRunTerrain` returns only a fallback
+  boolean, so the retry count has to be inferred; one extra field would make it
+  observable.
+
+- **2026-09-05 (lane `lane/terrain`): `fb065f` closed — a dump now describes the
+  gates its bands were measured against.** `describeTerrain` hardcoded `GATES`
+  for both the `gates` header line and its `measureTerrain` call, so a run under
+  fb077's Fourth Gate modifier produced a repro that printed three gates and
+  measured `gateReach`/`gateDetour`/`corridors`/`gatesConnected` against three —
+  every one of 30 four-gate seeds printed a `bands` line differing from the
+  truth — `coreLegal` and the `counts` line's `coreAnchors` wrong on all 30,
+  `gateDetour` on 8 of them (worst 0.1446), and the other six bands on none.
+  The "8 of 30" this entry first carried was an inherited figure that
+  understated the defect fourfold; it is re-measured and corrected. It takes an optional gate list now, and
+  `parseTerrainDump` reads a four-gate line back.
+
+  The parser half needed a decision: free-form extras on the `gates` line broke
+  fb064w's `unknown "bogus"` refusal, so the modifier gate is a **declared
+  optional key** instead, kept last so the order pin stays total (pinned by its
+  own test). The coupling that buys — a new modifier gate adds its name to
+  `HEADER_KEYS` — is named in the record rather than hidden.
+
+  22 terrain suites green (400), `npx tsc --noEmit` clean, `test:fast` 3670
+  passed with only the pre-existing `b028`/`q41`/`q45`.
+
+- **2026-09-05 (lane `lane/terrain`): `fb065e` closed — a gate opened after
+  terrain is applied is now terrain-consistent.** `Grid.openGate(tx, ty)` writes
+  the border tile and re-derives the terrain arrays through the same
+  `syncTerrain` loop `placeCore` uses, closing a staleness hole where a raw
+  `tile[]` write moved `blocked` and left `terrainKind` holding the pre-gate
+  answer (measured: seed 7, a Gate written at (12,19) reads `blocked=0` with
+  `terrainKind=Rock`, so a repro drew a mountain on a walkable gate). It fixes
+  no live bug — `world.ts` opens the Fourth Gate before `applyRunTerrain`, so
+  the ordering happens to be safe — it removes the unenforced ordering
+  constraint, and the raw-write staleness stays pinned rather than claimed
+  closed. Finding on the way in: fb064x's enumeration table probed `placeCore`
+  for every `throws` row regardless of name, so this second such row would have
+  landed unguarded and green.
+
+  432 tests across 25 suites green, `npx tsc --noEmit` clean, `endHash
+  952d7be8` unchanged, `test:fast` 3662 passed with only the pre-existing
+  `b028`/`q41`/`q45`.
+
+- **2026-09-05 (lane `lane/terrain`): the generation rule ran its sweep leg for
+  the first time, and it found something the main lane needs before its next
+  balance pass.** The lane had skipped leg (a) three times on a reason it
+  re-verified each time; master's `967463d P10 fb077` retired it by wiring the
+  generator into every non-practice run, and `tools/sweep.ts` never sets
+  `practice`, so every sweep run plays generated terrain.
+
+  `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid` reads **win
+  0.17** for both, where STATUS.md's recorded snapshot has **1.0** for all ten
+  policies at the same T1/engineer cell. The A/B that matters — same 12 seeds,
+  `hybrid`, terrain against `practice: true` as a flat-arena control (it gates
+  only `applyDevCommand`, and the bot policies issue no dev commands) — reads
+  **2/12 with terrain against 8/12 flat**, mean 34.8 min against 38.7.
+
+  So every G1/G8/G14/G23 reading taken since fb077 merged includes terrain as an
+  uncontrolled variable, including the four separate `/data`-only tuning
+  sessions STATUS.md's G8 entry records as having "only ever traded cells
+  against each other". This lane is **not** proposing to soften terrain — the
+  bands are the owner's and wave difficulty is a balance order for BACKLOG.md —
+  only that the four red gates are being retuned against a variable nobody has
+  held fixed. Filed as `fb065g`, with the caveat that 12 seeds in one cell is a
+  signal and not yet a gate reading; its acceptance widens the A/B to >= 24
+  seeds and two policies first.
+
+  Five items appended by the rule: `fb065e`/`fb065f` (bugs the fb065c review and
+  QA found), `fb065g` (the above), `fb065h` and `fb065i` (leg (c)).
+
+- **2026-09-05 (lane `lane/terrain`): `fb065c` closed — a terrain repro can now
+  be taken from the map a bug was seen on.** `gridTerrain` in
+  `src/sim/terrain/grid-view.ts` adapts a live `Grid` to the `TerrainGrid` every
+  diagnostic reads, copying rather than aliasing (the Grid rewrites
+  `terrainKind` in place on every `placeCore`), and carrying no provenance so
+  `describeTerrain` writes the honest `source=-`. The premise is measured:
+  across `applyRunTerrain` on seeds 1..100 a live grid is identical to its own
+  generated map on 84 of them but differs by up to 13 tiles — so a repro taken
+  from the generator is usually right, which is exactly why the 16% where it is
+  wrong were invisible. `tests/terrain-grid.test.ts`'s hand-rolled `gridView`
+  is deleted in favour of it; it was the only copy, one fewer than the item's
+  premise claimed.
+
+  `npm run test:fast` at this commit: 3655 passed, 3 failed — `b028`, `q41`,
+  `q45`, unchanged and pre-existing. `npx tsc --noEmit` clean; all 20 terrain
+  suites green.
+
+- **2026-09-05 (lane `lane/terrain`): `fb065b` closed — the suggested Core
+  anchor is now a measured default rather than only a legal one.**
+  `tests/terrain-anchor-quality.test.ts` (11 cases, ~2 s, fast tier) carries the
+  ledger over seeds 1..500 for the four properties the item names, the
+  flat-arena control, a fixed-anchor control that separates terrain from
+  selection, a floor per property with the worst seed named, both dominance
+  readings, and the priced cost of the change it declines. Verdict: the accepted
+  band, because the selection's objective — fidelity to `CORE_X/CORE_Y` — is a
+  balance order and not this lane's to take, and the rule is measurably doing
+  that job (432/500 seeds land on the tuned spot exactly, none more than 4 tiles
+  off, and against a fixed anchor on the same maps the rule is *better* on build
+  room). Two `analyze.ts` changes shipped with it: `buildRoom` became the
+  exported `coreAnchorRoom` so the tie-break that decides `terrainLegal` is
+  measurable, and a stale "tied on 25 seeds" comment was re-measured to 24.
+  code-reviewer REQUEST-CHANGES on the first pass (three Majors, all real);
+  qa-playtester PASS with six findings, all acted on. Full record in
+  BACKLOG-TERRAIN.md's Log.
+
+  `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
+  `q45`, the same three the merge entry below records as failing identically on
+  `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+
+- **2026-09-05/06 session (lane `lane/content`, branch
+  `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
+  `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
+  rule ran mid-session with two actionable items left and appended
+  `c028`/`c027`/`c031`/`c029`/`c030`; `c029` is the one of those five still
+  open, and the five owner items (`fb056`, `fb057`, `fb059`, `fb061`, `fb062`)
+  remain blocked out of Scope on the same paths as before.
+
+  **The through-line, for whoever picks this up.** Four of the six are one
+  idea: this lane's two spec ledgers audit *numbers*, and a row can carry the
+  right number on the wrong stat — which `c013` and `c024` had each found by
+  hand, one class apart, with no barrier between them. `c022` built the
+  behavioural pointer for §7, `c028` extracted it once `c027` needed it, `c027`
+  adapted it to §4 (where covers observe through signal helpers, not through
+  `w.derived.<stat>`), and `c031` closed the last unwatched `/data`-to-`/src`
+  contract before `fb056` adds fifteen items to it. Every device in them is a
+  mutation that got past an earlier draft; the mutation is the regression test
+  in each case, and BACKLOG-CONTENT.md's Log lists them per item.
+
+  No `/src` or `/data` byte moved in any of the six. `npm run test:fast` ends
+  the session at 3690 passed / 3 failed — `b028`, `q41`, `q45`, which fail
+  identically on a clean checkout of this branch's base (controlled in a stash
+  at the start of the session).
+
+  Items closed are listed below as they landed; BACKLOG-CONTENT.md's Log
+  carries the detail for each.
+
+  `c022`: every one of the 13 §7 Effect rows in
+  `tests/equip-spec-numbers.test.ts` now carries a **behavioural pointer** —
+  an anchored `describe`/`it` whose body reads that row's own stat key — so a
+  row can no longer audit the right number on a stat §7 never mentions. The
+  mutation QA measured on c012 (`normal_necklace`'s `-0.2` moved from
+  `towerCost` to `goldFind` in `/data` *and* in the ledger row) is red, as is
+  deleting a covering block. Seven of the thirteen stats had no cover anywhere
+  that named them — `hpRegen`, `xpGain`, `towerCost`, `leech`'s magnitude,
+  `bleedLifesteal`, `towerAtkFlat` and Swordsman Armor's `classFallback` — and
+  those covers are new, in this lane's `tests/equip-effect-behaviour.test.ts`
+  (`tests/fb015-equipment.test.ts` is out of Scope). No `/src` or `/data` byte
+  moved.
+
+  `c025`: `tests/class-kit-whiff.test.ts` is the eighth and last §4 file to
+  move onto the shared probed board, which needed `tests/class-board.ts` to
+  probe and export the **Ice Wall column** (three buildable, non-sealing tiles
+  two east) on its own rung of the degradation ladder — forcing the column
+  impossible fails that one file, on its four column rows, with the other eight
+  importers green. Its p6d agreement is now an **offset** parsed out of p6d's
+  own occupancy test rather than the absolute `[12, 10]` that stopped being
+  this file's tile when terrain moved the board to `10,6`. QA failed the first
+  parser: it was reading a neighbouring `castWall()` helper, so re-aiming the
+  row it claims to co-state left the file green, and it threw at module scope,
+  which vitest reports as `Tests no tests`. New `tests/class-p6d-agreement.ts`
+  plus 4 synthetic-source tests. Also generated five items (`c027`-`c031`) per
+  the generation rule, with a fresh sweep behind them: **maxbuild and hybrid
+  both win 0.17 over 12 seeds**, against STATUS.md's stale policy table of 1.
+
+  `c028`: c022's behavioural-pointer device — the block reader, the `reads`
+  default, the decoy derivation and the five pointer rules — is extracted to
+  `tests/equip-spec-ledger.ts` with its synthetic-source self-tests, ahead of
+  `c027` needing the same device on the §4 ledger. Ten mutations red, including
+  three new ones: a `describe.skip` on the device's own self-tests, a hand-copy
+  in `tests/helpers/`, and a hand-copy renamed `readBlock`. The `equip-` prefix
+  is the Scope's, not the module's — the rename to `tests/spec-ledger.ts` is
+  logged for the main lane.
+
+  `c027`: the §4 ledger's 16 stat-key rows now carry behavioural pointers of
+  their own — bound to the row's authored path, to the liveness `KILLS` entry
+  that deletes that exact path, and to a block that *asserts* the signal that
+  kill measures. It is the class-side answer to the hole `c013` and `c024` each
+  found by hand: a figure that is right, on a key whose reach is wider than
+  §4's sentence. Review and QA found three Majors, all of them gaps between
+  what the device claimed and what it checked — the class binding was missing
+  (Engineer's and Paladin's `towerHp` pointers were swappable), the
+  compensating control for the alternation was a strict tautology, and the
+  Time Lord divergence was a silent `{ kind: 'match' }` row. All closed, with
+  the mutation that found each as its regression test.
+
+  `c031`: the real contract between `data/equipment.json` and `/src` for §7's
+  three non-stat mechanics is eight `hasEquipment(w, '<key>')` literals that no
+  test enumerated — so renaming an item key in `/data` turned its mechanic off
+  silently, and `fb056` adds fifteen items to that file.
+  `tests/equip-hasequipment-roster.test.ts` scans `/src`, holds the roster to
+  §7's own Effect clauses, and checks every literal names a key `/data`
+  authors. Code review found the scan blind over 362 lines of `src/ui/hub.ts`
+  — `blankNonCode` has no regex-literal state and one `.replace(/'/g, …)`
+  desyncs it — which is closed with a raw-text cross-check and recorded as a
+  known limitation of the shared helper, with a self-test.
+
+  `c030`: this lane's two recorded class measurements were both taken before
+  master's terrain epic and its T1 re-anchor, and both had expired.
+  Re-measured at T1: **Time Lord 12/12 -> 11/12** (this class's first
+  `defeat_core` and its first two close wins), and the 144-run kit-share sweep
+  from "12/12 win for eleven classes, 2/12 distinct top damage sources" to
+  **five classes inside G8's literal 35-70% band and 1/12 distinct** — the
+  diversity clause got worse, because `mortar` is now every class's top source
+  where `ballista`/`mortar` used to split the roster. **At least six**
+  balance-affecting changes landed between the readings — `p12c`'s
+  `baseHpMul: 20` is the likeliest cause of the win-rate movement, not terrain
+  — so nothing is attributed; the tables are a baseline. Both readings are T1
+  while `p6e` moved to `GATE_TIER` = 3, which is part of what the main-lane
+  re-read has to settle.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
