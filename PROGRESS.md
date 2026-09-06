@@ -615,6 +615,7 @@
   p12 arc:** `fb153a` re-scales every number any balance gate measures, so
   p12d/p12f/p12h measure after it, not before — a pre-rescale reading cannot be
   inherited across it without a control run.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065g` closed — terrain's contribution
   to the balance gates is measured, and it is large.** 24 seeds, T1, engineer,
   `practice: true` as the flat-arena control: `hybrid` **18/24 flat against
@@ -758,6 +759,7 @@
   `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
   `q45`, the same three the merge entry below records as failing identically on
   `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+
 - **2026-09-05/06 session (lane `lane/content`, branch
   `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
   `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
@@ -858,6 +860,23 @@
   — so nothing is attributed; the tables are a baseline. Both readings are T1
   while `p6e` moved to `GATE_TIER` = 3, which is part of what the main-lane
   re-read has to settle.
+- **2026-09-06 (lane `lane/ui`): merged `origin/master` in for fb140's CI
+  workflow.** No source change crosses in either direction: master's PR #9 had
+  already squash-merged this branch's six items, so the merged tree is
+  byte-identical to master. The one conflict was this file, both sides kept.
+  What the merge did surface is an id collision covering **every id the session
+  filed** — master had taken fb152-fb155 (owner orders), fb156 (terrain) and
+  fb157-fb159 (owner feedback, in BACKLOG-UI.md's own top-of-queue) while this
+  lane was filing the same eight. Renumbered to fb169-fb176; the mapping is in
+  BACKLOG-UI.md's Log, and the commit messages still carry the old ids. This is
+  the third consecutive merge in that lane to find a cross-file collision and
+  the second where it was all of a session's new ids — allocating from a shared
+  high-water mark at filing time is the only thing that would stop it.
+  `npm run test:fast` on the merged tree: 3895 passed, 1 failed across 2 files
+  (`q15`, `q45`), which are master's own dev-container tsx worker-thread
+  failures recorded above — the tree under test differs from master only in
+  documentation and two comment lines. `b028` and `q41` are green again.
+
 - **2026-09-05 (lane `lane/ui`): six items closed — `fb144`, `fb145`, `fb146`,
   `fb147`, `fb148`, `fb149`.** Worked in queue order; `fb085`/`fb093`/`fb097`
   were re-confirmed still permanently out of this lane's hard Scope
@@ -896,8 +915,10 @@
      sites instead, with a source rule making "on every save" a property of the
      codebase rather than of three call sites.
 
-  Ten follow-ups filed rather than folded in (`fb152`-`fb159`, plus two
-  regressions caught by QA and fixed inside their own items rather than filed).
+  Eight follow-ups filed rather than folded in — `fb169`-`fb176`, filed as
+  `fb152`-`fb159` and renumbered at the master merge (see BACKLOG-UI.md's Log;
+  the six commit messages carry the pre-renumber ids) — plus two regressions
+  caught by QA and fixed inside their own items rather than filed.
   `npm run test:fast` after each item: 3734 passed / 3 failed at the end, the
   failures being `q15`/`b028`/`q41`/`q45` — all tools/CLI-subprocess suites in
   the documented pre-existing flake classes, which QA reproduced standalone on

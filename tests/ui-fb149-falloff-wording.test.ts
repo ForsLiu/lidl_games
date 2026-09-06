@@ -284,7 +284,7 @@ describe('fb149: one wording rule, applied where and only where the engine decay
  * The stronger form the reviewer asked for — probe every kind and require the
  * clause IFF the measured per-target damages differ — needs a per-kind firing
  * harness (charges, stored Wrath, ground-field ticking, summon lifetimes) well
- * beyond this item; filed as fb157.
+ * beyond this item; filed as fb174.
  */
 describe('fb149: every shipped kind is classified, so a new one cannot slip through', () => {
   const DECAYS = new Set(['charge_nova', 'judgement', 'dash_line', 'charge_pierce', 'ground_poison', 'dash_trail']);

@@ -248,7 +248,7 @@ describe('fb096: save-slots module', () => {
     // up and hand it back. Recovering the LIVE cache from it is still the
     // switch machinery's job — `switchToSlot` still flushes `SAVE_KEY` over
     // the outgoing slot key — so this asserts the data survives the restore,
-    // not that the game repairs itself afterwards (filed as fb155).
+    // not that the game repairs itself afterwards (filed as fb172).
     expect(loadMeta().skillPoints).toBe(7);
     expect(slotSkillPoints(2)).toBe(333);
   });
