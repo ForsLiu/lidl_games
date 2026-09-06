@@ -5,6 +5,65 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG-UI fb157 follow-up: qa-playtester's real-browser pass
+  found the left-docked character panel colliding with the Build rail, plus
+  two stale "still a full-stage modal" gates — both fixed; and BACKLOG-UI
+  fb158: enemy attack-kind icons, range rings, and Codex parity.**
+
+  qa-playtester (dispatched per CLAUDE.md's Full-tier rule, still owed after
+  fb157 landed to satisfy the working-tree hook) drove a real Chromium
+  browser rather than trusting jsdom, and found what jsdom cannot see:
+  docking the character panel to the stage's **left** edge put it directly
+  on top of `.sw-rail-left` (the pre-existing Build rail, fb065), reading as
+  the exact "blocks the screen" defect fb157 exists to fix, just relocated —
+  `document.elementFromPoint()` over a Build-rail button resolved to the
+  character card instead. It also found `Hud.modalOpen` (hud.ts) still
+  listed the character panel among the "full-stage overlay" gates from when
+  it was a `.sw-modal`, so opening it hid `#sw-bottombar` and any live boss
+  banner outright — the opposite of fb051's already-established rule that a
+  docked, non-blocking panel leaves gameplay visible underneath.
+
+  Both are fixed by finishing the move fb157 started rather than inventing
+  something new: the character panel now docks to the same **right** edge
+  the DPS/VS panels already use (no more `.sw-dock-left`), sharing their
+  existing mutual-exclusion (`toggleCharacterPanel`/`toggleDpsPanel`/
+  `toggleVsPanel` already closed each other; that behavior was a latent bug
+  while the panels didn't share space and is correct now that they do).
+  `railAutoCollapsed()` (hud.ts), which already collapses `.sw-rail-right`
+  while a DPS/VS panel is open or docked, now also checks `charPanelOpen` —
+  the exact belt-and-suspenders pattern fb076 already built for the other
+  two, called every `update()` tick with no new wiring needed. `modalOpen`
+  dropped its `!this.charPanelEl.hidden` clause, and the three stale doc
+  comments that called the character panel a blocking overlay
+  (`renderBossBar`, `renderBottomBar`, `renderOnboarding`) now say what
+  fb051 already says about DPS/VS. `tests/fb157-character-panel-compact
+  .test.ts` and the rest of the fb157 suite stayed green throughout (none of
+  them asserted the left-docking side, only open/close/content behavior).
+
+  BACKLOG-UI fb158 (owner feedback `ui-enemy-attack-indicators`, render
+  half; unblocked once main-lane fb155 shipped `EnemyDef.attackKind`/
+  `attackRange`/`specialRange`): every enemy now always shows a small
+  shape-and-color attack-kind marker beside its HP bar (`canvas.ts`'s
+  `drawAttackKindIcon`), and hovering or selecting one rings its
+  `attackRange` (`drawEnemyAttackRing`) — a **selected** elite/boss
+  additionally rings its `specialRange`, dashed, never on mere hover. The
+  icon's shape (filled-vs-ring, one of two radii, one of two opacities) is a
+  single source of truth (`attackKindIconShape`, `render/theme.ts`) shared
+  by the canvas marker and a new DOM icon (`src/ui/enemy-info.ts`), which
+  also builds the one-line "Melee, 0.8 tiles" description both the in-run
+  enemy panel (`hud.ts`'s `enemyInfoMarkup`, a new Attack row) and a new
+  Codex `renderDetail` on the `enemies` collection show — so a selected
+  enemy's panel and its Codex page can never disagree. Every number is read
+  straight off `EnemyDef`, never re-derived from `traits`.
+  `tests/fb158-enemy-attack-indicators.test.ts` (10 tests) covers the
+  acceptance line directly, including a real (non-elite) `bomber`'s
+  authored-but-unused `specialRange` never ringing, to prove the elite/boss
+  gate is load-bearing and not just "if specialRange exists."
+
+  `npm run test:fast` after both: only the pre-existing container-only
+  q15/q45 module-resolution failures (confirmed unrelated, documented across
+  many prior sessions).
+
 - **2026-09-06 — BACKLOG-UI fb157: the in-run character panel is a compact,
   corner-docked card instead of a full-screen modal.** Owner feedback
   `ui-character-panel-compact` (top priority): the old panel was a

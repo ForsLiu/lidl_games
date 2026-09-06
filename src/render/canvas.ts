@@ -29,6 +29,8 @@ import {
   towerCost,
 } from '../sim/towers';
 import {
+  ATTACK_KIND_COLORS,
+  attackKindIconShape,
   ENEMY_COLORS,
   GATE_PATH_COLORS,
   PALETTE,
@@ -732,6 +734,7 @@ export class Renderer {
     if (!night) this.drawRangeRings(w, view);
     if (!night && view.settings.showPathIndicators) this.drawPathIndicators(w);
     this.drawCharacterRangeRing(w, view);
+    this.drawEnemyAttackRing(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawCoreLabels(w);
     this.drawNumbers();
@@ -1005,7 +1008,41 @@ export class Renderer {
           }
         }
       }
+      // fb158 (owner feedback `ui-enemy-attack-indicators`): every enemy
+      // always shows a small attack-kind marker beside its HP bar — unlike
+      // the DoT/time-mark dots above (which sit right at `py - r`), this
+      // sits one row higher, level with the bar itself, so it never
+      // collides with them.
+      this.drawAttackKindIcon(px + r + 5, py - r - 4.5, def.attackKind);
     }
+  }
+
+  /**
+   * fb158: one small, shape-*and*-color-distinct marker per
+   * `EnemyDef.attackKind` — shape carries the meaning for a colorblind
+   * player (`ATTACK_KIND_COLORS`, theme.ts, is a plain literal map, not
+   * palette-aware, same as `ENEMY_COLORS`), color is the faster glance cue
+   * for everyone else. Every kind is a circle, filled or hollow, at one of
+   * two radii and one of two opacities — the same primitive-circle
+   * convention this file already uses for every other per-enemy marker
+   * (frost ring, DoT dots, time mark) rather than inventing a bitmap/SVG
+   * icon pipeline this codebase has none of.
+   */
+  private drawAttackKindIcon(x: number, y: number, kind: string): void {
+    const ctx = this.ctx;
+    const color = ATTACK_KIND_COLORS[kind] ?? '#cccccc';
+    const { filled, big, faded } = attackKindIconShape(kind);
+    const r = big ? 4.5 : 3;
+    ctx.globalAlpha = faded ? 0.55 : 1;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (filled) ctx.fill();
+    else ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
   }
 
   /**
@@ -1672,6 +1709,48 @@ export class Renderer {
         ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb158 (owner feedback `ui-enemy-attack-indicators`): the attack-range
+   * ring for whichever enemy is hovered or selected — melee reach or ranged
+   * distance, `EnemyDef.attackRange` (fb155 authors it directly; this file
+   * never re-derives it from `traits`). A selected elite/boss additionally
+   * rings its own `specialRange`, dashed, when one is authored — deliberate
+   * emphasis only on a selected threat, not ambient noise on every hover,
+   * the same hover-vs-selected escalation `drawRangeRings` already gives a
+   * lob tower's min-range/splash preview.
+   */
+  private drawEnemyAttackRing(w: World, view: ViewState): void {
+    const ctx = this.ctx;
+    const hoveredSel = pickAt(w, view.cursorX, view.cursorY);
+    const hovered = hoveredSel?.kind === 'enemy' ? selectedEnemy(w, hoveredSel) : null;
+    const selected = view.selection?.kind === 'enemy' ? selectedEnemy(w, view.selection) : null;
+    const ringEnemy = (e: Enemy, isSelected: boolean) => {
+      const def = w.content.enemyById.get(e.defId)!;
+      const cx = e.x * TILE;
+      const cy = e.y * TILE;
+      ctx.strokeStyle = ATTACK_KIND_COLORS[def.attackKind] ?? PALETTE.ghost;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.globalAlpha = isSelected ? 0.85 : 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, def.attackRange * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+      if (isSelected && (e.elite || e.boss) && def.specialRange !== undefined) {
+        ctx.globalAlpha = 0.85;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, def.specialRange * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    };
+    // A selected enemy also under the cursor draws its ring once, at the
+    // (bolder) selected style — not twice at both styles stacked.
+    if (hovered && !(selected && selected.id === hovered.id)) ringEnemy(hovered, false);
+    if (selected) ringEnemy(selected, true);
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
   }

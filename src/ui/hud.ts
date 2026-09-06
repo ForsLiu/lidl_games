@@ -15,6 +15,7 @@ import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
+import { enemyAttackMarkup } from './enemy-info';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
@@ -262,7 +263,7 @@ export class Hud {
         <div class="sw-stage">
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
-          <div class="sw-dock sw-dock-left sw-off" id="sw-charpanel" hidden></div>
+          <div class="sw-dock sw-off" id="sw-charpanel" hidden></div>
           <div class="sw-bossbar sw-off" id="sw-bossbar" hidden>
             <div class="sw-bossbar-name" id="sw-bossbar-name"></div>
             <div class="sw-meter sw-bossbar-meter"><i id="sw-bossbar-fill"></i></div>
@@ -436,23 +437,29 @@ export class Hud {
     });
   }
 
-  /** fb076: whether something other than the user's own handle toggle is forcing the right rail shut. */
+  /** fb076/fb157: whether something other than the user's own handle toggle is forcing the right rail shut. */
   private railAutoCollapsed(): boolean {
-    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_;
+    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_ || this.charPanelOpen;
   }
 
   /**
-   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.) and the DPS/
-   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) both dock to `.sw-stage`'s
-   * right edge — collapses the rail whenever either panel is open *or docked*
-   * (code review: the small reopen tab, `.sw-dpsdock`/`.sw-vsdock`, top:8/
-   * top:40 right:0, sits in the same top-right corner as this rail's own
-   * flex-end-aligned handle, so "docked" is not actually clear of it the way
-   * an earlier draft of this comment assumed) so the rail's handle and a
-   * dock's reopen tab never compete for the same click. Called every
-   * `update()` tick, the same "re-derive presentation state from the live
-   * flags every frame" pattern `syncDpsPanelToggle`/`syncVsPanelToggle`
-   * already use just above its call site.
+   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.), the DPS/
+   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) and (fb157) the character
+   * panel all dock to `.sw-stage`'s right edge — collapses the rail whenever
+   * any of them is open *or docked* (code review: the small reopen tab,
+   * `.sw-dpsdock`/`.sw-vsdock`, top:8/top:40 right:0, sits in the same
+   * top-right corner as this rail's own flex-end-aligned handle, so "docked"
+   * is not actually clear of it the way an earlier draft of this comment
+   * assumed) so the rail's handle and a dock's reopen tab never compete for
+   * the same click. fb157 moved the character panel from a full-screen
+   * modal to this same right-edge dock (qa-playtester finding: a first
+   * attempt at docking it to the *left* edge instead collided with the
+   * `#sw-rail-left` Build rail, which already lives there) — it has no
+   * "docked to a small tab" state of its own, so only `charPanelOpen`
+   * matters here, unlike the DPS/VS pair. Called every `update()` tick, the
+   * same "re-derive presentation state from the live flags every frame"
+   * pattern `syncDpsPanelToggle`/`syncVsPanelToggle` already use just above
+   * its call site.
    */
   private syncRailRightVisibility(): void {
     const rail = this.root.querySelector('#sw-rail-right') as HTMLElement | null;
@@ -985,9 +992,14 @@ export class Hud {
    * canvas. fb051 (bug-dps-panel-style): the DPS and VS panels dock to the
    * stage's edge (`.sw-dock`) rather than covering it, so they no longer
    * count here — gameplay stays visible and clickable while either is open.
+   * fb157 gave the character panel the same `.sw-dock` treatment (a
+   * qa-playtester finding on the item itself: this getter still listed it as
+   * blocking from when it was a full-screen `.sw-modal`, which hid the
+   * bottom bar and any live boss banner the instant it opened), so it is
+   * excluded here for the same reason.
    */
   get modalOpen(): boolean {
-    return !this.modal.hidden || !this.charPanelEl.hidden;
+    return !this.modal.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -1255,11 +1267,12 @@ export class Hud {
    * boss-clear gates otherwise have no legible HUD read on fight progress.
    * If more than one boss is alive at once, shows the lower-current-HP one
    * (the fight closer to resolving), per acceptance. Hidden behind
-   * `this.modalOpen` (pause/level-up/results/character panel) the same way
-   * `renderBottomBar` hides `#sw-bottombar` — those overlays are
-   * semi-transparent/blurred, not opaque, so without this the name and HP
-   * fraction would still read through underneath (qa-playtester, fb072
-   * verification).
+   * `this.modalOpen` (pause/level-up/results) the same way `renderBottomBar`
+   * hides `#sw-bottombar` — those overlays are semi-transparent/blurred, not
+   * opaque, so without this the name and HP fraction would still read
+   * through underneath (qa-playtester, fb072 verification). The docked DPS/
+   * VS/character panels (fb051, fb157) are not full-stage, so none of them
+   * hide this banner.
    */
   private renderBossBar(w: World): void {
     let boss: (typeof w.enemies)[number] | null = null;
@@ -1295,12 +1308,12 @@ export class Hud {
    * number for tests, so the fraction asserted there is exactly what paints.
    */
   private renderBottomBar(w: World): void {
-    // The overlays that are still full-stage sheets (pause/level-up/results,
-    // the character panel) hide the bar the same way `openModal`'s own
-    // panel-closing calls avoid stacking under them — painting the bar on top
-    // would float readable HP/gold numbers over what should be an opaque
-    // cover. The docked DPS/VS panels (fb051) are not full-stage, so they
-    // leave the bar showing.
+    // The overlays that are still full-stage sheets (pause/level-up/results)
+    // hide the bar the same way `openModal`'s own panel-closing calls avoid
+    // stacking under them — painting the bar on top would float readable
+    // HP/gold numbers over what should be an opaque cover. The docked DPS/
+    // VS/character panels (fb051, fb157) are not full-stage, so they leave
+    // the bar showing.
     const wasHidden = this.bb.root.classList.contains('sw-off');
     this.bb.root.classList.toggle('sw-off', this.modalOpen);
     if (this.modalOpen) {
@@ -1932,8 +1945,9 @@ export class Hud {
    * fb084: non-blocking — unlike `openModal`'s full-stage overlays, this
    * never covers the canvas or bottom bar, so gameplay stays visible and
    * clickable while it shows. Still hidden behind an actual modal (pause/
-   * level-up/results/character panel) the same way `renderBossBar` is, so it
-   * doesn't bleed through their semi-transparent cover.
+   * level-up/results) the same way `renderBossBar` is, so it doesn't bleed
+   * through their semi-transparent cover; the docked DPS/VS/character
+   * panels (fb051, fb157) are not modals in this sense and do not hide it.
    */
   private renderOnboarding(): void {
     if (!this.onboardingActive || this.modalOpen) {
@@ -2385,6 +2399,10 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const traits = def?.traits ?? [];
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
+    // fb158: the same attack-kind icon/description this file's canvas
+    // renderer draws as a range ring, so a selected enemy's panel and its
+    // on-screen ring can never disagree about what its attack does.
+    ...(def ? [row('Attack', enemyAttackMarkup(def))] : []),
     row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
     // p12b: the tier-scaled number, not the authored one — same convention as
     // the bounty row below. At T3 the two differ by the ladder's coreDamage

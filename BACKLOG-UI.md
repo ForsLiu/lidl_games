@@ -97,17 +97,35 @@ logs a blocker below rather than editing `/data` itself.
       contents match the derived stats — refs: SPEC-FINAL §11, owner feedback
       `ui-character-panel-compact`.
 
-- [ ] (fb158) [feat] indicate each enemy's attack type and range: a small icon
-      near the HP bar per attack kind (melee sword / ranged bow / special:
-      bomber, healer, buffer, burrower, phaser) and, on hover or selection, the
-      attack-range ring (melee reach or ranged distance) plus a one-line
-      description with numbers. Elites/bosses show their special attack ranges
-      when selected. Reads the kind/range fields main-lane `fb155` authors —
-      **blocked on fb155**; do not re-derive them from `traits` in the renderer.
-      Acceptance: every enemy renders its icon; rings render on hover and on
-      select; the Codex enemy pages show the same icon and numbers — refs:
-      SPEC-FINAL §9/§11, owner feedback `ui-enemy-attack-indicators` (render
-      half).
+- [x] (fb158) [feat] **DONE 2026-09-06** — fb155 (main-lane) shipped first, so
+      this is unblocked. Every enemy always shows a small, shape-and-color
+      marker for its `EnemyDef.attackKind` beside its HP bar
+      (`canvas.ts`'s `drawAttackKindIcon`, one row above the DoT/time-mark
+      dots so it never collides with them) — a circle, filled or hollow, at
+      one of two radii and opacities, the (filled,big,faded) triple unique
+      per kind (`attackKindIconShape`, `render/theme.ts`, the single source
+      both the canvas marker and the DOM icon key off). Hovering or
+      selecting an enemy rings its `attackRange` (`drawEnemyAttackRing`); a
+      SELECTED elite/boss additionally rings its `specialRange`, dashed —
+      hover alone never shows the special ring, matching `drawRangeRings`'
+      own hover-vs-selected escalation for a lob tower's min-range preview.
+      New `src/ui/enemy-info.ts` (`enemyAttackDescription`/
+      `enemyAttackIconMarkup`/`enemyAttackMarkup`) is the one place that
+      turns kind+range into the "Melee, 0.8 tiles" line — used by both
+      `hud.ts`'s `enemyInfoMarkup` (a new Attack row) and a new
+      `renderDetail` on the Codex's `enemies` collection
+      (`codex-collections.ts`), so a selected enemy's panel and its Codex
+      page can never disagree. Reads `attackKind`/`attackRange`/
+      `specialRange` straight off `EnemyDef`, never re-derived from
+      `traits`. `tests/fb158-enemy-attack-indicators.test.ts` (10 tests)
+      covers the acceptance line directly: every one of the 20 enemies gets
+      its icon at the right position/shape/color, the hover ring, the
+      select-only special ring (dashed) on an elite and its absence on a
+      non-elite/boss enemy that still authors a `specialRange`, the info
+      panel row, and the Codex `renderDetail` producing byte-identical
+      markup to `enemyAttackMarkup`. `npm run test:fast`: only the
+      pre-existing container-only q15/q45 failures — refs: SPEC-FINAL §9/§11,
+      owner feedback `ui-enemy-attack-indicators` (render half).
 
 - [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
       `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),

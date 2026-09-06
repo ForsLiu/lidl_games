@@ -301,11 +301,16 @@ html, body {
   pointer-events: none;
 }
 
-/* fb157: the character panel docks to the stage's LEFT edge (the DPS/VS
-   panels above already own the right one) instead of the old full-stage
-   `.sw-modal` backdrop — anchored to a corner, never stretching across the
-   centered `.sw-bottombar`, and never blurring/hiding the game underneath. */
-.sw-dock-left { left: 8px; right: auto; }
+/*
+ * fb157: the character panel also docks here, sharing the DPS/VS panels'
+ * right edge and their existing mutual-exclusion (`toggleCharacterPanel`/
+ * `toggleDpsPanel`/`toggleVsPanel` each close the other two) rather than the
+ * old full-stage `.sw-modal` backdrop. qa-playtester caught a first attempt
+ * at docking it to the LEFT edge instead: that collided with `.sw-rail-left`
+ * (the Build rail), which already lives there — the right edge has no such
+ * conflict once `railAutoCollapsed()` (hud.ts) also collapses `.sw-rail-right`
+ * while the character panel is open, the same way it already does for DPS/VS.
+ */
 /* Overrides `.sw-card`'s centered-modal sizing (min-width/text-align) so the
    same shell markup (`dpsPanelShellMarkup`/`vsPanelShellMarkup`) fills the
    docked strip instead of the middle of a full-screen grid. ~85% opacity
@@ -692,6 +697,28 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-runeq-slot:focus-within .sw-eq-tip {
   display: block;
 }
+
+/*
+ * fb158: the DOM half of the enemy attack-kind icon (`enemy-info.ts`'s
+ * `enemyAttackIconMarkup`) — a small circle, filled or hollow, at one of two
+ * sizes/opacities, keyed by `attackKindIconShape` (render/theme.ts) so its
+ * shape can never drift from the in-game canvas marker's own shape for the
+ * same kind. `--atk-color` is set inline per call (one color per
+ * `ATTACK_KIND_COLORS` entry).
+ */
+.sw-atk-icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--atk-color);
+  border: 2px solid var(--atk-color);
+}
+.sw-atk-icon-ring { background: transparent; }
+.sw-atk-icon-big { width: 14px; height: 14px; }
+.sw-atk-icon-faded { opacity: 0.55; }
+.sw-atk-text { vertical-align: middle; margin-left: 4px; }
 
 /* fb022: full effect-text blocks (class/Core detail, equipment detail) — a
    named header plus whatever generic stat/field list the info-format.ts

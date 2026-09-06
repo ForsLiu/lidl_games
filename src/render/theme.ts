@@ -93,6 +93,51 @@ export const ENEMY_COLORS: Record<string, string> = {
 };
 
 /**
+ * fb158 (owner feedback `ui-enemy-attack-indicators`, render half): one
+ * distinct color per `EnemyDef.attackKind` (src/sim/content.ts), for the
+ * small per-enemy attack-kind icon and its range ring. Keyed by the same
+ * seven literal strings the schema authors rather than importing `EnemyDef`
+ * itself, matching `ENEMY_COLORS`'s own loose `Record<string, string>`
+ * keying just above — the icon's *shape* (drawn in canvas.ts) is what
+ * actually distinguishes a kind for a colorblind player; color is a second,
+ * non-load-bearing cue.
+ */
+export const ATTACK_KIND_COLORS: Record<string, string> = {
+  melee: '#e0857a',
+  ranged: '#8fc7e0',
+  bomber: '#ff8a5c',
+  healer: '#7fe0a8',
+  buffer: '#ffd166',
+  burrower: '#a07a5a',
+  phaser: '#c9a8ff',
+};
+
+export interface AttackKindIconShape {
+  /** A solid disc (`fill()`) vs. a hollow ring (`stroke()`). */
+  filled: boolean;
+  /** The larger of the two icon radii this file's canvas icon draws in. */
+  big: boolean;
+  /** Half-opacity, vs. full. */
+  faded: boolean;
+}
+
+/**
+ * fb158: the one place that turns an `attackKind` into a shape — both
+ * `canvas.ts`'s `drawAttackKindIcon` (the in-game marker) and `enemy-info.ts`'s
+ * DOM icon (HUD enemy panel, Codex) key off this, so the two surfaces the
+ * item's acceptance line asks to agree ("the Codex enemy pages show the same
+ * icon") cannot drift apart into showing different shapes for one kind.
+ * Every kind gets a unique (filled, big, faded) triple.
+ */
+export function attackKindIconShape(kind: string): AttackKindIconShape {
+  return {
+    filled: kind === 'melee' || kind === 'bomber' || kind === 'buffer' || kind === 'phaser',
+    big: kind === 'bomber' || kind === 'healer' || kind === 'phaser',
+    faded: kind === 'buffer' || kind === 'burrower' || kind === 'phaser',
+  };
+}
+
+/**
  * Per-source projectile and tracer looks (playtest report, 2026-08-25: "should
  * have different bullet projection animation/sprite for different towers").
  *
