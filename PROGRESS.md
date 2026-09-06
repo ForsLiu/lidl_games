@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05/06 session close (branch `claude/backlog-processing-30e66t`): the
+  owner's cloud-round-1 feedback is routed and six items are done.** In order:
+  the eight feedback files became `fb152`-`fb160` across the main queue and two
+  lanes; then **fb152** (DoT tick cadence), **fb153a** (the global HP/damage
+  rescale), **fb154** (VS spawns from the gates), **fb155** (the enemy attack
+  registry), **fb141** (the STATUS feedback ledger) and **fb140** (CI). Each
+  item's own entry below carries its measurements. Four things a reader picking
+  this up should know:
+
+  1. **Three of the six were owner orders, and two of them measurably moved the
+     balance** — not as a side effect but as the thing the orders asked for.
+     fb152's late DoT kills and fb154's longer walk from the gates add ~13% to
+     run length, and the T1 status snapshot now shows 24 of 88 runs censored at
+     the 45-minute cap where it showed none. That is the p12e tick-cap defect
+     being paid for, recorded in QUESTIONS **Q184** and BALANCE.md, and
+     deliberately not tuned: the orders say re-record, and P10 is the one
+     balance pass.
+  2. **The owner's readability goal is measured as not met by a single factor.**
+     fb153a's /10 rescale is proportional (control pair: outcomes identical,
+     `damageTotal` exactly /10), but typical on-screen hits are median 60 early
+     and 88 late — mid/late is double digits, early is not, and no one factor
+     can do both because `/data` carries two economies. Filed for an owner
+     verdict as **fb163**, with **fb164** for the prose that still quotes
+     pre-rescale numbers.
+  3. **`fb153b` (the bigger map) was measured and split rather than started.**
+     Flipping the grid constants reddens ~85 assertions across 20 files, most of
+     them in the terrain and UI lanes' own suites — filed as `fb166`/`fb167` in
+     those lanes, with the per-file counts.
+  4. **Every item went through code-reviewer and (for the full tier)
+     qa-playtester, and they found real defects every time** — a Burning splash
+     thrown away on carrier death, a 10x Heartstone heal, a Tuner that would
+     have re-divided `/data` on save, spawns landing on top of the player, a
+     boss publishing a slam radius a tile short of its real one, a ledger
+     reporting the wrong backlog item, a CI job that would have committed a
+     STATUS.md measured on a red tree. All fixed before commit; the ones too big
+     for their item are filed (`fb161`, `fb162`, `fb165`).
+
+  `npm run test:fast` ends the session at the same baseline it started from —
+  3 failures, all in the `q41`/`q45`/`q15`/`b028` scratch-dir family that fails
+  identically on the parent commit. `npm run build` and `npx tsc --noEmit` are
+  clean, and STATUS.md is regenerated.
+
 - **2026-09-05 — BACKLOG fb140: CI.** `.github/workflows/ci.yml` runs the fast
   tier plus `npm run build` on every push and pull request across all branches
   (`lane/*` included), and the full suite plus a STATUS.md regeneration nightly
