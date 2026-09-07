@@ -4737,7 +4737,7 @@ logs a blocker below rather than editing `/data` itself.
       test:fast`: 282 passed / 8 skipped files, 4174 passed tests, only the
       pre-existing `q15`/`q45` flake class red.
 
-- [ ] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — the falloff floor makes "each one behind it takes less"
       stop being literally true past a reachable target count. Measured twice,
       identical: `scale = max(0.2, 0.82^(n-1))` clamps at the TENTH body on a
@@ -4754,8 +4754,36 @@ logs a blocker below rather than editing `/data` itself.
       the previous target and the wording stands as-is (QUESTIONS.md is outside
       this lane's Scope, so that half is main-lane) — refs: fb149,
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
+      **DONE 2026-09-07** — took the "wording stands as-is" branch, not the
+      reword: `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`info-format.ts`)
+      are shared constants quoted verbatim by a wide set of pre-existing
+      tests across `tests/ui-fb146-*`, `tests/ui-fb148-*`, `tests/ui-fb149-*`
+      and others (fb146/fb148/fb149's own DONE notes); a wording change would
+      ripple into all of them for a QA-confirmed non-bug, which is a worse
+      cost/benefit trade than logging the reading. The QUESTIONS.md entry
+      itself is filed below in this file's Log (main-lane, out of this
+      lane's Scope to write directly) rather than as a code change here — no
+      source/test edit needed, this item is closed by that Log entry alone.
 
 ## Log
+
+- 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`src/ui/info-format.ts`) say
+  "each one behind it takes less"/"each target past that takes less" —
+  read against the FIRST (full-damage) target's number, not against the
+  previous target's, since `pierceFalloffFloor`/`aoeFalloffFloor`
+  (`data/towers.json`, both 0.2) clamp the per-target scale once
+  `0.82^(n-1)` would otherwise fall below it. Past that clamp (measured:
+  the 10th body on a line, the 14th on a blast/ground curve — both inside
+  one dense pack), every further target takes the SAME reduced amount as
+  the one before it, not a smaller one — "less" stays literally true only
+  against "full damage," not as a claim that damage keeps shrinking
+  target-to-target forever. QA (fb176) explicitly did not call this a
+  bug; recorded here per the item's own acceptance so a future reader (or
+  a future wording pass) doesn't have to remeasure the clamp to learn
+  this. Wording left as-is — see fb176's own DONE note for why a reword
+  wasn't taken instead.
 
 - 2026-09-07, fb174: **skipped this session, not attempted — genuinely
   in-scope but too large for this iteration, by its own acceptance text.**
