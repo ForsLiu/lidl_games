@@ -5,6 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — p12e: the boss-fight timeout blocker, fixed.** Diagnosed root
+  cause confirmed exactly: `baseHpMul: 20` (p12c) applied unconditionally to
+  every enemy, silently 20x-ing `warden_eater`'s already fb099-fitted HP to
+  7.3M effective, inflating boss-fight length enough to censor some T3 runs
+  past the 45-minute gate cap. Fix, pure `/data`: `warden_eater.hp`
+  re-anchored 365000 -> 18250 (÷`baseHpMul`) so the *effective* post-multiplier
+  HP returns to the original 365,000 fb099 fit. Three companion test updates
+  (`tests/boss.test.ts`'s hardcoded literal, `tests/p6e-class-diversity.test.ts`'s
+  G8 diversity pin 2->1, `tests/fb077-terrain-wiring.test.ts`'s seed-52 case
+  un-skipped). Measured: G1 T3/45-min timeouts 2/24 -> 0/24; G14 timeouts 0/20
+  at T1/T3/T5; STATUS.md's 88-run snapshot timeouts 25/88 -> 1/88.
+  qa-playtester's own 72-run probe (3 tiers x 3 policies x 8 seeds) found zero
+  timeouts and every boss kill in a tight 196-243s band regardless of
+  tier/policy — a real fight, not trivialized. code-reviewer approved (two
+  stale-doc comments fixed). p12d is now unblocked. Worked by balance-analyst
+  (the `/data` re-anchor and all measurement) plus the orchestrating session
+  (the three companion test edits, doc fixes, and QA coordination) — see
+  QUESTIONS.md for nothing new logged here (no design ambiguity, the fix was
+  fully determined by measurement).
+
 - **2026-09-06 — fb163: the two-economy owner call, decided (a) — no code or
   `/data` change.** fb163 asked for a verdict among (a) keep one factor and
   accept the coarse character sheet, (b) a second scale factor plus named

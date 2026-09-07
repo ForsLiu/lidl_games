@@ -666,7 +666,32 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+- [x] (p12e) [bug] **DONE 2026-09-07** — root cause confirmed exactly as
+      diagnosed below: `baseHpMul: 20` applied unconditionally to every
+      enemy, silently 20x-ing `warden_eater`'s already fb099-fitted HP to
+      7.3M effective. Fix: `data/enemies.json`'s `warden_eater.hp` re-anchored
+      365000 -> 18250 (÷20) — pure `/data`, no engine change — so the
+      *effective* post-`baseHpMul` HP returns to fb099's original 365,000 at
+      T1. Companion updates: `tests/boss.test.ts`'s hardcoded `365000`
+      literal -> `18250`; `tests/p6e-class-diversity.test.ts`'s G8 diversity
+      pin `distinct.size` 2->1 (the shorter fight moved `time_lord`'s top
+      damage source onto the shared `ballista` build, joining the other 11 —
+      G8's real `>=9/12` target was already red both before and after);
+      `tests/fb077-terrain-wiring.test.ts`'s previously-`.skip`-ed seed-52
+      case un-skipped (now resolves `victory` in ~18 min instead of censored
+      at the 120-min cap). Measured (balance-analyst, fresh HEAD control
+      pairs): G1 T3/45-min-cap timeouts 2/24 -> 0/24; G14 timeouts 0/20 at
+      T1/T3/T5 (was T3-only before); `STATUS.md`'s 88-run T1 snapshot
+      timeouts 25/88 -> 1/88. qa-playtester's own 72-run probe (T1/T3/T5 x
+      maxbuild/hybrid/turtle x 8 seeds, cycles 6, 45-min cap): zero timeout
+      outcomes anywhere, every boss kill in a tight 196.3-242.9s band
+      regardless of tier/policy (comfortably clears G14's >20s floor, win
+      rate well under 100%) — a real, non-trivialized fight. code-reviewer:
+      no Critical/Major (two stale-doc nits fixed: `p12c-hash-magnitude.test.ts`'s
+      comment and `BALANCE.md`'s boss-HP note). qa-playtester: no bugs filed.
+      p12d is now unblocked — G1/G8/G14/G23 measure over 20-24 seeds with zero
+      censored runs, its stated precondition. Original text follows.
+      **Now the blocker for this whole arc** (QUESTIONS Q177),
       and **diagnosed — start from this, not from a fresh sweep.** Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:
