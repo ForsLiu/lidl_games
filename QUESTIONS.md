@@ -778,7 +778,82 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
-- **Q193. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+- **Q193. [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` (Windows)
+  or a repo-relative `inbox/` (any other host — the merge's own platform-check
+  fold-in, since a literal Windows path is a bogus folder name rather than a
+  meaningful path on POSIX) and a repo-relative `replays/` directory
+  respectively, so the owner's real `npm run dev` writes exactly where the
+  feedback text says while every test injects a temp directory
+  (`tests/fb139-bug-report-plugin.test.ts`, `tests/fb139-bug-report-
+  replay.test.ts`) and never touches either path. — Reason: CLAUDE.md's gap
+  rule (fill with the most spec-consistent default and log it) — the
+  alternative, silently substituting a different directory for the default,
+  would mean the owner's own dev server never actually writes where the
+  order says. — (owner verdict: pending)
+
+- **Q194. [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+  appended, written from `feedback/processed/20260903-121255-feature-terrain-
+  generation.md` verbatim plus the `lane/terrain` design decisions already
+  logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
+  and merged by `lane/terrain` before SPEC-FINAL's own §16 reconcile folded
+  Q162/Q171's decisions into QUESTIONS.md, but nobody had appended the
+  section SPEC-FINAL's own §14 G2/§13 references presuppose — §10 still read
+  the pre-terrain fixed 36×20/3-gate map. This item's whole content is the
+  owner's own feedback file plus decisions already owner-approved at Q162/
+  Q171; nothing new is chosen here beyond where the append lands (as §10.5,
+  the id the feedback file itself names) and folding G2's wording/§13's
+  totals to match, both explicitly asked for in the BACKLOG item's
+  acceptance text. — Reason: CLAUDE.md's gap rule and working rule 5 (never
+  stop to ask, choose and log) — the section is marked `[designer-fill]`
+  itself per its own owner-feature tag, so the owner may still veto or
+  reshape it via a later inbox verdict. — (owner verdict: pending)
+  **Merge note (2026-09-07):** this branch and master each wrote §10.5
+  independently from the same feedback file; master's landed version is kept,
+  with two fidelity fixes made at the merge — the quote was still missing its
+  title and `Priority: normal` lines (both present in the source memo), and
+  the character-passage bullet had drifted to claim the shipped default lets
+  the character fly over rock, when `data/terrain.json` and
+  `src/sim/terrain/character.ts`'s own doc comment both confirm the opposite
+  (the vetoed reading shipped, unresolved) — restored to match this branch's
+  own, verified text.
+
+- **Q195. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch).
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way.
+
+- **Q196. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
   measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
   acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
   gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this
@@ -794,4 +869,3 @@ Q91 and Q102 corrections if not yet done.
   reading specifically (e.g. to check whether the tier ladder skews any one
   class's band differently from the rest), that is new work, not implied by
   this one.
-
