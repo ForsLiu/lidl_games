@@ -261,7 +261,6 @@ const NO_FIGURE: readonly { cls: string; slot: Slot; clause: string; why: string
 ];
 
 const CLASSES_TS = 'src/sim/classes.ts';
-const COMBAT_TS = 'src/sim/combat.ts';
 const RUN_TS = 'src/sim/run.ts';
 
 /** p6e — G8's first honest per-class win-rate measurement, PROGRESS.md. */
@@ -375,25 +374,17 @@ const LEDGER: readonly Figure[] = [
     figure: 'applying poison damage every second',
     quote: 'applying\npoison damage every second',
     spec: 1,
-    path: null,
-    slot: 'active1',
-    status: {
-      kind: 'defect',
-      tracked: 'BACKLOG-CONTENT Log, 2026-09-03 session 1 (fb062 scoping) — main lane',
-      site: "updateAreas' poison branch re-applies every tick (60 Hz), not every second",
-      file: COMBAT_TS,
-      anchors: [/if \(a\.type === 'poison'\) \{\s+applyPoison\(w, e, a\.dps \* scale, 1\.0, \d+, a\.source\);\s+\} else \{/],
-      why:
-        'The cadence is not authored anywhere: `ground_poison` has no interval field, and ' +
-        'the barrel re-applies 60x per second. The stack cap of 3 bounds the damage, so this ' +
-        'is a refresh-cadence bug rather than a damage bug — but §4.1 states "every second" ' +
-        'and the sim does not. Fixing it is a `combat.ts` edit, outside this lane. The anchor ' +
-        'spans the whole poison branch, so wrapping the call in an interval gate reddens this ' +
-        'row rather than leaving it claiming a defect that had been fixed.',
-      in: 'active1',
-      absentKey: /interval|cadence|tick|period|every|applySeconds|perSecond/i,
-      knownKeys: ['basicAttack.interval'],
-    },
+    path: ['active1', 'groundTickSeconds'],
+    status: { kind: 'match' },
+    note:
+      'fb082: `updateAreas` (src/sim/combat.ts) used to re-apply poison on every 60 Hz frame ' +
+      'instead of on an authored cadence — the stack cap of 3 bounded the damage, but that is a ' +
+      'different guard from the refresh cadence §4.1 actually states. Fixed by gating the ' +
+      "poison branch on a per-area `tickSeconds` (an accumulator already declared on `GroundArea` " +
+      "but never read), authored here as `groundTickSeconds: 1` rather than left to the engine's " +
+      'own fallback default, per the item\'s own acceptance text. Was tracked as a defect at ' +
+      'BACKLOG-CONTENT Log, 2026-09-03 session 1 (fb062 scoping); closed by fb082 (main lane, ' +
+      '2026-09-07), which is what moved this row from `defect` to `match`.',
   },
   {
     cls: 'plaguebringer',
@@ -1891,7 +1882,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 67 match · 10 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 1 defect', () => {
+  it('census: 68 match · 10 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1907,13 +1898,14 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     for (const f of LEDGER) census[f.status.kind] += 1;
     expect(census).toEqual({
       // p12a moved three ⚖-marked figures match -> retuned (pyromancer
-      // flameDps/burnDps, cryomancer shatterDamage).
-      match: 67,
+      // flameDps/burnDps, cryomancer shatterDamage). fb082 closed the one
+      // remaining defect (Poison Barrel's cadence) as a match.
+      match: 68,
       retuned: 10,
       elsewhere: 1,
       in_code: 8,
       unimplemented: 2,
-      defect: 1,
+      defect: 0,
     });
     expect(LEDGER).toHaveLength(89);
   });
