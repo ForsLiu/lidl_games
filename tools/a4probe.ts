@@ -61,6 +61,17 @@ export function runSingleType(
     // SPEC-FINAL §1.1's real run shape (re-baselined at p3e): 18 TD waves
     // across 6 blocks, not the old single 10-wave Act I.
     cycles: 6,
+    // p12h (BACKLOG.md): fb077 wired generated terrain into every
+    // non-practice run (`src/sim/world.ts`'s `terrainFallback`) without
+    // updating this probe, so it has been measuring solo-tower viability
+    // against a randomly generated maze since — a different, pathing-shaped
+    // question from what this clause is about (can one tower type's damage
+    // output alone out-race the wave curve). `practice: true` disables
+    // terrain generation (a flat arena) the same way `run.world.invulnerable`
+    // below isolates this probe from VS combat viability — the only other
+    // effect of `practice` is gating in-run dev commands this probe's
+    // `BuilderPolicy` never issues, so nothing else about the run changes.
+    practice: true,
   };
   const run = new Run(cfg);
   // Isolate solo-tower TD viability from VS combat viability — P6/P7 are

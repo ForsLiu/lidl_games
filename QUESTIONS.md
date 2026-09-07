@@ -828,3 +828,38 @@ Q91 and Q102 corrections if not yet done.
   reasonably scoped as its own item (or folded into the next `npm run
   status` cadence point, CLAUDE.md's "every ~20 backlog items").
 
+- **Q195. [p12h] First diagnosis (fb025) was wrong; corrected mid-session
+  by code-reviewer's own control run to fb077 (generated terrain wired
+  into the solo-tower probe, never isolated out), fixed at the source
+  instead of retuning `/data`.** A first pass, reasoning by analogy to this
+  exact file's own `b080` entry (which blamed fb025's enemy-HP-x10 pass for
+  an identical-looking `frost_obelisk` collapse), named fb025 as the
+  primary cause of the whole roster's regression, found candidate
+  `data/towers.json` retune values that restored most towers to their
+  authored T1 target, and — reasoning that those same seven towers are the
+  entire roster G1/G8/G14/G23's `hybrid` builds use, so a damage buff risked
+  quietly re-breaking bands this session spent hours verifying live — filed
+  the retune as a separate item (p12i) rather than landing a cross-cutting
+  `/data` change with no verification budget left to re-check it.
+  code-reviewer, asked to verify the closed item, ran its own direct
+  control (not requested — the reviewer's own initiative) and found the
+  real cause: `fb077` ("wire generated terrain into every non-practice
+  `World` run") landed the same day as, but after, a healthy `p11d`
+  reading for this roster, and `tools/a4probe.ts` never set
+  `practice: true` — so the probe had been measuring maze-pathing
+  difficulty, not tower-damage-vs-wave-curve, since that commit, missed by
+  `fb077`'s own blast-radius check. A control run both sides (terrain
+  on/off) reproduced both the regression and the authored target almost
+  exactly. Fixed by adding `practice: true` to `a4probe.ts`'s `RunConfig`
+  (the same isolation `invulnerable` already gives against VS combat) —
+  zero `/data` touched, zero blast radius on G1/G8/G14/G23 (none import
+  `a4probe.ts`). p12i is retired as unnecessary; the "regression" it was
+  chasing was a probe bug. Left for the record: **an LLM's causal-attribution-
+  by-analogy ("this file blamed X before, so X again") is not a substitute
+  for a direct control run even when the prior citation is real and
+  on-topic** — the fb025 citation was true (it did cause a `frost_obelisk`
+  regression once) but did not establish fb025 as *this* regression's
+  cause, and the two extra minutes a control run costs is far cheaper than
+  a wrong item (p12i) that would have spent a real session retuning towers
+  against the wrong diagnosis.
+

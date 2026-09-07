@@ -119,6 +119,75 @@
  * assertion before inheriting it"), the pin is corrected to the honest
  * current reading rather than re-transcribing the stale one. This is an
  * improvement (closer to the 5/5 fb076 retune target), not a regression.
+ *
+ * **p12h (this session) — bisected. Real cause found and fixed; no `/data`
+ * change needed.** The "measured at HEAD, `baseHpMul` at its 1.0 identity"
+ * reading two sections above (qa-playtester, p12c: `{arrow_spire 1, ballista
+ * 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1, mortar 3, venom_spore
+ * 0}` of 5) is the "HEAD-control" this item's own acceptance asks to
+ * reproduce. Re-measured this session with the same isolation technique (a
+ * scratch probe reusing `runSingleType`'s exact config/policy shape, but
+ * constructing `Run` with a `loadContent({ enemies: { ...raw, baseHpMul: 1
+ * } })` override instead of the real one): `{arrow_spire 2, ballista 4,
+ * ember_brazier 0, frost_obelisk 0, tesla_coil 0, mortar 3, venom_spore 0}`
+ * of 5 — close to, not identical to, the qa-playtester reading (further
+ * drift since, not chased further once the real cause below was found,
+ * since it explains the shape of both readings).
+ *
+ * **A first pass named `fb025` (enemy HP x10) as the likely cause, by
+ * analogy to this file's own `b080` entry. That attribution was checked
+ * against a direct control run and found wrong — code-reviewer's own
+ * verification, not just this session's.** The real cause: `fb077`
+ * ("wire the generated terrain into every non-practice `World` run",
+ * `src/sim/world.ts:598`, `this.terrainFallback = this.cfg.practice ? false
+ * : applyRunTerrain(...)`) landed the same day as `p11d`'s own healthy
+ * reading for this roster (`{arrow_spire 5, ballista 5, ember_brazier 5,
+ * frost_obelisk 4, tesla_coil 4, mortar 1, venom_spore 4}`, close to the
+ * authored target) but *after* it — and `tools/a4probe.ts`'s `RunConfig`
+ * never set `practice: true`, so this probe has been measuring solo-tower
+ * viability against a randomly generated maze (a pathing-shaped question)
+ * rather than pure tower-damage-output-vs-wave-curve ever since, unnoticed
+ * because this suite is fast-tier-excluded. `fb077`'s own closing note lists
+ * its blast-radius check (G1/G14/G17 and six hardcoded-tile test files) —
+ * this file/`a4probe.ts` (G13) is not on either list; it was missed. A
+ * direct control run (both sides, per this item's acceptance) confirms it
+ * cleanly: measured with `practice: true` (terrain generation off) at the
+ * same `baseHpMul: 1` isolation, every tower lands within one of the
+ * authored target — `{arrow_spire 5, ballista 5, ember_brazier 5,
+ * frost_obelisk 5, tesla_coil 4, mortar 4, venom_spore 5}` of 5 versus the
+ * authored `{5,5,5,5,4,5,4}` — while the terrain-on reading (matching what
+ * the unfixed probe actually measured) reproduces this session's own
+ * regression numbers almost exactly. Terrain, not enemy HP or any
+ * `data/towers.json` value, was always the actual variable.
+ *
+ * **Fixed at the source, not re-banded: `tools/a4probe.ts`'s `RunConfig`
+ * now sets `practice: true`**, disabling generated terrain the same way
+ * `run.world.invulnerable = true` a few lines below already isolates this
+ * probe from VS combat viability — both are "this clause is about one
+ * thing, not two" isolations, not a data change, and `practice`'s only
+ * other effect (gating in-run dev commands) never fires since this probe's
+ * `BuilderPolicy` issues none. Zero `/data` touched, so — unlike the tower-
+ * damage retune a first draft of this item considered and reverted — this
+ * has no blast radius on `tests/p10d-run-length.test.ts` (G1), `tests/p6e-
+ * class-diversity.test.ts` (G8), `tests/boss.test.ts` (G14) or `tests/
+ * p-core-f-gates.test.ts` (G23): none of those import `tools/a4probe.ts` or
+ * build a tower via its `runSingleType`. The only other consumer,
+ * `tests/p11d-g13-t3-margin.test.ts`, re-verified green (its assertion is a
+ * `<18` tolerance on a T3 near-miss, not an exact wave-count pin, so it
+ * does not care that the underlying number moved).
+ *
+ * This item's own live clause is unaffected either way: it runs against
+ * real `data/enemies.json` (`baseHpMul: 20`), where `p12c`'s deliberate
+ * re-anchor still makes solo T1 clearing structurally impossible (0/5,
+ * confirmed unchanged by a full `npx tsx tools/a4probe.ts` run post-fix) —
+ * that trade is `p12c`'s own, unrelated to this item, and the clause stays
+ * `.skip`-ed exactly as `p12c` left it. The `T1_EXPECTED_CLEARS` table below
+ * is corrected to the fresh, terrain-isolated reading (mortar 5->4, since
+ * that is now the honestly-measured value and this table is purely
+ * informational — the live clause it would feed never runs at
+ * `baseHpMul: 1`). **BACKLOG p12i, filed by a since-corrected first draft of
+ * this item to retune `data/towers.json`, is retired as unnecessary** — see
+ * QUESTIONS Q195's correction.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -156,13 +225,18 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // chains/aoe/range/hp levers all made T3 worse instead of decoupling the
   // two) — pinned at their highest T1-improving value that still holds T3.
   // See BACKLOG fb076 for the full lever history.
+  // p12h (this session): `mortar` corrected 5->4. Purely informational —
+  // see the file header's p12h entry — this table is never compared against
+  // a live run at real `baseHpMul: 20` (structurally 0/5 regardless), only
+  // read by the `.skip`-ed cases directly below, kept for whoever
+  // re-enables them once `baseHpMul` isn't the blocker.
   const T1_EXPECTED_CLEARS: Record<string, number> = {
     arrow_spire: 5,
     ballista: 5,
     ember_brazier: 5,
     frost_obelisk: 5,
     tesla_coil: 4, // coupling wall vs. T3 — see comment above
-    mortar: 5,
+    mortar: 4, // p12h: was 5; terrain-isolated re-measurement reads 4 — not chased further, see file header
     venom_spore: 4, // coupling wall vs. T3 — see comment above
   };
   // **p12c: this whole clause is red, and it is the largest cost of §C's T1

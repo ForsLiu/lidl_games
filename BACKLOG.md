@@ -841,7 +841,43 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       Q177's retraction. The real blocker the correction exposed is the tick
       cap, which is **p12e**'s, not a new item's.
 
-- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+- [x] (p12h) [bug] **DONE 2026-09-07 — bisected, real cause found, fixed at
+      the source; no `/data` retune needed** (QUESTIONS Q195, corrected mid-
+      session; full write-up in `tests/a4-single-type.test.ts`'s own dated
+      p12h entry). Reproduced the HEAD-control reading (`baseHpMul: 1`-
+      isolated probe): `{arrow_spire 2, ballista 4, ember_brazier 0,
+      frost_obelisk 0, tesla_coil 0, mortar 3, venom_spore 0}` of 5.
+      **A first pass named `fb025` (enemy HP x10) as the cause by analogy;
+      code-reviewer's own control run disproved it.** The real cause:
+      `fb077` ("wire generated terrain into every non-practice `World`
+      run", `src/sim/world.ts:598`) landed the same day as, but after,
+      `p11d`'s healthy reading for this exact roster — `tools/a4probe.ts`'s
+      `RunConfig` never set `practice: true`, so this probe has been
+      measuring solo-tower viability against a randomly generated maze
+      (a pathing question) instead of pure damage-vs-wave-curve ever since,
+      missed by `fb077`'s own blast-radius check (which named G1/G14/G17 and
+      six other test files, not this one) because this suite is fast-tier-
+      excluded. A direct control run both sides confirms it cleanly:
+      `practice: true` (terrain off) reads `{5,5,5,5,4,4,5}` of 5 against the
+      authored `{5,5,5,5,4,5,4}` — within one on `mortar` only — while
+      terrain-on reproduces this session's regression numbers almost
+      exactly. **Fix applied: `tools/a4probe.ts`'s `RunConfig` now sets
+      `practice: true`**, the same isolation `run.world.invulnerable = true`
+      already gives this probe against VS combat. Zero `/data` changed, so
+      zero blast radius on G1/G8/G14/G23 (none of those import
+      `tools/a4probe.ts`); the only other consumer,
+      `tests/p11d-g13-t3-margin.test.ts`, re-verified green (its assertion
+      is a `<18` tolerance, not an exact pin). This item's own live clause
+      is unaffected either way — `p12c`'s `baseHpMul: 20` still makes real
+      T1 solo-clearing structurally impossible, that trade is unrelated and
+      unchanged, clause stays `.skip`-ed exactly as `p12c` left it; only the
+      informational `T1_EXPECTED_CLEARS` table's `mortar` cell (5->4) and
+      the HEAD-control comparison prose were corrected to the fresh,
+      terrain-isolated numbers. **BACKLOG p12i, filed by the since-corrected
+      first draft of this item to retune `data/towers.json`, is retired
+      below as unnecessary** — the "regression" it was chasing was a probe
+      bug, not an undertuned roster. Original text follows.
+      G13's solo-viability clause (`tests/a4-single-type.test.ts`)
       was **already largely red before p12c**, and nobody had measured it.
       Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
       identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
@@ -858,6 +894,15 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the causing change identified by name with a control run either side,
       and the clause either green or re-banded with the measurement — refs:
       SPEC-FINAL §14 G13, `tests/a4-single-type.test.ts`'s own header history.
+
+- [x] (p12i) **RETIRED, not done, same session as filed.** Filed by a
+      since-corrected first draft of p12h on the mistaken premise that
+      `data/towers.json` was undertuned against `fb025`'s enemy-HP pass.
+      Code-reviewer's control run found the real cause was `tools/
+      a4probe.ts` measuring against generated terrain since `fb077` (a probe
+      bug, not a balance gap) — fixed directly in p12h (`practice: true`),
+      which restored near-full solo-T1 viability with zero `/data` change.
+      Nothing here to retune. See p12h and QUESTIONS Q195.
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any
