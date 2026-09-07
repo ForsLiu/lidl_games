@@ -11,12 +11,12 @@
  * tightest number in the ledger (1.93-2.09 over 28 observations) and the only
  * one calibration-free on both sides — but **under load it is not a band at
  * all**, because a population of two retry seeds has no averaging while the
- * 1498-seed plain population it is divided by does. QA had already measured it
+ * 1500-seed plain population it is divided by does. QA had already measured it
  * at 9.1, 12.7 and 16.6 under 12- and 24-way contention. The inference drawn
  * then was that contention can only inflate a raw timing, so a one-sided
  * `> 1.5` floor is a claim noise cannot manufacture a failure for. The runner
  * disproved that half: contention inflates the *denominator* too, and there it
- * has 1498 seeds to work on rather than two, so the ratio can fall as readily
+ * has 1500 seeds to work on rather than two, so the ratio can fall as readily
  * as rise. Same rule as the a10/p10e/q13 family — a ratio of two independent
  * timing measurements does not survive contention, whichever side is noisier —
  * and the same remedy, since lowering a floor of 1.5 against a measured 2.0
@@ -54,7 +54,7 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     // sides are wall clock in the same process, so the host cancels exactly and
     // no calibration enters — which matters because a normalised ratio has
     // contention in its *denominator* too, and the plain population averages
-    // that away over 1498 seeds while a population of two cannot. With
+    // that away over 1500 seeds while a population of two cannot. With
     // normalisation in, this assertion failed 5 times in 10 contended runs
     // (0.83x, 1.11x). Calibration-free against the median: 1.994 / 2.011 idle,
     // 1.95-2.03 at 6-way, 1.978-2.044 at 12-way — 20 observations in

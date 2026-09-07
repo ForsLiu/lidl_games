@@ -53,14 +53,14 @@
  * another, and on the GitHub runner it read **1.2x against its 1.5x floor**
  * and went red. Its own `MEASURED.retryOverPlain` note already said why — a
  * population of two has no averaging, so contention does not divide out of it
- * the way it does out of the 1498-seed plain population it is compared against
+ * the way it does out of the 1500-seed plain population it is compared against
  * — and it is the same class as `a10`, `p10e` and `q13`. It lives in
  * `tests/terrain-cost-retry-ratio.test.ts` and runs single-threaded under
  * `vitest.perf.config.ts`; the sweep both files drive is now
  * `tests/terrain-cost-ledger.ts`, imported by each.
  *
  * What stays here is everything whose bound is either deterministic (the
- * attempts ledger) or taken against the *same run's own* mean over 1498 seeds,
+ * attempts ledger) or taken against the *same run's own* mean over 1500 seeds,
  * where contention moves numerator and denominator together. That includes the
  * anti-vacuity case at the bottom, whose floor of 4 sits against a measured
  * ~9.5x — a different order of headroom from the 1.5-against-2.0 that failed.
@@ -94,7 +94,10 @@ import {
 describe('fb064z — the cost of a generated map, sampled across the seed domain', () => {
   it('samples the domain, and every sampled seed is a real generated map', () => {
     const { byAttempts, fellBack } = runLedger();
-    expect(SAMPLE_N).toBe(1500);
+    // fb166: 1502, not 1500 — two named retry witnesses were added to
+    // `SAMPLE` (see its own doc comment) since the domain comb alone no
+    // longer reliably contains a retry-taking seed at this grid size.
+    expect(SAMPLE_N).toBe(1502);
     expect([...byAttempts.values()].reduce((a, b) => a + b, 0)).toBe(SAMPLE_N);
     // The comb must not run off the top of the domain and be silently filtered
     // away, which would leave a smaller sample wearing the same name.
@@ -117,8 +120,10 @@ describe('fb064z — the cost of a generated map, sampled across the seed domain
     const worst = Math.max(...byAttempts.keys());
 
     // The numbers, named so a regression is a diff rather than a hunt. They are
-    // a property of *this sample* — 1500 of ~4.29e9 seeds, 0.000035% of the
-    // domain — not of the domain, exactly as fb064r says of its own 12,000.
+    // a property of *this sample* — 1502 of ~4.29e9 seeds, 0.000035% of the
+    // domain, two of them named witnesses rather than comb finds (see
+    // `SAMPLE`'s doc comment) — not of the domain, exactly as fb064r says of
+    // its own 12,000.
     expect(retries.length, `retry-taking seeds in ${SAMPLE_N}`).toBe(MEASURED.retryCount);
     expect(retries.map(([s]) => s).sort((a, b) => a - b)).toEqual(
       [...MEASURED.retrySeeds].sort((a, b) => a - b),

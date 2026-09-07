@@ -408,28 +408,35 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // fb064c can *place* it. Until then a seed may legally strand it, and the
     // grid must say so rather than paper over it.
     //
-    // Measured over seeds 1..5000: two seeds strand it — 4426 and 4515, about
-    // 1 run in 2500. Seed 4426 is pinned by name below as fb064c's fixture.
-    // The *count* over this window is deliberately a bound, not a golden: it
-    // moves on any density or `blob` retune (fb064f puts both under live Tuner
-    // editing) with no bug behind it, which is the trap this lane already fell
-    // into twice — see BACKLOG-TERRAIN.md on `walkableFrac` headroom and the
-    // `paint()` timing bound.
+    // fb166 (56x32; was 36x20): measured over seeds 1..5000 — **zero** strand
+    // it at this window size, down from two (4426 and 4515, about 1 in 2500)
+    // at 36x20. Widened to a 500,000-seed incrementing scan (seeds 1, 2, 3,
+    // ...) to find any witness at all: **22 seeds strand it, about 1 in
+    // 22,700** — 20336, 85305, 103917, 158937, 174814, 175115, 230183, 234159,
+    // 249065, 249403, 259782, 275660, 277916, 288525, 306483, 319983, 361364,
+    // 390729, 401785, 420735, 446280, 481343. Seed 20336 is pinned by name
+    // below as this lane's replacement fixture for fb064c's (4426 no longer
+    // strands the Core at this grid size). The *count* over this window is
+    // deliberately a bound, not a golden: it moves on any density or `blob`
+    // retune (fb064f puts both under live Tuner editing) with no bug behind
+    // it, which is the trap this lane already fell into twice — see
+    // BACKLOG-TERRAIN.md on `walkableFrac` headroom and the `paint()` timing
+    // bound.
     //
-    // fb064l re-measured it against a control instead of inheriting it, and
-    // the control is worth recording: at `density.jitter: 0` — fb064a's
-    // generator exactly — the same sweep still reports 4 seeds (97, 2055,
-    // 2845, 3098), so the per-seed density budgets *lowered* the stranding
-    // rate rather than raising it. Worth checking rather than assuming: a
-    // wider rock budget was the obvious way to seal the legacy Core off, and
-    // the number went the other way.
+    // fb064l's jitter-off control (four named seeds at `density.jitter: 0`
+    // over this same 1..5000 window) was not re-derived for fb166 — the
+    // window itself now finds nothing to compare against, and re-deriving an
+    // equivalent control over the wider 500,000-seed scan was out of this
+    // item's time budget. Flagged here and in `BACKLOG-TERRAIN.md` as
+    // unfinished measurement.
     //
     // A first pass measured this on the raw generated map instead of on the
-    // Grid and read 434/5000. That is a different question with a different
-    // answer: `Grid` keeps the Core's own 2x2 unblocked whatever the terrain
-    // says (see `legalCoreAnchors`), so the map-level count is dominated by
-    // seeds that merely scatter rock *onto* the Core footprint. What strands
-    // the Core in the game is the ring around it, which is what this measures.
+    // Grid and read 434/5000 at 36x20 (not re-derived at 56x32). That is a
+    // different question with a different answer: `Grid` keeps the Core's own
+    // 2x2 unblocked whatever the terrain says (see `legalCoreAnchors`), so the
+    // map-level count is dominated by seeds that merely scatter rock *onto*
+    // the Core footprint. What strands the Core in the game is the ring
+    // around it, which is what this measures.
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
