@@ -18147,6 +18147,77 @@ logs a blocker below rather than editing `/data` itself.
       --noEmit` clean; `npm run test:fast` otherwise unchanged (only the
       pre-existing `q15`/`q45` flake class red). No `/data` change.
 
+- [x] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
+      the measured form of fb149's kind-classification guard. fb149 ships a
+      DECLARED table (`DECAYS`/`PATCH`/`FLAT` in
+      `tests/ui-fb149-falloff-wording.test.ts`) plus an exhaustiveness check,
+      so a NEW `ClassEffect` kind fails until someone classifies it — but a
+      MISCLASSIFIED existing one reads clean, which is exactly how fb149's own
+      first pass missed `ground_poison` and `dash_trail`. The reviewer's ask is
+      the measured form: probe each damaging kind with `aoeFullTargets + 3`
+      pinned enemies and require the clause IFF the measured per-target
+      damages are not all equal. It was scoped out of fb149 because it needs a
+      per-kind firing harness — charges (`tickClassCharge`), stored Wrath,
+      ground-field ticking through `updateAreas`, summon lifetimes — well
+      beyond one wording item. Acceptance: a table-free guard that fires every
+      Active of every class through its own required setup, measures the
+      per-target profile, and asserts the presence or absence of a falloff
+      clause from that measurement alone; the declared tables are deleted, and
+      a deliberately misclassified kind (not just a new one) reddens it —
+      refs: fb149, fb146, fb148. **DONE 2026-09-07** — new
+      `tests/ui-fb174-measured-falloff-guard.test.ts` (24 kind-slots — 12
+      classes x 2 Actives, exactly one Active per shipped kind). Two
+      refinements on a literal "not all equal" reading, both found by
+      reading every `fire*` handler in `src/sim/classes.ts` rather than
+      guessing from kind names: (1) filters to only STRUCK (damage > 0)
+      targets before comparing — a limited-hit-COUNT kind (`dash_volley`'s
+      three fixed-nearest-target shots) would otherwise misread as
+      "decaying" purely because the untouched majority reads zero; (2)
+      requires a genuine adjacent DECREASE among struck targets in strike
+      order, not mere inequality — `chain_lightning`'s per-jump damage
+      GROWS (`base * (1+growth)^jump`, its own sentence already says so
+      with no clause needed), and a naive "not all equal" reading would
+      wrongly demand a clause for a kind that never takes LESS, the one
+      thing every shipped clause claims. `FIRE_RECIPES` names the seven
+      kinds needing a firing recipe beyond a bare Command — six mirror
+      `ui-fb149-falloff-wording.test.ts`'s own working setups (charge hold/
+      release, banked Wrath, a ground-field tick); the seventh,
+      `chain_lightning`, was added while writing this file: a tight-cluster
+      placement (reused from the other point/blast kinds) measured a false
+      decay, traced to Electric's own inherent small-AoE splash
+      (`damagetypes.ts`, 0.8-tile radius) from each primary jump reaching
+      neighboring probes — fixed with a wide-spaced (2.5-tile) line
+      placement isolating the primary-jump-only signal, confirmed by
+      printing the raw struck array before and after (a symmetric
+      rise-then-fall bell curve under the cluster; a clean monotonic rise
+      once isolated). The other seventeen kinds fire through one generic
+      recipe; most deal literally zero direct damage on cast (heals,
+      summons, wall placement, taunts, buffs) — a real, meaningful "flat"
+      reading (0 = 0 = ... = 0) given their real acceptance-relevant
+      property IS that the cast itself hits nothing to compare, not a
+      cop-out. "A deliberately misclassified kind (not just a new one)
+      reddens it" is satisfied two ways: a standalone unit test of the
+      comparison function (`classificationMismatch`) against synthetic
+      decaying/flat arrays paired with mismatched hedged/unhedged text
+      (permanent, always-run); and, as a one-time verification (not
+      shipped, `class-info.ts` hardcodes each kind's clause into ~24
+      separate template-literal functions with no single runtime table to
+      inject a wrong value into permanently) — removed
+      `LINE_FALLOFF_CLAUSE` from `dash_line`'s real sentence, re-ran, the
+      full-roster test reddened naming exactly `swordsman active2
+      (dash_line)`, reverted (`git diff -- src/` confirmed clean); repeated
+      in the other direction, adding `AOE_FALLOFF_CLAUSE` to the currently-
+      flat `overload` sentence, reddened naming `stormcaller active2
+      (overload)`, reverted. `tests/ui-fb149-falloff-wording.test.ts`'s old
+      `DECAYS`/`FLAT` describe block (and its two tests) deleted entirely,
+      not moved — everything else in that file (the per-mechanism
+      measurements, the specific line/blast/patch clause-wording checks,
+      the clause-text pins) is a distinct concern and is untouched. Two
+      full-tier review rounds (code-reviewer, qa-playtester) — see this
+      item's own follow-up log entries for anything either found. `npx tsc
+      --noEmit` clean; `npm run test:fast`: only the pre-existing `q15`/
+      `q45` flake class red. No `/data` change.
+
 ## Log
 
 - 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane

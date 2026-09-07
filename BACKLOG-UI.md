@@ -71,25 +71,6 @@ not already expose it) logs that need below instead of reaching into
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
 
-- [ ] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
-      the measured form of fb149's kind-classification guard. fb149 ships a
-      DECLARED table (`DECAYS`/`PATCH`/`FLAT` in
-      `tests/ui-fb149-falloff-wording.test.ts`) plus an exhaustiveness check,
-      so a NEW `ClassEffect` kind fails until someone classifies it — but a
-      MISCLASSIFIED existing one reads clean, which is exactly how fb149's own
-      first pass missed `ground_poison` and `dash_trail`. The reviewer's ask is
-      the measured form: probe each damaging kind with `aoeFullTargets + 3`
-      pinned enemies and require the clause IFF the measured per-target
-      damages are not all equal. It was scoped out of fb149 because it needs a
-      per-kind firing harness — charges (`tickClassCharge`), stored Wrath,
-      ground-field ticking through `updateAreas`, summon lifetimes — well
-      beyond one wording item. Acceptance: a table-free guard that fires every
-      Active of every class through its own required setup, measures the
-      per-target profile, and asserts the presence or absence of a falloff
-      clause from that measurement alone; the declared tables are deleted, and
-      a deliberately misclassified kind (not just a new one) reddens it —
-      refs: fb149, fb146, fb148.
-
 ### Blocked out of Scope
 
 - [ ] (fb085) [feat] low priority: **BLOCKED out of Scope 2026-09-07 — this
@@ -241,6 +222,7 @@ archive normally.
 
 ### Recently completed
 
+- (fb174) [polish] **DONE 2026-09-07** — the measured form of fb149's kind-classification guard: fires every Active, measures the real per-target damage, derives the falloff clause from that alone.
 - (fb097) [feat] **DONE 2026-09-07** — dev-profile-only frame-sequence capture: 6 canvas frames on a fixed 500ms interval, bundled into one downloadable ZIP.
 - (fb093) [polish] **DONE 2026-09-07** — ultrawide/narrow HUD safe-area audit coverage: a real-Chromium test at 2560x1080 and 1024x1280 checking zero hud-overlap and no offscreen critical control.
 - (fb176) [polish] **DONE 2026-09-07** — the falloff floor makes "each one behind it takes less" stop being literally true past a reachable target count.
@@ -250,6 +232,5 @@ archive normally.
 - (fb171) [bug] **DONE 2026-09-07** — a run that STARTS hidden was never auto-paused.
 - (fb170) [bug] **DONE 2026-09-07** — hiding the tab paused but did not flush the persisted run.
 - (fb169) [polish] **DONE 2026-09-07** — "Reset settings to defaults" re-buried the OS reduced-motion preference.
-- (fb177) [feat] **DONE 2026-09-07** — per-tower attack projectile/beam visuals: every tower type gets a distinct registered VFX entry.
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.
