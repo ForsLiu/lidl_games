@@ -23,7 +23,7 @@ the merge — never edited from this lane.
 
 ## Queue
 
-- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+- [x] (fb166) [feat] the terrain half of the owner's bigger-map order
       (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
       the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
       that has to move with it — `data/terrain.json`'s constraint bands

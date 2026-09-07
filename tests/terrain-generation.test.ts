@@ -947,8 +947,9 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
       expect(m.fallback || legalUnder(m, wild), `seed ${s}`).toBe(true);
     }
     // fb166: re-measured at 56x32 (measured 158 over 1..1000; was 260 at
-    // 36x20).
-    expect(retries).toBeGreaterThan(50);
+    // 36x20). Bound kept at comparable sensitivity to the old ~2.6x margin
+    // (code review, fb166) rather than widened just because the count fell.
+    expect(retries).toBeGreaterThan(75);
     expect(retries).toBeLessThan(500);
     // The fallback really is reachable at this setting, and deterministically
     // so — the one seed found scanning 1..300,000 for it (fb166; was three

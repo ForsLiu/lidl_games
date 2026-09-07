@@ -11,7 +11,7 @@
  * tightest number in the ledger (1.93-2.09 over 28 observations) and the only
  * one calibration-free on both sides — but **under load it is not a band at
  * all**, because a population of two retry seeds has no averaging while the
- * 1500-seed plain population it is divided by does. QA had already measured it
+ * 1502-seed plain population it is divided by does. QA had already measured it
  * at 9.1, 12.7 and 16.6 under 12- and 24-way contention. The inference drawn
  * then was that contention can only inflate a raw timing, so a one-sided
  * `> 1.5` floor is a claim noise cannot manufacture a failure for. The runner
