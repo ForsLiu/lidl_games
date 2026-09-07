@@ -108,6 +108,11 @@ function splitByPhase(rows: Row[]): { td: Row[]; vs: Row[] } {
   return { td, vs };
 }
 
+function singlePhaseListHtml(rows: Row[]): string {
+  if (rows.length === 0) return '<p class="sw-note dim">No effect.</p>';
+  return `<ul class="sw-statlist">${rows.map((r) => `<li>${r.text}</li>`).join('')}</ul>`;
+}
+
 function phaseListsHtml(rows: Row[]): string {
   const { td, vs } = splitByPhase(rows);
   const tdHtml =
@@ -120,6 +125,25 @@ function phaseListsHtml(rows: Row[]): string {
       : '';
   if (!tdHtml && !vsHtml) return '<p class="sw-note dim">No effect at this step.</p>';
   return tdHtml + vsHtml;
+}
+
+/**
+ * fb117: the Core-select screen's per-phase hover tooltip body — just the TD
+ * (or VS) half of a Core's base `effects`, split the same way `phaseListsHtml`
+ * does for the combined view, so the "TD effect"/"VS effect" hover entries
+ * each show only their own numbers rather than both phases at once.
+ */
+export function coreBaseEffectMarkup(def: CoreDef, phase: 'td' | 'vs'): string {
+  const rows = rowsFor(def.effects ?? {}, {});
+  const { td, vs } = splitByPhase(rows);
+  return singlePhaseListHtml(phase === 'td' ? td : vs);
+}
+
+/** fb117: one upgrade step's hover tooltip body, split by TD/VS same as the base effect. */
+export function coreStepEffectMarkup(def: CoreDef, stepIndex: number): string {
+  const step = def.upgrade.steps?.[stepIndex];
+  if (!step) return '<p class="sw-note dim">No further upgrades.</p>';
+  return phaseListsHtml(rowsFor(step, {}));
 }
 
 /**

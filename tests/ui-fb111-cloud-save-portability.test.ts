@@ -16,6 +16,14 @@
  *  - `stonewake.settings.v1` (`settings.ts`);
  *  - `stonewake.runinprogress.v1` (`runpersist.ts`).
  *
+ * fb172 added a fifth `saveslots.ts` key, `stonewake.saveflushmark.slotN.v1`
+ * — deliberately NOT audited here alongside the pointer: it is internal
+ * bookkeeping (this module's own "what did I last flush" record), never a
+ * cloud-save-portable representation of player data, and a provider is not
+ * expected to sync it at all. It falls outside the `stonewake.save.slot`
+ * prefix the round-trip test below matches specifically so it is never
+ * mistaken for one.
+ *
  * "A different machine" is modelled the way it actually bites: the write
  * happens under one `Date.now()` (and one `Intl` locale/timezone), the read
  * happens under a wildly different one, with nothing carried across but the
@@ -36,6 +44,7 @@ import {
   SAVE_SLOT_COUNT,
   ensureActiveSlotMigrated,
   getActiveSlot,
+  saveMetaToActiveSlot,
   switchToSlot,
 } from '../src/ui/saveslots';
 import { emptyInput } from '../src/sim/types';
@@ -237,11 +246,20 @@ describe('fb111: cloud-save portability of every lane-owned localStorage blob', 
   it('round-trips the fb096 slot mirror keys and the active-slot pointer', () => {
     const slotMetas = [richMeta(), { ...richMeta(), skillPoints: 3 }, { ...richMeta(), highestTier: 5 }];
     onMachine(CLOCK_A, () => {
+      // The pre-slots legacy save `ensureActiveSlotMigrated` folds into slot
+      // 1 (same pattern `ui-fb096-save-slots.test.ts`'s own migration test
+      // uses) — everything after this point goes through the real save path
+      // (`saveMetaToActiveSlot` + a `reload()`/`ensureActiveSlotMigrated()`
+      // after each switch, matching the reload every real switch gets —
+      // `hub.ts`, fb100) rather than a bare `saveMeta` fb172 now treats as an
+      // untracked, possibly-foreign write to the slot it would otherwise
+      // silently flush over.
       saveMeta(slotMetas[0] as MetaState);
       ensureActiveSlotMigrated();
       for (let slot = 1; slot < SAVE_SLOT_COUNT; slot++) {
         switchToSlot(slot);
-        saveMeta(slotMetas[slot] as MetaState);
+        ensureActiveSlotMigrated();
+        saveMetaToActiveSlot(slotMetas[slot] as MetaState);
       }
       switchToSlot(0);
     });

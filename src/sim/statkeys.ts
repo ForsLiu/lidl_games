@@ -55,6 +55,8 @@ export const STAT_KEYS = [
   'bleedLifesteal',
   /** fb042 (§6.3, Q146): a one-time addition to `content.waves.startGold` at World construction — the additive, non-compounding replacement for the retired Ember/relic Constellation nodes' dead stats. */
   'startingGold',
+  /** fb083 (§2, §4.2, QUESTIONS Q163): a towers-only Area, the same split `towerRange`/`charRange` already made for Range — `area` alone is the character's own kit (`classArea`, classes.ts) and every §5 tower/wielded-attack radius shared it, so a "towers" passive (Animist's Wide Grove) or a tower-side mechanic (Time Lord's Chronal Surge) authored on the bare `area` key widened the caster's own Actives too, never the intent of either. `effectiveTowerRange`/`effectiveTowerAoe` and `fireTower`'s own local `area` alias (towers.ts) read this instead of `area`; `vswield.ts`'s wielded-attack radii deliberately keep reading the character's own `area`/`charRange` per its own §6.1 "rides the character's stats" doc comment. */
+  'towerArea',
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -71,6 +73,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   power: 'mul',
   attackSpeed: 'mul',
   area: 'mul',
+  towerArea: 'mul',
   moveSpeedPct: 'mul',
   maxHpPct: 'mul',
   pickupPct: 'mul',
@@ -144,6 +147,7 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
   power: 'percent',
   attackSpeed: 'percent',
   area: 'percent',
+  towerArea: 'percent',
   moveSpeedPct: 'percent',
   maxHpPct: 'percent',
   pickupPct: 'percent',
@@ -236,6 +240,7 @@ export const STAT_SCALED: Record<StatKey, boolean> = {
   power: false,
   attackSpeed: false,
   area: false,
+  towerArea: false,
   moveSpeedPct: false,
   maxHpPct: false,
   pickupPct: false,

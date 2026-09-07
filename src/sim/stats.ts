@@ -258,6 +258,8 @@ export interface Derived {
   powerMul: number;
   attackSpeedMul: number;
   areaMul: number;
+  /** fb083 (§2, Q163): towers-only Area — `towers.ts`'s `effectiveTowerRange`/`effectiveTowerAoe`/`fireTower`'s own local `area` alias read this, never `areaMul`, so a "towers" passive (Wide Grove) or tower-side mechanic (Chronal Surge) authored on `towerArea` cannot also widen the caster's own kit. `vswield.ts` deliberately keeps reading `areaMul` (§6.1: wielded attacks ride the character's own stats). */
+  towerAreaMul: number;
   cdr: number;
   pickupRadius: number;
   luck: number;
@@ -365,6 +367,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     powerMul: s.factor('power'),
     attackSpeedMul: s.factor('attackSpeed'),
     areaMul: s.factor('area'),
+    towerAreaMul: s.factor('towerArea'),
     cdr: Math.min(BASE.cdrCap, s.total('cdr')),
     pickupRadius: Math.max(0.25, safeScale(BASE.pickupRadius, s.factor('pickupPct'))),
     luck: s.total('luck'),

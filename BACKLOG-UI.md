@@ -28,6 +28,18 @@ not already expose it) logs that need below instead of reaching into
 
 ## Queue
 
+- [ ] (fb181) [polish] token economy (fb178, main lane): this file is well
+      past the 400-line budget fb178 set for live backlog files. Move every
+      `[x]` item to `docs/BACKLOG-DONE.md` under a `## BACKLOG-UI.md`
+      section, in original order, keeping only open/blocked items and the
+      last 10 done ids inline. `tools/status.ts`'s `backlogPaths()` already
+      reads `docs/BACKLOG-DONE.md` (fb178), so a feedback citation moved
+      there stays in STATUS.md's ledger — verify with
+      `npx vitest run tests/fb038-status.test.ts` after. Acceptance: this
+      file under ~400 lines; every open/blocked item's full text unchanged;
+      `npm run test:fast` green — refs: feedback/feature-token-economy.md,
+      BACKLOG.md fb178.
+
 - [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
       `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
       going **36x20 -> 56x32**, the whole arena no longer fits a screen at a
@@ -4195,7 +4207,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` `tools/fuzz-command-domain` flake class red
       — refs: SPEC-FINAL §4.1
       (Swordsman combo), §11 (indicators).
-- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
+- [x] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
       heart, corpse pile, time monolith); selecting one fills the bottom panel
@@ -4204,10 +4216,54 @@ logs a blocker below rather than editing `/data` itself.
       numbers pulled from `/data`; locked Cores render greyed with their
       unlock condition shown (owner feedback
       `feedback/processed/20260904-162645-feature-core-select-ui.md`).
-      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
-      render; a test asserts hover text numbers equal `/data` values; locked
-      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
-- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+      **DONE 2026-09-07** — new `src/ui/core-select.ts` (`coreSelectSummaryMarkup`
+      for the always-visible base HP/upgrade-track line, `coreSelectEffectsMarkup`
+      for the hover-only TD effect/VS effect/per-step entries), reusing fb058's
+      `.sw-classrow`/`.sw-classcard`/`.sw-classcard-art`/`.sw-classskills`/
+      `.sw-cs-skill`/`.sw-cs-tip` CSS verbatim (nothing class-specific in those
+      rules) rather than duplicating them — `hub.ts`'s Core panel now renders
+      the same tall-card layout as the Class panel instead of the old
+      `.sw-choices` list, which is deleted from `style.css` (no other
+      reference existed). `core-info.ts` gains `coreBaseEffectMarkup`/
+      `coreStepEffectMarkup` exports for the per-phase/per-step tooltip
+      bodies; `coreDetailMarkup`/`coreLiveMarkup` untouched (still used by a
+      unit test and the in-run tooltip respectively). Locked-card handling
+      (disabled attribute, no click listener, unlock-condition text) carried
+      over unchanged from the prior list-based markup. New
+      `tests/ui-fb117-core-select.test.ts` (7 tests): card count/lock-state,
+      summary content against live `/data`, click-to-select for both locked
+      and unlocked cards, and hover-entry content/count for both a
+      single-effects-dimension Core (Stone Heart) and a two-phase one
+      (Carnivorous Plant). code-reviewer **APPROVE** (no Critical/Major; one
+      Minor noting `coreDetailMarkup` is now UI-dead code kept alive only by
+      its own unit test — left as-is, still meaningfully testing the combined
+      base+steps view; one Nit on `steps.length < upgrade.count`, a
+      pre-existing schema allowance no current `/data/cores.json` entry hits).
+      qa-playtester **PASS**: independently re-verified all four acceptance
+      lines, adversarially probed a Core with absent `effects`, a Core with
+      zero/omitted upgrade steps, spam-clicking every locked card in a row
+      (selection never moves), an `unlockedCores` save omitting the default
+      Core (`defaultCoreKey` guard still holds), and live-vs-hardcoded numbers
+      via a synthetic content override — no bugs found. Filed one Minor
+      fragility finding: three pre-existing tests
+      (`ui-fb058-class-select.test.ts`, `fb022-info-surfacing.test.ts`) read
+      `.sw-classcard.on`/`.sw-classdetail` unscoped, which only stayed correct
+      because the Class panel happens to render before the Core panel in
+      `hub.ts` — now that both panels share those CSS classes, a future
+      panel-reorder could silently break them. Fixed same session: the
+      `.sw-classcard.on` read now qualifies `[data-class]` (Core cards use
+      `data-core`, so this alone disambiguates); the three unscoped
+      `.sw-classdetail` reads now go through a small `classDetail(root)`
+      helper (added to both test files) that finds the `.sw-panel` whose
+      `<h2>` reads "Class" rather than relying on DOM order. Re-verified all
+      three files green after the fix (51/51). `npx tsc --noEmit` clean.
+      `npm run test:fast`: 279 passed / 8 skipped files, 4146 passed tests,
+      only the pre-existing `q15`/`q45` flake class red — both code-reviewer
+      and qa-playtester independently reproduced the `q45` failure on the
+      pre-fb117 parent commit too, confirming it predates this item — refs:
+      SPEC-FINAL §5.5, §11, fb058.
+
+- [x] (fb177) [feat] normal priority: per-tower attack projectile/beam
       visuals — every tower type gets a distinct registered VFX entry: Arrow
       (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
       Mortar (lobbed shell, arc + impact crater flash), Electric (instant
@@ -4221,6 +4277,64 @@ logs a blocker below rather than editing `/data` itself.
       Acceptance: a VFX-registry test fails for any of the 10 towers missing
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+      **Renumbered from fb098 at filing time** — this file already had an
+      unrelated `[x] (fb098)` (the 2026-09-04 colorblind-palette-audit item,
+      line ~2260); a within-file id collision, not just the cross-file kind
+      this Log has flagged before. See Log entry below.
+      **DONE 2026-09-07** — new `TOWER_VFX` registry (`src/render/vfx-
+      registry.ts`, all 10 towers, `fire`/`travel`/`impact` string fields),
+      mirroring fb016's `CLASS_VFX`/`CORE_VFX` coverage-test pattern
+      (`missingVfxCoverage` gained an optional `towerKeys` param). Wiring it
+      up surfaced and fixed four real, previously-invisible-or-wrong render
+      gaps, each with its own regression test in the new
+      `tests/ui-fb098-tower-vfx.test.ts` (15 tests): (1) Frost Obelisk's
+      `pulse` fx event had no case in `canvas.ts`'s `ingest()` at all
+      (`default: break`) — its periodic aura tick had zero visual; now
+      reuses the existing `nova` CastFx ring, which also fixes every other
+      inherent-radius AoE splash sharing that same dead code path
+      (`damagetypes.ts`'s radius splashes, a VS-wielded aura). (2) A
+      VS-wielded Ember Brazier cone looked up a `'flame_cone'` style key
+      `theme.ts`'s `STYLES` never registered, silently falling back to the
+      generic default look instead of TD's own `STYLES.ember_brazier`
+      visual — Ember Brazier is the only `cone`-kind attack in either
+      phase, so this now always reads its own style. (3) The identical bug
+      for Arrow Spire's `shot` (`'arrow_volley'`, never registered) and
+      Tesla Coil's `arc` (`'chain_lightning'`, actually Stormcaller's
+      Active1 `ClassEffect.kind`, not a tower style) — both fixed the same
+      way, found by qa-playtester's first pass on this item (see below).
+      (4) Venom Spore's `poison`-kind attack is an instant hit (unlike
+      Ballista/Mortar's real `Projectile`) that only ever emitted `'spore'`,
+      an event `ingest()` had no case for — its shot was completely
+      invisible in both phases; added a tracer case reusing `STYLES.
+      venom_spore`, also found by that same qa-playtester pass. Beacon
+      Totem/Harvest Sprout (`attack: null`, no sim fire event to hang a cue
+      on) get a new render-side ambient "aura pulse tick" ring in
+      `drawStructures` (signature now takes `view` too), keyed off `w.tick`
+      (deterministic sim state, not wall-clock time) on a 2s cadence, TD-only
+      and suppressed under `reducedMotion` (matching fb086's other ambient
+      cues). code-reviewer **APPROVE** on the first pass (no Critical/Major;
+      one Minor — `TOWER_VFX.mortar.impact` claimed an "impact crater flash"
+      that doesn't exist, `detonate()`'s `'boom'` event is screen-shake only
+      — fixed same session, wording corrected to describe what actually
+      renders rather than adding a new visual). qa-playtester **FAILed the
+      first pass** with the two real bugs in (3)/(4) above, both reproduced
+      twice independently against the live render code (not just reading the
+      new test file) and fixed same session with 4 new regression tests;
+      a **second qa-playtester re-verification pass PASSed**, independently
+      reproducing both original repros against the fix (and confirming they
+      failed again on the pre-fix commit, restoring the tree after), and
+      separately confirmed the one deliberately-left-open gap: Tesla Coil's
+      `arc` fx event is genuinely shared with Stormcaller's Chain Surge
+      Active1 (both route through `combat.ts`'s `chainHit`, which takes a
+      `source` string but never passes it to `emit`) with no field to
+      disambiguate them — verified `chainHit`'s own signature and every
+      call site to confirm this isn't fixable without a `/src/sim` change,
+      out of this lane's Scope; logged below rather than left unexplained
+      or papered over. `npx tsc --noEmit` clean. `npm run test:fast`: 280
+      passed / 8 skipped files, 4161 passed tests, only the pre-existing
+      `q15`/`q45` flake class red (independently confirmed unrelated —
+      reproduces identically on the pre-fb177 parent commit — by both the
+      code-reviewer and qa-playtester passes).
 
 - [x] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
@@ -4341,7 +4455,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` flake class red — refs: fb145, fb074,
       fb087, QUALITY.md BETA.
 
-- [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+- [x] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
       covers the hidden `visibilitychange` edge, but neither fires for a run
       that begins in an already-backgrounded document: fb074's boot-resume
@@ -4359,8 +4473,41 @@ logs a blocker below rather than editing `/data` itself.
       true BEFORE constructing the `Game`, boots a fresh run and a persisted
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
+      **DONE 2026-09-07** — one line at the very end of `beginRun`
+      (`src/ui/main.ts`, after every Hud/renderer/input-listener setup call in
+      that function): `if (document.hidden && this.run.world.outcome ===
+      'running' && !this.paused) this.setPaused(true);` — the same guard shape
+      `onFocusLost` already uses, reusing `setPaused(true)` (not a raw field
+      write) so pause-entry side effects (`clearKeysForPause`, `hud.
+      setPaused`) run identically to every other pause path. Fires for both a
+      fresh `startRun` and a `tryResumePersistedRun` resume, since both funnel
+      through this same `beginRun` tail. New `tests/ui-fb171-hidden-boot-
+      pause.test.ts` (4 tests): a fresh run and a persisted resume, each
+      booted with `document.hidden` stubbed true before `Game` construction
+      (same shadowing convention as `ui-fb145`'s own `setHidden`), plus a
+      `hidden === false` control for each. code-reviewer **APPROVE**: no
+      Critical/Major; one Minor — the guard omitted the `!this.paused`
+      conjunct `onFocusLost` carries (harmless today since `this.paused` was
+      just set `false` a few lines up, but implicit rather than enforced) —
+      fixed same session, added the conjunct plus a comment explaining why.
+      qa-playtester **PASS**: confirmed the shipped tests are genuine
+      regression tests (checked out the pre-fix parent commit with the new
+      test file still in place — both `hidden=true` cases failed there,
+      controls still passed, restored after), and independently probed
+      Practice/Training Grounds (both route through the same `beginRun` tail,
+      confirmed protected), `document.hidden === undefined` (short-circuits
+      falsy, no throw), a reveal after a hidden-boot pause (stays paused,
+      matching fb071/fb145's manual-resume convention), and the
+      already-finished-outcome case (`tryResumePersistedRun`'s `finish()`
+      diverts a done run to the Hub before `beginRun` is ever called, so the
+      `outcome === 'running'` guard is defensive symmetry, not dead code) —
+      no bugs found. Also ran a money-path sanity sweep (death flow, save
+      fuzz, Retry/New Run config carry-over) with no interaction found.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped
+      files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
+      red.
 
-- [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
+- [x] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
       per-file cloud restore is lost at the next switch. fb147 made the active
       slot's own key stay in step with `SAVE_KEY` on every save, which is the
@@ -4382,6 +4529,57 @@ logs a blocker below rather than editing `/data` itself.
       followed by a switch away and back, asserting the surviving data is the
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
+      **DONE 2026-09-07** — took the "refuse the overwrite" branch (not "keep
+      both and tell the player" — that UX wants an owner call; QUESTIONS.md is
+      out of this lane's Scope to write directly, so logged in this file's Log
+      below instead). `src/ui/saveslots.ts` gains a per-slot "last known-good
+      sync point" record (`slotLastFlushKey`/`recordFlush`/`knownFlush`,
+      deliberately keyed off `stonewake.saveflushmark.slot*.v1` — NOT under
+      `stonewake.save.slot*`, which `tests/ui-fb111-cloud-save-portability
+      .test.ts` treats as real portable save data) — the exact string this
+      module itself last wrote as both `SAVE_KEY` and a slot's own file.
+      `switchToSlot` refuses its outgoing flush whenever either side no
+      longer matches that record, re-syncing its own bookkeeping to the slot
+      file's actual current content (never to the untrusted `live`) so a
+      future switch isn't stuck refusing forever against one stale
+      comparison. No `MetaState`/timestamp field needed (`src/meta/meta.ts`/
+      `src/sim/types.ts` stay untouched, out of Scope). This took three
+      rounds to close fully, each qa-playtester/code-reviewer pass finding a
+      real, reproduced gap the previous round left open — recorded here
+      because the pattern (each fix closing one hole, re-verification finding
+      the next) is worth a future reader knowing about: (1) first pass
+      protected only the OUTGOING leg; qa-playtester **FAILed**, reproducing
+      that a slot switched INTO but never locally saved-to yet had no flush
+      record at all (`known == null` read as "safe"), so a restore landing on
+      ITS file before any save was destroyed by the next switch-away — fixed
+      by having the INCOMING leg record a flush too, which needed a real
+      "tracked as known-empty" state (`EMPTY_SENTINEL`) distinct from "never
+      tracked", since both previously read as `null`. (2) Re-verification
+      **FAILed again**, escalating: the still-open `ensureActiveSlotMigrated`
+      window was not "nothing to lose" — a legacy single-save account's REAL
+      migrated progress could be destroyed by a restore racing the account's
+      very first switch, not just an empty fresh account — fixed by seeding
+      slot 0's flush record at migration time too, which required updating
+      three pre-existing tests (two in `ui-fb096-save-slots.test.ts`, one in
+      `ui-fb111-cloud-save-portability.test.ts`) that relied on a bare
+      `saveMeta()` call right after a switch as same-session shorthand — now
+      correctly read as untracked/possibly-foreign, matching what a real
+      switch always gets (a `reload()`, hub.ts's fb100), so those tests were
+      updated to use the real save path instead of relaxing the fix. (3) In
+      parallel, code-reviewer **REQUEST-CHANGES**: `EMPTY_SENTINEL`'s literal
+      accidentally contained a stray NUL byte instead of plain text, silently
+      making `saveslots.ts` git-binary (no line diffs) and invisible to
+      ripgrep directory-wide searches — retyped clean. A final
+      qa-playtester re-verification pass **PASSed**: independently
+      reproduced the escalated migration-window repro against the fixed code
+      (newer restored data survives), stress-tested false-positive refusals
+      (migrate-then-several-legitimate-cycles, 20 rounds of switch-spam,
+      both-files-restored-with-different-foreign-values) with none found,
+      and confirmed the NUL byte was genuinely gone (`file`/`grep` both
+      clean). 33 tests in `ui-fb096-save-slots.test.ts` (up from 27), 7 in
+      `ui-fb111-cloud-save-portability.test.ts`, all green. `npx tsc
+      --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped files,
+      4171 passed tests, only the pre-existing `q15`/`q45` flake class red.
 
 - [x] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
@@ -4512,7 +4710,7 @@ logs a blocker below rather than editing `/data` itself.
       a deliberately misclassified kind (not just a new one) reddens it —
       refs: fb149, fb146, fb148.
 
-- [ ] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the
       same `lineHit` drop-off the class sentences now name, and does not name
       it. Measured twice: `arrow_spire` at tier 5 (`attackProfile` ->
@@ -4528,8 +4726,30 @@ logs a blocker below rather than editing `/data` itself.
       nothing when it is 0, with both measurements above as the regression's
       mechanism legs — refs: fb149, `fireTower`'s `single`/`pierce` cases
       (`src/sim/towers.ts`).
+      **DONE 2026-09-07** — `KIND_TEXT.single` (`tower-info.ts`) now appends
+      `LINE_FALLOFF_CLAUSE` (`info-format.ts`, reused verbatim — no new
+      literal) when `p.pierce > 0`, nothing when 0. New
+      `tests/ui-fb175-single-falloff-clause.test.ts` (3 tests): pierce-0 has
+      no clause; pierce>0 (arrow_spire at max tier) both has the clause and a
+      live fire+projectile-tick measurement shows the carried-through hit is
+      genuinely less than the primary (six husks in a line, struck damages
+      collected and sorted descending rather than assumed by spawn order,
+      since `targetFirst` picks by path progress); Ballista (`pierce` kind)
+      never gets it and still says "full damage each". code-reviewer
+      **APPROVE**: no Critical/Major; confirmed `arrow_spire` is the ONLY
+      `single`-kind tower in `data/towers.json` (no other tower silently
+      affected), confirmed Ballista's `pierce`-kind path (`spawnProjectile`/
+      `pierceLeft`) genuinely deals unscaled damage to every pierced target
+      (leaving that entry untouched is correct, not an oversight), manually
+      reverted the source fix and reran the test file to confirm it's a
+      genuine regression test, and noted (Minor, not blocking) the new test
+      file's `world()`/`freeTileNear()` helpers duplicate `tests/tower-info
+      .test.ts`'s own — consistent with this suite's established per-file
+      convention, not a new problem. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 282 passed / 8 skipped files, 4174 passed tests, only the
+      pre-existing `q15`/`q45` flake class red.
 
-- [ ] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — the falloff floor makes "each one behind it takes less"
       stop being literally true past a reachable target count. Measured twice,
       identical: `scale = max(0.2, 0.82^(n-1))` clamps at the TENTH body on a
@@ -4546,8 +4766,83 @@ logs a blocker below rather than editing `/data` itself.
       the previous target and the wording stands as-is (QUESTIONS.md is outside
       this lane's Scope, so that half is main-lane) — refs: fb149,
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
+      **DONE 2026-09-07** — took the "wording stands as-is" branch, not the
+      reword: `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`info-format.ts`)
+      are shared constants quoted verbatim by a wide set of pre-existing
+      tests across `tests/ui-fb146-*`, `tests/ui-fb148-*`, `tests/ui-fb149-*`
+      and others (fb146/fb148/fb149's own DONE notes); a wording change would
+      ripple into all of them for a QA-confirmed non-bug, which is a worse
+      cost/benefit trade than logging the reading. The QUESTIONS.md entry
+      itself is filed below in this file's Log (main-lane, out of this
+      lane's Scope to write directly) rather than as a code change here — no
+      source/test edit needed, this item is closed by that Log entry alone.
 
 ## Log
+
+- 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`src/ui/info-format.ts`) say
+  "each one behind it takes less"/"each target past that takes less" —
+  read against the FIRST (full-damage) target's number, not against the
+  previous target's, since `pierceFalloffFloor`/`aoeFalloffFloor`
+  (`data/towers.json`, both 0.2) clamp the per-target scale once
+  `0.82^(n-1)` would otherwise fall below it. Past that clamp (measured:
+  the 10th body on a line, the 14th on a blast/ground curve — both inside
+  one dense pack), every further target takes the SAME reduced amount as
+  the one before it, not a smaller one — "less" stays literally true only
+  against "full damage," not as a claim that damage keeps shrinking
+  target-to-target forever. QA (fb176) explicitly did not call this a
+  bug; recorded here per the item's own acceptance so a future reader (or
+  a future wording pass) doesn't have to remeasure the clamp to learn
+  this. Wording left as-is — see fb176's own DONE note for why a reword
+  wasn't taken instead.
+
+- 2026-09-07, fb174: **skipped this session, not attempted — genuinely
+  in-scope but too large for this iteration, by its own acceptance text.**
+  fb174 asks for a table-free, measurement-only replacement for fb149's
+  declared `DECAYS`/`PATCH`/`FLAT` classification (`tests/ui-fb149-falloff-
+  wording.test.ts`): fire every Active of every one of the 12 classes
+  through its OWN required setup (charges via `tickClassCharge`, stored
+  Wrath, ground-field ticking through `updateAreas`, summon lifetimes —
+  four genuinely distinct firing mechanics, not one shared harness), then
+  derive the falloff clause presence/absence from the measured per-target
+  damage profile alone. The item's own text already names this "well
+  beyond one wording item" — this session's remaining budget went to
+  fb175/fb176 instead (both fully scoped, in-lane, and much smaller).
+  Left `[ ]`, not blocked — a future session with a full item's budget to
+  spend on just this one probe harness should pick it up next.
+
+- 2026-09-07, fb172 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  fb172's own acceptance text named an open UX question — "which copy wins,
+  and how the player is told" when a switch-away finds the outgoing slot's
+  live `SAVE_KEY` and its own file disagreeing (an out-of-process cloud
+  restore landed on one side). Implemented the "refuse the overwrite"
+  branch (neither side is silently discarded; the player just doesn't get
+  told a conflict happened) rather than "keep both and surface it," which
+  needs UX the owner hasn't chosen. If a future session wants the surfaced
+  version instead: `src/ui/saveslots.ts`'s `switchToSlot` already computes
+  exactly this condition (`slotUnchangedSinceOurLastFlush`'s `safe: false`
+  branch) — it currently just silently protects the file instead of
+  returning/threading a "conflict detected" signal a caller (`hub.ts`)
+  could show a notice for, the same pattern `settings.ts`'s "needs reload"
+  note already uses.
+
+- 2026-09-07, id collision (within-file, not cross-file this time): the
+  queue's per-tower VFX item was filed as `fb098`, but this same file
+  already had an unrelated `[x] (fb098)` (2026-09-04, the colorblind-
+  palette-audit item) — a duplicate id inside one file, not the
+  cross-file kind the 2026-09-06 merge entry below warns about (that one
+  git silently merges without a murmur; this one a plain in-file grep for
+  `(fb098)` would have caught immediately, so it's worth a beat: whatever
+  wrote the queue entry didn't grep the file it was appending to first).
+  Renumbered the per-tower VFX item to **fb177** (max id anywhere was 176,
+  per the same allocate-from-shared-high-water-mark convention the
+  2026-09-06 entry recommends). Not renamed: the already-pushed commits'
+  messages, the new `tests/ui-fb098-tower-vfx.test.ts` filename, and
+  in-code comments referencing "fb098" — left as-is, same as the
+  2026-09-06 entry's own six commits, with this entry as the map for
+  anyone reading those artifacts cold.
 
 - 2026-09-07, fb151: **cannot be implemented in-scope, skipped rather than
   attempted.** Read `fireDashSlash` (`src/sim/classes.ts`) end to end before
