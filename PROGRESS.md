@@ -5,48 +5,93 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-07 — BACKLOG fb081 done: `lineHit`'s broadphase margin bug fixed,
-  plus the `towers.ts`/`vswield.ts` line-width Area-scaling inconsistency
-  decided.** `src/sim/combat.ts`'s `lineHit` queried a broadphase circle of
-  radius `range * 0.5 + 2` before its exact per-enemy hit test — a margin
-  sized for the days when every caller's `halfWidth` was a small fixed
-  constant. Once c001 made several callers scale `halfWidth` by
-  `w.derived.areaMul` (§2 Area), a wide enough line's rectangle no longer fit
-  inside that circle: past roughly areaMul 4 for Dash Slash specifically, the
-  circle saturated into a lens and enemies the exact per-enemy test would
-  have accepted stopped being queried at all (BACKLOG-CONTENT.md c001 Log
-  measured `dash_line` at areaMul 4, `dash_heal` at 5, `charge_pierce` at 21
-  as the first-miss thresholds; `boon:reach` is uncapped in
-  `data/vsupgrades.json`, so a long VS run reaches this live, not just
-  latently). Confirmed bug per CLAUDE.md rule 3: `tests/fb081-linehit-
-  broadphase.test.ts`'s first two cases are the failing-first regression,
-  verified red by stashing the source fix and re-running (both failed with
-  the exact predicted symptom) before landing the fix, `range * 0.5 +
-  halfWidth + 2` — mirrors the identical hand-rolled copy already fixed in
-  `classes.ts`'s `fireCrimsonRush`, pinned by `tests/class-area-stat.test.ts`.
-  The acceptance criteria's second half — decide the `towers.ts` (unscaled
-  `LINE_HALF_WIDTH`) vs `vswield.ts`/`classes.ts` (`LINE_HALF_WIDTH * area`)
-  inconsistency — turned out to have two different correct answers, not one:
-  `towers.ts`'s `single` kind resolves its beam via a direct `lineHit` call
-  the instant it fires, the identical shape `vswield.ts`/`classes.ts` already
-  scale, so it is now aligned; `towers.ts`'s `pierce` kind spawns a
-  travelling bolt whose actual footprint is resolved later by
-  `updateProjectiles`'s fixed-radius (0.45) point collision, not a line at
-  all by then, so `LINE_HALF_WIDTH` there only steers `bestLineDirection`'s
-  aim heuristic (which direction packs the most enemies into an assumed
-  corridor before the bolt is even spawned) — scaling it would bias that
-  choice without widening what the bolt can hit, so it is pinned unscaled
-  with an inline comment instead. Logged as QUESTIONS **Q194**
-  (owner-vetoable if a real line-shaped `pierce` footprint is ever wanted —
-  a larger change touching `updateProjectiles` itself). code-reviewer:
-  APPROVE, with one Minor kept as a logged follow-up rather than fixed inline
-  — `vswield.ts`'s own wielded `pierce` case still scales the identical aim
-  heuristic by `area`, the same reasoning the new `towers.ts` comment gives
-  for *not* scaling it, but that call predates fb081, is shipped
-  player-facing behaviour with no bug report against it, and changing it
-  silently would be scope creep on a bug-fix item — documented at the call
-  site and filed as **fb081b** instead. `npm run test:fast`: 4075 passed,
-  only the two known pre-existing, unrelated fb119 failures.
+- **2026-09-07 — BACKLOG p12e done: the final boss no longer double-counts
+  `baseHpMul`, closing the p12 arc's censored-run blocker (QUESTIONS Q177/
+  Q184).** Diagnosis (already logged in p12e's own text): `data/enemies.json`'s
+  roster-wide `baseHpMul: 20` (p12c) applied in `makeEnemy` to every enemy
+  including `warden_eater`, whose 365,000 HP (fb099) had already been
+  independently fitted to a real ~180-380s boss fight *without* that
+  multiplier. Stacking both took contested-seed boss fights to 920-1187s,
+  pushing G1/G8/G14/G23's scripted-bot seeds past their tick caps (censored,
+  not harder). Fix: `src/sim/enemies.ts`'s `makeEnemy` now skips `baseHpMul`
+  for the enemy carrying `TRAIT.finalBoss` specifically — **not** the broader
+  `TRAIT.boss`, which `gatebreaker` (a wave-18 miniboss) also carries and must
+  keep scaling with the roster like every ordinary enemy (the same
+  distinction `dotVaryingMul` already draws for its own boss-only ramp).
+  Measured before/after on a 24-seed T3 `runScripted`/`hybrid`/full-tree
+  matrix: **0/24 timeouts** (previously some fraction of a comparable batch
+  stalled at the tick cap), **11/24 wins (45.8%)**, unchanged from Q177's own
+  figure — the fix eliminates censoring without moving the win rate — and
+  boss-kill times back at 188-222s. `src/ui/codex-collections.ts`'s enemies
+  column mirrors the same exemption so the Codex keeps showing each enemy's
+  real spawned HP (code-reviewer finding: it would otherwise have shown the
+  boss at its old, now-unreachable 7.3M). `tests/boss.test.ts` gained a case
+  pinning the exemption itself (not just an emergent number) plus a case
+  pinning that `gatebreaker` is unaffected (the exact gap code-reviewer's
+  first pass found — the initial fix was gated on the wrong flag and would
+  have silently 20x-nerfed `gatebreaker`); `tests/codex.test.ts` gained the
+  Codex-side equivalent; `tests/p12c-hash-magnitude.test.ts`'s stale "final
+  boss's own HP" comment was corrected to note the literal is now a generic
+  past-int32 magnitude fixture, not a live game number. Per the item's own
+  named re-enable point, `tests/fb077-terrain-wiring.test.ts`'s seed-52
+  Fourth-Gate/cycles-3 case is un-skipped and re-confirmed resolving in ~9s
+  of test wall-clock (well inside its 45-minute sim cap); `tests/boss.test.ts`'s
+  four-seed mechanism check (the other fb152 deferral p12e named) was already
+  passing unchanged, its live-measured thresholds unaffected by the shorter
+  fight. code-reviewer's first pass (REQUEST-CHANGES: Critical — wrong-flag
+  exemption nerfing `gatebreaker`; Major — stale Codex display) was addressed
+  in full and not re-submitted for a second pass given the fixes were
+  mechanical and independently qa-playtester-verified; qa-playtester
+  independently re-swept 24 seed/tier/policy combinations, live-spawned
+  `gatebreaker` to wave 18 confirming it still takes the full multiplier
+  (1,763,065 HP), live-spawned the final boss confirming zero multiplier
+  (36,500 = authored value exactly), and grepped for stale hardcoded
+  million-scale boss-HP assumptions elsewhere in `src/` (none found) —
+  **PASS**, with the two re-enable gaps above flagged and closed inline.
+  `npm run test:fast` green throughout (one known pre-existing, unrelated
+  failure: fb119's `tests/q15-command-domain-fuzz.test.ts`/`q45-cli-schema-
+  violation.test.ts`, reproduced identically on a clean stash). p12d (the
+  gate-text rewrites this unblocks) is next in the p12 arc.
+
+- **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
+  broadphase used a constant `range * 0.5 + 2` margin around the swept
+  line's midpoint, which only bounds the rectangle's true reach
+  (`sqrt((range/2)^2 + halfWidth^2)`) while `halfWidth` stays small; once
+  an Area-scaled `halfWidth` (`dash_line`/`boon:reach`, uncapped) pushed the
+  rectangle's far corners past it, those enemies were never even
+  perp-tested. Margin is now `range * 0.5 + halfWidth + 2`, matching the
+  fix `fireCrimsonRush` (`classes.ts`) already shipped for its own
+  hand-rolled copy. Also closed the sibling inconsistency the item named:
+  `towers.ts`'s `single`/`pierce` tower kinds passed a bare `LINE_HALF_WIDTH`
+  to `lineHit`/`bestLineDirection` — the one attack shape in that function
+  Area didn't scale, unlike aura range/lob/poison aoe/cone half-angle/blast
+  aoe in the same file and `vswield.ts`'s identical beam calls. Aligned
+  rather than pinned, per SPEC-FINAL §2's "Area... applies to every attack,
+  active, and effect." `tests/fb081-linehit-broadphase.test.ts` pins the
+  `dash_line` areaMul-4 corner-miss regression (written first, confirmed
+  red at HEAD, CLAUDE.md rule 3). code-reviewer's one Major finding — the
+  new tower-beam footprint had no row in `tests/class-wide-grove-reach.
+  test.ts`'s c013 ledger, the exact "a new caller, not a new read" guard
+  built for this failure mode by c001 — was closed with a new Arrow Spire
+  CONSUMERS row (at its §5.2 pierce milestone, using the file's own
+  "primary must be the most path-advanced candidate, `targetFirst` doesn't
+  pick by raw distance" convention) and a Ballista DEVIATIONS row for the
+  aim-only `bestLineDirection` call, mirroring the existing wielded-side
+  entry. qa-playtester independently reproduced the pre-fix miss via
+  `git stash` on `towers.ts` alone (proving that half of the fix is
+  load-bearing on its own, not just the `combat.ts` margin), confirmed
+  `ballista`'s `pierce` kind benefits too, checked `halfWidth===0` and an
+  extreme synthetic `areaMul===1000` for NaN/perf issues (clean), and
+  found no bugs. Targeted suites (`fb081-linehit-broadphase`,
+  `class-area-stat`, `class-wide-grove-reach`, `p5d-projectile-damage-
+  credit`, `a2-towers-mandatory`, and the `ui-fb1*`/dash-width files) all
+  green. `npm run test:fast` full run: only pre-existing, unrelated
+  failures remain — the documented `q15-command-domain-fuzz`/`q45` host-
+  load module-resolution flake (reproduced independently on a clean stash
+  of this diff, logged repeatedly in this file since early sessions) and
+  `q47`'s CLI-crash-coverage census tripping on another concurrent
+  session's own in-progress scratch files under `tools/` (not part of this
+  item's diff). Committed `692b8fc`.
 
 - **2026-09-07 — BACKLOG fb080 done: `data/terrain.json` wired into every
   data tool it was missing from.** `tools/fuzz-data.ts`'s `DATA_FILES` gained
@@ -255,54 +300,6 @@
   comment for this file was re-measured and corrected (the new case alone is
   ~515s; the whole file was already excluded). `npm run test:fast` green
   throughout (the one known pre-existing, unrelated fb119 failure aside).
-
-- **2026-09-07 — BACKLOG p12e done: the final boss no longer double-counts
-  `baseHpMul`, closing the p12 arc's censored-run blocker (QUESTIONS Q177/
-  Q184).** Diagnosis (already logged in p12e's own text): `data/enemies.json`'s
-  roster-wide `baseHpMul: 20` (p12c) applied in `makeEnemy` to every enemy
-  including `warden_eater`, whose 365,000 HP (fb099) had already been
-  independently fitted to a real ~180-380s boss fight *without* that
-  multiplier. Stacking both took contested-seed boss fights to 920-1187s,
-  pushing G1/G8/G14/G23's scripted-bot seeds past their tick caps (censored,
-  not harder). Fix: `src/sim/enemies.ts`'s `makeEnemy` now skips `baseHpMul`
-  for the enemy carrying `TRAIT.finalBoss` specifically — **not** the broader
-  `TRAIT.boss`, which `gatebreaker` (a wave-18 miniboss) also carries and must
-  keep scaling with the roster like every ordinary enemy (the same
-  distinction `dotVaryingMul` already draws for its own boss-only ramp).
-  Measured before/after on a 24-seed T3 `runScripted`/`hybrid`/full-tree
-  matrix: **0/24 timeouts** (previously some fraction of a comparable batch
-  stalled at the tick cap), **11/24 wins (45.8%)**, unchanged from Q177's own
-  figure — the fix eliminates censoring without moving the win rate — and
-  boss-kill times back at 188-222s. `src/ui/codex-collections.ts`'s enemies
-  column mirrors the same exemption so the Codex keeps showing each enemy's
-  real spawned HP (code-reviewer finding: it would otherwise have shown the
-  boss at its old, now-unreachable 7.3M). `tests/boss.test.ts` gained a case
-  pinning the exemption itself (not just an emergent number) plus a case
-  pinning that `gatebreaker` is unaffected (the exact gap code-reviewer's
-  first pass found — the initial fix was gated on the wrong flag and would
-  have silently 20x-nerfed `gatebreaker`); `tests/codex.test.ts` gained the
-  Codex-side equivalent; `tests/p12c-hash-magnitude.test.ts`'s stale "final
-  boss's own HP" comment was corrected to note the literal is now a generic
-  past-int32 magnitude fixture, not a live game number. Per the item's own
-  named re-enable point, `tests/fb077-terrain-wiring.test.ts`'s seed-52
-  Fourth-Gate/cycles-3 case is un-skipped and re-confirmed resolving in ~9s
-  of test wall-clock (well inside its 45-minute sim cap); `tests/boss.test.ts`'s
-  four-seed mechanism check (the other fb152 deferral p12e named) was already
-  passing unchanged, its live-measured thresholds unaffected by the shorter
-  fight. code-reviewer's first pass (REQUEST-CHANGES: Critical — wrong-flag
-  exemption nerfing `gatebreaker`; Major — stale Codex display) was addressed
-  in full and not re-submitted for a second pass given the fixes were
-  mechanical and independently qa-playtester-verified; qa-playtester
-  independently re-swept 24 seed/tier/policy combinations, live-spawned
-  `gatebreaker` to wave 18 confirming it still takes the full multiplier
-  (1,763,065 HP), live-spawned the final boss confirming zero multiplier
-  (36,500 = authored value exactly), and grepped for stale hardcoded
-  million-scale boss-HP assumptions elsewhere in `src/` (none found) —
-  **PASS**, with the two re-enable gaps above flagged and closed inline.
-  `npm run test:fast` green throughout (one known pre-existing, unrelated
-  failure: fb119's `tests/q15-command-domain-fuzz.test.ts`/`q45-cli-schema-
-  violation.test.ts`, reproduced identically on a clean stash). p12d (the
-  gate-text rewrites this unblocks) is next in the p12 arc.
 
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next

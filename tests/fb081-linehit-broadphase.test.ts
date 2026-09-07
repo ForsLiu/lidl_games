@@ -3,26 +3,32 @@
  * circle of radius `range * 0.5 + 2`, a margin sized for the days when every
  * caller's `halfWidth` was a small fixed constant. Once c001 (§2 Area) made
  * several callers scale `halfWidth` by `w.derived.areaMul`, a wide enough
- * line's rectangle no longer fit inside that circle — past ~areaMul 4 for
- * Dash Slash (`dash_line`), the circle saturated into a lens and the
- * outermost enemies stopped being counted at all, even though the exact
+ * line's rectangle no longer fit inside that circle — the swept rectangle's
+ * far corner sits at `sqrt((range/2)^2 + halfWidth^2)` from the midpoint, and
+ * past ~areaMul 4 for Dash Slash (`dash_line`) that corner falls outside the
+ * old `range*0.5+2` margin, so the circle saturates into a lens and the
+ * outermost enemies stop being counted at all — even though the exact
  * per-enemy `perp > halfWidth + e.radius` test below it would have accepted
  * them (BACKLOG.md fb081, BACKLOG-CONTENT.md c001 Log). Confirmed bug per
- * CLAUDE.md rule 3: this file's first test is the failing regression, red
- * before the fix (`range * 0.5 + halfWidth + 2`) and green after — mirrors
- * the identical hand-rolled copy already fixed in `classes.ts`'s
- * `fireCrimsonRush`, pinned by `tests/class-area-stat.test.ts`.
+ * CLAUDE.md rule 3: this file's first describe block is the failing
+ * regression, red before the fix (`range * 0.5 + halfWidth + 2`) and green
+ * after — mirrors the identical hand-rolled copy already fixed in
+ * `classes.ts`'s `fireCrimsonRush`, pinned by `tests/class-area-stat.test.ts`.
  *
- * The second half of this file is fb081's other acceptance clause: the
- * sibling inconsistency between `towers.ts` (passed `LINE_HALF_WIDTH` raw)
- * and `vswield.ts`/`classes.ts` (scale it by Area). Decided in QUESTIONS.md
- * Q194: the `single` tower kind resolves its beam the same instant it fires
- * via a direct `lineHit` call — the same shape `vswield.ts`/`classes.ts`
- * already scale — so it is now aligned with them (`LINE_HALF_WIDTH * area`).
- * The `pierce` kind is deliberately left alone: its actual footprint is a
- * travelling bolt resolved by a fixed-radius point check
- * (`updateProjectiles`), not a line, so there is nothing line-shaped left to
- * scale by the time it lands.
+ * The rest of this file is fb081's other acceptance clause: the sibling
+ * inconsistency between `towers.ts` (passed `LINE_HALF_WIDTH` raw) and
+ * `vswield.ts`/`classes.ts` (scale it by Area). Per QUESTIONS.md Q194, both
+ * of `towers.ts`'s line-shaped beam kinds are now aligned with the
+ * `vswield.ts`/`classes.ts` convention: the `single` kind resolves its beam
+ * the same instant it fires via a direct `lineHit` call (`LINE_HALF_WIDTH *
+ * area`), and the `pierce` kind's `bestLineDirection` aim heuristic scales
+ * the same way so a wide-Area build actually aims across the wider corridor
+ * it now hits with.
+ *
+ * Measured first-miss threshold for `dash_line` (Swordsman): areaMul 4,
+ * where `dashRange: 5, dashWidth: 1` (`data/classes.json`) gives
+ * `halfWidth = 4`, and the rectangle's far corner sits at
+ * `sqrt(2.5^2 + 4^2) ≈ 4.717`, past the old `range*0.5+2 = 4.5` margin.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -84,6 +90,37 @@ describe('fb081: lineHit broadphase margin covers a wide, Area-scaled half-width
     const hpBefore = e.hp;
     useClassActive2(w, w.warden.x + range, w.warden.y);
     expect(e.hp).toBeLessThan(hpBefore);
+  });
+
+  it("Dash Slash still hits an enemy standing right at the line's far corner past areaMul 4", () => {
+    const cls = content.classByKey.get('swordsman')!;
+    const dashRange = cls.active2.dashRange ?? 0;
+    const dashWidth = cls.active2.dashWidth ?? 0;
+    expect(dashRange).toBeGreaterThan(0);
+    expect(dashWidth).toBeGreaterThan(0);
+
+    // area=3 -> areaMul 4, well past the ~4 corner where the old constant
+    // margin (range*0.5+2) first falls short of the rectangle's true reach.
+    const w = areaWorld('swordsman', 3);
+    const halfWidth = dashWidth * w.derived.areaMul;
+    expect(halfWidth).toBeCloseTo(4, 6);
+
+    // Placed just inside the actual hit rectangle's far corner (along near
+    // dashRange, perp near halfWidth) — exactly the region the old circular
+    // broadphase undershoots. At range=5/halfWidth=4 this corner sits at
+    // distance ~4.66 from the query center, past the old margin of 4.5.
+    const e = spawnEnemy(w, content.enemies.enemies[0].key, w.warden.x + dashRange * 0.99, w.warden.y + halfWidth * 0.99)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    e.speed = 0;
+    e.radius = 0.1;
+    w.rebuildBuckets();
+
+    w.warden.hp = 1;
+    // Aim straight along +x so `dir = (1, 0)` and the corner math above holds.
+    useClassActive2(w, w.warden.x + 100, w.warden.y);
+
+    expect(e.hp).toBeLessThan(1e6);
   });
 });
 

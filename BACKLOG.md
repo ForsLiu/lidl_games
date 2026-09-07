@@ -4177,35 +4177,38 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [x] (fb081) [bug] **DONE 2026-09-07** — `lineHit`'s broadphase margin fixed
-      to `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`), mirroring the
-      hand-rolled copy already fixed in `classes.ts`'s `fireCrimsonRush`.
-      Failing-first regression test (`tests/fb081-linehit-broadphase.test.ts`)
-      confirmed red on both new cases before the fix (stashed the source
-      change and re-ran: both failed with the exact expected pre-fix
-      symptom, restored and re-confirmed green). Sibling inconsistency
-      decided per Q194 (QUESTIONS.md): `towers.ts`'s `single` kind resolves
-      its beam via a direct `lineHit` call the same instant it fires — the
-      same shape `vswield.ts`/`classes.ts` already scale by Area — so it is
-      now aligned (`LINE_HALF_WIDTH * area`); `towers.ts`'s `pierce` kind is
-      deliberately left unscaled with an inline comment, since its actual
-      footprint is a travelling bolt resolved later by `updateProjectiles`'s
-      fixed-radius (0.45) point collision, not a line — `LINE_HALF_WIDTH`
-      there only steers `bestLineDirection`'s aim heuristic, so scaling it
-      would bias aim without widening what the bolt can hit. Regression tests
-      for both the margin fix (Dash Slash, areaMul 8) and the towers.ts
-      alignment (Arrow Spire tier 4, a side enemy only pierced once Area is
-      scaled in) are in the same test file — all four confirmed red-before/
-      green-after against the actual fix. code-reviewer: APPROVE (one Minor:
-      `vswield.ts`'s wielded `pierce` case still scales the identical
-      aim-heuristic call by `area`, the same reasoning the new `towers.ts`
-      comment gives for *not* scaling it — pre-existing c001 behaviour, out
-      of this bug's scope to silently change; documented at that call site
-      and logged as fb081b below rather than altered here).
-      `npm run test:fast`: 4075 passed, only the two known pre-existing,
-      unrelated fb119 failures (`tools/fuzz-command-domain` module
-      resolution under `bench/.tmp`). Original text follows.
-
+- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — `lineHit`'s broadphase
+      margin fixed to `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`),
+      mirroring the hand-rolled copy already fixed in `classes.ts`'s
+      `fireCrimsonRush`. Failing-first regression test
+      (`tests/fb081-linehit-broadphase.test.ts`) confirmed red on the new
+      cases before the fix (stashed the source change and re-ran: failed with
+      the exact expected pre-fix symptom, restored and re-confirmed green).
+      The sibling inconsistency was resolved by aligning, not pinning:
+      `towers.ts`'s `single`/`pierce` kinds now both pass `LINE_HALF_WIDTH *
+      area` to `lineHit`/`bestLineDirection`, matching `vswield.ts` and every
+      other attack shape in the same function (SPEC-FINAL §2: Area "applies
+      to every attack, active, and effect") — superseding an earlier draft of
+      this fix that left `pierce` deliberately unscaled per a since-reversed
+      Q194 note; scaling it keeps `towers.ts` consistent with `vswield.ts`'s
+      already-scaled wielded `pierce` case, closing the exact inconsistency
+      fb081b (below) flagged, rather than leaving it open. Regression tests
+      for both the margin fix (Dash Slash, areaMul 4 and areaMul 8) and the
+      towers.ts alignment (Arrow Spire tier 4, a side enemy only pierced once
+      Area is scaled in) live in the same test file — all confirmed
+      red-before/green-after against the actual fix. code-reviewer's Major
+      finding — the new tower-beam footprint had no row in
+      `tests/class-wide-grove-reach.test.ts`'s c013 ledger, the exact
+      completeness guard built for this failure mode — was closed by adding
+      an Arrow Spire CONSUMERS row and a Ballista DEVIATIONS row (aim-only
+      `bestLineDirection`, mirroring the existing wielded-side entry).
+      qa-playtester independently reproduced the pre-fix miss via `git stash`
+      on `towers.ts` alone (proving the `towers.ts` half is load-bearing, not
+      just the `combat.ts` margin), confirmed baseline (`areaMul===1`)
+      behavior is unchanged, and found no bugs. `npm run test:fast`: 4075
+      passed, only the two known pre-existing, unrelated fb119 failures
+      (`tools/fuzz-command-domain` module resolution under `bench/.tmp`).
+      Original text follows.
       `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
@@ -4218,20 +4221,13 @@ generation-rule boundary.
       `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
       `* areaMul` (align tower beams with vswield/classes or pin the
       exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
-- [ ] (fb081b) [polish] code-reviewer follow-up on fb081: `vswield.ts`'s
-      wielded `pierce` case (`bestLineDirection(w, x, y, range, LINE_HALF_WIDTH
-      * area)`) scales the same pure aim-heuristic that `towers.ts`'s `pierce`
-      case (fb081, Q194) now deliberately leaves unscaled for the identical
-      reason — the actual bolt resolves via `updateProjectiles`'s
-      fixed-radius point collision, not a line, so scaling only biases which
-      direction gets picked, never what gets hit. Functionally harmless
-      (confirmed by fb081's review), but the two call sites now read
-      inconsistently with no shared reasoning. Acceptance: either unscale
-      `vswield.ts`'s call to match `towers.ts` (functionally a no-op on
-      wielded pierce's actual hit count — assert that with a test before
-      changing it) or decide to keep it scaled with a positive reason beyond
-      "that's what c001 shipped" and record it in QUESTIONS.md — refs:
-      QUESTIONS.md Q194, BACKLOG.md fb081.
+- [x] (fb081b) [polish] **MOOT 2026-09-07** — code-reviewer follow-up on an
+      earlier draft of fb081 that left `towers.ts`'s `pierce` case unscaled
+      while `vswield.ts`'s wielded `pierce` case already scaled the identical
+      aim-heuristic call by `area`. fb081 landed with `towers.ts`'s `pierce`
+      also scaled (`LINE_HALF_WIDTH * area`), matching `vswield.ts` — the two
+      call sites are now consistent and there is nothing left to decide here.
+      No QUESTIONS.md entry needed beyond fb081's own note.
 - [ ] (fb082) [bug] Poison Barrel's ground area applies poison **every
       tick**: `updateAreas` (`src/sim/combat.ts`) calls `applyPoison(w, e,
       a.dps * scale, 1.0, 3, a.source)` at 60 Hz where SPEC-FINAL §4.1 says

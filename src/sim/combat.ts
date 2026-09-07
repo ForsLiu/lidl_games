@@ -374,14 +374,10 @@ export function lineHit(
   // second — has nothing to spend them on.
   if (n >= maxHits) return total;
 
-  // fb081: the query circle must cover the whole rectangle the exact test
-  // below accepts (length `range`, half-width `halfWidth`), not just its
-  // centerline — a constant `+ 2` fudge was enough while every caller's
-  // `halfWidth` was a small fixed constant, but once Area scales it (c001)
-  // a wide enough line saturates the circle into a lens and the outermost
-  // enemies stop being counted at all (BACKLOG fb081; the identical
-  // hand-rolled copy in `classes.ts`'s `fireCrimsonRush` already carries
-  // this same `+ halfWidth` term).
+  // The swept rectangle's far corner sits at `sqrt((range/2)^2 + halfWidth^2)`
+  // from the midpoint; a constant margin only bounds that while `halfWidth`
+  // stays small (fb081 — an Area-scaled `halfWidth` above ~2 pushed real
+  // enemies outside a `range*0.5+2` circle before they were ever perp-tested).
   const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + halfWidth + 2);
   const hits: { e: Enemy; along: number }[] = [];
   for (const e of list) {

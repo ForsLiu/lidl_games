@@ -825,4 +825,12 @@ Q91 and Q102 corrections if not yet done.
   too (a larger change: `updateProjectiles`' point collision would need to
   become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
   fb083 (the still-open `towerArea` stat-key gap this does not touch).
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way.
 

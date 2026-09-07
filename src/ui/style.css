@@ -576,18 +576,6 @@ html, body {
 .sw-panel h2 small { font-size: 12px; color: var(--dim); font-weight: 400; margin-left: 6px; }
 .sw-note { color: var(--dim); font-size: 12px; margin: 6px 0 10px; }
 
-.sw-choices { display: flex; flex-direction: column; gap: 6px; }
-.sw-choice {
-  display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left;
-  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
-  padding: 9px 12px; color: var(--text); font: inherit; cursor: pointer;
-}
-.sw-choice:hover:not(.locked) { border-color: var(--accent); }
-.sw-choice.on { border-color: var(--accent); background: #1c2a2a; }
-.sw-choice.locked { opacity: .45; cursor: default; }
-.sw-choice span { font-size: 12px; color: var(--dim); }
-.sw-choice small { font-size: 12px; color: #7a6a4a; }
-
 .sw-tiers { display: flex; gap: 6px; margin-bottom: 4px; }
 .sw-tier {
   background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
@@ -735,7 +723,10 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 
 /* fb058: the Class-select screen — a horizontal row of tall class cards, plus
    the selected class's band/number stat row and its four hover-only skill
-   entries. */
+   entries. Reused verbatim (not duplicated) by fb117's Core-select screen —
+   `.sw-classrow`/`.sw-classcard`/`.sw-classcard-art`/`.sw-classskills`/
+   `.sw-cs-skill`/`.sw-cs-tip` are generic "row of tall option cards with
+   hover-only detail" layouts, nothing class-specific in the rules below. */
 .sw-classrow { display: flex; flex-wrap: wrap; gap: 10px; }
 .sw-classcard {
   display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
