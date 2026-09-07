@@ -13,8 +13,8 @@
  * Costs are integers (10 orthogonal / 14 diagonal) so the field is bit-exact.
  */
 
-export const GRID_W = 36;
-export const GRID_H = 20;
+export const GRID_W = 56;
+export const GRID_H = 32;
 export const TILE = 32;
 
 export const enum TileType {
@@ -30,11 +30,23 @@ export interface GateDef {
   ty: number;
 }
 
-/** SPEC §2.3: 3 spawn gates (west, north, east), Core 2x2 near east-center. */
+/**
+ * SPEC §2.3: 3 spawn gates (west, north, east), Core 2x2 near east-center.
+ *
+ * fb166: positions scaled to the 56x32 grid from the original 36x20 ones
+ * (west/north stay on their exact midpoint; east's `tx` moves to the new
+ * `GRID_W - 1` so the gate stays on the border, and its `ty` keeps the same
+ * 0.85 fraction of height). Left un-scaled, `east` would sit at (35, 17) —
+ * an *interior* tile in the new grid, since the border is now at x=55 — and
+ * `flatKinds` never opens a matching hole in the rock border there, so the
+ * arena would seal a gate that generation still tries to protect a corridor
+ * from. This is judged in-scope for the flip: it is the same file, and a
+ * gate not on the border is not "the grid resized", it is "the grid broke".
+ */
 export const GATES: readonly GateDef[] = [
-  { key: 'west', tx: 0, ty: 10 },
-  { key: 'north', tx: 18, ty: 0 },
-  { key: 'east', tx: 35, ty: 17 },
+  { key: 'west', tx: 0, ty: 16 },
+  { key: 'north', tx: 28, ty: 0 },
+  { key: 'east', tx: 55, ty: 27 },
 ];
 
 /**
@@ -47,8 +59,11 @@ export const GATES: readonly GateDef[] = [
  * a coordinate is the drift shape this lane has already consolidated twice.
  * `world.ts` still writes its own literal; folding that in touches a file
  * outside the terrain lane and is logged for the merge.
+ *
+ * fb166: `tx`/`ty` scaled with the grid the same way `GATES` above is — `ty`
+ * moves to the new `GRID_H - 1` so the gate stays on the south border.
  */
-export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 12, ty: 19 }];
+export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 19, ty: 31 }];
 
 export const CORE_X = 25;
 export const CORE_Y = 9;

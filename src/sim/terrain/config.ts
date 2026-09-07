@@ -18,8 +18,9 @@ import { GATES, GRID_H, GRID_W } from '../grid';
  * `SPAN` is the widest a radius can usefully be. `MAX_WALKABLE_FRAC` is the
  * ceiling *any* map can reach: the border is permanently rock, so only the
  * interior plus the gate tiles themselves can ever be walked. On the shipped
- * 36x20 grid that is (34*18 + 3) / 720 = 0.854 — a `minWalkableFrac` above it
- * is not a strict tuning choice, it is a band no seed can clear.
+ * 56x32 grid (fb166; was 36x20) that is (54*30 + 3) / 1792 = 0.905692 — a
+ * `minWalkableFrac` above it is not a strict tuning choice, it is a band no
+ * seed can clear.
  */
 const SPAN = Math.max(GRID_W, GRID_H);
 const MAX_WALKABLE_FRAC = ((GRID_W - 2) * (GRID_H - 2) + GATES.length) / (GRID_W * GRID_H);
@@ -101,11 +102,13 @@ export function flatCoreAnchorCount(clearance: number): number {
  * Tuner editing.
  *
  * What survives is narrow and true: `1` is impossible at every clearance, and
- * at clearance 17+ nothing is legal at all, which is why this subsumes the
- * standalone `coreGateClearance` check fb064a shipped. A merely *strict* band
- * — 0.70, or 0.90 — still loads, and must: the generator reaches ~0.61 on the
- * shipped data, so those are bands no seed happens to clear rather than bands
- * no map can, and the flagged fallback is the designed answer to them.
+ * at clearance 27+ nothing is legal at all (fb166: 56x32's largest
+ * nearest-gate Chebyshev distance is 27, was 17 at 36x20), which is why this
+ * subsumes the standalone `coreGateClearance` check fb064a shipped. A merely
+ * *strict* band — 0.70, or 0.90 — still loads, and must: the generator
+ * reaches a mean of ~0.57 (max observed ~0.68 over 5000 seeds) on the shipped
+ * data, so those are bands no seed happens to clear rather than bands no map
+ * can, and the flagged fallback is the designed answer to them.
  */
 /**
  * The ceiling rounded so the printed number is itself loadable. `toFixed`
@@ -417,7 +420,8 @@ export const TerrainFileSchema = z
     }
     // Unpayable-data rule. The densities are shares of the *interior* the
     // generator scatters over, while every band is a share of the *whole*
-    // grid — and the border between them is 105 permanently-rock tiles of 720.
+    // grid — and the border between them is 169 permanently-rock tiles of
+    // 1792 (fb166: 56x32, was 105 of 720 at 36x20).
     // Comparing the two directly (which is what fb064a shipped first) misses
     // the entire class of bands no map can reach: `minWalkableFrac: 0.9` was
     // accepted, and then every seed fell through `maxAttempts` to the flat
@@ -469,7 +473,8 @@ export const TerrainFileSchema = z
     // denominator faster than its numerator, so the only sound bound is
     // `a / (a + 1)` (see `maxCoreLegalFrac` for the proof and for the measured
     // counterexamples that killed the tighter version). It refuses `1` at every
-    // clearance and refuses everything positive from clearance 17 up, where no
+    // clearance and refuses everything positive from clearance 27 up (fb166:
+    // 56x32's largest nearest-gate distance; was 17 at 36x20), where no
     // tile can be an anchor — which is what lets it subsume the standalone
     // `coreGateClearance` check this replaced.
     const coreCeiling = maxCoreLegalFrac(cfg.coreGateClearance);

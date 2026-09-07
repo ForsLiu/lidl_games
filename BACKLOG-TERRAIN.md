@@ -23,7 +23,7 @@ the merge — never edited from this lane.
 
 ## Queue
 
-- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+- [x] (fb166) [feat] the terrain half of the owner's bigger-map order
       (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
       the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
       that has to move with it — `data/terrain.json`'s constraint bands
@@ -4467,3 +4467,169 @@ highest-impact item here by a wide margin** and sits third only for that reason.
     `q25` + `q28` + `q33` re-run together in isolation are **26/26 green**, and
     nothing this item touched is reachable from a CLI, from `/data` or from
     `bench/`.
+
+- (2026-09-07, fb166 terrain half) **The grid resize itself: `tests/terrain*`
+  re-fitted to 56x32, 25 files, 411 tests + 1 pre-existing `.skip` green,
+  uncontended.** `src/sim/grid.ts` (main-lane's half of fb166: `GRID_W=56`,
+  `GRID_H=32`, `GATES` west{0,16}/north{28,0}/east{55,27}, `MODIFIER_GATES`
+  south{19,31}) was already in place; this pass re-measured and re-recorded
+  every geometry-dependent assertion this lane owns against it, touching only
+  `tests/terrain*` — `data/terrain.json` and `src/sim/terrain/**` needed no
+  behavioral change (see the no-retune decision below). No file in the fast
+  tier crossed the 60s boundary (`terrain-approach.test.ts` is the closest, at
+  ~57s uncontended), so `vitest.fast.config.ts`'s exclude list was left alone
+  per this lane's own instruction not to preempt.
+
+  **Deliberate decision: `data/terrain.json`'s density/blob/constraint values
+  are unchanged.** A 5000-seed sweep at the new grid with the existing config
+  already clears every §14 band comfortably (walkableFrac min 0.6445 vs floor
+  0.6; buildableNormalFrac min 0.501 vs floor 0.45; coreLegalFrac min 0.478 vs
+  floor 0.15; maxGateDetour max 1.457 vs ceiling 1.5; zero fallbacks) — this is
+  a decision not to retune, not an oversight, and every retry-rate / headroom
+  measurement in the suite (43→5 of 12,000 sampled seeds retrying; sample
+  on-edge count 2→0) is consistent with the bigger, more-connected grid simply
+  having more room, not with the config being loosened.
+
+  **A confirmed bug, out of this lane's Scope: `src/sim/world.ts:591` still
+  hardcodes the Fourth Gate modifier's south tile.**
+  `this.gates.push({ key: 'south', tx: 12, ty: 19 })` was the south border at
+  the old 36x20 grid; at 56x32 the south border is `y=31`, not `y=19`, so
+  `(12, 19)` is now an *interior* tile and the pushed gate does not match
+  `MODIFIER_GATES` in `grid.ts` (`{ key: 'south', tx: 19, ty: 31 }`). Needs
+  `{ tx: 19, ty: 31 }`. `tests/terrain-gates-dump.test.ts` carries a `.skip`ped
+  regression test (`describes a live Fourth Gate run correctly`) with a
+  `TODO(fb166, out of this lane's Scope)` pointing here — un-skip it once
+  `world.ts` is fixed; it is written to go green on the correct coordinates.
+
+  **Confirmed breakage in the four named out-of-scope files, checked as
+  instructed rather than assumed:**
+  - `tests/grid.test.ts` — 3 of 11 fail. Hardcodes `GRID_W`/`GRID_H` to 36/20
+    (`matches the SPEC 2.3 layout`), a gate-walling fixture built for the old
+    layout (`rejects a placement that walls a gate off`), and a pathing-length
+    assertion whose "before" reading no longer changes after the wall
+    (`routes around a placed wall`, `274` vs `274`). All three are hand-built
+    fixtures baked to the old geometry, not sim-logic regressions.
+  - `tests/fb077-terrain-wiring.test.ts` — 3 of 19 fail (1 pre-existing skip).
+    One is a byte-for-byte terrain-overlay comparison whose expected buffer is
+    presumably sized/shaped for the old grid. Two are the seed-4426
+    stranded-Core repro (`the raw generated map at seed 4426 really does
+    strand the hardcoded Core`) and a live-wall-reachability repro (`a live
+    structure wall is chewed, not ghosted through`) — both assert
+    `allGatesReachable() === false` after seed 4426's map is applied, but (as
+    this lane's own `terrain-grid.test.ts` now documents) seed 4426 no longer
+    strands the Core at 56x32; a 500,000-seed scan found 22 seeds that still
+    do (`20336, 85305, 103917, 158937, 174814, 175115, 230183, 234159, 249065,
+    249403, 259782, 275660, 277916, 288525, 306483, 319983, 361364, 390729,
+    401785, 420735, 446280, 481343`), so the fixture needs a new witness seed,
+    not new logic.
+  - `tests/fb078-terrain-build-rejection.test.ts` and
+    `tests/render-fb116-terrain-rendering.test.ts` — **pass unchanged.**
+    Verified rather than assumed; neither hardcodes grid dimensions or
+    gate/anchor coordinates.
+  - Incidental, not requested but visible in the same `npm run test:fast` run:
+    20 non-terrain files fail for grid-size reasons of their own (`grid.test.
+    ts`, `fb077-terrain-wiring.test.ts`, plus `act1`, `act2`, `class-board*`,
+    `content-complete`, `p1a-sealing`, `p6d-nine-classes`,
+    `p8d-boss-termination`, `q15-command-domain-fuzz`,
+    `q45-cli-schema-violation`, `t2-selection`, `ui-fb082-overlay-geometry`,
+    `ui-fb102-bossbar-rail-overlap`, `ui-fb106-extreme-aspect-geometry`,
+    `ui-fb148-dash-range-live`, `ui-input`). All are outside every lane's
+    Scope but this one, listed here so whichever lane picks up the rest of
+    fb166's fallout does not have to re-discover them from a bare `test:fast`
+    run.
+  - Also out of scope and left alone: `vitest.fast.config.ts` /
+    `vitest.perf.config.ts` still say "1498" in a comment about
+    `terrain-cost-retry-ratio.test.ts`'s sample size, which is now 1502
+    (`tests/terrain-cost-ledger.ts`'s `SAMPLE_N`, fb166). A one-line comment
+    fix, filed here rather than made directly since both files sit outside
+    this lane's Scope.
+
+  **Measurements not brought to the same rigor as before the resize, named so
+  a future pass does not mistake "not found" for "does not exist":**
+  1. **No `buildableNormalFrac` edge witness.** A combined ~2,000,000-seed
+     search (three ranges, split across this item) found no seed within any
+     visible distance of the reachable floor `807/1792 = 0.450893`.
+     `tests/terrain-band-ledger.test.ts`'s `WITNESSES` and
+     `tests/terrain-headroom.test.ts`'s `WITNESS_ROWS` both say so in prose
+     rather than naming a seed.
+  2. **Only one `walkableFrac` edge witness, not the old file's cross-checked
+     pair.** Seed `761100` (reachable floor `1076/1792`, hash `86d9eff2`) was
+     found in an 800,000-seed scan from seed 1; a further ~1,000,000-seed
+     search (a low-range extension plus `[3000000000, 3000200000)`, chosen
+     because it is the only sub-range with a chance at a dual int32/uint32
+     spelling) found no second witness anywhere, on either spelling.
+     `tests/terrain-seed-domain.test.ts`'s "pins the far-domain seed" test was
+     rewritten to check one spelling honestly rather than assert a pair.
+  3. **`coreLegalFrac`'s named witness (223269) is `best-found`, not `edge`,
+     and is far from the floor.** Its slack against `minCoreLegalFrac: 0.15`
+     is `0.287` — nowhere near zero — so it answers "how low can this band go
+     in a search of this size" rather than "does a real map sit on this
+     floor". `terrain-headroom.test.ts` deliberately does not use it as a
+     headroom witness for that reason.
+  4. **The two-step-walk (`attempts: 3`) witnesses for
+     `terrain-band-ledger.test.ts` are a much smaller search than the old
+     pair's.** `497692` and `612855` were found in the first ~612,855 seeds of
+     a comb from seed 1 (stopped as soon as 2 hits were found, well under the
+     1,500,000-seed budget available) — both retry for `maxGateDetour` twice,
+     unlike the old pair (one density, one detour cause), which is reported as
+     what this smaller search happened to find, not a general shape claim.
+  5. **`COST_RATIO_CEILING`'s 80→250 recalibration
+     (`tests/terrain-generation.test.ts`) is idle-only.** 12 same-host,
+     idle-session measurements (range 81.95–110.21) set the new ceiling; the
+     original constant's bursty-load repro, its reverted-clamp comparison, and
+     its repeat-knob sensitivity analysis were not re-run at the new grid.
+  6. **fb065a's old three-failure-mode seed characterization** (the ROOM_RADIUS
+     tie-break "declined tie-break costs a whole map" scenario) does not
+     reproduce at 56x32 — a 150,000-seed search for an equivalent
+     ceiling-crossing case found none. `terrain-anchor-quality.test.ts`'s test
+     was rewritten around seed 94, which demonstrates the weaker property
+     (ring-vs-disc tie-break disagreement without a ceiling crossing) that this
+     search did confirm, with the null result on the stronger property stated
+     in the test's own comment.
+
+  **Verification.** `npx vitest run tests/terrain*.test.ts`, uncontended:
+  25 files, 411 passed + 1 pre-existing `.skip`, 97.5s wall / ~257s test time.
+  `npm run test:fast`: all 24 terrain files in the fast tier green (the 25th,
+  `terrain-cost-retry-ratio.test.ts`, is pre-existing-excluded); the run's 59
+  failures are entirely in the 20 non-terrain files named above, none of them
+  `tests/terrain*`.
+
+- (2026-09-07, fb166 QA round) **PASS on the item's literal acceptance, plus
+  one new out-of-scope regression and one honesty correction on the
+  no-retune claim.**
+
+  **New bug, not in the fallout list above: `tests/fb027-selection-panels.
+  test.ts` is now flaky (~43% of file-runs), not merely grid-size-broken.**
+  Isolated by swapping only `src/sim/grid.ts` between the pre-fb166 commit
+  and this one with everything else held fixed: 0/20 file-runs failed at
+  36x20, 13/30 (~43%) at 56x32. Cause: its local `freeTileNear` helper
+  (line ~42) checks `w.grid.passable(tx, ty)`, which is true for
+  walkable-but-not-buildable ground (rough), so on an unlucky real seed
+  (the file draws one via `Math.random()` per test, which is fine — it is
+  UI, not `/src/sim`) it can hand `buildTower` a rough tile, which no-ops
+  silently (`{ok:false}`, no throw) rather than building, leaving
+  `structureAt` null for a later `!.id` read. Fix is one word in the test
+  (`passable` -> `buildable`) but the file is outside every path this
+  lane's Scope allows editing — filed here for whichever lane picks up
+  fb166's fallout, alongside the 20 already listed.
+
+  **Honesty correction: the "clears comfortably" framing above is true of
+  the 5000-seed (1..5000) sample it was measured on, not of the domain a
+  real run draws from.** QA ran a 100,000-seed odd-stride comb across the
+  full uint32 domain (the domain `src/ui/main.ts`'s `Math.random()` draw
+  actually covers, per `fb064j`) and found the same zero fallbacks / zero
+  band violations, but with far thinner margins than "comfortable" implies:
+  `maxGateDetour` reaches **exactly 1.5** — zero headroom, verified to 20
+  significant digits, not float noise — at seed `1200939788`; `walkableFrac`'s
+  domain-sampled floor is `0.609375` (slack 0.0094 against the 0.6 floor,
+  not the low-sample's 0.0445); `buildableNormalFrac`'s is `0.465960` (slack
+  0.016, not 0.051). Nothing is illegal — every one of these is inside its
+  band, and the generator's own seed+1 retry is exactly the safety net for
+  a worse one — but the earlier framing overstated how much room the config
+  has left, which is the opposite of this project's own measurement rules.
+  Restated: the shipped bands hold across the full domain with real but
+  much thinner headroom than the low sample suggested; `maxGateDetour` in
+  particular is one bad seed away from its ceiling, domain-wide, same as it
+  was pre-resize (the old ledger's own two ceiling-edge witnesses record the
+  identical situation at 36x20). Not a defect to fix — a claim to not
+  repeat uncorrected.

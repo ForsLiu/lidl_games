@@ -343,35 +343,41 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     // The tiles were always right — `attempt` reduces to uint32 either way —
     // but the reported seed left the domain it claims to be in.
     //
-    // The band is local rather than `strict` since fb064l: at
-    // `minCoreLegalFrac: 0.5` the key 2 ** 31 - 1 now measures 0.504043 and
-    // is accepted, so there is no walk left to test. 0.505 rejects it. The
-    // walk is three steps rather than two and that is not a weaker test but a
-    // stronger one — key 2 ** 31 (0.487047) is rejected too, so the walk
-    // *crosses* the int32 boundary and keeps counting instead of stopping on
-    // it, which is exactly the arithmetic the fb064j fix was about. No
-    // `minCoreLegalFrac` can make it a two-step walk: any band that rejects
-    // 0.504043 also rejects 0.487047.
+    // The band is local rather than `strict` for the reason fb064l originally
+    // gave: the exact threshold needed depends on what the seeds around this
+    // boundary measure, which moves with the generator and (as of fb166) with
+    // the grid. Re-derived at 56x32: `minCoreLegalFrac: 0.55` rejects
+    // 2147483647 (0.528600), 2147483648 (0.546627) and 2147483649 (0.544574)
+    // in turn and accepts 2147483650 (0.570594) — a 4-step walk (was 3 steps
+    // at 36x20, threshold 0.505) that still crosses the `2 ** 31` boundary and
+    // keeps counting instead of stopping on it, which is exactly the
+    // arithmetic the fb064j fix was about.
     const crossing = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.505;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.55;
     });
     const m = generateTerrain(2 ** 31 - 1, crossing);
-    expect(m.attempts).toBe(3);
-    expect(m.seed).toBe(2 ** 31 + 1);
+    expect(m.attempts).toBe(4);
+    expect(m.seed).toBe(2 ** 31 + 2);
     expect(m.seed).toBeGreaterThan(0); // never the signed spelling
     expect(m.requestedSeed).toBe(2 ** 31 - 1);
     expect(m.fallback).toBe(false);
-    const direct = generateTerrain(2 ** 31 + 1, crossing);
+    const direct = generateTerrain(2 ** 31 + 2, crossing);
     expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
     expect(m.hash).toBe(direct.hash);
   });
 
   it('a walk off the top of uint32 wraps to seed 0', () => {
-    // No shipped-config seed reaches this, so the wrap is forced: seed -1
-    // measures walkableFrac 0.69166 and seed 0 measures 0.69305, so a band
-    // between them makes 0xffffffff degenerate and 0 the answer.
+    // No shipped-config seed reaches this, so the wrap is forced. fb166:
+    // re-derived at 56x32 on a different band — seed -1 (= 0xffffffff) now
+    // measures walkableFrac *higher* than seed 0 does (0.708705 against
+    // 0.687500, the reverse ordering from 36x20's 0.69166/0.69305), so no
+    // `minWalkableFrac` floor can reject -1 while accepting 0 any more.
+    // `coreLegalFrac` still has the right ordering: -1 measures 0.540000 and
+    // 0 measures 0.561658, so a floor between them makes 0xffffffff
+    // degenerate and 0 the answer, the same shape of proof on a different
+    // band.
     const wrap = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minWalkableFrac = 0.6925;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.55;
     });
     for (const s of [-1, MAX_TERRAIN_SEED]) {
       const m = generateTerrain(s, wrap);
@@ -413,28 +419,31 @@ describe('fb064j — provenance on the fallback map', () => {
 describe('fb064j — the band cliff is a property of the whole domain', () => {
   it('pins the far-domain seed that sits exactly on the walkable floor', () => {
     // fb064a's Log records seed 7957 at walkableFrac exactly 0.6000 against a
-    // `>= 0.60` band — zero headroom, passing only because the band is `>=`.
-    // That was measured over seeds 1..20000 and read as a fact about that
-    // window. It is not: QA's 8.8M-seed re-measure bottoms out at exactly
-    // 0.600000 in *every* window of the domain. This pins the far-domain twin
-    // so a density retune that pushes the floor down goes red here too, not
-    // only in the near window fb064a happened to sample.
+    // `>= 0.60` band at the 36x20 grid, where 0.6 * 720 = 432 lands exactly on
+    // the tile lattice. fb166's 56x32 grid has 1792 tiles, and 0.6 * 1792 =
+    // 1075.2 does NOT land on the lattice — the true reachable floor is
+    // ceil(1075.2)/1792 = 1076/1792 = 0.6004464285714286, one tile above the
+    // authored constant. A map below the band is regenerated at seed+1, so
+    // that ceiling value, not 0.6 itself, is the smallest walkable share
+    // `generateTerrain` can actually return.
     //
-    // fb064l moved every map and so moved this pair (4294881754 / -85542
-    // before). The floor itself did not move and structurally cannot: a map
-    // below the band is regenerated at seed+1, so 0.600000 is the smallest
-    // walkable share `generateTerrain` can *return*, and finding a seed that
-    // sits exactly on it stayed a search rather than a surprise.
-    for (const s of [4294805928, -161368]) {
-      const m = generateTerrain(s, cfg);
-      const q = measureTerrain(m, cfg);
-      expect(m.fallback).toBe(false);
-      expect(q.walkableCount).toBe(432);
-      expect(q.walkableFrac).toBe(cfg.constraints.minWalkableFrac);
-      expect(legalUnder(m, cfg)).toBe(true);
-      // The two spellings are one key, so they are one map.
-      expect(m.hash).toBe('471ef79e');
-    }
+    // fb064a/fb064l's far-domain pair does not survive the resize: a search
+    // of the old pair's neighborhood, and separately of the upper half of the
+    // uint32 domain ([3000000000, 3000200000), 200000 seeds), found no seed
+    // there landing on the new floor. What is pinned here instead is a
+    // same-domain-scale witness found by an 800,000-seed scan from seed 1:
+    // seed 761100. It has no meaningful negative-int32 "twin spelling" the
+    // way the old pair did — 761100 - 2**32 is far outside the valid
+    // [-2**31, 2**32-1] seed domain — so this test checks one spelling, not
+    // two, and says so rather than asserting a pair that was never found.
+    const s = 761100;
+    const m = generateTerrain(s, cfg);
+    const q = measureTerrain(m, cfg);
+    expect(m.fallback).toBe(false);
+    expect(q.walkableCount).toBe(1076);
+    expect(q.walkableFrac).toBeCloseTo(1076 / 1792, 10);
+    expect(legalUnder(m, cfg)).toBe(true);
+    expect(m.hash).toBe('86d9eff2');
   });
 });
 
@@ -462,17 +471,22 @@ describe('fb064j — golden hash per region', () => {
       '3000000000': golden(3000000000),
       '4294967294': golden(2 ** 32 - 2),
       '4294967295': golden(MAX_TERRAIN_SEED),
+      // fb166: re-measured at 56x32. Was (36x20): '-2147483648' 'd8573b44',
+      // '-12345' 'cb3ee3a6', '-1' '077808d2', '0' '58fa46d9', '2147483646'
+      // '3956f8e2', '2147483647' '2563a26b', '2147483648' 'd8573b44',
+      // '3000000000' '12a572e3', '4294967294' 'd27c038b', '4294967295'
+      // '077808d2'.
     }).toEqual({
-      '-2147483648': 'd8573b44',
-      '-12345': 'cb3ee3a6',
-      '-1': '077808d2',
-      '0': '58fa46d9',
-      '2147483646': '3956f8e2',
-      '2147483647': '2563a26b',
-      '2147483648': 'd8573b44',
-      '3000000000': '12a572e3',
-      '4294967294': 'd27c038b',
-      '4294967295': '077808d2',
+      '-2147483648': '733fe53b',
+      '-12345': '20de2e3d',
+      '-1': '48ec7f4a',
+      '0': '39291ac3',
+      '2147483646': '1ba05252',
+      '2147483647': '63010892',
+      '2147483648': '733fe53b',
+      '3000000000': 'e83a32cf',
+      '4294967294': '7aa7fd4e',
+      '4294967295': '48ec7f4a',
     });
   });
 
@@ -501,6 +515,8 @@ describe('fb064j — golden hash per region', () => {
       2: generateTerrain(2, asFb064a).hash,
       42: generateTerrain(42, asFb064a).hash,
       1000: generateTerrain(1000, asFb064a).hash,
-    }).toEqual({ 1: '03031f09', 2: '30ddb8d4', 42: 'b2e86488', 1000: '473db113' });
+      // fb166: re-measured at 56x32 (was 1: '03031f09', 2: '30ddb8d4', 42:
+      // 'b2e86488', 1000: '473db113' at 36x20).
+    }).toEqual({ 1: 'eba04f21', 2: '42bfa38f', 42: '6f78a2c7', 1000: '7aa9828e' });
   });
 });

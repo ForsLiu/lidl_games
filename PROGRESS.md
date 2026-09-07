@@ -5,11 +5,92 @@
 
 ## Current state — SPEC-FINAL
 
-
 > **Older session entries have moved.** Everything before the last 10
 > entries below, plus the pre-SPEC-FINAL v0.2/M0-M8 history, now lives in
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
+
+- **2026-09-07 — lane/terrain: BACKLOG-TERRAIN fb166 done (terrain half of
+  the owner's bigger-map order).** `src/sim/grid.ts`'s `GRID_W`/`GRID_H`
+  flip to 56x32 (from 36x20), with `GATES`/`MODIFIER_GATES` rescaled to
+  stay on the new border — left un-rescaled, `east` and the Fourth Gate's
+  `south` would land on interior tiles, since the border check is exact
+  (`tx===GRID_W-1` etc.), not proportional. Every geometry-dependent
+  assertion `tests/terrain*` owns (25 files: golden hashes, exact
+  tile-count fixtures, witness seeds, the band/cost/headroom ledgers) is
+  re-measured against the new size; `data/terrain.json` needed no retune
+  (density/blob/constraint values already clear every band, confirmed by
+  QA over both a 5000-seed sample and a 100,000-seed full-domain comb —
+  the domain-wide margins are real but thinner than the sample first
+  suggested, corrected in BACKLOG-TERRAIN.md's Log rather than left
+  overstated). `npx vitest run tests/terrain*.test.ts`: 411 passed + 1
+  pre-existing skip, 25/25 files green, independently reproduced by both
+  code-reviewer (APPROVE, 2 Minors folded in — a retry-count bound
+  loosened more than the geometry required, a stale sample-size comment)
+  and qa-playtester. QA also found one new out-of-scope regression:
+  `tests/fb027-selection-panels.test.ts` is now ~43% flaky (a helper picks
+  walkable-but-not-buildable tiles, which silently no-ops `buildTower` on
+  an unlucky real seed) — one-word fix, logged rather than made since the
+  file is outside this lane's Scope.
+
+  **Confirmed, deliberately not fixed here (outside this lane's Scope,
+  logged in BACKLOG-TERRAIN.md for the merge):** `src/sim/world.ts:591`
+  still hardcodes the Fourth Gate's south tile at the old grid's border
+  (12,19) instead of (19,31) — a real, currently-shipping bug for any run
+  with the Fourth Gate modifier on, with a `.skip`ped regression test
+  ready to un-skip once fixed. `tests/grid.test.ts` (3/11 fail) and
+  `tests/fb077-terrain-wiring.test.ts` (3/19 fail) hardcode old-grid
+  geometry/witness seeds. 20 further non-terrain fast-tier files
+  (act1/act2, four class-board* files, content-complete, p1a-sealing,
+  p6d-nine-classes, p8d-boss-termination, q15/q45 fuzz suites,
+  t2-selection, five ui-fb*/ui-input files) fail for grid-size reasons of
+  their own — full list and root causes in BACKLOG-TERRAIN.md's Log. A
+  stale "1498" sample-size comment in `vitest.fast.config.ts`/
+  `vitest.perf.config.ts` is now 1502. None of this is mysterious — every
+  failure has a named, understood cause — but fixing it means editing
+  files outside `src/sim/terrain/**`, `data/terrain.json`, `tests/
+  terrain*`, and `src/sim/grid.ts`, which this lane's Scope forbids; it is
+  main-lane (and other-lanes') work at the next merge.
+
+- **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
+  broadphase used a constant `range * 0.5 + 2` margin around the swept
+  line's midpoint, which only bounds the rectangle's true reach
+  (`sqrt((range/2)^2 + halfWidth^2)`) while `halfWidth` stays small; once
+  an Area-scaled `halfWidth` (`dash_line`/`boon:reach`, uncapped) pushed the
+  rectangle's far corners past it, those enemies were never even
+  perp-tested. Margin is now `range * 0.5 + halfWidth + 2`, matching the
+  fix `fireCrimsonRush` (`classes.ts`) already shipped for its own
+  hand-rolled copy. Also closed the sibling inconsistency the item named:
+  `towers.ts`'s `single`/`pierce` tower kinds passed a bare `LINE_HALF_WIDTH`
+  to `lineHit`/`bestLineDirection` — the one attack shape in that function
+  Area didn't scale, unlike aura range/lob/poison aoe/cone half-angle/blast
+  aoe in the same file and `vswield.ts`'s identical beam calls. Aligned
+  rather than pinned, per SPEC-FINAL §2's "Area... applies to every attack,
+  active, and effect." `tests/fb081-linehit-broadphase.test.ts` pins the
+  `dash_line` areaMul-4 corner-miss regression (written first, confirmed
+  red at HEAD, CLAUDE.md rule 3). code-reviewer's one Major finding — the
+  new tower-beam footprint had no row in `tests/class-wide-grove-reach.
+  test.ts`'s c013 ledger, the exact "a new caller, not a new read" guard
+  built for this failure mode by c001 — was closed with a new Arrow Spire
+  CONSUMERS row (at its §5.2 pierce milestone, using the file's own
+  "primary must be the most path-advanced candidate, `targetFirst` doesn't
+  pick by raw distance" convention) and a Ballista DEVIATIONS row for the
+  aim-only `bestLineDirection` call, mirroring the existing wielded-side
+  entry. qa-playtester independently reproduced the pre-fix miss via
+  `git stash` on `towers.ts` alone (proving that half of the fix is
+  load-bearing on its own, not just the `combat.ts` margin), confirmed
+  `ballista`'s `pierce` kind benefits too, checked `halfWidth===0` and an
+  extreme synthetic `areaMul===1000` for NaN/perf issues (clean), and
+  found no bugs. Targeted suites (`fb081-linehit-broadphase`,
+  `class-area-stat`, `class-wide-grove-reach`, `p5d-projectile-damage-
+  credit`, `a2-towers-mandatory`, and the `ui-fb1*`/dash-width files) all
+  green. `npm run test:fast` full run: only pre-existing, unrelated
+  failures remain — the documented `q15-command-domain-fuzz`/`q45` host-
+  load module-resolution flake (reproduced independently on a clean stash
+  of this diff, logged repeatedly in this file since early sessions) and
+  `q47`'s CLI-crash-coverage census tripping on another concurrent
+  session's own in-progress scratch files under `tools/` (not part of this
+  item's diff). Committed `692b8fc`.
 
 - **2026-09-07 — main lane: BACKLOG fb179 done, negative result, no
   QUESTIONS.md content moved.** fb178's deferred point 3: move every
