@@ -4277,7 +4277,7 @@ logs a blocker below rather than editing `/data` itself.
       flake class red — refs: fb144, fb075, QUALITY.md 1.0
       (Accessibility re-check).
 
-- [ ] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
+- [x] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
       hiding the tab pauses but does not flush the persisted run. fb145's
       `visibilitychange` handler (`main.ts`) is the last reliable moment
       before a mobile freeze/discard — its own comment says so — but it only
@@ -4293,8 +4293,53 @@ logs a blocker below rather than editing `/data` itself.
       the throttle window to a non-multiple-of-60 tick, dispatches a hidden
       `visibilitychange`, and asserts the persisted `inputLog.length` equals
       `world.tick`; plus a case asserting a hide on the Hub (no run) and a
-      hide with `persistDisabled` write nothing — refs: fb145, fb074, fb087,
-      QUALITY.md BETA.
+      hide with `persistDisabled` write nothing. **DONE 2026-09-07** — the
+      `visibilitychange` handler's hidden branch (`main.ts`) now calls
+      `this.persistRun()` directly (the exact same method every throttled
+      per-frame call already uses, so `persistDisabled`/cross-tab
+      `runSessionId` ownership are honoured identically, not re-implemented)
+      and updates `this.lastPersistedLen` to match, guarded the same way
+      `onFocusLost` already is (`this.run && outcome === 'running'`) so a
+      hide on the Hub or an already-finished run writes nothing new. New
+      `tests/ui-fb170-hidden-tab-flush.test.ts` (4 tests) drives a real
+      `Game` through `frame()` one ~1-tick real frame at a time (NOT fb074's
+      own `tick64`'s 8-ticks-per-frame catch-up jumps, which land exactly on
+      — and so mask — a 60-tick throttle boundary) to reproduce the item's
+      own repro shape: a tick strictly between two throttle boundaries, with
+      the periodic throttle demonstrably not yet caught up
+      (`lastPersistedLen < inputLog.length`), then asserts a hide flushes
+      the persisted log to exactly `world.tick`; a `persistDisabled` case
+      (set mid-run, confirms no new write past that point — `persistRun()`'s
+      own existing guard, not a second one); and a Hub-only and an
+      already-finished-run case. The already-finished-run case needed a
+      real correction while writing it: a finished run already clears its
+      own persisted checkpoint on the next tick it processes the terminal
+      outcome (pre-existing, unrelated cleanup in `main.ts`), so there is no
+      "same as before" checkpoint for a hide-triggered flush to preserve —
+      the test asserts the (already-`null`) checkpoint stays `null` and hide
+      does not throw, rather than the wrong equality it was first drafted
+      with. Confirmed the primary case is a genuine regression test: `git
+      stash` on `main.ts` alone reproduced the filed bug exactly
+      (`expected 60 to be 93`) with the other 3 cases unaffected; restored
+      and reconfirmed all 4 green. Writing this item's own test surfaced a
+      real, if minor, side effect worth recording: because `hide()` now
+      genuinely persists a real checkpoint, `tests/ui-fb145-visibility-
+      autopause.test.ts`'s existing cases — which drive real `Game`s through
+      real hides and never previously needed to care about `localStorage` —
+      started leaking a persisted run across its own `it()` blocks (a later
+      test's fresh `Game` found an earlier test's checkpoint and resumed it
+      instead of showing the Hub, `#sw-start` missing). Fixed in the same
+      commit by adding `localStorage.clear()` to that file's existing
+      `afterEach`, the same convention `ui-fb074-resume-on-refresh.test.ts`
+      and this item's own new file already use — re-verified fb145's full
+      12-test file green afterward. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (full tier — touches
+      `main.ts`'s persistence path; no Task-dispatch tool available in this
+      remote session, see fb115/fb173's DONE note for the same caveat): no
+      Critical/Major found. `npm run test:fast`: 276 passed / 8 skipped
+      files, 4118 passed tests (up from 4114 by exactly this item's 4), only
+      the pre-existing `q15`/`q45` flake class red — refs: fb145, fb074,
+      fb087, QUALITY.md BETA.
 
 - [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
