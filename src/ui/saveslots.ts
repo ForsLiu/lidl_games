@@ -34,9 +34,40 @@ function slotStorageKey(slot: number): string {
  * timestamp field on `MetaState` itself (`src/meta/meta.ts`/`src/sim/types.ts`
  * are out of this lane's Scope, so a real save-time timestamp isn't
  * reachable from here).
+ *
+ * Deliberately NOT named under `SLOT_KEY_PREFIX` (`stonewake.save.slot*`):
+ * `tests/ui-fb111-cloud-save-portability.test.ts` treats every key under
+ * that prefix as real, portable save data a cloud provider would back up —
+ * this is internal bookkeeping, not save data, and mixing the two would both
+ * fail that check (the sentinel below isn't a portable JSON blob) and invite
+ * a provider to restore/desync it independently of the real slot file it's
+ * meant to describe.
  */
 function slotLastFlushKey(slot: number): string {
-  return `${SLOT_KEY_PREFIX}${slot + 1}.lastflush.v1`;
+  return `stonewake.saveflushmark.slot${slot + 1}.v1`;
+}
+
+/**
+ * fb172 (qa-playtester finding): `localStorage.getItem` returning `null`
+ * cannot distinguish "we have never tracked this slot" (safe to fall back to
+ * legacy, unconditional-flush behavior) from "we know this slot's file is
+ * genuinely empty" (a real, trackable fact an out-of-process write could
+ * still disagree with) — both read as `null`. Never a legal JSON blob
+ * (`saveMeta` always writes an object), so it cannot collide with a real
+ * flush value.
+ */
+const EMPTY_SENTINEL = 'fb172-empty-marker';
+
+/** Records `value` (or "known to be empty", for `null`) as `slot`'s last known-good sync point — see `slotLastFlushKey`'s own doc comment. */
+function recordFlush(slot: number, value: string | null): void {
+  globalThis.localStorage?.setItem(slotLastFlushKey(slot), value === null ? EMPTY_SENTINEL : value);
+}
+
+/** `{ tracked: false }` if this slot has no flush history at all yet; otherwise the last known-good value, decoded back from `EMPTY_SENTINEL` to `null`. */
+function knownFlush(slot: number): { tracked: boolean; value: string | null } {
+  const raw = globalThis.localStorage?.getItem(slotLastFlushKey(slot));
+  if (raw == null) return { tracked: false, value: null };
+  return { tracked: true, value: raw === EMPTY_SENTINEL ? null : raw };
 }
 
 /**
@@ -103,6 +134,17 @@ export function ensureActiveSlotMigrated(): void {
     if (globalThis.localStorage?.getItem(ACTIVE_SLOT_KEY) != null) return;
     const legacy = globalThis.localStorage?.getItem(SAVE_KEY);
     if (legacy != null) globalThis.localStorage?.setItem(slotStorageKey(0), legacy);
+    // fb172 (qa-playtester finding, escalated on re-verification): seeds slot
+    // 0's flush record at the same moment its file is seeded. Without this, a
+    // cloud restore of slot 0's own file racing this account's very first
+    // switch-away — after migrating REAL, possibly-substantial progress, not
+    // just an empty account — was silently destroyed by that switch's
+    // `!tracked -> safe` fallback flushing the stale legacy `SAVE_KEY` back
+    // over it. Once this session performs its own real save (through
+    // `saveMetaToActiveSlot`), that write re-establishes the record anyway —
+    // this only protects the specific window between migration and that
+    // first real save.
+    recordFlush(0, legacy ?? null);
     setActiveSlotRaw(0);
   } catch {
     // Storage unavailable: nothing to migrate.
@@ -147,7 +189,7 @@ function syncActiveSlotKey(): void {
       globalThis.localStorage?.setItem(slotStorageKey(active), live);
       // fb172: this normal, in-session flush IS a new "last known-good sync
       // point" for the outgoing-switch check below.
-      globalThis.localStorage?.setItem(slotLastFlushKey(active), live);
+      recordFlush(active, live);
     }
   } catch {
     // Storage unavailable: `SAVE_KEY` is no more written than the slot key is.
@@ -192,14 +234,14 @@ export function slotHasData(slot: number): boolean {
  * into `slot`'s own key — true unless an out-of-process write (a per-file
  * cloud restore, the scenario `slotLastFlushKey`'s doc comment describes)
  * landed on `SAVE_KEY`, on `slot`'s own key, or both, since this module's
- * own last flush. A slot with no flush history yet (`known === null` — never
- * played this session, or an account that predates this fix) reads as safe,
- * matching this function's pre-fix behavior exactly for that case.
+ * own last flush. A slot with genuinely no flush history yet (`!tracked` —
+ * an account that predates this fix, before its first save/switch) reads as
+ * safe, matching this function's pre-fix behavior exactly for that case.
  */
 function slotUnchangedSinceOurLastFlush(slot: number): { safe: boolean; slotFile: string | null } {
   const slotFile = globalThis.localStorage?.getItem(slotStorageKey(slot)) ?? null;
-  const known = globalThis.localStorage?.getItem(slotLastFlushKey(slot));
-  if (known == null) return { safe: true, slotFile };
+  const { tracked, value: known } = knownFlush(slot);
+  if (!tracked) return { safe: true, slotFile };
   const live = globalThis.localStorage?.getItem(SAVE_KEY) ?? null;
   return { safe: slotFile === known && live === known, slotFile };
 }
@@ -220,6 +262,13 @@ function slotUnchangedSinceOurLastFlush(slot: number): { safe: boolean; slotFile
  * un-asked (the acceptance's "either... or" — this takes the "refuse the
  * overwrite" branch, not "keep both and tell the player", which needs UX the
  * owner hasn't chosen — see BACKLOG-UI.md's Log for the QUESTIONS.md note).
+ *
+ * fb172 (qa-playtester finding): the INCOMING leg below also records a flush
+ * for the slot it loads — without it, a slot that had just become active via
+ * a switch (but had no local save yet this session) stayed `!tracked`, so a
+ * restore landing on its file before any save was silently destroyed by the
+ * NEXT switch-away's `!tracked -> safe` legacy fallback, the exact class of
+ * bug this item exists to close.
  */
 export function switchToSlot(slot: number): boolean {
   if (!inRange(slot)) return false;
@@ -228,27 +277,22 @@ export function switchToSlot(slot: number): boolean {
   try {
     const { safe, slotFile } = slotUnchangedSinceOurLastFlush(current);
     if (safe) {
-      const live = globalThis.localStorage?.getItem(SAVE_KEY);
-      if (live != null) {
-        globalThis.localStorage?.setItem(slotStorageKey(current), live);
-        globalThis.localStorage?.setItem(slotLastFlushKey(current), live);
-      } else {
-        globalThis.localStorage?.removeItem(slotStorageKey(current));
-        globalThis.localStorage?.removeItem(slotLastFlushKey(current));
-      }
-    } else if (slotFile != null) {
+      const live = globalThis.localStorage?.getItem(SAVE_KEY) ?? null;
+      if (live != null) globalThis.localStorage?.setItem(slotStorageKey(current), live);
+      else globalThis.localStorage?.removeItem(slotStorageKey(current));
+      recordFlush(current, live);
+    } else {
       // fb172: re-sync our own bookkeeping to the slot file's actual current
-      // content (never to `live` — that's the side we just refused to trust)
+      // content (never to `live` — that's a side we just refused to trust)
       // so a FUTURE switch-away compares against present reality instead of
       // being stuck refusing forever against this one stale record.
-      globalThis.localStorage?.setItem(slotLastFlushKey(current), slotFile);
-    } else {
-      globalThis.localStorage?.removeItem(slotLastFlushKey(current));
+      recordFlush(current, slotFile);
     }
 
-    const incoming = globalThis.localStorage?.getItem(slotStorageKey(slot));
+    const incoming = globalThis.localStorage?.getItem(slotStorageKey(slot)) ?? null;
     if (incoming != null) globalThis.localStorage?.setItem(SAVE_KEY, incoming);
     else globalThis.localStorage?.removeItem(SAVE_KEY);
+    recordFlush(slot, incoming);
 
     setActiveSlotRaw(slot);
     return true;
@@ -275,11 +319,11 @@ export function deleteSlot(slot: number): boolean {
   if (!inRange(slot)) return false;
   try {
     globalThis.localStorage?.removeItem(slotStorageKey(slot));
-    // fb172: a deliberate delete is not a "foreign write since our last
-    // flush" — clearing the record too means a later re-created slot's first
-    // switch-away is compared against nothing (reads as safe), not against a
-    // stale pre-deletion value it can never match again.
-    globalThis.localStorage?.removeItem(slotLastFlushKey(slot));
+    // fb172: records the delete as a real, tracked "known empty" (not a
+    // cleared/untracked record) — a subsequent out-of-process write to this
+    // slot's file before it is next played is still a genuine, detectable
+    // disagreement, not a free pass through the `!tracked` legacy fallback.
+    recordFlush(slot, null);
     if (slot === getActiveSlot()) globalThis.localStorage?.removeItem(SAVE_KEY);
     return true;
   } catch {
