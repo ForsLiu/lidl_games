@@ -139,6 +139,20 @@ describe('q15 command-argument domain fuzz', () => {
       const r = await probeInWorker('dev.xp.amount', 'posInf', 4000);
       expect('hangs' in r && r.hangs).toBe(false);
     }, 15000);
+
+    // fb172 (code review): the case above asserts only the *negative* limb, so
+    // nothing proved the deadline path still fires — and that path is the
+    // whole reason these probes pay for a worker at all. It became newly
+    // load-bearing when a `.mjs` bootstrap was put between parent and worker
+    // to register the TS loader on the worker thread, since a bootstrap that
+    // swallowed the timeout would leave a genuine hang hanging the runner
+    // instead. A 1 ms deadline beats worker startup (~500 ms) every time, so
+    // this forces the limb deterministically without needing a probe that
+    // really loops forever.
+    it('reports `hangs` and terminates the worker when the deadline is impossible', async () => {
+      const r = await probeInWorker('pick.index', 'negative', 1);
+      expect('hangs' in r && r.hangs).toBe(true);
+    }, 15000);
   });
 
   describe('closed finding (BACKLOG b007): an out-of-grid tx used to alias onto a real tile one row up, for both upgrade and sell', () => {

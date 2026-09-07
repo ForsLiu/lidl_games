@@ -44,6 +44,41 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
+- [x] (fb172) [bug] **DONE 2026-09-07, found by the loop's own fast-tier run,
+      not by a backlog item.** `tests/q15-command-domain-fuzz.test.ts` was
+      failing its **whole suite at collection** and taking q45's
+      `fuzz-command-domain` case with it:
+      `Cannot find module '.../tools/fuzz-command-domain' imported from
+      .../tools/fuzz-command-domain-worker.ts`. Inside a
+      `worker_threads.Worker`, `execArgv: ['--import', 'tsx/esm']` gets the
+      entry `.ts` file *transformed* but does not give that file's own
+      imports extensionless resolution, so the worker died on its first bare
+      specifier. **Not the documented q15 flake** this file has logged since
+      early sessions (that one is a Windows host-load *timeout*); this is
+      deterministic — same error, every run, and it reproduces on a clean
+      checkout with the session's own diff stashed, so it predates today's
+      work.
+      Diagnosed with a minimal repro (a Worker importing a two-deep
+      extensionless `.ts` chain) rather than by guessing: it fails identically
+      under `--import tsx/esm` **and** `--import tsx`, so the deprecated
+      loader entry point was never the cause; and an explicit `.ts` extension
+      fixes exactly *one* hop before the next bare import (`src/sim/run`)
+      fails, so annotating extensions would have meant annotating the whole
+      transitive `src/sim` graph. The fix is to register the loader **on the
+      worker thread**: new `tools/fuzz-command-domain-worker-boot.mjs` calls
+      `register()` from `tsx/esm/api` and then pulls the real worker in with
+      a dynamic `import()` (static would hoist above `register()`), and
+      `WORKER_PATH` points at it. `.mjs` because it installs the TS loader and
+      so cannot need it; q47's tools census filters non-`.ts` files, so it is
+      invisible there for the same reason `gen-tree.mjs` is.
+      **The 24 q15 cases were not merely red, they were not running** — they
+      counted as "skipped" because the suite never got past collection, and
+      now execute. q15+q45 go from `2 failed / 1 failed / 24 skipped` to
+      **2 passed / 35 passed**. The already-red suites are the regression
+      coverage (CLAUDE.md rule 3's failing-test-first is satisfied by the
+      red that found it) — refs: fb140's CI tier, PROGRESS.md's q15 flake
+      history, which this is *not*.
+
 - [x] (fb171) [bug] **DONE 2026-09-06, filed by code-reviewer on fb161.**
       fb161's first shape banked ground-fire damage on each **field**, which
       satisfies the acceptance line ("<= 4 events/second per ground field") and

@@ -53,9 +53,12 @@
  * `w.level` counts up without bound. A synchronous while-loop inside the
  * vitest worker that is running this very file cannot be interrupted by a
  * same-thread timer, so the census runs every probe inside its own
- * `worker_threads.Worker` (loaded via `tsx/esm`, confirmed by hand to load a
- * `.ts` worker and to be killable mid-infinite-loop by `Worker#terminate()`)
- * and treats "did not answer within the deadline" as its own verdict,
+ * `worker_threads.Worker` (started through
+ * `fuzz-command-domain-worker-boot.mjs`, which registers the TS loader on the
+ * worker thread — see fb172 and that file's header for why `execArgv` alone
+ * could not; killability mid-infinite-loop by `Worker#terminate()` re-checked
+ * live through the bootstrap) and treats "did not answer within the deadline"
+ * as its own verdict,
  * `'hangs'`, distinct from `'accepted'` (ran to completion but corrupted
  * something) and `'threw'`.
  *
@@ -397,7 +400,11 @@ export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 
 
 /* ------------------------------------------------------------ isolation */
 
-const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker.ts', import.meta.url));
+// The `.mjs` bootstrap, not the `.ts` worker itself: inside a Worker the
+// loader must be registered on the worker thread before anything
+// extensionless is resolved, or the worker dies at its first import. See
+// that file's header for the measurement behind this.
+const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker-boot.mjs', import.meta.url));
 
 interface HangResult {
   readonly hangs: true;
@@ -406,10 +413,11 @@ interface HangResult {
 /** Runs one probe in its own worker thread and resolves `{hangs: true}` instead of the real result if it does not answer within `timeoutMs`. */
 export function probeInWorker(fieldKey: string, family: Family, timeoutMs = 4000): Promise<ProbeOutcome | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, {
-      execArgv: ['--import', 'tsx/esm'],
-      workerData: { mode: 'field', fieldKey, family },
-    });
+    // No `execArgv`: the bootstrap registers the loader itself (fb172).
+    // Passing `--import tsx/esm` here as well registered it twice and left
+    // the file telling two stories about how the TypeScript gets loaded;
+    // measured identical results with and without.
+    const worker = new Worker(WORKER_PATH, { workerData: { mode: 'field', fieldKey, family } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
@@ -604,7 +612,7 @@ export function runAliasProbe(which: 'upgrade' | 'sell'): AliasProbeResult {
 
 export function aliasProbeInWorker(which: 'upgrade' | 'sell', timeoutMs = 4000): Promise<AliasProbeResult | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, { execArgv: ['--import', 'tsx/esm'], workerData: { mode: 'alias', which } });
+    const worker = new Worker(WORKER_PATH, { workerData: { mode: 'alias', which } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;

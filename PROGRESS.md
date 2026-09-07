@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — fb172 done: q15 was not flaky, it was not running.** The
+  loop's own fast-tier run kept showing `tests/q15-command-domain-fuzz.
+  test.ts` red, and this file's long history of q15 entries made "the
+  documented Windows host-load flake" the easy read. It is not that. The
+  failure is deterministic — identical on every run, and reproducible on a
+  clean checkout with the whole session diff stashed — and it kills the
+  suite **at collection**: `Cannot find module '.../tools/
+  fuzz-command-domain' imported from .../tools/fuzz-command-domain-worker.ts`.
+  So q15's 24 cases were being counted as *skipped* rather than failed, and
+  had not actually executed in some time. q45's `fuzz-command-domain` case
+  fell to the same cause.
+  **Cause:** inside a `worker_threads.Worker`, `execArgv: ['--import',
+  'tsx/esm']` gets the entry `.ts` file transformed but gives that file's own
+  imports no extensionless resolution, so the worker dies on its first bare
+  specifier. Two wrong theories were killed by measurement before the right
+  fix: a minimal repro (a Worker importing a two-deep extensionless chain)
+  fails *identically* under `--import tsx` as under `--import tsx/esm`, so
+  the deprecated loader entry point was never it; and adding an explicit
+  `.ts` extension fixes exactly one hop before the next bare import
+  (`src/sim/run`) fails, so the extension route means annotating the entire
+  transitive `src/sim` graph, not one line.
+  **Fix:** register the loader *on the worker thread*. New
+  `tools/fuzz-command-domain-worker-boot.mjs` calls `register()` from
+  `tsx/esm/api` and then dynamic-`import()`s the real worker (a static import
+  would hoist above `register()` and defeat it); `WORKER_PATH` points at the
+  bootstrap. `.mjs` because it installs the TS loader and so cannot itself
+  need it — the same reason `gen-tree.mjs` is `.mjs`, and the same reason
+  q47's tools census (which filters to `.ts`) does not see it. q15+q45 go
+  from `2 failed / 1 failed / 24 skipped` to **2 passed / 35 passed**, with
+  those 24 now genuinely executing. The red suites are their own regression
+  coverage. Filed and closed as **fb172**.
+
 - **2026-09-07 — BACKLOG p12e done; p12i filed.** The blocker QUESTIONS Q177
   named is closed with one `/data` value: `data/enemies.json`
   `warden_eater.hp` **365000 -> 54750**. p12c's roster-wide `baseHpMul: 20`

@@ -1176,6 +1176,34 @@ written; none needs a `package.json` edit.*
 
 ## Log
 
+### 2026-09-07 — fb172, filed from the main lane (q15's worker could not start)
+
+`q15`'s fuzzer (this lane's own item, `tests/q15-command-domain-fuzz.test.ts`)
+was failing its **whole suite at collection**, so its 24 cases were counting
+as *skipped* and had not run in some time; `q45`'s `fuzz-command-domain` case
+died of the same cause. Inside a `worker_threads.Worker`,
+`execArgv: ['--import', 'tsx/esm']` gets the entry `.ts` file transformed but
+gives that file's own imports no extensionless resolution, so the worker threw
+`Cannot find module '.../tools/fuzz-command-domain'` at startup. **Not** the
+Windows host-load timeout flake this lane and PROGRESS.md have logged against
+q15 for many sessions — it is deterministic and reproduces on a clean
+checkout. Fixed in the main lane (`tools/` is outside this lane's Scope) by
+registering the loader on the worker thread:
+`tools/fuzz-command-domain-worker-boot.mjs` calls `register()` from
+`tsx/esm/api` then dynamic-`import()`s the real worker; the now-redundant
+`execArgv` came off both Worker sites. Code review verified the round-trips
+are real (75 genuine worker probes, deep-equalled against the in-process
+result) and re-checked the `terminate()`/`hangs` limb live through the new
+bootstrap; its one substantive ask, a **positive** test for that limb (q15
+only ever asserted `hangs === false`), landed as a new case using a 1 ms
+deadline. q15+q45+q47: 56 passed. See BACKLOG.md fb172 and PROGRESS.md.
+
+**Consequence for this lane:** `tools/mutation-probe.ts`'s
+`command-domain-classify-hollow` mutation targets q15, so while q15 died at
+collection that mutation's "goes red" signal was vacuous and its control was
+red. It is live again; worth re-running `tests/q14-mutation-smoke.test.ts`
+(full-tier only) at the next phase or lane-merge point.
+
 ### 2026-08-28 — session 52
 
 **Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
