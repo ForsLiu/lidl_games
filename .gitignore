@@ -16,3 +16,7 @@ audit/report.json
 # QA subagent harness scratch (BACKLOG-CONTENT c019 Log)
 *.qabak
 tools/_qa_*
+
+# throwaway measurement scripts from an in-progress refit (fb166); deleted
+# before the item ships, never a deliverable
+tools/scratch-*.ts

@@ -77,29 +77,38 @@ function expectedFlatKinds(): Uint8Array {
   return kind;
 }
 
-/** A config no seed can clear, so `generateTerrain` reaches its flat fallback. */
+/**
+ * A config no seed can clear, so `generateTerrain` reaches its flat fallback.
+ * fb166: at 56x32 the flat map's own `coreLegalFrac` at the shipped clearance
+ * rose to ~0.9045 (was ~0.81 at 36x20, comfortably under the old 0.9 probe),
+ * so the probe moved to 0.95 — still far under the geometric ceiling
+ * (~0.9993) and, measured over seeds 1..3000 at the shipped densities, well
+ * above anything a real map reaches (max observed 0.6768 @1765).
+ */
 const impossible = withConfig((raw) => {
-  (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.9;
+  (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.95;
 });
 
 describe('fb064n — flatTerrain is the one flat arena', () => {
   it('golden: tiles byte-identical to the map the fallback used to build', () => {
     const flat = flatTerrain();
     expect(Array.from(flat.kind)).toEqual(Array.from(expectedFlatKinds()));
-    // Counts, so a diff reads as a shape rather than as 720 numbers. The border
-    // is the arena's perimeter minus the three gate tiles punched back to
-    // normal: 2*(GRID_W + GRID_H) - 4 = 108, less 3 gates on it.
+    // Counts, so a diff reads as a shape rather than as 1792 numbers. The
+    // border is the arena's perimeter minus the three gate tiles punched back
+    // to normal: 2*(GRID_W + GRID_H) - 4 = 172 (fb166: 56x32, was 108 at
+    // 36x20), less 3 gates on it.
     const border = 2 * (GRID_W + GRID_H) - 4;
     let rock = 0;
     for (const k of flat.kind) if (k === TerrainKind.Rock) rock++;
     expect(rock).toBe(border - GATES.length);
-    expect(rock).toBe(105);
-    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 105);
+    expect(rock).toBe(169);
+    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 169);
     // The hash is the G2 determinism handle, so it is pinned as a literal too:
     // an equal-tiles assertion would still pass if `terrainHash` changed what
     // it folds, and every replay guard downstream reads this string.
     expect(flat.hash).toBe(terrainHash(0, expectedFlatKinds()));
-    expect(flat.hash).toBe('bb4e18dd');
+    // fb166: re-measured at 56x32 (was 'bb4e18dd' at 36x20).
+    expect(flat.hash).toBe('15b6614d');
   });
 
   it('the maxAttempts fallback ships exactly this map', () => {
@@ -181,29 +190,31 @@ describe('fb064n — legality is a question about a config', () => {
     expect(m.gateReachFrac).toBe(1);
     // The most permissive layout the arena admits: no walkable tile is
     // unreachable and every non-border tile is normal.
-    expect(m.walkableCount).toBe(GRID_W * GRID_H - 105);
+    expect(m.walkableCount).toBe(GRID_W * GRID_H - 169);
     expect(m.normalCount).toBe(m.walkableCount);
   });
 
   it('is not legal unconditionally, so callers must still ask', () => {
     // This is why `flatTerrain` does not assert its own legality, and why
     // `fallback: true` with `attempts >= 1` means "the bands rejected every
-    // seed" rather than "this map is fine": `minCoreLegalFrac: 0.9` loads
-    // (the ceiling is `a / (a + 1)` =
-    // 0.998, not the flat map's own 0.8098) and the flat map does not meet it.
+    // seed" rather than "this map is fine": `minCoreLegalFrac: 0.95` loads
+    // (the ceiling is `a / (a + 1)` = 0.999, not the flat map's own ~0.9045 at
+    // this grid size) and the flat map does not meet it.
     expect(terrainLegal(measureTerrain(flatTerrain(), impossible), impossible)).toBe(false);
-    expect(measureTerrain(flatTerrain(), impossible).coreLegalFrac).toBeLessThan(0.9);
+    expect(measureTerrain(flatTerrain(), impossible).coreLegalFrac).toBeLessThan(0.95);
     // A band above the arena's own ceiling never gets this far: the loader
     // refuses it, which is the layer that keeps "flat map illegal" a statement
     // about a payable config rather than about a typo. Worth pinning here
     // because the walkable ceiling is derived from *this* map's border.
+    // fb166: the ceiling moved to ~0.9057 at 56x32 (was ~0.854 at 36x20), so
+    // the probe value has to clear the new ceiling too.
     expect(() =>
       withConfig((raw) => {
-        (raw.constraints as Record<string, number>).minWalkableFrac = 0.86;
+        (raw.constraints as Record<string, number>).minWalkableFrac = 0.92;
       }),
-    ).toThrow(/0\.854/);
+    ).toThrow(/0\.906/);
     // And the ceiling really is the flat map's share, to six places.
-    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.854167, 6);
+    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.905692, 6);
   });
 });
 
@@ -447,7 +458,7 @@ describe('fb064s — the flat arena says so on its own seed line', () => {
       hash: terrainHash(0, k),
     };
     expect(() => parseTerrainDump(describeTerrain(small, cfg))).toThrow(
-      /always 36x20; this dump is 3x3/,
+      /always 56x32; this dump is 3x3/,
     );
   });
 
