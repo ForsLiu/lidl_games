@@ -28,7 +28,7 @@ import equipmentRaw from '../../data/equipment.json';
 // `data/terrain.json`; it is reached here so `contentHash()` covers it
 // (architecture rule 2) and so an unpayable file fails at `loadContent()`.
 // Not `TerrainDef`/`TerrainSchema` below, which are a *tower's* terrain effect.
-import { TERRAIN_RAW as mapTerrainRaw, loadTerrain } from './terrain/config';
+import { TerrainFileSchema, TERRAIN_RAW as mapTerrainRaw, loadTerrain } from './terrain/config';
 
 /**
  * b013/E3: every `/data` number goes through this one alias, so "refuses a
@@ -1969,6 +1969,11 @@ export const TUNER_FILES: TunerFileEntry[] = [
   { key: 'cores', fileName: 'cores.json', schema: CoresFileSchema, contentField: 'cores' },
   { key: 'equipment', fileName: 'equipment.json', schema: EquipmentFileSchema, contentField: 'equipment' },
   { key: 'warden', fileName: 'warden.json', schema: WardenFileSchema },
+  // fb080: no `contentField` — like `warden`, terrain has no cross-file
+  // references into another `/data` collection for `loadContent()`'s
+  // overrides union to dry-run; `TerrainFileSchema.safeParse` alone is the
+  // same validation `loadTerrain()`/`parseTerrain()` apply for real.
+  { key: 'terrain', fileName: 'terrain.json', schema: TerrainFileSchema },
 ];
 
 /**

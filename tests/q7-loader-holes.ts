@@ -22,6 +22,20 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-07 (fb080): `data/terrain.json` joins the fuzzed set —
+ * previously known to every data tool except this one, `tools/fuzz-data.ts`'s
+ * `DATA_FILES` and `tools/mutation-probe.ts` (BACKLOG-TERRAIN.md fb064a Log).
+ * All new entries are additive; nothing existing moved. Every numeric
+ * `terrain.*` field is a bare `num`/`frac`/`posInt`/`nonNegInt` with no
+ * authored-0 exception, same shape as every other unguarded `/data` number in
+ * this census — not a new class of hole. Two open (uncross-checked) string
+ * fields: `terrain.highGround.families[].key` (an id nothing else references)
+ * and `.traits[]` (enemy trait strings — BACKLOG fb080/fb129 already flag the
+ * absence of a real cross-check here as future work, not a regression this
+ * item introduces). `terrain.tiles[].key` is `checked`: `TerrainFileSchema`
+ * pins the four tile rows to `normal, rough, rock, high` in that exact order
+ * (`src/sim/terrain/config.ts`), so a renamed key is refused at load.
+ *
  * Regenerated 2026-09-03 (fb053): `data/warden.json`'s `dashDistance` was
  * replaced by `dashSpeedMul` (dash distance now falls out of speed x
  * duration instead of being an authored fixed distance) — same bare `num`
@@ -615,6 +629,27 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.weightsByMinute[].weights.swarm_rat': ['negative', 'zero', 'fractional', 'drop-key'],
   'spawns.weightsByMinute[].weights.warlock': ['negative', 'zero', 'fractional', 'drop-key'],
   'spawns.weightsByMinute[].weights.wraith': ['negative', 'zero', 'fractional', 'drop-key'],
+  'terrain.blob.spread': ['zero'],
+  'terrain.constraints.maxGateDetour': ['fractional'],
+  'terrain.constraints.minBuildableNormalFrac': ['zero'],
+  'terrain.constraints.minCoreLegalFrac': ['zero', 'fractional'],
+  'terrain.constraints.minGateReachFrac': ['zero'],
+  'terrain.constraints.minWalkableFrac': ['zero'],
+  'terrain.coreGateClearance': ['zero'],
+  'terrain.corridorJitter': ['zero', 'fractional'],
+  'terrain.density.high': ['zero', 'fractional'],
+  'terrain.density.jitter': ['zero', 'fractional'],
+  'terrain.density.rock': ['zero', 'fractional'],
+  'terrain.density.rough': ['zero', 'fractional'],
+  'terrain.gateClearRadius': ['zero'],
+  'terrain.highContestRadius': ['zero'],
+  'terrain.highGround.families': ['drop-element'],
+  'terrain.highGround.families[].attacksHigh': ['flip-bool'],
+  'terrain.highGround.families[].key': ['to-string'],
+  'terrain.highGround.families[].surfacesHigh': ['flip-bool'],
+  'terrain.highGround.families[].traits[]': ['to-string'],
+  'terrain.plazaRadius': ['zero'],
+  'terrain.tiles[].color': ['to-string'],
   'towers.aoeFalloff': ['negative', 'zero', 'fractional'],
   'towers.aoeFalloffFloor': ['negative', 'zero', 'fractional'],
   'towers.aoeFullTargets': ['negative', 'zero', 'fractional'],
@@ -922,6 +957,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'quests.quests[].name': 'open',
   'quests.quests[].reward.kind': 'partial',
   'quests.quests[].reward.value': 'partial',
+  'terrain.highGround.families[].key': 'open',
+  'terrain.highGround.families[].traits[]': 'open',
+  'terrain.tiles[].color': 'open',
+  'terrain.tiles[].key': 'checked',
   'towers.towers[].attack.kind': 'checked',
   'towers.towers[].desc': 'open',
   'towers.towers[].key': 'partial',

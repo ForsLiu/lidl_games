@@ -4063,7 +4063,41 @@ generation-rule boundary.
       file; MIGRATION.md §8 notes the addition. Log the append in
       QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
       §10, §14 G2, §17. **Amended at the 2026-09-04 merge:** §10.5 must also cover the lane's later decisions (Q171) — Core placement rules and the suggested anchor, the high-ground families and the no-boss-family rule, the character-passage flag, the seed domain, the approach band (`maxGateDetour`) beside fb064a's bands, the uncontested-high repair, and the run-gate-list threading.
-- [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
+- [x] (fb080) [polish] **DONE 2026-09-07** — `data/terrain.json` joins the
+      fuzzed/Tuner-validated set. `src/sim/terrain/config.ts`'s module-private
+      `schema` is now the exported `TerrainFileSchema` (identical
+      `.superRefine`, tile-order pin included — `parseTerrain` is defined as
+      exactly `TerrainFileSchema.parse`, so nothing was lost); `content.ts`'s
+      `TUNER_FILES` gains a `terrain` entry with no `contentField` (same as
+      `warden`'s precedent — terrain has no cross-file reference for
+      `loadContent()`'s override union to dry-run). `tools/fuzz-data.ts`'s
+      `DATA_FILES` gains `'terrain'`, with the doc comment explaining the one
+      real wrinkle: `content.ts` reaches `terrain.json` *indirectly* (through
+      `terrain/config.ts`'s `TERRAIN_RAW`), not with its own direct import
+      like the other fourteen — `tests/q7-data-fuzz.test.ts`'s "mocks exactly
+      the files content.ts imports" pin now checks that indirection
+      explicitly (both link strings asserted) rather than either breaking or
+      silently special-casing it. `tests/q7-loader-holes.ts` regenerated via
+      the documented `Q7_RECORD=1` procedure — diffed against the prior file
+      to confirm every change is a new, additive `terrain.*` entry and
+      nothing pre-existing moved. `tools/mutation-probe.ts` needed no change:
+      confirmed it carries no per-file `/data` registry of its own (it
+      copies the whole `data/` directory and targets known `/src` source
+      regressions, not individual data files) — code-reviewer verified this
+      directly. Zero `/data` content changes; no new validation logic beyond
+      wiring. `npm run test:fast` (4155 passed, 53 skipped, only the
+      documented pre-existing `q15`/`q45` flake) and `npx tsc --noEmit`
+      clean. code-reviewer (full tier — touches `/src/sim`): **APPROVE**,
+      two Minor/one Nit (documented rather than fixed: a future indirectly-
+      reached file needs its own hand-added exception in the same q7 test,
+      no structural safeguard forces that; the fuzz-data.ts/q7-loader-holes
+      comments' "new file shows up as a mismatch" framing is pre-existing
+      and only covers direct-import files, not a `/data`-directory readdir)
+      — independently traced the Tuner save path and spot-checked several
+      regenerated hole entries against the real schema and shipped values,
+      confirmed honestly measured. BACKLOG-TERRAIN fb064f's terrain page
+      builds on this next.
+      Original text follows. `data/terrain.json` is unknown to every data tool:
       `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
       `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
       `TERRAIN_RAW` precisely so q7's import-seam pin stays honest until this
