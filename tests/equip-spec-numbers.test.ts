@@ -1295,6 +1295,10 @@ const DEFINITION_FILES: readonly string[] = [
     .filter((f) => /^BACKLOG.*\.md$/.test(f))
     .sort(),
   'QUESTIONS.md',
+  // fb178: done items (and their definition lines) move to this archive so
+  // the live backlog files stay short. A real id that only ever shipped
+  // before this session's archival pass now defines nowhere else.
+  'docs/BACKLOG-DONE.md',
 ];
 
 /**
