@@ -4495,7 +4495,7 @@ logs a blocker below rather than editing `/data` itself.
       files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
       red.
 
-- [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
+- [x] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
       per-file cloud restore is lost at the next switch. fb147 made the active
       slot's own key stay in step with `SAVE_KEY` on every save, which is the
@@ -4517,6 +4517,57 @@ logs a blocker below rather than editing `/data` itself.
       followed by a switch away and back, asserting the surviving data is the
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
+      **DONE 2026-09-07** — took the "refuse the overwrite" branch (not "keep
+      both and tell the player" — that UX wants an owner call; QUESTIONS.md is
+      out of this lane's Scope to write directly, so logged in this file's Log
+      below instead). `src/ui/saveslots.ts` gains a per-slot "last known-good
+      sync point" record (`slotLastFlushKey`/`recordFlush`/`knownFlush`,
+      deliberately keyed off `stonewake.saveflushmark.slot*.v1` — NOT under
+      `stonewake.save.slot*`, which `tests/ui-fb111-cloud-save-portability
+      .test.ts` treats as real portable save data) — the exact string this
+      module itself last wrote as both `SAVE_KEY` and a slot's own file.
+      `switchToSlot` refuses its outgoing flush whenever either side no
+      longer matches that record, re-syncing its own bookkeeping to the slot
+      file's actual current content (never to the untrusted `live`) so a
+      future switch isn't stuck refusing forever against one stale
+      comparison. No `MetaState`/timestamp field needed (`src/meta/meta.ts`/
+      `src/sim/types.ts` stay untouched, out of Scope). This took three
+      rounds to close fully, each qa-playtester/code-reviewer pass finding a
+      real, reproduced gap the previous round left open — recorded here
+      because the pattern (each fix closing one hole, re-verification finding
+      the next) is worth a future reader knowing about: (1) first pass
+      protected only the OUTGOING leg; qa-playtester **FAILed**, reproducing
+      that a slot switched INTO but never locally saved-to yet had no flush
+      record at all (`known == null` read as "safe"), so a restore landing on
+      ITS file before any save was destroyed by the next switch-away — fixed
+      by having the INCOMING leg record a flush too, which needed a real
+      "tracked as known-empty" state (`EMPTY_SENTINEL`) distinct from "never
+      tracked", since both previously read as `null`. (2) Re-verification
+      **FAILed again**, escalating: the still-open `ensureActiveSlotMigrated`
+      window was not "nothing to lose" — a legacy single-save account's REAL
+      migrated progress could be destroyed by a restore racing the account's
+      very first switch, not just an empty fresh account — fixed by seeding
+      slot 0's flush record at migration time too, which required updating
+      three pre-existing tests (two in `ui-fb096-save-slots.test.ts`, one in
+      `ui-fb111-cloud-save-portability.test.ts`) that relied on a bare
+      `saveMeta()` call right after a switch as same-session shorthand — now
+      correctly read as untracked/possibly-foreign, matching what a real
+      switch always gets (a `reload()`, hub.ts's fb100), so those tests were
+      updated to use the real save path instead of relaxing the fix. (3) In
+      parallel, code-reviewer **REQUEST-CHANGES**: `EMPTY_SENTINEL`'s literal
+      accidentally contained a stray NUL byte instead of plain text, silently
+      making `saveslots.ts` git-binary (no line diffs) and invisible to
+      ripgrep directory-wide searches — retyped clean. A final
+      qa-playtester re-verification pass **PASSed**: independently
+      reproduced the escalated migration-window repro against the fixed code
+      (newer restored data survives), stress-tested false-positive refusals
+      (migrate-then-several-legitimate-cycles, 20 rounds of switch-spam,
+      both-files-restored-with-different-foreign-values) with none found,
+      and confirmed the NUL byte was genuinely gone (`file`/`grep` both
+      clean). 33 tests in `ui-fb096-save-slots.test.ts` (up from 27), 7 in
+      `ui-fb111-cloud-save-portability.test.ts`, all green. `npx tsc
+      --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped files,
+      4171 passed tests, only the pre-existing `q15`/`q45` flake class red.
 
 - [x] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
@@ -4647,7 +4698,7 @@ logs a blocker below rather than editing `/data` itself.
       a deliberately misclassified kind (not just a new one) reddens it —
       refs: fb149, fb146, fb148.
 
-- [ ] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the
       same `lineHit` drop-off the class sentences now name, and does not name
       it. Measured twice: `arrow_spire` at tier 5 (`attackProfile` ->
@@ -4663,8 +4714,30 @@ logs a blocker below rather than editing `/data` itself.
       nothing when it is 0, with both measurements above as the regression's
       mechanism legs — refs: fb149, `fireTower`'s `single`/`pierce` cases
       (`src/sim/towers.ts`).
+      **DONE 2026-09-07** — `KIND_TEXT.single` (`tower-info.ts`) now appends
+      `LINE_FALLOFF_CLAUSE` (`info-format.ts`, reused verbatim — no new
+      literal) when `p.pierce > 0`, nothing when 0. New
+      `tests/ui-fb175-single-falloff-clause.test.ts` (3 tests): pierce-0 has
+      no clause; pierce>0 (arrow_spire at max tier) both has the clause and a
+      live fire+projectile-tick measurement shows the carried-through hit is
+      genuinely less than the primary (six husks in a line, struck damages
+      collected and sorted descending rather than assumed by spawn order,
+      since `targetFirst` picks by path progress); Ballista (`pierce` kind)
+      never gets it and still says "full damage each". code-reviewer
+      **APPROVE**: no Critical/Major; confirmed `arrow_spire` is the ONLY
+      `single`-kind tower in `data/towers.json` (no other tower silently
+      affected), confirmed Ballista's `pierce`-kind path (`spawnProjectile`/
+      `pierceLeft`) genuinely deals unscaled damage to every pierced target
+      (leaving that entry untouched is correct, not an oversight), manually
+      reverted the source fix and reran the test file to confirm it's a
+      genuine regression test, and noted (Minor, not blocking) the new test
+      file's `world()`/`freeTileNear()` helpers duplicate `tests/tower-info
+      .test.ts`'s own — consistent with this suite's established per-file
+      convention, not a new problem. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 282 passed / 8 skipped files, 4174 passed tests, only the
+      pre-existing `q15`/`q45` flake class red.
 
-- [ ] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — the falloff floor makes "each one behind it takes less"
       stop being literally true past a reachable target count. Measured twice,
       identical: `scale = max(0.2, 0.82^(n-1))` clamps at the TENTH body on a
@@ -4681,8 +4754,67 @@ logs a blocker below rather than editing `/data` itself.
       the previous target and the wording stands as-is (QUESTIONS.md is outside
       this lane's Scope, so that half is main-lane) — refs: fb149,
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
+      **DONE 2026-09-07** — took the "wording stands as-is" branch, not the
+      reword: `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`info-format.ts`)
+      are shared constants quoted verbatim by a wide set of pre-existing
+      tests across `tests/ui-fb146-*`, `tests/ui-fb148-*`, `tests/ui-fb149-*`
+      and others (fb146/fb148/fb149's own DONE notes); a wording change would
+      ripple into all of them for a QA-confirmed non-bug, which is a worse
+      cost/benefit trade than logging the reading. The QUESTIONS.md entry
+      itself is filed below in this file's Log (main-lane, out of this
+      lane's Scope to write directly) rather than as a code change here — no
+      source/test edit needed, this item is closed by that Log entry alone.
 
 ## Log
+
+- 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  `LINE_FALLOFF_CLAUSE`/`AOE_FALLOFF_CLAUSE` (`src/ui/info-format.ts`) say
+  "each one behind it takes less"/"each target past that takes less" —
+  read against the FIRST (full-damage) target's number, not against the
+  previous target's, since `pierceFalloffFloor`/`aoeFalloffFloor`
+  (`data/towers.json`, both 0.2) clamp the per-target scale once
+  `0.82^(n-1)` would otherwise fall below it. Past that clamp (measured:
+  the 10th body on a line, the 14th on a blast/ground curve — both inside
+  one dense pack), every further target takes the SAME reduced amount as
+  the one before it, not a smaller one — "less" stays literally true only
+  against "full damage," not as a claim that damage keeps shrinking
+  target-to-target forever. QA (fb176) explicitly did not call this a
+  bug; recorded here per the item's own acceptance so a future reader (or
+  a future wording pass) doesn't have to remeasure the clamp to learn
+  this. Wording left as-is — see fb176's own DONE note for why a reword
+  wasn't taken instead.
+
+- 2026-09-07, fb174: **skipped this session, not attempted — genuinely
+  in-scope but too large for this iteration, by its own acceptance text.**
+  fb174 asks for a table-free, measurement-only replacement for fb149's
+  declared `DECAYS`/`PATCH`/`FLAT` classification (`tests/ui-fb149-falloff-
+  wording.test.ts`): fire every Active of every one of the 12 classes
+  through its OWN required setup (charges via `tickClassCharge`, stored
+  Wrath, ground-field ticking through `updateAreas`, summon lifetimes —
+  four genuinely distinct firing mechanics, not one shared harness), then
+  derive the falloff clause presence/absence from the measured per-target
+  damage profile alone. The item's own text already names this "well
+  beyond one wording item" — this session's remaining budget went to
+  fb175/fb176 instead (both fully scoped, in-lane, and much smaller).
+  Left `[ ]`, not blocked — a future session with a full item's budget to
+  spend on just this one probe harness should pick it up next.
+
+- 2026-09-07, fb172 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  fb172's own acceptance text named an open UX question — "which copy wins,
+  and how the player is told" when a switch-away finds the outgoing slot's
+  live `SAVE_KEY` and its own file disagreeing (an out-of-process cloud
+  restore landed on one side). Implemented the "refuse the overwrite"
+  branch (neither side is silently discarded; the player just doesn't get
+  told a conflict happened) rather than "keep both and surface it," which
+  needs UX the owner hasn't chosen. If a future session wants the surfaced
+  version instead: `src/ui/saveslots.ts`'s `switchToSlot` already computes
+  exactly this condition (`slotUnchangedSinceOurLastFlush`'s `safe: false`
+  branch) — it currently just silently protects the file instead of
+  returning/threading a "conflict detected" signal a caller (`hub.ts`)
+  could show a notice for, the same pattern `settings.ts`'s "needs reload"
+  note already uses.
 
 - 2026-09-07, id collision (within-file, not cross-file this time): the
   queue's per-tower VFX item was filed as `fb098`, but this same file

@@ -899,4 +899,3 @@ Q91 and Q102 corrections if not yet done.
   idiom for "is this a tower's own hit" beats inventing a second one, and a
   source check is the only option available to a function that has no
   caller-chosen route to read. — (owner verdict: pending)
-

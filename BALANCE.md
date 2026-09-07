@@ -982,8 +982,11 @@ The deepening is still a real trade rather than a defect — a tower that soloed
 the whole curve was a statement about a difficulty the bot won 100% of the time
 with the Core untouched — and it is the strongest argument against keeping the
 anchor at 20, which is an owner call, not a silent one. The final boss also takes the
-roster multiplier (365,000 → 7.3M at T1); its fight-length case still passes,
-measured rather than assumed.
+roster multiplier — historically 365,000 → 7.3M at T1, until its fight-length
+case blew past the gate cap on the slow seeds (p12e, 2026-09-07): `warden_eater`'s
+*authored* HP was re-anchored 365,000 → 18,250 to cancel the multiplier back to
+the original 365,000 effective, restoring the fight length fb099 fit. Its
+fight-length case still passes, measured rather than assumed.
 
 ## Chronal Surge's uncapped `towerAreaMul` — a pin, not a cap (fb083)
 

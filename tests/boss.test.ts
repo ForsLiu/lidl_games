@@ -93,6 +93,17 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
+  //
+  // p12e (2026-09-07): root-caused as p12c's `baseHpMul: 20` silently
+  // multiplying the already-fitted 365,000 by 20x, taking boss fights to
+  // 920-1187s on the slow T3 seeds and pushing some runs past the 45-minute
+  // gate cap. Landed fix: the final boss (`TRAIT.finalBoss`, not the broader
+  // `TRAIT.boss` — `gatebreaker` also carries `boss` and must keep taking the
+  // roster multiplier) is exempted from `baseHpMul` in `makeEnemy`, restoring
+  // fb099's independently-fitted ~180-380s fight instead of stacking p12c's
+  // x20 on top of it. Measured on a 24-seed T3 matrix: 0/24 timeouts, 11/24
+  // wins (45.8%, unchanged from the pre-fix figure — censoring removed
+  // without moving difficulty), boss-kill times back at 188-222s.
   it('spawns at 3:01 with 365,000 HP scaled by tier, exempt from baseHpMul', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
