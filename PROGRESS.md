@@ -5,6 +5,75 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — fb173 done; fb174 filed. QA caught fb172 correcting itself
+  wrongly.** Two defects, one of them in fb172's own diff an hour old.
+  (a) `probeInWorker`'s deadline **silently collapsed to 1 ms** for anything
+  above `2**31-1`, or `Infinity`/`NaN` — `setTimeout` clamps those — so asking
+  for a *longer* ceiling produced the shortest possible one and every probe
+  returned a false `hangs`. QA reached it through
+  `bench/q44-worker-timing-probe.ts`, the very tool built to distinguish a
+  real hang from a slow one, which duly reported "75/75 never resolved" at a
+  3e9 ms ceiling. Now rejected by `assertUsableDeadline` rather than clamped
+  to the 4000 default: substituting a default would hide the caller's mistake
+  inside the instrument meant to catch it. Five `it.each` cases red first.
+  (b) **fb172's own claim was wrong and this is the more useful lesson.** It
+  said dropping `execArgv` removed a duplicate loader registration. It did
+  not: a Worker with no `execArgv` **inherits the parent's**, and under
+  `npx tsx` that is tsx's `--require preflight.cjs --import loader.mjs`
+  (verified directly rather than argued). So the duplicate registration was
+  made implicit and dependent on how the parent was launched — and the
+  comment asserting "one story" was false. Both sites now pin `execArgv: []`,
+  which is what actually delivers a single registration on every parent, and
+  measures faster (p50 507 vs 561 ms). A sane 8000 ms ceiling now measures
+  p50 525 / p95 571 / max 612 ms, 0/75 over budget.
+  QA's third finding is real but separate and is filed as **fb174**: under
+  concurrent load a spurious `hangs` verdict makes `classify()`
+  short-circuit, so those combinations are **silently not tested** — 3/3
+  reproductions with a *different* combo set each time. q44 measured that
+  margin once and declined to file it; that deferral has an expiry date now
+  that fb172 made the census live at all.
+
+- **2026-09-07 — fb172 done: q15 was not flaky, it was not running.** The
+  loop's own fast-tier run kept showing `tests/q15-command-domain-fuzz.
+  test.ts` red, and this file's long history of q15 entries made "the
+  documented Windows host-load flake" the easy read. It is not that. The
+  failure is deterministic — identical on every run, and reproducible on a
+  clean checkout with the whole session diff stashed — and it kills the
+  suite **at collection**: `Cannot find module '.../tools/
+  fuzz-command-domain' imported from .../tools/fuzz-command-domain-worker.ts`.
+  So q15's 24 cases were being counted as *skipped* rather than failed, and
+  had not actually executed in some time. q45's `fuzz-command-domain` case
+  fell to the same cause.
+  **Cause:** inside a `worker_threads.Worker`, `execArgv: ['--import',
+  'tsx/esm']` gets the entry `.ts` file transformed but gives that file's own
+  imports no extensionless resolution, so the worker dies on its first bare
+  specifier. Two wrong theories were killed by measurement before the right
+  fix: a minimal repro (a Worker importing a two-deep extensionless chain)
+  fails *identically* under `--import tsx` as under `--import tsx/esm`, so
+  the deprecated loader entry point was never it; and adding an explicit
+  `.ts` extension fixes exactly one hop before the next bare import
+  (`src/sim/run`) fails, so the extension route means annotating the entire
+  transitive `src/sim` graph, not one line.
+  **Fix:** register the loader *on the worker thread*. New
+  `tools/fuzz-command-domain-worker-boot.mjs` calls `register()` from
+  `tsx/esm/api` and then dynamic-`import()`s the real worker (a static import
+  would hoist above `register()` and defeat it); `WORKER_PATH` points at the
+  bootstrap. `.mjs` because it installs the TS loader and so cannot itself
+  need it — the same reason `gen-tree.mjs` is `.mjs`, and the same reason
+  q47's tools census (which filters to `.ts`) does not see it. q15+q45 go
+  from `2 failed / 1 failed / 24 skipped` to **2 passed / 35 passed**, with
+  those 24 now genuinely executing. The red suites are their own regression
+  coverage. Filed and closed as **fb172**.
+
+- **2026-09-07 — BACKLOG p12e done (see BACKLOG.md/docs/BACKLOG-DONE.md for
+  the landed fix); p12i filed.** qa-playtester's residual-timeout follow-up
+  on p12e — four `npm run status` snapshot seeds (cryomancer T1 s1/s2,
+  animist T1 s2, engineer+`corpse` T3 s2) still censor at the 45-minute cap
+  under the stock unscripted policy, even though every one of them wins in
+  a ~80s boss fight once the scripted harness plays the kit. That is p10i's
+  wave-11-to-17 wall showing through the snapshot, not a boss-anchor
+  problem, and is tracked separately as **p12i** rather than folded back
+  into the boss HP lever.
 
 > **Older session entries have moved.** Everything before the last 10
 > entries below, plus the pre-SPEC-FINAL v0.2/M0-M8 history, now lives in
@@ -48,6 +117,19 @@
   environment failures (fb119, confirmed via `git stash` to fail
   identically on unmodified HEAD) — refs: SPEC-FINAL §2, §4.2,
   BACKLOG-CONTENT.md c004.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c002 closed, superseded.**
+  c002 ("SKIPPED 2026-09-03, blocked on the Q161 owner verdict") measured
+  the pre-BALANCE-DIRECTION-v2 G8 diversity clause ("top damage source
+  distinct across >=9/12 classes"). QUESTIONS.md's Q161 entry now carries
+  its owner verdict: "resolved by BALANCE DIRECTION v2 §A/§D... G8's
+  diversity clause is rewritten per §D to the own-kit-share target plus a
+  pairwise fingerprint-distance check rather than the unreachable >=9/12
+  distinct-top-source bar." There is no live gate left for c002's own
+  acceptance metric (the distinct-top-source count) to move — this
+  session's own `c032`-`c041` arc already did the real work the verdict's
+  replacement clauses needed. Closed as superseded rather than executed; no
+  code or test change — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D.
 
 - **2026-09-07 — main lane: BACKLOG fb179 done, negative result, no
   QUESTIONS.md content moved.** fb178's deferred point 3: move every
@@ -343,57 +425,3 @@
   `q15`/`q45` fuzz-command-domain failures c029 already logged as present on
   HEAD; `npx tsc --noEmit` clean.
 
-- **2026-09-07 — BACKLOG fb082 done.** `updateAreas`'s poison branch
-  (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
-  (the pre-existing `GroundArea.acc` field, declared since the type was
-  written but never read) instead of firing every 60 Hz frame, closing the
-  SPEC-FINAL §4.1 "applying poison damage every second" defect
-  `tests/class-spec-numbers.test.ts` had tracked. Authored explicitly as
-  `groundTickSeconds: 1` in `data/classes.json`'s Plaguebringer `active1`
-  (a new `.positive()`-validated schema field, read in `firePoisonBarrel`),
-  with a loader cross-check refusing `groundTickSeconds > groundDurationSeconds`.
-  A first pass shipped a real ~3.5x DPS regression, independently measured
-  by code-reviewer and qa-playtester (429.6 -> 120 total damage over the
-  barrel's 5 s life): gating call frequency alone while leaving
-  `applyPoison`'s hardcoded `duration: 1.0` unchanged let every stack expire
-  before the next application arrived, collapsing 3 sustained stacks (the
-  pre-fix spam's emergent behavior) to 1. Fixed with `duration: tick *
-  POISON_STACK_CAP`, restoring the sustained-cap magnitude; a new test
-  drives real DoT decay (`updateEnemies`) alongside `updateAreas` to prove
-  `dotStacks` reaches 3 at steady state, confirmed red against the naive
-  fix. qa-playtester also found that a poison area whose whole lifetime is
-  one `tickSeconds` window (Venom Spore's own trail blob) went permanently
-  silent — the cadence check ran *after* the area's own expiry early-return,
-  losing the one scheduled application to a rounding race at the boundary
-  (measured 0 damage at the shipped 1.4286 s interval). Fixed by
-  re-ordering so the poison branch's accumulate-and-check happens before
-  marking the area dead (every other type's expiry behavior, including
-  `'burn'`'s pre-existing negligible sub-frame loss, is unchanged);
-  `vsspecials.ts` now also ties the trail's own `tickSeconds` to
-  `special.interval` explicitly rather than the engine's `?? 1` default. A
-  narrower limitation — a non-exact-multiple lifetime loses its trailing
-  partial window, no fractional final tick — is logged rather than
-  engineered around: unreachable by any shipped `/data` row today, and
-  qa-playtester's own suggestion is a future item if a duration-scaling
-  skill card is ever authored for Poison Barrel.
-  A re-review round (code-reviewer + qa-playtester again) both came back
-  APPROVE/PASS, independently re-measuring the DPS restoration and
-  re-driving the Venom Spore fix through the real tower-build pipeline at
-  three interval values. One more Minor closed: `groundDurationSeconds <= 0`
-  with `groundTickSeconds` left unauthored slipped past the exceeds-check
-  (which only compares when both fields are present); closed with an
-  independent, `ground_poison`-scoped positivity check (not a schema-wide
-  change, since `dash_trail`/`time_lock` share the field for a lifetime with
-  no cadence to cross) — confirmed via an unchanged q7 census that this
-  closes no further fuzzer holes (real data always authors
-  `groundTickSeconds`, so the combination was never reachable through the
-  existing single-field mutation families).
-  `tests/q7-loader-holes.ts` regenerated twice (once for the new field,
-  again once the loader cross-check closed `groundDurationSeconds`'s own
-  stale negative/zero holes) — diffed both times to confirm purely
-  additive/closing changes. `npm run test:fast`: only the documented
-  pre-existing `q15`/`q45` flake, both before and after every fix in this
-  item. `npx tsc --noEmit` clean throughout. A short cross-lane note was
-  added to BACKLOG-CONTENT.md's Log: fb082 unblocks fb062 (a broader,
-  still-open content-lane item — its own zero-direct-damage/no-lifesteal
-  and tooltip-text acceptance is untouched by this item).

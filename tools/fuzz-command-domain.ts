@@ -53,9 +53,12 @@
  * `w.level` counts up without bound. A synchronous while-loop inside the
  * vitest worker that is running this very file cannot be interrupted by a
  * same-thread timer, so the census runs every probe inside its own
- * `worker_threads.Worker` (loaded via `tsx/esm`, confirmed by hand to load a
- * `.ts` worker and to be killable mid-infinite-loop by `Worker#terminate()`)
- * and treats "did not answer within the deadline" as its own verdict,
+ * `worker_threads.Worker` (started through
+ * `fuzz-command-domain-worker-boot.mjs`, which registers the TS loader on the
+ * worker thread — see fb172 and that file's header for why `execArgv` alone
+ * could not; killability mid-infinite-loop by `Worker#terminate()` re-checked
+ * live through the bootstrap) and treats "did not answer within the deadline"
+ * as its own verdict,
  * `'hangs'`, distinct from `'accepted'` (ran to completion but corrupted
  * something) and `'threw'`.
  *
@@ -397,19 +400,48 @@ export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 
 
 /* ------------------------------------------------------------ isolation */
 
-const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker.ts', import.meta.url));
+// The `.mjs` bootstrap, not the `.ts` worker itself: inside a Worker the
+// loader must be registered on the worker thread before anything
+// extensionless is resolved, or the worker dies at its first import. See
+// that file's header for the measurement behind this.
+const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker-boot.mjs', import.meta.url));
 
 interface HangResult {
   readonly hangs: true;
 }
 
+/**
+ * `setTimeout` clamps a delay above 2**31-1 — and `Infinity`/`NaN` — to **1
+ * ms**, so an unusable deadline does not fail loudly, it produces the
+ * *shortest* possible one and turns every probe into a false `hangs` (fb173,
+ * qa-playtester on fb172; `bench/q44-worker-timing-probe.ts` reported 75/75
+ * "never resolved" at a 3e9 ms ceiling because of exactly this). Rejected
+ * rather than clamped to a default: silently substituting 4000 would hide the
+ * caller's mistake, and this deadline is the instrument other items use to
+ * tell a real hang from a slow one.
+ */
+function assertUsableDeadline(timeoutMs: number): void {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 2 ** 31 - 1) {
+    throw new Error(
+      `fuzz-command-domain: unusable probe deadline ${timeoutMs}ms — must be a finite 1..${2 ** 31 - 1} (setTimeout clamps anything else to 1ms, which reads as a false hang)`,
+    );
+  }
+}
+
 /** Runs one probe in its own worker thread and resolves `{hangs: true}` instead of the real result if it does not answer within `timeoutMs`. */
 export function probeInWorker(fieldKey: string, family: Family, timeoutMs = 4000): Promise<ProbeOutcome | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, {
-      execArgv: ['--import', 'tsx/esm'],
-      workerData: { mode: 'field', fieldKey, family },
-    });
+    assertUsableDeadline(timeoutMs);
+    // `execArgv: []` is deliberate and is not the same as omitting it (fb172,
+    // qa-playtester). A Worker with no `execArgv` **inherits the parent's**,
+    // and under `npx tsx` that is tsx's own `--require preflight.cjs
+    // --import loader.mjs` — so omitting it does not remove the duplicate
+    // registration this fix set out to remove, it just makes it implicit and
+    // dependent on how the parent happened to be launched. Empty means the
+    // bootstrap's `register()` is the one and only loader registration, on
+    // every parent (vitest, `npx tsx`, plain `node`). Measured p50 worker
+    // startup 507 ms empty vs 561 ms inherited.
+    const worker = new Worker(WORKER_PATH, { execArgv: [], workerData: { mode: 'field', fieldKey, family } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
@@ -604,7 +636,9 @@ export function runAliasProbe(which: 'upgrade' | 'sell'): AliasProbeResult {
 
 export function aliasProbeInWorker(which: 'upgrade' | 'sell', timeoutMs = 4000): Promise<AliasProbeResult | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, { execArgv: ['--import', 'tsx/esm'], workerData: { mode: 'alias', which } });
+    assertUsableDeadline(timeoutMs);
+    // `execArgv: []` for the reason spelled out in `probeInWorker` above.
+    const worker = new Worker(WORKER_PATH, { execArgv: [], workerData: { mode: 'alias', which } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;

@@ -72,7 +72,10 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   'tools/fuzz-save.ts': 'pinned',
   'tools/fuzz-weapon-boundary.ts': 'pinned',
   'tools/gate-audit.ts': 'no-content-import',
-  // tools/gen-tree.mjs deliberately absent — not a .ts file, must never appear in listToolFiles().
+  // tools/gen-tree.mjs and tools/fuzz-command-domain-worker-boot.mjs both
+  // deliberately absent — not .ts files, must never appear in listToolFiles().
+  // (fb172: the boot file *cannot* be .ts — it is what registers the TS
+  // loader on the worker thread, so it would have to load itself.)
   'tools/handoff-metrics.ts': 'pinned',
   'tools/invariants.ts': 'not-invocable',
   // q54: reads data/towers.json directly (readsDataJsonDirectly), not via
