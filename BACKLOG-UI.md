@@ -4495,7 +4495,7 @@ logs a blocker below rather than editing `/data` itself.
       files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
       red.
 
-- [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
+- [x] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
       per-file cloud restore is lost at the next switch. fb147 made the active
       slot's own key stay in step with `SAVE_KEY` on every save, which is the
@@ -4517,6 +4517,57 @@ logs a blocker below rather than editing `/data` itself.
       followed by a switch away and back, asserting the surviving data is the
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
+      **DONE 2026-09-07** — took the "refuse the overwrite" branch (not "keep
+      both and tell the player" — that UX wants an owner call; QUESTIONS.md is
+      out of this lane's Scope to write directly, so logged in this file's Log
+      below instead). `src/ui/saveslots.ts` gains a per-slot "last known-good
+      sync point" record (`slotLastFlushKey`/`recordFlush`/`knownFlush`,
+      deliberately keyed off `stonewake.saveflushmark.slot*.v1` — NOT under
+      `stonewake.save.slot*`, which `tests/ui-fb111-cloud-save-portability
+      .test.ts` treats as real portable save data) — the exact string this
+      module itself last wrote as both `SAVE_KEY` and a slot's own file.
+      `switchToSlot` refuses its outgoing flush whenever either side no
+      longer matches that record, re-syncing its own bookkeeping to the slot
+      file's actual current content (never to the untrusted `live`) so a
+      future switch isn't stuck refusing forever against one stale
+      comparison. No `MetaState`/timestamp field needed (`src/meta/meta.ts`/
+      `src/sim/types.ts` stay untouched, out of Scope). This took three
+      rounds to close fully, each qa-playtester/code-reviewer pass finding a
+      real, reproduced gap the previous round left open — recorded here
+      because the pattern (each fix closing one hole, re-verification finding
+      the next) is worth a future reader knowing about: (1) first pass
+      protected only the OUTGOING leg; qa-playtester **FAILed**, reproducing
+      that a slot switched INTO but never locally saved-to yet had no flush
+      record at all (`known == null` read as "safe"), so a restore landing on
+      ITS file before any save was destroyed by the next switch-away — fixed
+      by having the INCOMING leg record a flush too, which needed a real
+      "tracked as known-empty" state (`EMPTY_SENTINEL`) distinct from "never
+      tracked", since both previously read as `null`. (2) Re-verification
+      **FAILed again**, escalating: the still-open `ensureActiveSlotMigrated`
+      window was not "nothing to lose" — a legacy single-save account's REAL
+      migrated progress could be destroyed by a restore racing the account's
+      very first switch, not just an empty fresh account — fixed by seeding
+      slot 0's flush record at migration time too, which required updating
+      three pre-existing tests (two in `ui-fb096-save-slots.test.ts`, one in
+      `ui-fb111-cloud-save-portability.test.ts`) that relied on a bare
+      `saveMeta()` call right after a switch as same-session shorthand — now
+      correctly read as untracked/possibly-foreign, matching what a real
+      switch always gets (a `reload()`, hub.ts's fb100), so those tests were
+      updated to use the real save path instead of relaxing the fix. (3) In
+      parallel, code-reviewer **REQUEST-CHANGES**: `EMPTY_SENTINEL`'s literal
+      accidentally contained a stray NUL byte instead of plain text, silently
+      making `saveslots.ts` git-binary (no line diffs) and invisible to
+      ripgrep directory-wide searches — retyped clean. A final
+      qa-playtester re-verification pass **PASSed**: independently
+      reproduced the escalated migration-window repro against the fixed code
+      (newer restored data survives), stress-tested false-positive refusals
+      (migrate-then-several-legitimate-cycles, 20 rounds of switch-spam,
+      both-files-restored-with-different-foreign-values) with none found,
+      and confirmed the NUL byte was genuinely gone (`file`/`grep` both
+      clean). 33 tests in `ui-fb096-save-slots.test.ts` (up from 27), 7 in
+      `ui-fb111-cloud-save-portability.test.ts`, all green. `npx tsc
+      --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped files,
+      4171 passed tests, only the pre-existing `q15`/`q45` flake class red.
 
 - [x] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
@@ -4683,6 +4734,22 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-07, fb172 (for the main lane — a QUESTIONS.md entry this lane
+  cannot write directly, QUESTIONS.md not being in this file's Scope):
+  fb172's own acceptance text named an open UX question — "which copy wins,
+  and how the player is told" when a switch-away finds the outgoing slot's
+  live `SAVE_KEY` and its own file disagreeing (an out-of-process cloud
+  restore landed on one side). Implemented the "refuse the overwrite"
+  branch (neither side is silently discarded; the player just doesn't get
+  told a conflict happened) rather than "keep both and surface it," which
+  needs UX the owner hasn't chosen. If a future session wants the surfaced
+  version instead: `src/ui/saveslots.ts`'s `switchToSlot` already computes
+  exactly this condition (`slotUnchangedSinceOurLastFlush`'s `safe: false`
+  branch) — it currently just silently protects the file instead of
+  returning/threading a "conflict detected" signal a caller (`hub.ts`)
+  could show a notice for, the same pattern `settings.ts`'s "needs reload"
+  note already uses.
 
 - 2026-09-07, id collision (within-file, not cross-file this time): the
   queue's per-tower VFX item was filed as `fb098`, but this same file
