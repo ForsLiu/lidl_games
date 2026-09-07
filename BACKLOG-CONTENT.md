@@ -901,7 +901,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       full `tests/class-*.test.ts` glob (21 files, 792 passed) plus
       `p6d`/`p6b-swordsman` (166/166) — no bugs filed.
 
-- [ ] (c035) [bug] the three Swordsman-locked equipment items' off-class fallbacks are proven
+- [x] (c035) [bug] **DONE 2026-09-07.** the three Swordsman-locked equipment items' off-class fallbacks are proven
       individually and never jointly. `tests/equip-spec-numbers.test.ts`
       proves `sleeve_sword` alone composes to §7's 1.2x1.2 and `swordsman_armor`
       alone to 1.1x1.5 on an Engineer, and `tests/fb015-equipment.test.ts`
@@ -925,6 +925,28 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       (`tests/equip-*`, no `/data` or `/src` edit needed unless the check finds
       a real bug, in which case only `data/equipment.json` moves) - refs:
       SPEC-FINAL §2 (stacking), §7, §14 G5.
+      **No bug found — the mechanism holds, now proven jointly.** Hoisted
+      `equipmentAttackSpeedFactor` from `c012`'s describe block to module
+      scope and widened it to accept an item array; added a sibling
+      `equipmentMoveSpeedFactor`; three new cases in a `c035` describe block:
+      `sleeve_sword`+`swordsman_armor` on an Engineer composes to
+      1.44x1.65=2.376; all three on a Cryomancer compose the attack-speed
+      product (2.376x1.1=2.6136, shoes has no attackSpeed fallback) and the
+      movement factor (2x1.1=2.2) simultaneously in the same World — the
+      movement half read directly off `content.equipment.items` rather than
+      parsed from a §7 quote, since (confirmed by both code-reviewer and
+      qa-playtester against the real ledger row) unlike the two atk-speed
+      items §7 states the shoes' movement fallback as a single factor with
+      no "(so X×Y)" composite to parse; all three on the Swordsman itself
+      withhold every fallback. Verified by mutation: a deliberate
+      last-write-wins rewrite of `Stats.factor()` (reverted) reddens the new
+      tests exactly as expected; qa-playtester additionally flipped
+      `swordsman_shoes.classFallback.notClassKey` and perturbed
+      `sleeve_sword.mods.attackSpeed` (both reverted), each catching the
+      injected drift. code-reviewer approved (one Nit: a redundant `!`
+      assertion, not worth a follow-up) and independently confirmed every
+      numeric claim against `data/equipment.json`. Full `tests/equip-*`
+      glob (5 files, 176 passed) and `npx tsc --noEmit` green.
 
 - [ ] (c036) [bug] equipment-sourced and class-tower-passive-sourced bonuses on the same stat
       key have never been jointly measured, though both are explicitly separate

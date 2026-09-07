@@ -5,6 +5,23 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c035 done, no bug found.**
+  Three Swordsman-locked equipment items (`sleeve_sword`, `swordsman_armor`,
+  `swordsman_shoes`) each carry an off-class `classFallback`, and SPEC-FINAL
+  §2 says equipped items are separate sources that multiply — proven
+  individually per item, but nothing had equipped two or three together on a
+  non-Swordsman, where a stacking bug (e.g. last-write-wins instead of a
+  running product) would slip past every single-item test. New `c035`
+  describe block in `tests/equip-spec-numbers.test.ts`: two items on an
+  Engineer compose to 1.44x1.65=2.376; all three on a Cryomancer compose the
+  attack-speed product (2.6136) and the movement factor (2.2) simultaneously
+  in the same World; all three on the Swordsman withhold every fallback.
+  Verified by mutation (a deliberate last-write-wins rewrite of
+  `Stats.factor()`, reverted, reddens exactly the new tests). code-reviewer
+  approved (one Nit); qa-playtester independently reproduced every number by
+  hand and ran its own additional mutations — no bugs filed. Full
+  `tests/equip-*` glob (5 files, 176 passed) and `npx tsc --noEmit` green.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c034 done, measurement only.**
   G10 (Archer dps-optimal charge, 2-6s window) and G11 (Stormcaller chain
   ceiling <=x3.6) were converted to ratio form by `p12a` so a kit re-anchor
