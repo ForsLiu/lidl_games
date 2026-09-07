@@ -16,6 +16,14 @@
  *  - `stonewake.settings.v1` (`settings.ts`);
  *  - `stonewake.runinprogress.v1` (`runpersist.ts`).
  *
+ * fb172 added a fifth `saveslots.ts` key, `stonewake.saveflushmark.slotN.v1`
+ * — deliberately NOT audited here alongside the pointer: it is internal
+ * bookkeeping (this module's own "what did I last flush" record), never a
+ * cloud-save-portable representation of player data, and a provider is not
+ * expected to sync it at all. It falls outside the `stonewake.save.slot`
+ * prefix the round-trip test below matches specifically so it is never
+ * mistaken for one.
+ *
  * "A different machine" is modelled the way it actually bites: the write
  * happens under one `Date.now()` (and one `Intl` locale/timezone), the read
  * happens under a wildly different one, with nothing carried across but the

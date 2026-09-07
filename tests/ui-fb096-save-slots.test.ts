@@ -592,6 +592,11 @@ describe('fb172: a switch-away no longer silently destroys an out-of-process res
   });
 
   it('an account with no flush history yet (predates this fix) still flushes normally on its first switch', () => {
+    // Simulates an account whose ACTIVE_SLOT_KEY already existed before this
+    // fix shipped — `ensureActiveSlotMigrated`'s flush-record seeding only
+    // ever runs on the FIRST-ever migration (guarded by ACTIVE_SLOT_KEY being
+    // absent), so an already-migrated account never gets one retroactively.
+    localStorage.setItem('stonewake.activeslot.v1', '0');
     ensureActiveSlotMigrated();
     // Direct saveMeta, bypassing saveMetaToActiveSlot/syncActiveSlotKey
     // entirely — the exact shape a pre-fb147 save left behind, with no
@@ -621,5 +626,28 @@ describe('fb172: a switch-away no longer silently destroys an out-of-process res
 
     expect(switchToSlot(0)).toBe(true);
     expect(slotSkillPoints(1)).toBe(777);
+  });
+
+  /**
+   * qa-playtester finding during fb172 re-verification (escalated from the
+   * fresh-account case above): the migration-time window is not "nothing to
+   * lose" for an upgrading player — a legacy single-save account's REAL
+   * progress migrates straight into slot 0's own file, and without seeding a
+   * flush record at that same moment, a cloud restore racing this account's
+   * very first switch-away was silently destroyed by the `!tracked -> safe`
+   * fallback flushing the stale legacy `SAVE_KEY` back over it.
+   */
+  it("a cloud restore of a just-migrated legacy account's slot 0 file survives the account's first-ever switch-away", () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, meta: { ...defaultMeta(), skillPoints: 50 } }));
+    ensureActiveSlotMigrated(); // migrates the legacy single save into slot 0's own file
+
+    // A per-file provider restores NEWER progress into slot 0's own file —
+    // e.g. this account was also played on another device — before this
+    // session's first switch or save.
+    localStorage.setItem('stonewake.save.slot1.v1', JSON.stringify({ version: 1, meta: { ...defaultMeta(), skillPoints: 500 } }));
+
+    expect(switchToSlot(1)).toBe(true); // the player's first action this session
+    expect(switchToSlot(0)).toBe(true);
+    expect(loadMeta().skillPoints).toBe(500);
   });
 });
