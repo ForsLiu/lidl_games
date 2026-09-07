@@ -713,8 +713,8 @@ function fireSummonTurret(w: World, cls: ClassDef): void {
   spawnClassSummon(
     w,
     'engineer_turret',
-    // p7a (§6.3) skill card "Extra Turret": summon cap +1/rank.
-    (eff.summonCap ?? 0) + classLineBonus(w),
+    // p7a (§6.3) skill card "Extra Turret": summon cap +1/rank. fb084: plus any passive-authored bonus (e.g. Animist Kinship's own +1).
+    (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,
     wd.x,
     wd.y,
     p.dps * share,
@@ -905,8 +905,8 @@ function fireOverload(w: World, cls: ClassDef): void {
 function fireRaiseSkeletons(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
-  // p7a (§6.3) skill card "Deeper Grave": skeleton cap +1/rank.
-  const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w)));
+  // p7a (§6.3) skill card "Deeper Grave": skeleton cap +1/rank. fb084: plus any passive-authored bonus (e.g. Animist Kinship's own +1).
+  const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));
   let live = 0;
   for (const s of w.classSummons) if (s.kind === 'necro_skeleton') live++;
   let room = cap - live;
@@ -1030,8 +1030,8 @@ function fireManifestSpirit(w: World, cls: ClassDef): void {
   spawnClassSummon(
     w,
     'animist_spirit',
-    // p7a: skill card "Kindred Spirits" — spirit cap +1/rank.
-    (eff.summonCap ?? 0) + classLineBonus(w),
+    // p7a: skill card "Kindred Spirits" — spirit cap +1/rank. fb084: plus any passive-authored bonus (Animist Kinship's own +1).
+    (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,
     s.tx + 0.5,
     s.ty + 0.5,
     p.dps * share,

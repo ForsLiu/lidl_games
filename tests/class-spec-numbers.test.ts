@@ -1059,14 +1059,23 @@ const LEDGER: readonly Figure[] = [
       // implemented it as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at
       // the Manifest cap site and this row stayed green. These are the only
       // three places a summon cap is computed; any added term reddens the row.
+      //
+      // fb084 (2026-09-07) added a *generic* `summonCap` StatKey and folded
+      // `w.derived.summonCapBonus` into all three sites below, so a passive
+      // can grant the bonus without a class-key check — but Kinship's own
+      // `data/classes.json` row still authors `mods: {}`, so the Animist's
+      // live cap is unchanged and this clause is still genuinely
+      // unimplemented. Re-pinned to the new lines (fb084's enabler is the
+      // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
+      // authoring `summonCap: 1` on Kinship's `mods`.
       srcLines: [
         {
           file: CLASSES_TS,
           needle: 'summonCap',
           lines: [
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
-            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w)));',
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
+            '(eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,',
+            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
+            '(eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,',
           ],
         },
         // Pinning the three cap lines catches a `+1` folded *into* them, but

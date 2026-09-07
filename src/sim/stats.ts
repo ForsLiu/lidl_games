@@ -331,6 +331,8 @@ export interface Derived {
   charRangeMul: number;
   /** fb015: Bleeding Ring — true once its stat contribution is present at all. */
   bleedLifesteal: boolean;
+  /** fb084 (§4.2 Animist "summon cap +1"): a passive-authored point bonus on a class's summon cap, added alongside `classLineBonus(w)` at the three `classes.ts` summon sites. */
+  summonCapBonus: number;
 }
 
 // b062: `total()` and `factor()` each guard their own accumulation, but the
@@ -400,5 +402,6 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     towerAtkFlat: s.total('towerAtkFlat'),
     charRangeMul: s.factor('charRange'),
     bleedLifesteal: s.total('bleedLifesteal') > 0,
+    summonCapBonus: s.total('summonCap'),
   };
 }
