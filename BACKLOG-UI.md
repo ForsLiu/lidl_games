@@ -4251,7 +4251,7 @@ logs a blocker below rather than editing `/data` itself.
       pre-fb117 parent commit too, confirming it predates this item — refs:
       SPEC-FINAL §5.5, §11, fb058.
 
-- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+- [x] (fb177) [feat] normal priority: per-tower attack projectile/beam
       visuals — every tower type gets a distinct registered VFX entry: Arrow
       (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
       Mortar (lobbed shell, arc + impact crater flash), Electric (instant
@@ -4265,6 +4265,64 @@ logs a blocker below rather than editing `/data` itself.
       Acceptance: a VFX-registry test fails for any of the 10 towers missing
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+      **Renumbered from fb098 at filing time** — this file already had an
+      unrelated `[x] (fb098)` (the 2026-09-04 colorblind-palette-audit item,
+      line ~2260); a within-file id collision, not just the cross-file kind
+      this Log has flagged before. See Log entry below.
+      **DONE 2026-09-07** — new `TOWER_VFX` registry (`src/render/vfx-
+      registry.ts`, all 10 towers, `fire`/`travel`/`impact` string fields),
+      mirroring fb016's `CLASS_VFX`/`CORE_VFX` coverage-test pattern
+      (`missingVfxCoverage` gained an optional `towerKeys` param). Wiring it
+      up surfaced and fixed four real, previously-invisible-or-wrong render
+      gaps, each with its own regression test in the new
+      `tests/ui-fb098-tower-vfx.test.ts` (15 tests): (1) Frost Obelisk's
+      `pulse` fx event had no case in `canvas.ts`'s `ingest()` at all
+      (`default: break`) — its periodic aura tick had zero visual; now
+      reuses the existing `nova` CastFx ring, which also fixes every other
+      inherent-radius AoE splash sharing that same dead code path
+      (`damagetypes.ts`'s radius splashes, a VS-wielded aura). (2) A
+      VS-wielded Ember Brazier cone looked up a `'flame_cone'` style key
+      `theme.ts`'s `STYLES` never registered, silently falling back to the
+      generic default look instead of TD's own `STYLES.ember_brazier`
+      visual — Ember Brazier is the only `cone`-kind attack in either
+      phase, so this now always reads its own style. (3) The identical bug
+      for Arrow Spire's `shot` (`'arrow_volley'`, never registered) and
+      Tesla Coil's `arc` (`'chain_lightning'`, actually Stormcaller's
+      Active1 `ClassEffect.kind`, not a tower style) — both fixed the same
+      way, found by qa-playtester's first pass on this item (see below).
+      (4) Venom Spore's `poison`-kind attack is an instant hit (unlike
+      Ballista/Mortar's real `Projectile`) that only ever emitted `'spore'`,
+      an event `ingest()` had no case for — its shot was completely
+      invisible in both phases; added a tracer case reusing `STYLES.
+      venom_spore`, also found by that same qa-playtester pass. Beacon
+      Totem/Harvest Sprout (`attack: null`, no sim fire event to hang a cue
+      on) get a new render-side ambient "aura pulse tick" ring in
+      `drawStructures` (signature now takes `view` too), keyed off `w.tick`
+      (deterministic sim state, not wall-clock time) on a 2s cadence, TD-only
+      and suppressed under `reducedMotion` (matching fb086's other ambient
+      cues). code-reviewer **APPROVE** on the first pass (no Critical/Major;
+      one Minor — `TOWER_VFX.mortar.impact` claimed an "impact crater flash"
+      that doesn't exist, `detonate()`'s `'boom'` event is screen-shake only
+      — fixed same session, wording corrected to describe what actually
+      renders rather than adding a new visual). qa-playtester **FAILed the
+      first pass** with the two real bugs in (3)/(4) above, both reproduced
+      twice independently against the live render code (not just reading the
+      new test file) and fixed same session with 4 new regression tests;
+      a **second qa-playtester re-verification pass PASSed**, independently
+      reproducing both original repros against the fix (and confirming they
+      failed again on the pre-fix commit, restoring the tree after), and
+      separately confirmed the one deliberately-left-open gap: Tesla Coil's
+      `arc` fx event is genuinely shared with Stormcaller's Chain Surge
+      Active1 (both route through `combat.ts`'s `chainHit`, which takes a
+      `source` string but never passes it to `emit`) with no field to
+      disambiguate them — verified `chainHit`'s own signature and every
+      call site to confirm this isn't fixable without a `/src/sim` change,
+      out of this lane's Scope; logged below rather than left unexplained
+      or papered over. `npx tsc --noEmit` clean. `npm run test:fast`: 280
+      passed / 8 skipped files, 4161 passed tests, only the pre-existing
+      `q15`/`q45` flake class red (independently confirmed unrelated —
+      reproduces identically on the pre-fb177 parent commit — by both the
+      code-reviewer and qa-playtester passes).
 
 - [x] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
@@ -4592,6 +4650,22 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-07, id collision (within-file, not cross-file this time): the
+  queue's per-tower VFX item was filed as `fb098`, but this same file
+  already had an unrelated `[x] (fb098)` (2026-09-04, the colorblind-
+  palette-audit item) — a duplicate id inside one file, not the
+  cross-file kind the 2026-09-06 merge entry below warns about (that one
+  git silently merges without a murmur; this one a plain in-file grep for
+  `(fb098)` would have caught immediately, so it's worth a beat: whatever
+  wrote the queue entry didn't grep the file it was appending to first).
+  Renumbered the per-tower VFX item to **fb177** (max id anywhere was 176,
+  per the same allocate-from-shared-high-water-mark convention the
+  2026-09-06 entry recommends). Not renamed: the already-pushed commits'
+  messages, the new `tests/ui-fb098-tower-vfx.test.ts` filename, and
+  in-code comments referencing "fb098" — left as-is, same as the
+  2026-09-06 entry's own six commits, with this entry as the map for
+  anyone reading those artifacts cold.
 
 - 2026-09-07, fb151: **cannot be implemented in-scope, skipped rather than
   attempted.** Read `fireDashSlash` (`src/sim/classes.ts`) end to end before
