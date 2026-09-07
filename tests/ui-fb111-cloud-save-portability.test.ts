@@ -36,6 +36,7 @@ import {
   SAVE_SLOT_COUNT,
   ensureActiveSlotMigrated,
   getActiveSlot,
+  saveMetaToActiveSlot,
   switchToSlot,
 } from '../src/ui/saveslots';
 import { emptyInput } from '../src/sim/types';
@@ -237,11 +238,20 @@ describe('fb111: cloud-save portability of every lane-owned localStorage blob', 
   it('round-trips the fb096 slot mirror keys and the active-slot pointer', () => {
     const slotMetas = [richMeta(), { ...richMeta(), skillPoints: 3 }, { ...richMeta(), highestTier: 5 }];
     onMachine(CLOCK_A, () => {
+      // The pre-slots legacy save `ensureActiveSlotMigrated` folds into slot
+      // 1 (same pattern `ui-fb096-save-slots.test.ts`'s own migration test
+      // uses) — everything after this point goes through the real save path
+      // (`saveMetaToActiveSlot` + a `reload()`/`ensureActiveSlotMigrated()`
+      // after each switch, matching the reload every real switch gets —
+      // `hub.ts`, fb100) rather than a bare `saveMeta` fb172 now treats as an
+      // untracked, possibly-foreign write to the slot it would otherwise
+      // silently flush over.
       saveMeta(slotMetas[0] as MetaState);
       ensureActiveSlotMigrated();
       for (let slot = 1; slot < SAVE_SLOT_COUNT; slot++) {
         switchToSlot(slot);
-        saveMeta(slotMetas[slot] as MetaState);
+        ensureActiveSlotMigrated();
+        saveMetaToActiveSlot(slotMetas[slot] as MetaState);
       }
       switchToSlot(0);
     });

@@ -119,19 +119,24 @@ describe('fb096: save-slots module', () => {
 
   it('independent progress in slot 1 and slot 2 persists independently across a simulated reload', () => {
     ensureActiveSlotMigrated();
-    saveMeta({ ...defaultMeta(), skillPoints: 10 });
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 10 });
     expect(loadMeta().skillPoints).toBe(10);
 
     expect(switchToSlot(1)).toBe(true);
+    // fb172: every real switch is followed by a reload (hub.ts, fb100) —
+    // `saveMetaToActiveSlot`'s sync stays a no-op on a stale, un-reloaded
+    // `sessionSlot` (fb147's own protection), same as production.
+    reload();
     // A never-used slot loads as a fresh account, not slot 0's leftover state.
     expect(loadMeta().skillPoints).toBe(0);
-    saveMeta({ ...defaultMeta(), skillPoints: 25 });
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 25 });
     expect(loadMeta().skillPoints).toBe(25);
 
     // Simulated reload: re-read via the ordinary loader with nothing else touched.
     expect(loadMeta().skillPoints).toBe(25);
 
     expect(switchToSlot(0)).toBe(true);
+    reload();
     expect(loadMeta().skillPoints).toBe(10);
 
     expect(switchToSlot(1)).toBe(true);
@@ -189,9 +194,10 @@ describe('fb096: save-slots module', () => {
 
   it('deleteSlot removes a non-active slot without touching the live save', () => {
     ensureActiveSlotMigrated();
-    saveMeta({ ...defaultMeta(), skillPoints: 5 });
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 5 });
     switchToSlot(1);
-    saveMeta({ ...defaultMeta(), skillPoints: 9 });
+    reload();
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 9 });
     switchToSlot(0);
 
     expect(slotHasData(1)).toBe(true);
@@ -499,7 +505,8 @@ describe('fb096: Settings tab Save Slots panel', () => {
   it('deleting a non-active, populated slot does not call onMetaChanged', () => {
     ensureActiveSlotMigrated();
     switchToSlot(1);
-    saveMeta({ ...defaultMeta(), skillPoints: 12 });
+    reload();
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 12 });
     switchToSlot(0);
 
     let called = false;
@@ -593,5 +600,26 @@ describe('fb172: a switch-away no longer silently destroys an out-of-process res
 
     expect(switchToSlot(1)).toBe(true);
     expect(slotSkillPoints(0)).toBe(99);
+  });
+
+  /**
+   * qa-playtester finding during fb172 verification: the outgoing-flush guard
+   * alone left a hole — a slot switched INTO but never locally saved-to yet
+   * this session had no flush record at all (`!tracked`), so a restore
+   * landing on ITS file before any save was silently destroyed by the next
+   * switch-away's own `!tracked -> safe` fallback. `switchToSlot`'s incoming
+   * leg now records a flush for the slot it loads too, closing this.
+   */
+  it('a restore landing on a slot that was switched into but never locally saved survives the next switch-away', () => {
+    ensureActiveSlotMigrated();
+    expect(switchToSlot(1)).toBe(true); // never-used slot 1, no local save yet
+    reload();
+
+    // A per-file provider restores slot 2's own file directly — newer
+    // progress from another device — before this session ever saves to it.
+    localStorage.setItem('stonewake.save.slot2.v1', JSON.stringify({ version: 1, meta: { ...defaultMeta(), skillPoints: 777 } }));
+
+    expect(switchToSlot(0)).toBe(true);
+    expect(slotSkillPoints(1)).toBe(777);
   });
 });
