@@ -71,26 +71,6 @@ not already expose it) logs that need below instead of reaching into
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
 
-- [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
-      verification — the Dash Slash slash VFX is drawn to the physical dash
-      TARGET, not the hit line, so mid-charge and against walls the graphic is
-      shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
-      `lineHit` with `hitRange = dashRange + mergedRadius` from the PRE-dash
-      position, then emits `class_active2` with `resolveDashTarget`'s clamped
-      travel endpoint, and `canvas.ts` draws that emitted segment. Repro: with
-      the Warden at the map edge (x=1) aiming -X, `dashTravel` is a zero-length
-      segment (the dash clamps against the wall) yet enemies at -0.6 and -0.9
-      tiles both take damage — the player sees NO slash at all while enemies
-      die; mid-charge in open ground the hit line spans 9 tiles while the drawn
-      segment spans 5, hiding 4 tiles of real hit. Acceptance: the drawn slash
-      covers the corridor that actually deals damage (the emitted event carries
-      the hit extent, not the travel extent — note the emit itself is
-      `src/sim/**` and out of this lane's Scope, so this may need a main-lane
-      companion; if so, do the render half here and log the sim half);
-      regression test asserts the emitted `class_active2` segment against the
-      measured furthest struck enemy — refs: fb112, `canvas.ts`'s
-      `class_active2` draw.
-
 - [ ] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
       the measured form of fb149's kind-classification guard. fb149 ships a
       DECLARED table (`DECAYS`/`PATCH`/`FLAT` in
@@ -134,6 +114,39 @@ not already expose it) logs that need below instead of reaching into
       `hud.ts`) as the first migrated file and the rule's own proof case; a
       test confirms the rule actually catches a reintroduced literal in
       that converted file — refs: QUALITY.md BETA, SPEC-FINAL §11.
+
+- [ ] (fb151) [bug] **BLOCKED out of Scope 2026-09-07 — the render half is a
+      no-op: `canvas.ts`'s `class_active2` case (`case 'class_active':`/
+      `case 'class_active2':` in `ingest()`) draws exactly the `e.a`/`e.b`
+      coordinates the event carries, with no logic of its own to fix — the
+      bug is entirely in what `fireDashSlash` (`src/sim/classes.ts:461`)
+      chooses to emit (`w.emit('class_active2', before.x, before.y,
+      target.x, target.y)`, `target` being `resolveDashTarget`'s clamped
+      travel endpoint, not the `lineHit` hit extent that already computed
+      `hitRange` two lines earlier). Confirmed by reading both sides: there
+      is no render-side fix this lane could make independently of that
+      emit changing. Needs a main-lane companion to change what
+      `class_active2` carries; this lane's render draw is already correct
+      for whatever it receives and needs no change once that happens.**
+      filed 2026-09-05 by qa-playtester during fb112
+      verification — the Dash Slash slash VFX is drawn to the physical dash
+      TARGET, not the hit line, so mid-charge and against walls the graphic is
+      shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
+      `lineHit` with `hitRange = dashRange + mergedRadius` from the PRE-dash
+      position, then emits `class_active2` with `resolveDashTarget`'s clamped
+      travel endpoint, and `canvas.ts` draws that emitted segment. Repro: with
+      the Warden at the map edge (x=1) aiming -X, `dashTravel` is a zero-length
+      segment (the dash clamps against the wall) yet enemies at -0.6 and -0.9
+      tiles both take damage — the player sees NO slash at all while enemies
+      die; mid-charge in open ground the hit line spans 9 tiles while the drawn
+      segment spans 5, hiding 4 tiles of real hit. Acceptance: the drawn slash
+      covers the corridor that actually deals damage (the emitted event carries
+      the hit extent, not the travel extent — note the emit itself is
+      `src/sim/**` and out of this lane's Scope, so this may need a main-lane
+      companion; if so, do the render half here and log the sim half);
+      regression test asserts the emitted `class_active2` segment against the
+      measured furthest struck enemy — refs: fb112, `canvas.ts`'s
+      `class_active2` draw.
 
 - [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
       `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
