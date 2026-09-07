@@ -853,7 +853,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       per-seed vectors — no bugs filed. Full `tests/class-*.test.ts` glob
       (20 files, 785 passed) and `npx tsc --noEmit` green.
 
-- [ ] (c034) [bug] `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
+- [x] (c034) [bug] **DONE 2026-09-07.** `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
       accepted with G10/G11's absolute pins converted to ratio form "and still
       pass" (BACKLOG.md p12a acceptance), but that verification lived in
       `tests/p6d-nine-classes.test.ts`/`tests/p6b-swordsman.test.ts` — both
@@ -874,6 +874,32 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       under a synthetic mutation (`chainCap` 8->10, `chargeCapSeconds` 5->30)
       that must turn them red. In-lane only, no `/data` change - refs:
       SPEC-FINAL §14 G10/G11, BACKLOG.md p12a.
+      **This item's own acceptance text guessed G11's formula wrong** — the
+      real ceiling exponent, read off `tests/p6d-nine-classes.test.ts`
+      directly rather than re-derived from scratch, is `chainCap - 1` (a jump
+      index starting at 0), not `chainCap`: `1.2^8 = 4.30` would already
+      exceed 3.6 on shipped data, and `p6d` does not fail, so `chainCap - 1`
+      is the only formula consistent with p6d's own passing state (measured,
+      not assumed — CLAUDE.md's own rule). New `tests/class-gate-ratios.
+      test.ts` copies both real formulas from `p6d` (G11's `(1+chainGrowth)
+      ^(chainCap-1)`; G10's numeric search over held time, `growth^min(t,cap)
+      / (t+cooldown)`) and confirms them live under mutation: shipped
+      `chainGrowth 0.20`/`chainCap 8` gives ceiling ≈3.58 (<=3.6, and >3 as
+      an anti-vacuity floor); `chainCap` 8->10 pushes it to ≈5.16 and reddens
+      the check; shipped Archer numbers land the dps-optimal charge at
+      exactly the 5 s cap (inside G10's 2-6 s window); `chargeCapSeconds`
+      5->30 pushes the optimum past 6 s and reddens that check. code-reviewer
+      approved with three Minor documentation nits (one fixed here — a
+      comment said `jumps` "exceeds" `chainCap` when shipped data has them
+      exactly equal, 8==8; the other two are precision notes about what a
+      same-file coherence check does and doesn't prove, no functional
+      issue). qa-playtester independently re-derived both formulas by hand
+      against shipped `/data`, confirmed the exact numbers, read `p6d`
+      directly to verify the exponent correction, ran its own additional
+      mutations (chainGrowth 0.20->0.01 catches the anti-vacuity floor;
+      cooldownSeconds sweep shows a sane monotonic optimum), and re-ran the
+      full `tests/class-*.test.ts` glob (21 files, 792 passed) plus
+      `p6d`/`p6b-swordsman` (166/166) — no bugs filed.
 
 - [ ] (c035) [bug] the three Swordsman-locked equipment items' off-class fallbacks are proven
       individually and never jointly. `tests/equip-spec-numbers.test.ts`
