@@ -996,7 +996,7 @@ owner items.
       rule again per CLAUDE.md's "fewer than 3 actionable items remain" clause
       before executing further.
 
-- [ ] (c037) [bug] `c036`'s same-stat-key stacking check has a twin gap on the
+- [x] (c037) [bug] **DONE 2026-09-07.** `c036`'s same-stat-key stacking check has a twin gap on the
       **character-passive** slot, not just `towerPassive`. An exhaustive
       diff of every class `passive`/`towerPassive` mods key against every
       `data/equipment.json` mods/`classFallback` key finds exactly four
@@ -1015,6 +1015,29 @@ owner items.
       through the real `derived`/`Stats.factor()` path, not a hand-rolled
       formula, the same device `c036` uses. In-lane only - refs: SPEC-FINAL §2
       (stacking), §14 G5, c036.
+      **The `towerCost` half landed as specified: `tests/class-passive-liveness.
+      test.ts`'s new `describe('c037: ...')` proves Engineer + Normal Necklace
+      reads `w.derived.towerCostMul === 0.72`, not `0.70`, through the real
+      `Stats.factor('towerCost')` path. The `leech` half's premise was wrong and
+      is corrected, not silently reworded: `src/sim/statkeys.ts` classifies
+      `leech` `STAT_KIND.flat`, not `mul` — "rates and flags, not boosts: leech
+      and luck are read raw" is the file's own words, flagged there under Q62 as
+      a deliberate design line, not an oversight — and `derive()` reads it via
+      `Stats.total()` (a sum), not `Stats.factor()` (a product). Measured
+      directly (`w.derived.leech`): Blood Frenzy + Bleeding Ring reads `0.0301`
+      (additive), not `0.030103` (what `(1.03)(1.0001)` predicts). The shipped
+      test pins the real, additive reading instead of the item's predicted one,
+      with the correction documented in the test's own header — the same
+      premise-correction shape as c008/c017/c018. code-reviewer approved (no
+      Critical/Major; two Minor/Nit notes on comment precision, addressed in the
+      final text) and qa-playtester independently re-derived `STAT_KIND`/
+      `derive()`'s behaviour from source, mutated all four `/data` fields plus
+      both `Stats` read paths (six mutations total, each reverted), and
+      independently re-ran the exhaustive class-passive/equipment key diff,
+      confirming these are the only two overlaps left after c036. `npm run
+      test:fast`: 4043 passed (three new), the same two pre-existing unrelated
+      `q15`/`q45` fuzz-command-domain failures c029 already logged as present
+      on HEAD.**
 
 - [ ] (c038) [polish] the roster size (12 classes) is a **hardcoded
       assumption in at least three lane files with no shared source and no

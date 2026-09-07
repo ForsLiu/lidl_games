@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c037 done, one measurement,
+  one premise correction, no bug found.** `c036`'s same-stat-key stacking
+  check had a twin gap on the *character*-passive slot: Engineer's *Efficient
+  Engineering* (`towerCost -10%`) vs the Normal Necklace (`towerCost -20%`),
+  and Bloodlord's *Blood Frenzy* (`leech +3%`) vs the Bleeding Ring
+  (`leech +0.01%`). New `c037` describe block in
+  `tests/class-passive-liveness.test.ts` proves the `towerCost` pair
+  multiplies to the real `0.72` (not `0.70`) through `w.derived.towerCostMul`
+  — the same device `c036` used for `towerRange`/`area`. The item's own
+  `leech` premise (predicting a multiplicative `(1.03)(1.0001)` reading) was
+  wrong: `src/sim/statkeys.ts` classifies `leech` `STAT_KIND.flat`, not
+  `mul`, by deliberate design ("rates and flags, not boosts: leech and luck
+  are read raw", flagged under Q62), and `derive()` reads it via
+  `Stats.total()` (a sum), not `Stats.factor()` (a product) — measured at
+  `0.0301`, not `0.030103`. Shipped test pins the real additive reading, with
+  the correction documented inline (same shape as c008/c017/c018).
+  code-reviewer approved (no Critical/Major; two Minor/Nit comment-precision
+  notes, folded into the final wording) and qa-playtester independently
+  re-derived `STAT_KIND`/`derive()`'s behaviour from source, mutated all four
+  `/data` fields plus both `Stats` read paths (six mutations, each reverted),
+  and independently re-ran the exhaustive class-passive/equipment key diff,
+  confirming these are the only two overlaps left after c036. `npm run
+  test:fast`: 4043 passed (three new), same two pre-existing unrelated
+  `q15`/`q45` fuzz-command-domain failures c029 already logged as present on
+  HEAD; `npx tsc --noEmit` clean.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
   session should run the generation rule again before executing further).
