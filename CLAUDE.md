@@ -19,6 +19,12 @@
 5. **SPEC-V3.md**, **SPEC-V2.md**, **SPEC.md** — superseded. Consult them only to
    understand why existing code looks the way it does, never as authority.
 
+Older content moved out of PROGRESS.md, BACKLOG.md/BACKLOG-*.md and QUESTIONS.md
+lives in `docs/PROGRESS-ARCHIVE.md`, `docs/BACKLOG-DONE.md` and
+`docs/QUESTIONS-ARCHIVE.md` (fb178, append-only). Read only the live files day
+to day; open an archive only when an item explicitly references old history
+that moved there.
+
 Do not redesign what these define. SPEC-FINAL marks its own open ends: **⚖** =
 tune against §14's gates, **[designer-fill]** = a section the owner may veto via
 an inbox verdict. Fill any genuine remaining gap with the most spec-consistent
@@ -69,6 +75,12 @@ list (with a comment naming why) rather than silently fattening the fast tier.
 6. Stuck ~5 distinct attempts on one failure: `.skip` + TODO + Known-issues
    entry, move on. Never delete a test to go green.
 7. Touch nothing outside this repository.
+8. Never run `tools/sweep.ts`, `tools/handoff-metrics.ts`, or a full gate
+   matrix unless the item is `[balance]` or a gate re-measurement is its own
+   acceptance criterion — they cost real wall-clock and most items don't
+   move a gate (fb178).
+9. Default to light-tier verification (Subagent protocol) for `[polish]`,
+   `[ui]`, `[docs]`, and any data-only change that isn't a balance value.
 
 ## Measurement rules (earned the hard way — Q74, Q78, Q80, and MIGRATION §8.4.1)
 - **A deferral is a measurement with an expiry date.** Re-measure a deferred
