@@ -194,10 +194,10 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   // of its own already-fitted value, inflating T1 boss HP 365,000 -> 7.3M
   // (8.36M at T3) and stretching boss fights from ~50s to 380s-1187s
   // depending on build — the tail p12e's own diagnosis names. Fixed by
-  // re-anchoring the authored value to 18,250 (365,000 / 20) so the
-  // multiplier restores the original fitted fight length instead of
-  // compounding it — a `/data`-only change, no code-path change (the boss
-  // still takes `baseHpMul` and the tier ladder exactly as before).
+  // exempting the final boss (`TRAIT.finalBoss`) from `baseHpMul` in
+  // `makeEnemy` (`src/sim/enemies.ts`), restoring the original fitted fight
+  // length instead of compounding it — `data/enemies.json`'s authored
+  // 365,000 is unchanged; the tier ladder still applies as before.
   // Re-measured live against this exact 24-seed/T3 harness (a standalone
   // script reusing `runScripted`/`cfg` the same way this file's own
   // top-level `reports` above does, not kept in `tools/` — q47's crash-
