@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
+  configFingerprint,
   describeTerrain,
   flatTerrain,
   generateTerrain,
@@ -134,7 +135,7 @@ const GOLDEN_SEED_1 = [
   'terrain 56x32',
   'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=c49b8ecb',
   'gates west=0,12 north=24,0 east=55,20 south=33,31',
-  'bands walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
+  'bands config=c39bcb68 walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=1267 normal=1016 coreAnchors=558',
   'tiles normal=1016 rough=251 rock=429 high=96',
   'legend normal=. rough=, rock=# high=^',
@@ -937,6 +938,89 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(() => parseTerrainDump(good.replace(/^(seed .*)$/m, '$1 bogus=1 bogus=2'))).toThrow(
       /unknown "bogus" on the "seed" line/,
     );
+  });
+});
+
+describe('fb065i — a dump carries a fingerprint of the config it was measured under', () => {
+  const good = GOLDEN_SEED_1;
+  // A config that measures real bands differently from the shipped one, so a
+  // fingerprint mismatch is checked against something that would actually
+  // change `measure` if this file re-measured (it must not).
+  const otherCfg: TerrainConfig = parseTerrain(
+    JSON.parse(
+      JSON.stringify(cfg, (key, value) =>
+        key === 'coreGateClearance' ? 4 : (value as unknown),
+      ),
+    ),
+  );
+
+  it('the bands line carries config=<fingerprint>, first field, matching configFingerprint(cfg)', () => {
+    const map = generateTerrain(1, cfg);
+    const dump = describeTerrain(map, cfg);
+    const bandsLine = dump.split('\n')[3];
+    expect(bandsLine.startsWith(`bands config=${configFingerprint(cfg)} `)).toBe(true);
+  });
+
+  it('two configs that differ fingerprint differently; the same config is stable across calls', () => {
+    expect(configFingerprint(cfg)).toBe(configFingerprint(cfg));
+    expect(configFingerprint(otherCfg)).not.toBe(configFingerprint(cfg));
+    // And it really is a different config, not a no-op edit.
+    expect(otherCfg.coreGateClearance).not.toBe(cfg.coreGateClearance);
+  });
+
+  it('parsing against the config the dump was written under reports no mismatch', () => {
+    const parsed = parseTerrainDump(good, cfg);
+    expect(parsed.configFingerprint).toBe(configFingerprint(cfg));
+    expect(parsed.configMismatch).toBe(false);
+  });
+
+  it('parsing against a different config reports a mismatch — reported, not thrown', () => {
+    // The whole point of fb065i: a stale dump must stay readable.
+    const parsed = parseTerrainDump(good, otherCfg);
+    expect(parsed.configFingerprint).toBe(configFingerprint(cfg)); // unchanged: it is the dump's own claim
+    expect(parsed.configMismatch).toBe(true);
+    // And the tiles/measure are exactly as printed either way — a mismatch
+    // reports, it does not re-measure or otherwise alter the parsed result.
+    const parsedSameCfg = parseTerrainDump(good, cfg);
+    expect(Array.from(parsed.kind)).toEqual(Array.from(parsedSameCfg.kind));
+    expect(parsed.measure).toEqual(parsedSameCfg.measure);
+  });
+
+  it('defaults the comparison config to loadTerrain(), like describeTerrain defaults its cfg', () => {
+    expect(parseTerrainDump(good).configMismatch).toBe(parseTerrainDump(good, loadTerrain()).configMismatch);
+  });
+
+  it('refuses a missing, duplicate, or malformed config field the way every other field is refused', () => {
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8} /, ''))).toThrow(
+      /"bands" line has no "config"/,
+    );
+    expect(() =>
+      parseTerrainDump(good.replace(/(config=[0-9a-f]{8})/, '$1 config=00000000')),
+    ).toThrow(/duplicate "config" on the "bands" line/);
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8}/, 'config=not-a-hash'))).toThrow(
+      /"bands" line has non-hash config="not-a-hash"; expected eight lowercase hex digits/,
+    );
+    // Well-formed but wrong length (seven digits, not eight) — still a shape
+    // refusal, not a mismatch report, exactly like `hash` on the seed line.
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8}/, 'config=1234567'))).toThrow(
+      /non-hash config=/,
+    );
+  });
+
+  it('round-trips byte-identically regardless of match or mismatch', () => {
+    const map = generateTerrain(1, cfg);
+    const dump = describeTerrain(map, cfg);
+    const matched = parseTerrainDump(dump, cfg);
+    const mismatched = parseTerrainDump(dump, otherCfg);
+    expect(matched.configMismatch).toBe(false);
+    expect(mismatched.configMismatch).toBe(true);
+    expect(Array.from(matched.kind)).toEqual(Array.from(map.kind));
+    expect(Array.from(mismatched.kind)).toEqual(Array.from(map.kind));
+    // Re-describing either parsed result reproduces the dump body byte for
+    // byte (fb065c's rule) — a mismatch does not fork the round trip.
+    const body = (d: string): string => d.split('\n').slice(2).join('\n');
+    expect(body(describeTerrain(matched, cfg))).toBe(body(dump));
+    expect(body(describeTerrain(mismatched, cfg))).toBe(body(dump));
   });
 });
 

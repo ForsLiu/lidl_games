@@ -1378,7 +1378,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
       halved from a first version that called `generateTerrain` twice per seed);
       26 suites green (446); `npx tsc --noEmit` clean.
-- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+- [x] (fb065i) [polish] a terrain dump is only meaningful beside the config it
       was taken under, and it carries no trace of one. `describe.ts`'s own
       header says so — "a dump is only meaningful next to the config it was
       taken under" — and `parseTerrainDump` deliberately never re-measures, so a
@@ -1393,6 +1393,31 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       on a mismatch against the current config, so a stale dump stays readable;
       the round trip stays byte-identical and every existing refusal message is
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
+      **Done 2026-09-07.** `config.ts` gets `configFingerprint(cfg)` — an
+      8-hex-digit hash of `JSON.stringify(cfg)` via the existing `Hasher`,
+      deliberately over the *whole* config rather than a hand-picked list of
+      "the fields that matter" (the same under-fingerprinting risk fb064b's
+      `contentHash()` exists to close for a replay). `describeTerrain` writes
+      it as `config=<fp>`, the new first field on the `bands` line (read
+      before the numbers it frames, the same "printed first, read that way
+      too" reasoning `seed`'s `source` field is built on) — `HEADER_KEYS.bands`
+      grew accordingly, and every existing dump's bands line shifted by one
+      field, which is why this item touched `tests/terrain-describe.test.ts`'s
+      single golden dump string (one line) and nothing else in
+      `tests/terrain*` — no other file hardcodes a full dump. `parseTerrainDump`
+      gained an optional `cfg` parameter (default `loadTerrain()`, mirroring
+      `describeTerrain`'s own default) purely for the *comparison* — it still
+      never re-measures — and `TerrainDump` gained `configFingerprint` (what
+      the dump printed) and `configMismatch` (whether that differs from
+      `configFingerprint(cfg)`). A malformed `config` field (missing,
+      duplicate, non-hex, wrong length) is refused exactly like `hash` on the
+      `seed` line always has been; a well-formed one that simply disagrees with
+      `cfg` is not malformed and is never thrown on — new tests cover both
+      directions plus the round trip staying byte-identical either way. All 24
+      `tests/terrain*` files pass under `npm run test:fast` (417 passing, 2
+      pre-existing `.skip`s, unchanged); a full `npm run test:fast` run is
+      identical to fb156's own — the same 21 out-of-scope files, none new —
+      confirming this item touched nothing beyond its own lines.
 
 ## Log
 
