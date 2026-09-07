@@ -11,6 +11,109 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — main lane: BACKLOG fb179 done, negative result, no
+  QUESTIONS.md content moved.** fb178's deferred point 3: move every
+  QUESTIONS.md entry whose owner verdict is dated more than 14 days before
+  the run date to a new `docs/QUESTIONS-ARCHIVE.md`. Measured first, per the
+  item's own caution against a wrong archival dropping a verdict a fresh
+  session needs: QUESTIONS.md carries no per-entry verdict dates, only the
+  "Verdict log" section's dated batch headers, which name the Q-ranges each
+  batch actually verdicted — Q1-Q121 on 2026-08-27 (`feedback/verdicts-q1-
+  121`), Q122-Q133 on 2026-08-28, Q134-Q154 on 2026-09-01, and Q94/Q155-Q167
+  on 2026-09-04 (`feedback/processed/20260904-223211-verdicts-q155-167.md`,
+  never logged into the Verdict log section itself, dated from the feedback
+  file's own timestamp). Every entry from Q168 onward cites a `fb1xx`/`p12x`
+  item from this same week and is newer still. A full-file grep for any date
+  before 2026-08-25 (`2026-0[1-7]-|2026-08-0[0-9]|2026-08-1[0-9]|2026-08-2[0-
+  4]`) returned zero matches, confirming no verdict predates the batch log's
+  earliest entry. Run date is 2026-09-07; the 14-day cutoff is 2026-08-24.
+  Every verdict date found (2026-08-27 through 2026-09-07) falls **inside**
+  that 14-day window — the earliest is only 11 days old. **Result: zero of
+  the 173 `(owner verdict:` entries qualify for archival** (4 of those 173 —
+  Q193-Q196 — are themselves still `pending` and never move on age alone,
+  so 169 entries actually carry a verdict; all 169 fall inside the window
+  regardless), so QUESTIONS.md is
+  unchanged (still 918 lines; the item's own "~400 lines" acceptance
+  assumed enough entries would be old enough, which is not yet true — no
+  verdict in this file predates 2026-08-27, so nothing crosses 14 days
+  until 2026-09-10 at the earliest). `pendingQuestions()`
+  (`tools/status.ts`) was re-run before and after this measurement and
+  returns the identical pending set both times, as expected since no bytes
+  of QUESTIONS.md changed — the acceptance's control-check clause holds
+  trivially. Created `docs/QUESTIONS-ARCHIVE.md` (header only, empty,
+  append-only) so the destination CLAUDE.md's Sources-of-truth list already
+  names exists on disk, ready for the first real archival once verdicts
+  age past the cutoff. Re-measure this item (or a successor) on or after
+  2026-09-10, when the Q1-Q121 batch first crosses 14 days old. No `/src`
+  or `/data` change; `npm run test:fast` unaffected (no code path touches
+  QUESTIONS.md's content).
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT fb062 done (in-lane portion).**
+  Pinned Poison Barrel's every-second poison mechanic and, while scoping it,
+  found and fixed a real bug: `firePoisonBarrel` (`src/sim/classes.ts`)
+  seeded each application's dps with the raw character-scaled `damage`
+  directly; since `combat.ts`'s `updateAreas` feeds a poison area's `dps`
+  straight into a fixed 3s `applyPoison` stack, this delivered `seed x 3`
+  per application instead of SPEC-FINAL §3's authored `seed x 1.2` (120% of
+  the triggering damage over 3s) — a 2.5x overshoot. Fixed by routing the
+  seed through `dotDpsFor` (`src/sim/damagetypes.ts`), the exact conversion
+  `src/sim/cores.ts`'s Corpse-poison call site and `applyDamageType`'s own
+  dot branch already use. New `tests/class-poison-barrel-mechanic.test.ts`:
+  a regression pin driving the real zone end-to-end (measured 36.0 pre-fix
+  against the correct 14.4, confirmed red then green), the 1s cadence and
+  3-stack cap, zero direct damage/no lifesteal (both already true, now
+  pinned), and one `it.skip`-ed case documenting a tooltip-text mismatch
+  that's out of this lane's Scope (`src/ui/class-info.ts`, filed for the UI
+  lane in BACKLOG-CONTENT.md). code-reviewer REQUEST-CHANGES, addressed: one
+  Major (`tests/p6e-class-diversity.test.ts`'s two live exact-count pins
+  were measured against the pre-fix damage and one — the 16/66
+  fingerprint-distance pin — plausibly moved; filed for the main lane rather
+  than re-measured here, since that ~100-minute excluded suite is not this
+  item's to re-run per CLAUDE.md working rule 8), one Minor (a stray scratch
+  probe script deleted before commit), one Nit (the `poisonDef` fallback,
+  confirmed dead code by QA). qa-playtester PASS: independently re-derived
+  the magnitude from raw `/data` via the real `Run`/Command path (not
+  reusing the fix's own helpers), confirmed Poison Boost/`active1PotencyMul`
+  /Spreading Plague all interact correctly with the corrected magnitude, and
+  the zero-damage/undefined-`poisonDef` edge cases are handled cleanly.
+  `npx tsc --noEmit` clean; `tests/class-*`/`equip-*` (29 files, 1012 tests,
+  run twice) and `npm run test:fast` (4234 passed) green apart from the two
+  pre-existing unrelated `q15`/`q45` `tools/fuzz-command-domain`
+  scratch-directory module-resolution failures — refs: SPEC-FINAL §4.1
+  (Plaguebringer), §3 (Poison), owner feedback
+  `feature-poison-barrel-mechanic`.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT fb180 done, docs only.**
+  `BACKLOG-CONTENT.md` was well past fb178's 400-line budget for live
+  backlog files (3807 lines). Every `[x]` item from the Queue (c001-c041,
+  all Done/Skipped/Blocked) plus the entire `## Log` section moved verbatim,
+  in original order, to `docs/BACKLOG-DONE.md` under a new
+  `## BACKLOG-CONTENT.md` heading — the exact treatment fb178 itself gave
+  `BACKLOG.md`; verified programmatically (every item id and the full `##
+  Log` text byte-identical between the old file and the archive, none
+  missing, none duplicated). Kept live, full text unchanged: the `## Scope`
+  section (one cross-reference line updated since the Log it pointed to no
+  longer lives in this file); the three still-blocked/skipped in-lane items
+  (`c004`, `c002`, `c010`) and the five still-blocked owner items (`fb056`,
+  `fb057`, `fb059`, `fb061`, `fb062`); a new `### Recently completed` list
+  of the last 10 done ids (`c032`-`c041`) as one-liners. `BACKLOG-CONTENT.md`
+  is now 210 lines. `tools/status.ts`'s `backlogPaths()` already reads
+  `docs/BACKLOG-DONE.md` (fb178), so every feedback-ledger citation for an
+  id now living in the archive still resolves —
+  `npx vitest run tests/fb038-status.test.ts` green (27/27). code-reviewer
+  APPROVE (no Critical/Major; two Minor — this entry closes the missing-
+  PROGRESS.md-update one, and an unrelated `npm install`-driven
+  `package-lock.json` diff was reverted rather than committed — plus a Nit
+  noting `c004`/`c002`/`c010`'s unchanged text still says "see the Log",
+  softened by the new pointer note just above it). `npm run test:fast`:
+  4227 passed, 53 skipped, only the two pre-existing unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (present on HEAD, unrelated to this docs-only change). No `/src` or
+  `/data` change — refs: feedback/feature-token-economy.md, BACKLOG.md
+  fb178, BACKLOG-CONTENT.md fb180. **Moved to `docs/PROGRESS-ARCHIVE.md` by
+  this same item, to keep this file's last-10 window:** the prior oldest
+  entry, 2026-09-07's `BACKLOG fb079` (SPEC-FINAL §10.5 append).
+
 - **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
   rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
   tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
@@ -256,68 +359,3 @@
   added to BACKLOG-CONTENT.md's Log: fb082 unblocks fb062 (a broader,
   still-open content-lane item — its own zero-direct-damage/no-lifesteal
   and tooltip-text acceptance is untouched by this item).
-
-- **2026-09-07 — BACKLOG fb080 done.** `data/terrain.json` joins every data
-  tool that previously didn't know it existed. `src/sim/terrain/config.ts`'s
-  module-private `schema` is now the exported `TerrainFileSchema` (identical
-  `.superRefine` — `parseTerrain` is exactly `TerrainFileSchema.parse`, so
-  nothing was lost); `content.ts`'s `TUNER_FILES` gains a `terrain` entry
-  (no `contentField`, same as `warden`'s precedent); `tools/fuzz-data.ts`'s
-  `DATA_FILES` gains `'terrain'`. The one real wrinkle: `content.ts` reaches
-  `terrain.json` indirectly through `terrain/config.ts`'s `TERRAIN_RAW`, not
-  a direct import like the other fourteen, so `tests/q7-data-fuzz.test.ts`'s
-  "mocks exactly the files content.ts imports" pin now explicitly checks
-  that two-link indirection (both import strings asserted) instead of
-  either breaking or silently special-casing it. `tests/q7-loader-holes.ts`
-  regenerated via the documented `Q7_RECORD=1` procedure — diffed against
-  the prior file to confirm every change is new and additive, nothing
-  pre-existing moved. `tools/mutation-probe.ts` needed no change (confirmed
-  it has no per-file `/data` registry — it copies the whole directory and
-  targets known `/src` regressions). Zero `/data` content changes, no new
-  validation logic beyond wiring. `npm run test:fast`: 4155 passed, 53
-  skipped, only the documented pre-existing `q15`/`q45` flake. code-reviewer
-  (full tier): APPROVE, two Minor/one Nit, all documented rather than acted
-  on (a future indirectly-reached file needs its own hand-added exception in
-  the q7 test; the fuzz-data.ts/q7-loader-holes "new file shows up as a
-  mismatch" framing only covers direct-import files) — independently traced
-  the Tuner save path (confirming the full `TerrainFileSchema` validation,
-  tile-order pin included, actually runs on a Tuner-edited document) and
-  spot-checked several regenerated hole entries against the real schema and
-  shipped `/data` values.
-
-- **2026-09-07 — BACKLOG fb079 done, docs only.** SPEC-FINAL.md gains §10.5
-  (Terrain generation & Core placement), written verbatim from `feedback/
-  processed/20260903-121255-feature-terrain-generation.md` plus the
-  `lane/terrain` design decisions already owner-approved at QUESTIONS Q162/
-  Q171 (tile kinds and the six generation bands, structural gate mains,
-  sealing/fallback semantics, the `a/(a+1)` Core-band ceiling, Core
-  placement and its suggested anchor, high-ground's no-boss-family rule, the
-  per-kind `blocksCharacter` flag, the `[-2^31, 2^32-1]` seed domain, the
-  `maxGateDetour` approach band, the uncontested-high repair, and the
-  run-gate-list threading) — the section itself carries an unresolved owner
-  item forward (BACKLOG fb129's Act II high-ground/Burrower residual).
-  §14's G2 row gained a terrain-determinism clause (same seed → identical
-  map + hash, seed+1 regeneration is itself deterministic); §13's content
-  totals gained `data/terrain.json`; MIGRATION.md gained a new §8.6 noting
-  the spec catching up to what the lane had already built and merged; the
-  append itself is logged as QUESTIONS Q194, `[designer-fill]`, owner
-  verdict pending. Zero `/src` or `/data` changes — confirmed by re-running
-  every SPEC-FINAL-parsing suite (`tests/q10-gate-audit.test.ts`,
-  `tests/fb038-status.test.ts`, `tests/class-spec-numbers.test.ts`,
-  `tests/equip-spec-numbers.test.ts`, 291 tests) green, including
-  `tools/gate-audit.ts`'s own G2-row parser against the edited table.
-  code-reviewer's first pass found two Major fidelity gaps, both fixed
-  before this was marked done: the "verbatim" quote had silently dropped
-  two source clauses (the Core-legal-positions rationale and "Tuner page
-  (density/ratios editable)") and reflowed the tile-types bullets into
-  prose, losing the rock-passthrough `[designer note]` and the `(Spitter)`
-  example — replaced with an actual verbatim quote of the source file's own
-  bullet lists; and a lane-decisions bullet claimed the run's live gate
-  list is threaded through "every" gate-reading function, contradicting
-  Q171(9)/open BACKLOG fb134 (`describeTerrain` still reads the module's
-  base `GATES` constant, confirmed live in `src/sim/terrain/describe.ts`) —
-  now states that exception explicitly. Diffed the corrected quote
-  line-for-line against the source feedback file to confirm true verbatim
-  fidelity (one intentional blank line added for Markdown blockquote
-  paragraph spacing, no other difference).
-
