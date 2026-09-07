@@ -307,7 +307,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
     expect(overlayKindBefore[GATES[0].ty * GRID_W + GATES[0].tx]).toBe(map.kind[GATES[0].ty * GRID_W + GATES[0].tx]);
   });
 
-  it('covers a gate the run opens later, not just the three it was built with', () => {
+  it('covers a gate the run opens later, not just the four it was built with', () => {
     // `world.ts`'s Fourth Gate modifier writes `grid.tile = Gate` at (12,19)
     // after the Grid exists. A structural override keyed on the `GATES`
     // constant misses it, and the map buries a gate that then spawns its wave
@@ -331,7 +331,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
 
 describe('the structural override over gate tiles (fb064b, pinned fb064h)', () => {
   it('keeps a gate walkable and normal even when the map paints rock under it', () => {
-    // Dead on generator output — `flatKinds()` makes the three gate tiles
+    // Dead on generator output — `flatKinds()` makes the four gate tiles
     // Normal, so the Gate branch of the override never fires on a real map and
     // narrowing it to Core-only passes the whole suite. It is not dead on a
     // *run*: `world.ts`'s Fourth Gate modifier writes a south gate into
@@ -414,20 +414,30 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // likely to close a full ring around the Core by chance. Over seeds
     // 1..50000 only 14 strand it (1 run in ~3571, against 1 in 2500 at
     // 36x20) — the old fixture, seed 4426, no longer strands anything at this
-    // size (`allGatesReachable()` is true there now). Seed 7120 is the first
-    // stranded seed in that window and is pinned by name below as fb064c's
-    // fixture in its place. The *count* over the 1..100 window below is
-    // deliberately a bound, not a golden: it moves on any density or `blob`
-    // retune (fb064f puts both under live Tuner editing) with no bug behind
-    // it, which is the trap this lane already fell into twice — see
-    // BACKLOG-TERRAIN.md on `walkableFrac` headroom and the `paint()` timing
-    // bound.
+    // size (`allGatesReachable()` is true there now). Seed 7120 was the first
+    // stranded seed in that window.
+    //
+    // Re-measured again at fb156 (3 base gates -> 4, `GATES` gained a
+    // jittered south entry; `data/terrain.json` unchanged): a fourth opening
+    // onto the board makes a closed ring around the Core rarer still. Over
+    // the same 1..50000 window only 2 seeds strand it now (7807 and 20336) —
+    // fb166's fixture, seed 7120, is itself now reachable
+    // (`allGatesReachable()` is true there at 4 gates), same as the 36x20
+    // fixture before it. Seed 7807 is the first stranded seed in that window
+    // and is pinned by name below as fb064c's fixture in its place. The
+    // *count* over the 1..100 window below is deliberately a bound, not a
+    // golden: it moves on any density or `blob` retune (fb064f puts both
+    // under live Tuner editing) with no bug behind it, which is the trap this
+    // lane already fell into twice — see BACKLOG-TERRAIN.md on `walkableFrac`
+    // headroom and the `paint()` timing bound.
     //
     // The `density.jitter: 0` control (fb064l's check that the per-seed
     // density budgets don't merely raise the stranding rate) still holds the
-    // same way at this size: over the same 1..50000 window it reads 10+ seeds
-    // (first: 7914, 8767, 12974, ...) against jittered density's 14 — same
-    // order of magnitude, no widening from the budgets.
+    // same way at 4 gates: over the same 1..50000 window it reads 3 stranded
+    // seeds (first: 11734, 18350, 37485) against the jittered default's 2 —
+    // same order of magnitude, no widening from the budgets. (It read 10+
+    // against 14 at the 3-gate default; the count moved with the extra gate,
+    // the conclusion did not.)
     //
     // A first pass measured this on the raw generated map instead of on the
     // Grid, which is a different question with a different answer: `Grid`
@@ -454,7 +464,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // bound rather than tightened to 0, per this lane's own logged lesson that
     // a count over a seed window is not a golden. (Review.)
     expect(stranded).toBeLessThanOrEqual(3);
-    const stranding = applied(generateTerrain(7120, cfg));
+    const stranding = applied(generateTerrain(7807, cfg));
     expect(stranding.allGatesReachable()).toBe(false);
     for (const gate of GATES) expect(stranding.distAt(gate.tx, gate.ty)).toBe(-1);
   });
@@ -762,12 +772,17 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     // from `generateTerrain`, so a `/data/terrain.json` tuning edit moves these
     // fields for a reason that has nothing to do with `grid.ts`, and a
     // balance-analyst editing densities should read "the map changed" rather
-    // than a bare field-hash mismatch on a Grid test (QA bug 4).
+    // than a bare field-hash mismatch on a Grid test (QA bug 4). fb156 is the
+    // other kind of exception the message doesn't name: `GATES` itself lives
+    // in `grid.ts`, and growing it from 3 gates to 4 moved every map hash
+    // below without touching a single pathing rule — re-measured fresh
+    // (map/bare/dense) against the new default gate list rather than hand-
+    // adjusted from the old table.
     const GOLDEN: ReadonlyArray<readonly [number, string, string, string]> = [
-      [1, '164edd68', 'f0b35203', '6b942063'],
-      [4, '3d7c70c8', '584805a6', '1d4311d3'],
-      [11, '942f7549', 'edd34ea6', '464fae91'],
-      [137, 'fc1b1ea9', '75347292', 'a94f93c4'],
+      [1, 'c49b8ecb', 'e9403318', '31255580'],
+      [4, '11793174', 'a2b6d80b', 'db4eb8d6'],
+      [11, 'aa1719a6', 'baa749d7', 'b50eaa2b'],
+      [137, 'e284d15e', '7329f98e', '03cadcd5'],
     ];
     for (const [seed, map, bare, dense] of GOLDEN) {
       const generated = generateTerrain(seed, cfg);

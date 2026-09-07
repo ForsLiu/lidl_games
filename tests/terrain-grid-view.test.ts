@@ -29,6 +29,15 @@
  * at fb166 (36x20 -> 56x32, `/data` unchanged): a bigger board with the same
  * absolute Warden-clearing and Core footprint sizes drifts *more* tiles on
  * average, not fewer — the ledger below is the fresh count.
+ *
+ * Re-measured again at fb156 (3 base gates -> 4, `GATES` gained a jittered
+ * south entry; `/data` unchanged): a fourth gate is a fourth structural tile
+ * every override/re-derive step has to cover, so the drift grows again —
+ * still every drifted tile is inside a gate, the Core footprint or the
+ * Warden's clearing (`unexplained: 0`, unchanged). fb166's own fixture seed,
+ * 7120, stopped stranding the Core at 4 gates (see `tests/terrain-grid.test.ts`
+ * for the same measurement); 7807 is the new first-stranded seed and replaces
+ * it below.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -124,14 +133,17 @@ describe('gridTerrain (fb065c)', () => {
       unexplained,
     }).toEqual({
       fellBack: 0,
-      identical: '28/100',
-      mean: '3.20',
-      worst: '10 @91',
-      // 320 tiles across the sample, every one of them inside a spawn gate,
-      // the Core footprint or the Warden's 3x3 clearing. Seed 91's worst-case
-      // 10 is 6 Warden-block tiles and 4 Core tiles, and no gate tile drifts
-      // at all (the generator already writes the three gates as normal).
-      driftedTiles: 320,
+      identical: '12/100',
+      mean: '5.57',
+      worst: '13 @50',
+      // 557 tiles across the sample, every one of them inside a spawn gate,
+      // the Core footprint or the Warden's 3x3 clearing. Re-measured at fb156
+      // (3 gates -> 4): a fourth structural tile per seed to re-derive raises
+      // both the mean and the worst case (was 320 tiles, 28/100 identical,
+      // mean 3.20, worst 10 @91 at 3 gates), but nothing here is unexplained —
+      // the generator still writes every gate as normal (the four of them,
+      // now) with no drift of its own.
+      driftedTiles: 557,
       unexplained: 0,
     });
   });
@@ -147,7 +159,11 @@ describe('gridTerrain (fb065c)', () => {
     // so `suggestCoreAnchor` now returns the authored spot itself there and
     // this test's premise (a real, non-authored move) needs the new fixture:
     // seed 7120, the first seed that strands the Core over 1..50000 at 56x32.
-    const g = applied(7120);
+    // fb156 (3 gates -> 4) repeats the same story one gate later: 7120 is
+    // itself now reachable (a fourth opening closes the same gap 4426's extra
+    // board size did), so the fixture moves again to 7807, the new first seed
+    // that strands the Core over 1..50000 at 4 gates.
+    const g = applied(7807);
     const before = gridTerrain(g);
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
     const target = suggestCoreAnchor(gridTerrain(g), cfg, anchors);
@@ -160,7 +176,7 @@ describe('gridTerrain (fb065c)', () => {
     const after = gridTerrain(g);
     expect(Array.from(after.kind)).not.toEqual(Array.from(before.kind));
     // ...and the snapshot did not move with it.
-    const reference = applied(7120);
+    const reference = applied(7807);
     expect(Array.from(before.kind)).toEqual(Array.from(gridTerrain(reference).kind));
 
     // The buffer is not shared with the Grid in the other direction either.
@@ -178,14 +194,14 @@ describe('gridTerrain (fb065c)', () => {
     // resulting dump was byte-identical to one taken from a plain
     // `applied(7)`. Every one of the four adapter mutants passed that case.
     //
-    // So: seed 7120, where the generator strands the authored Core behind rock
-    // (`tests/terrain-grid.test.ts` names it for the same reason — fb166
-    // re-measured this at 56x32 and seed 4426, the 36x20 fixture, no longer
-    // strands anything at this size), and an anchor deliberately *not* (25,9).
-    // Moving there hands 4 tiles back their real terrain, which is the "no
-    // phantom corridor" behaviour fb064h built `terrainRawKind` for, and it is
-    // what makes the dump differ from the unmoved grid's.
-    const seed = 7120;
+    // So: seed 7807, where the generator strands the authored Core behind rock
+    // (`tests/terrain-grid.test.ts` names it for the same reason — fb156
+    // re-measured this at 4 gates and seed 7120, fb166's own fixture, no
+    // longer strands anything at this gate count), and an anchor deliberately
+    // *not* (25,9). Moving there hands 4 tiles back their real terrain, which
+    // is the "no phantom corridor" behaviour fb064h built `terrainRawKind`
+    // for, and it is what makes the dump differ from the unmoved grid's.
+    const seed = 7807;
     const g = applied(seed);
     const authored = CORE_Y * GRID_W + CORE_X;
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
@@ -252,7 +268,7 @@ describe('gridTerrain (fb065c)', () => {
     // load-bearing inside the round trip rather than only in the sibling case.
     // A *third* anchor, not back to (25,9) — on this seed the authored spot is
     // stranded behind rock and `placeCore` rightly refuses it, which is the
-    // property that made seed 7120 the fixture in the first place.
+    // property that made seed 7807 the fixture in the first place.
     const third = anchors.find((a) => a !== authored && a !== target);
     expect(third).toBeDefined();
     g.placeCore((third as number) % GRID_W, ((third as number) / GRID_W) | 0);
@@ -271,21 +287,23 @@ describe('gridTerrain (fb065c)', () => {
     // is about the drift the *ledger* measured, and that ledger is of the real
     // run path — `applied` skips the Warden-spawn clearing.
     const g = new Grid();
-    expect(applyRunTerrain(g, GATES, 91, cfg)).toBe(false);
+    expect(applyRunTerrain(g, GATES, 50, cfg)).toBe(false);
     const dump = describeTerrain(gridTerrain(g), cfg);
     const seedLine = dump.split('\n').find((l) => l.startsWith('seed '));
     expect(seedLine).toBe('seed source=- requested=- effective=- attempts=- fallback=- hash=-');
     expect(parseTerrainDump(dump).provenance).toBeNull();
 
     // And the tiles really are not the generated map's, on this seed: the dash
-    // is load-bearing rather than conservative. Seed 91 is the worst drift in
-    // the ledger above (fb166: re-measured at 56x32, was seed 40 at 36x20).
-    const map = generateTerrain(91, cfg, GATES);
+    // is load-bearing rather than conservative. Seed 50 is the worst drift in
+    // the ledger above (fb156: re-measured at 4 gates, was seed 91 at the
+    // 3-gate default; fb166 re-measured it at 56x32 before that, was seed 40
+    // at 36x20).
+    const map = generateTerrain(50, cfg, GATES);
     let drift = 0;
     for (let i = 0; i < map.kind.length; i++) {
       if (gridTerrain(g).kind[i] !== map.kind[i]) drift++;
     }
-    expect(drift).toBe(10);
+    expect(drift).toBe(13);
     // The generated map's own dump, by contrast, still names a seed a reader
     // can paste — so the two artefacts stay distinguishable at a glance.
     expect(describeTerrain(map, cfg).split('\n')[1]).toContain('source=generator');

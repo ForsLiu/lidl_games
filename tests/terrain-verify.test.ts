@@ -124,23 +124,24 @@ describe('fb064p — verifyTerrainMap is clean on everything the generator makes
     // A degenerate-retry map hashes under `requestedSeed + n`, not under
     // `requestedSeed`. A verifier that reached for the tempting field would be
     // green on every first-attempt map and red only here, so the witness is
-    // named rather than searched for: at the shipped config on the 56x32 grid,
-    // **seed 387 is the first retry-taker** (the next are 694, 800, 1011,
-    // 1145, 1902 — rescanned for fb166's resize; the 36x20 grid's witness,
-    // seed 379, now clears on its first attempt because the larger arena is
-    // more forgiving). If a retune moves that set this assertion goes red,
-    // which is the intended cost — rescan for `attempts > 1` and rename the
-    // seed.
-    const map = generateTerrain(387, cfg);
+    // named rather than searched for: at the shipped config on the 56x32 grid
+    // with fb156's four-gate layout, **seed 4404 is the first retry-taker**
+    // (the next are 5221, 6438, 7339, 7421 — rescanned for fb156's gate
+    // change, which made retries markedly rarer: fb166's own witness, seed
+    // 387, now clears on its first attempt because the fourth gate gives the
+    // generator another way to satisfy the bands). If a retune moves that set
+    // this assertion goes red, which is the intended cost — rescan for
+    // `attempts > 1` and rename the seed.
+    const map = generateTerrain(4404, cfg);
     expect(map.fallback).toBe(false);
     expect(map.attempts).toBe(2);
-    expect(map.seed).toBe(388);
+    expect(map.seed).toBe(4405);
     expect(map.seed).not.toBe(map.requestedSeed >>> 0);
     expect(verifyTerrainMap(map)).toEqual({ ok: true });
     // The handle is the *effective* seed's, not the requested one's — verifying
     // against `requestedSeed` here would report a clean map as corrupt.
-    expect(map.hash).toBe(terrainHash(388, map.kind));
-    expect(terrainHash(387, map.kind)).not.toBe(map.hash);
+    expect(map.hash).toBe(terrainHash(4405, map.kind));
+    expect(terrainHash(4404, map.kind)).not.toBe(map.hash);
   });
 
   it('does not mutate the map it verifies', () => {

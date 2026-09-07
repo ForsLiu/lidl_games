@@ -132,12 +132,20 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     );
   });
 
-  // fb166: skipped, not fixed — same cause as the round-trip test above.
-  // `world.ts`'s Fourth Gate modifier plays `MODIFIER_GATES`'s literal
-  // `south=12,19`, which is no longer on the 56x32 border; the dump this test
-  // builds is refused by `parseTerrainDump`'s (correct) border check. Blocked
-  // on the same out-of-scope `src/sim/grid.ts` fix, logged in
-  // BACKLOG-TERRAIN.md's 2026-09-06 fb166-filing entry.
+  // Still skipped at fb156, for a NEW reason (the fb166-era border cause
+  // above is fixed): `World`'s constructor (`src/sim/world.ts`, out of this
+  // lane's Scope) does not read `GATES`/`MODIFIER_GATES` at all here — it
+  // hardcodes `this.gates = GATES.slice(0, 3)` (dropping `GATES`'s own,
+  // real `south` at (33,31) entirely, gate modifier or not) and, when the
+  // `gate` modifier is active, pushes its own literal `{ key: 'south', tx:
+  // 12, ty: 19 }` — a position fb156 never touched and that is not on the
+  // resized border. So `w.gates` is `[west, north, east, south]` by key, as
+  // this test still expects, but `south` is at the wrong place and the real
+  // fourth base gate is never opened at all, with or without the modifier.
+  // That is a real bug and out of this lane's Scope (grid.ts/terrain data
+  // only) to fix — filed in BACKLOG-TERRAIN.md's Log for main-lane, which
+  // owns `world.ts`. Re-enable once `World` builds its gate list from
+  // `GATES`/`MODIFIER_GATES` instead of its own copy.
   it.skip('describes a live Fourth Gate run correctly — the case that motivated it', () => {
     // The defect end to end, on the artefact fb065c built. A run under the
     // `gate` modifier plays four gates; before fb065f its repro printed three
@@ -160,23 +168,23 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     expect(parsed.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south']);
     expect(parsed.provenance).toBeNull();
 
-    // And the three-gate reading really was different on this run, so the
-    // assertions above are not pinning a distinction without one.
+    // And the default-gate-list reading really was different on this run, so
+    // the assertions above are not pinning a distinction without one.
     const wrong = measureTerrain(view, cfg);
     expect(wrong.legalCoreCount).not.toBe(truth.legalCoreCount);
   });
 
-  it('leaves a three-gate dump alone: declared is not required', () => {
+  it('leaves a four-gate dump alone: the optional modifier key is not required', () => {
     // QA's M4: making the optional key *required* passed this whole file,
-    // because every three-gate case in it expected a throw for some other
+    // because every base-gate case in it expected a throw for some other
     // reason and none ever parsed one successfully. The claim the item rests on
     // — that a declared key need not be emitted — was therefore pinned nowhere
     // in the file that makes it.
     const map = generateTerrain(7, cfg);
     const dump = describeTerrain(map, cfg);
-    expect(dump.split('\n')[2]).toBe('gates west=0,10 north=18,0 east=35,17');
+    expect(dump.split('\n')[2]).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31');
     const parsed = parseTerrainDump(dump);
-    expect(parsed.gates).toHaveLength(3);
+    expect(parsed.gates).toHaveLength(4);
     expect(Array.from(parsed.kind)).toEqual(Array.from(map.kind));
   });
 
@@ -204,44 +212,47 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('refuses an extra gate that is not a gate', () => {
     const map = generateTerrain(7, cfg, FOUR);
     const dump = describeTerrain(map, cfg, FOUR);
-    const swap = (to: string): string => dump.replace('south=12,19', to);
+    // fb156: the modifier key is `south2` now, not `south` — the base list
+    // grew a real `south` of its own, at (33,31), and the modifier gate
+    // sits at (45,31).
+    const swap = (to: string): string => dump.replace('south2=45,31', to);
 
-    expect(() => parseTerrainDump(swap('south=12'))).toThrow(/gate "south" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap('south=1.5,19'))).toThrow(/gate "south" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap(`south=${GRID_W},19`))).toThrow(/off the .* arena/);
-    expect(() => parseTerrainDump(swap(`south=12,${GRID_H}`))).toThrow(/off the .* arena/);
-    expect(() => parseTerrainDump(swap('south=12,19 south=12,19'))).toThrow(/duplicate "south"/);
-    // One spelling per value. The base three survive a padded or `-0` spelling
+    expect(() => parseTerrainDump(swap('south2=12'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=1.5,19'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap(`south2=${GRID_W},19`))).toThrow(/off the .* arena/);
+    expect(() => parseTerrainDump(swap(`south2=12,${GRID_H}`))).toThrow(/off the .* arena/);
+    expect(() => parseTerrainDump(swap('south2=45,31 south2=45,31'))).toThrow(/duplicate "south2"/);
+    // One spelling per value. The base gates survive a padded or `-0` spelling
     // only because their parsed value is discarded — a modifier gate's is what
-    // the dump carries, so `012,019` would round-trip to different text and
+    // the dump carries, so `045,031` would round-trip to different text and
     // `-0,19` would land a negative zero in a `GateDef`. Both measured before
     // this guard existed.
-    expect(() => parseTerrainDump(swap('south=012,019'))).toThrow(/gate "south" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap('south=-0,19'))).toThrow(/gate "south" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=045,031'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=-0,19'))).toThrow(/gate "south2" is not "tx,ty"/);
     // **Where a gate can be, not merely that it is a tile.** The first version
     // of this parser said "nothing in this build knows where a modifier gate
     // belongs", which was false: `Grid.openGate` (fb065e, one commit earlier)
     // already refuses every tile that cannot carry a gate, and those rules are
     // properties of the arena rather than of any modifier. Without them
-    // `south=18,10` — the middle of the board — read back as a legal arena
+    // `south2=18,10` — the middle of the board — read back as a legal arena
     // whose bands were measured somewhere the reader cannot see.
-    expect(() => parseTerrainDump(swap('south=18,10'))).toThrow(/not on the arena border/);
-    expect(() => parseTerrainDump(swap('south=25,9'))).toThrow(/not on the arena border/);
+    expect(() => parseTerrainDump(swap('south2=18,10'))).toThrow(/not on the arena border/);
+    expect(() => parseTerrainDump(swap('south2=25,9'))).toThrow(/not on the arena border/);
     for (const corner of ['0,0', `${GRID_W - 1},0`, `0,${GRID_H - 1}`, `${GRID_W - 1},${GRID_H - 1}`]) {
-      expect(() => parseTerrainDump(swap(`south=${corner}`)), corner).toThrow(/is a corner/);
+      expect(() => parseTerrainDump(swap(`south2=${corner}`)), corner).toThrow(/is a corner/);
     }
     // ...and not on top of a gate that is already there.
-    expect(() => parseTerrainDump(swap('south=0,10'))).toThrow(
+    expect(() => parseTerrainDump(swap('south2=0,12'))).toThrow(
       /where gate "west" already is/,
     );
-    // A modifier gate ahead of the base three is not something the writer
+    // A modifier gate ahead of the base gates is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.
     expect(() =>
-      parseTerrainDump(dump.replace('gates west=0,10', 'gates south=12,19 west=0,10')),
+      parseTerrainDump(dump.replace('gates west=0,12', 'gates south2=45,31 west=0,12')),
     ).toThrow(/fields are in a fixed order/);
     // And a name the format does not declare is still an unknown key, with
     // fb064w's own message rather than a confusing complaint about coordinates.
-    expect(() => parseTerrainDump(swap('south=12,19 bogus=1,1'))).toThrow(
+    expect(() => parseTerrainDump(swap('south2=45,31 bogus=1,1'))).toThrow(
       /unknown "bogus" on the "gates" line/,
     );
   });
