@@ -4,9 +4,11 @@
  * fb023 (SPEC-FINAL §7, §11): "equipping works from the Equipment screen in
  * Hub and mid-run" — the mid-run half. `equip_item` is a real Command
  * (`equipItemCommand`, src/sim/run.ts) that swaps an owned item into a slot,
- * live, the same way the Hub's Equipment screen does, and the character
- * panel (`src/ui/hud.ts`) exposes the same slot-boxes-plus-owned-list screen
- * during a run.
+ * live, the same way the Hub's Equipment screen does; it stays reachable by
+ * bots/replays (CLAUDE.md architecture rule 3) even though fb157 later
+ * removed the character panel's own equip/swap UI — see the last describe
+ * block below, which now asserts the read-only replacement instead of the
+ * retired click-to-swap screen.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -110,7 +112,7 @@ function mount(): HTMLElement {
   return document.getElementById('app') as HTMLElement;
 }
 
-describe('fb023: the in-run character panel Equipment section', () => {
+describe('fb023/fb157: the in-run character panel Equipment section is read-only', () => {
   function makeHud(root: HTMLElement, onEquipItem: (slot: string, item: string | null) => void): Hud {
     return new Hud(root, {
       onSelectTower: () => {},
@@ -134,25 +136,10 @@ describe('fb023: the in-run character panel Equipment section', () => {
     });
   }
 
-  it('shows six slot boxes and the owned-items list, and clicking an owned item asks to equip it', () => {
-    const content = loadContent();
-    const weapon = content.equipment.items.find((i) => i.slot === 'weapon')!;
-    const root = mount();
-    const calls: [string, string | null][] = [];
-    const hud = makeHud(root, (slot, item) => calls.push([slot, item]));
-    const w = new World(cfg({ ownedEquipment: { [weapon.key]: 1 } }));
-    hud.buildTowerBar(w);
-    hud.toggleCharacterPanel(w);
-
-    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
-    expect(panel.querySelectorAll('[data-runeqslot]').length).toBe(content.equipment.slots.length);
-    const itemBtn = panel.querySelector(`[data-runitem="${weapon.key}"]`) as HTMLElement;
-    expect(itemBtn).not.toBeNull();
-    itemBtn.click();
-    expect(calls).toEqual([[weapon.slot, weapon.key]]);
-  });
-
-  it('clicking the equipped item a second time asks to unequip it', () => {
+  // fb157 (owner feedback `ui-character-panel-compact`): equipment cannot be
+  // changed during a run any more — only in the Hub — so the panel shows six
+  // plain (non-clickable) slot boxes and never dispatches `equip_item`.
+  it('shows six slot boxes with no clickable equip/unequip controls', () => {
     const content = loadContent();
     const weapon = content.equipment.items.find((i) => i.slot === 'weapon')!;
     const root = mount();
@@ -163,22 +150,30 @@ describe('fb023: the in-run character panel Equipment section', () => {
     hud.toggleCharacterPanel(w);
 
     const panel = root.querySelector('#sw-charpanel') as HTMLElement;
-    (panel.querySelector(`[data-runitem="${weapon.key}"]`) as HTMLElement).click();
-    expect(calls).toEqual([[weapon.slot, null]]);
+    expect(panel.querySelectorAll('.sw-runeq-slot').length).toBe(content.equipment.slots.length);
+    // Neither the old click-to-swap attributes nor any <button> survive the
+    // read-only rewrite — a slot box is a plain, non-interactive <div>.
+    expect(panel.querySelectorAll('[data-runeqslot]').length).toBe(0);
+    expect(panel.querySelectorAll('[data-runitem]').length).toBe(0);
+    expect(panel.querySelectorAll('button.sw-runeq-item').length).toBe(0);
+
+    const slotEl = panel.querySelector('.sw-runeq-slot') as HTMLElement;
+    slotEl.click();
+    expect(calls).toEqual([]); // clicking it never reaches onEquipItem
   });
 
-  it('clicking an occupied slot box asks to unequip it', () => {
+  it('an occupied slot box carries a tooltip explaining why it cannot be changed here', () => {
     const content = loadContent();
     const weapon = content.equipment.items.find((i) => i.slot === 'weapon')!;
     const root = mount();
-    const calls: [string, string | null][] = [];
-    const hud = makeHud(root, (slot, item) => calls.push([slot, item]));
+    const hud = makeHud(root, () => {});
     const w = new World(cfg({ equipment: [weapon.key] }));
     hud.buildTowerBar(w);
     hud.toggleCharacterPanel(w);
 
     const panel = root.querySelector('#sw-charpanel') as HTMLElement;
-    (panel.querySelector(`[data-runeqslot="weapon"]`) as HTMLElement).click();
-    expect(calls).toEqual([['weapon', null]]);
+    const slotEl = panel.querySelector('.sw-runeq-slot') as HTMLElement;
+    expect(slotEl.title.toLowerCase()).toContain('hub');
+    expect(slotEl.textContent).toContain(weapon.name);
   });
 });

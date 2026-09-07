@@ -97,10 +97,13 @@ describe('p-core-d — TD store accrual', () => {
     // about how much HP a husk happens to have — so the blow is sized off the
     // enemy in front of it.
     const overkill = e.maxHp * 5;
+    const hpBefore = e.hp;
     damageEnemy(w, e, overkill, 'test_tower');
     expect(e.dead).toBe(true);
-    // The full amount dealt, not the fraction that actually landed.
-    expect(w.corpseStore).toBeCloseTo(overkill * CORPSE_EFFECTS.corpseStoreRatio, 9);
+    // fb162: only the HP that actually landed, not the raw overkill hit — the
+    // Q91 lifesteal rule extended to every ledger at the `damageEnemy` choke
+    // point, `corpseStore` included.
+    expect(w.corpseStore).toBeCloseTo(hpBefore * CORPSE_EFFECTS.corpseStoreRatio, 9);
   });
 
   it('step 1 raises the ratio (an override, not an additive bonus on top of the base rate)', () => {
@@ -342,10 +345,10 @@ describe('p-core-d — step 3: auto-fire', () => {
     expect(expensive.dead).toBe(true); // killed by execute (spent 90 of the store)
     expect(cheap.dead).toBe(true); // killed by the same-tick auto-fire dump of the remaining store
     // Execute leaves 100 - 90 + 90*ratio in the store; auto-fire then dumps
-    // that whole remainder on `cheap` (well above its 5 hp), crediting back
-    // its own ratio share of the dump.
-    const afterExecute = 100 - 90 + 90 * STEP1_RATIO;
-    expect(w.corpseStore).toBeCloseTo(afterExecute * STEP1_RATIO, 9);
+    // that whole remainder on `cheap`, well above its 5 hp. fb162: the store
+    // only credits back the ratio's share of what actually landed (`cheap`'s
+    // 5 hp), not the whole overkill dump.
+    expect(w.corpseStore).toBeCloseTo(5 * STEP1_RATIO, 9);
   });
 });
 
