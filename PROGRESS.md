@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c040 done, measurement only,
+  no `/data` tune.** `c033` measured G8's diversity clause (ii) using only
+  the damage-*source* half of "damage-source/damage-type vector method"
+  (BALANCE DIRECTION v2 §D); this item tried the damage-*type* half
+  (`RunReport.damageByType`) instead, off the identical runs (extended
+  `c033`'s own `beforeAll` sweep to accumulate both, no second sweep).
+  Result: **11/66 pairs clear the 0.15 floor, against `damageByWeapon`'s
+  50/66 on the same runs** — a sharp regression, not an improvement. Damage
+  *type* is a far coarser bucket than damage *source*: nearly every class
+  reads as `physical`-dominant regardless of kit, so most pairs cluster near
+  zero; only Stormcaller (electric) and, more weakly, Time Lord separate
+  cleanly. Logged for `p12d`/owner sign-off per this item's acceptance — this
+  is evidence *against* swapping clause (ii)'s metric to `damageByType`, not
+  for it. code-reviewer approved (no Critical/Major; confirmed
+  `damageByWeapon`/`damageByType` share the same `enemies.ts` choke point and
+  normalizing total, and the new sanity check is correctly index-aligned).
+  qa-playtester pass launched in parallel; its result follows as a separate
+  log entry once it returns. `npx tsc --noEmit` clean.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c038 done, one premise
   correction, no bug found.** The item's own premise named three files with a
   hardcoded roster-size assumption ("12 classes"); checked against the code,

@@ -1105,7 +1105,7 @@ owner items.
       the item. In-lane (`data/classes.json` only if a tune is taken) - refs:
       SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D, c033, CLAUDE.md rule 6.
 
-- [ ] (c040) [balance] `c033` measured only the **damage-source** half of
+- [x] (c040) [balance] **DONE 2026-09-07.** `c033` measured only the **damage-source** half of
       BALANCE DIRECTION v2 §D clause (ii)'s "damage-source/damage-type
       vector method" — G22's own `fingerprint()` (`tests/p-core-f-
       gates.test.ts`) is `damageShareVector` (by weapon/kit-bucket key) plus
@@ -1124,6 +1124,37 @@ owner items.
       sign-off rather than swap the gate's metric from here. In-lane
       measurement only - refs: SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D,
       c033.
+      **It lowers the count, sharply.** Extended `c033`'s existing `beforeAll`
+      sweep to accumulate `report.damageByType` alongside the pre-existing
+      `report.damageByWeapon` sum — off the *same* runs, no second sweep of
+      expensive full T1 scripted-kit runs. Measured (`KIT_FP_MEASURE=1
+      KIT_FP_SEEDS=2`, identical 24 runs c033 used): **damageByType clears the
+      >=0.15 floor on only 11/66 pairs**, against `damageByWeapon`'s 50/66 on
+      the same runs. The closest pairs under `damageByType` are almost all
+      near-zero (`plaguebringer/archer` 0.0001, `engineer/cryomancer` 0.0009,
+      `bloodlord/animist` 0.0009) — every class but Stormcaller and Time Lord
+      clusters tightly, because damage *type* is a far coarser bucket than
+      damage *source*: most classes and towers alike deal `physical`, so two
+      classes whose kits and tower choices are genuinely different can still
+      read near-identical by type. Stormcaller (electric) and, to a lesser
+      extent, Time Lord separate cleanly from the rest (their pairs with
+      every other class clear 0.09-0.23), which is the one place this vector
+      reads *more* informatively than `damageByWeapon` — but it is nowhere
+      near enough to lift the overall count. Logged for `p12d`/owner
+      sign-off, per this item's own acceptance: **not** a case for swapping
+      clause (ii)'s metric from `damageByWeapon` to `damageByType` — if
+      anything the opposite, since `damageByWeapon` is both the gate's
+      existing reading and the one that actually discriminates. No `/data`
+      change. code-reviewer approved (no Critical/Major; confirmed
+      `damageByWeapon`/`damageByType` are incremented at the identical
+      `enemies.ts` choke point off the same `dmgBooked`, so both vectors
+      share the same normalizing `total` by construction, and the new
+      `describe.skipIf(!MEASURE)` block's "the two vectors actually differ"
+      sanity check is correctly index-aligned since both pair arrays are
+      built in the same nested loop). qa-playtester pass launched in
+      parallel with this commit; its result will be appended here as a
+      follow-up log entry once it returns, per this lane's own convention of
+      never fabricating a result ahead of the tool call that produces it.**
 
 - [ ] (c041) [polish] c018/c019's summon-cooldown headroom numbers (Engineer
       59 ticks, Animist 119 ticks at shipped `/data`, recorded 2026-09-04)
