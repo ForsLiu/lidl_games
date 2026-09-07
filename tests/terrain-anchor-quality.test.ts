@@ -713,23 +713,26 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // re-deriving those needs a second implementation of `suggestCoreAnchor`'s
     // selection loop and is not repeated in this resize pass — the two policies
     // above already establish that the floor is doing real work.)
-    expect(worstRoom.seed).toBe(431);
+    expect(worstRoom.seed).toBe(231);
     expect(worstRoom.q.buildRoom).toBeGreaterThanOrEqual(12);
     // Two floors, and they are different kinds of statement. `legalCoreAnchors`
     // rejects a footprint tile within `coreGateClearance` of a gate, so
     // `clearance + 1` is *provable* — no legal anchor can be nearer, and this
     // line can never fail while this measurement and that rule agree (they
     // share `gateDistance`, which is why the copy went away). The recorded
-    // floor is 6, one under the 7 measured at seed 6, and it is the one that
-    // would catch a selection drifting toward the gates.
-    expect(worstGate.seed).toBe(6);
+    // floor is 6, one under the 7 measured at seed 119 (was seed 6 at the
+    // 3-gate 56x32 layout — the same reading, a different worst seed), and it
+    // is the one that would catch a selection drifting toward the gates.
+    expect(worstGate.seed).toBe(119);
     expect(worstGate.q.gateDist).toBeGreaterThanOrEqual(cfg.coreGateClearance + 1);
     expect(worstGate.q.gateDist).toBeGreaterThanOrEqual(6);
-    // 8.5864 at seed 99 against the flat arena's 6.3051. The ceiling is an
+    // 9.1216 at seed 119 against the flat arena's 6.3255. The ceiling is an
     // empirical bound, *not* a consequence of the displacement cap below:
     // `centroidDist` is measured against each map's own centroid, and that
-    // centroid moves between seeds too.
-    expect(farthestCentroid.seed).toBe(99);
+    // centroid moves between seeds too. (This is the same seed as the
+    // gate-distance floor above — a coincidence of this sample, not a shared
+    // mechanism: the two properties are measured independently.)
+    expect(farthestCentroid.seed).toBe(119);
     expect(farthestCentroid.q.centroidDist).toBeLessThanOrEqual(FLAT_CENTROID_DIST + 4);
     // The rule's own objective, and the one bound here that sits exactly on its
     // measured max with zero headroom. Called what it is: a **sample max over
@@ -740,12 +743,12 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // `data/terrain.json` (or a seed outside this window) can legitimately put
     // the nearest legal anchor further out with the rule untouched. This line
     // is expected to go red on a density retune; re-measure, do not relax.
-    // (Pre-resize the sample max was 4, at seed 315; the resize's bigger legal
-    // set lowered it to 3.)
-    expect(farthestPick.seed).toBe(163);
-    expect(farthestPick.q.displacement).toBe(3);
+    // (At the 3-gate 56x32 layout the sample max was 3, at seed 163; the
+    // fourth gate's bigger legal set lowered it further, to 2.)
+    expect(farthestPick.seed).toBe(4);
+    expect(farthestPick.q.displacement).toBe(2);
     expect(rs.every((r) => r.q.displacement <= 4)).toBe(true);
-    expect(rs.filter((r) => r.q.displacement === 0).length).toBe(327);
+    expect(rs.filter((r) => r.q.displacement === 0).length).toBe(240);
 
   });
 
@@ -778,13 +781,14 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // in. A primary key changed on one side and not the other fails here rather
     // than leaving the two silently measuring different populations.
     expect(rs.filter((r) => r.pickInTieSet).length).toBe(rs.length);
-    // The population that rule operates on, pinned so the header's "16 of 72,
-    // not 16 of 500" cannot go stale. Pre-resize this read 24 tie seeds, 17
-    // moved off the lowest index; the bigger arena roughly triples both.
+    // The population that rule operates on, pinned so the header's "12 of 81,
+    // not 12 of 500" cannot go stale. At the 3-gate 56x32 layout this read 72
+    // tie seeds, 34 moved off the lowest index; the fourth gate moves both up
+    // a little further.
     expect({
       tieSeeds: rs.filter((r) => r.tieCount > 1).length,
       movedOffLowestIndex: rs.filter((r) => r.tieMoved).length,
-    }).toEqual({ tieSeeds: 72, movedOffLowestIndex: 34 });
+    }).toEqual({ tieSeeds: 81, movedOffLowestIndex: 45 });
     // Absolute readings of the metric itself — the half the property above
     // cannot see. The flat arena's 36 is a filled 6x6 block of normal ground
     // and pins three things at once: the radius (1 reads 16, 3 reads 64), the
@@ -795,24 +799,28 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // by accident.
     expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y)).toBe(36);
     expect(coreAnchorRoom(flatTerrain(), 1, 1)).toBe(16);
-    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(32);
+    // 28, not 32 (the 3-gate 56x32 reading): seed 411's own generated map
+    // differs under the 4-gate layout, so the neighbourhood at this same tile
+    // is a different mix of terrain — the metric itself (radius, shape, kind
+    // counted) is unchanged, which is what the other two checks in this test
+    // pin.
+    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(28);
   });
 
   it('pins the seed the declined tie-break would cost a whole map', () => {
-    // The cost argument, in code rather than only in the header. Seed 112 was
-    // the pre-resize witness and no longer demonstrates the point at 56x32 —
-    // its tied anchors both clear the detour ceiling comfortably now (1.0984
-    // and 1.125) — so this is a fresh witness found by scanning seeds 1..20000
-    // for a map whose primary-key tie straddles the ceiling. Seed 15811 is not
-    // one of the sixteen free-improvement seeds and is the cheapest one found:
-    // its two tied anchors have *different* ring-room scores (16 against 28,
-    // not tied on the secondary key the way seed 112's were), and the room
-    // metric's actual behaviour — take the higher-scoring tied anchor — is what
-    // keeps the map legal. An index-only tie-break (take the lowest-indexed
-    // tied anchor when scores are not compared at all, which is what the loop
-    // degenerates to on a genuine room tie) would take `(23,9)` here and refuse
-    // the map instead.
-    const map = generateTerrain(15811, cfg);
+    // The cost argument, in code rather than only in the header. Seed 15811
+    // was the 3-gate 56x32 witness and no longer demonstrates the point with
+    // the fourth gate open — its tied anchors both clear the detour ceiling
+    // comfortably now — so this is a fresh witness found by scanning seeds
+    // 1..20000 for a map whose primary-key tie straddles the ceiling. Seed
+    // 3107 is not one of the twelve free-improvement seeds: its two tied
+    // anchors have *different* ring-room scores (11 against 23, not tied on
+    // the secondary key), and the room metric's actual behaviour — take the
+    // higher-scoring tied anchor — is what keeps the map legal. An
+    // index-only tie-break (take the lowest-indexed tied anchor when scores
+    // are not compared at all, which is what the loop degenerates to on a
+    // genuine room tie) would take `(23,9)` here and refuse the map instead.
+    const map = generateTerrain(3107, cfg);
     const anchors = legalCoreAnchors(map, cfg);
     const ties = tieSet(map, anchors);
     const row = (a: number): Record<string, unknown> => {
@@ -826,11 +834,11 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       };
     };
     expect({ hash: map.hash, ceiling: cfg.constraints.maxGateDetour, ties: ties.map(row) }).toEqual({
-      hash: 'dc0dda77',
+      hash: 'a9203eaf',
       ceiling: 1.5,
       ties: [
-        { at: '(23,9)', ringRoom: 16, discRoom: 22, detour: 1.9565 },
-        { at: '(27,9)', ringRoom: 28, discRoom: 37, detour: 1.2 },
+        { at: '(23,9)', ringRoom: 11, discRoom: 18, detour: 1.9556 },
+        { at: '(27,9)', ringRoom: 23, discRoom: 34, detour: 1.1079 },
       ],
     });
     // The room metric picks the higher-scoring, legal anchor — on both the ring
@@ -855,31 +863,31 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       fidelityAll: `${rs.filter((r) => r.fidAll > 0).length}/${rs.length}`,
       fidelityFree: `${fidFree.length}/${rs.length}`,
       fidelityFreeSeeds: fidFree,
-      // The two orderings overlap on 8 of their seeds this time rather than
-      // being wholly disjoint — a change from the pre-resize measurement
-      // (which found none in common) — but neither is a subset of the other,
-      // so which anchor is "better" is still not decidable without a balance
-      // decision.
+      // The fidelity-free set is a strict subset of the monotone-free one this
+      // time — every fidelity-free seed is also monotone-free — a cleaner
+      // relationship than the 3-gate 56x32 reading's partial 8-of-16/13
+      // overlap; which anchor is "better" is still not decidable without a
+      // balance decision.
       overlap: monoFree.filter((s) => fidFree.includes(s)),
       worstFreeCount: rs.reduce((a, r) => Math.max(a, r.monoFree, r.fidFree), 0),
     }).toEqual({
-      monotoneAll: '486/500',
-      monotoneFree: '16/500',
-      monotoneFreeSeeds: [6, 68, 96, 103, 119, 160, 180, 240, 241, 246, 256, 321, 327, 346, 360, 500],
-      fidelityAll: '201/500',
-      fidelityFree: '13/500',
-      fidelityFreeSeeds: [6, 43, 68, 103, 119, 137, 200, 211, 246, 300, 346, 360, 500],
-      overlap: [6, 68, 103, 119, 246, 346, 360, 500],
+      monotoneAll: '500/500',
+      monotoneFree: '12/500',
+      monotoneFreeSeeds: [32, 131, 247, 309, 339, 354, 370, 383, 390, 393, 401, 402],
+      fidelityAll: '392/500',
+      fidelityFree: '5/500',
+      fidelityFreeSeeds: [131, 247, 309, 370, 383],
+      overlap: [131, 247, 309, 370, 383],
       worstFreeCount: 1,
     });
   });
 
   it('prices the declined change on every axis, not the flattering one', () => {
     // The decision this file declines, priced. Summed over the whole 500-seed
-    // sample, and split per axis because they do not move together: five of
-    // the sixteen free seeds gain no build room at all and qualify purely on
-    // centrality, so a `buildRoom`-only price would report the smallest of the
-    // effects as if it were the whole one.
+    // sample, and split per axis because they do not move together: every one
+    // of the twelve free seeds gains at least a tile of gate distance this
+    // time, so a `buildRoom`-only price would understate the change on every
+    // one of them, not just some.
     const rs = rows();
     expect({
       buildRoom: rs.reduce((a, r) => a + r.gainRoom, 0),
@@ -889,26 +897,22 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
         .filter((r) => r.monoFree > 0)
         .map((r) => `${r.seed}: room +${r.gainRoom} · centroid -${fmt(r.gainCentroid)} · gate +${r.gainGate}`),
     }).toEqual({
-      buildRoom: 18,
-      centroidDist: '18.9198',
-      gateDist: 7,
+      buildRoom: 14,
+      centroidDist: '14.2419',
+      gateDist: 14,
       perSeed: [
-        '6: room +2 · centroid -2.2249 · gate +0',
-        '68: room +0 · centroid -0.9115 · gate +0',
-        '96: room +1 · centroid -1.8327 · gate +2',
-        '103: room +1 · centroid -1.2848 · gate +0',
-        '119: room +2 · centroid -1.1598 · gate +0',
-        '160: room +2 · centroid -1.1731 · gate +1',
-        '180: room +2 · centroid -1.2842 · gate +0',
-        '240: room +1 · centroid -0.8793 · gate +1',
-        '241: room +3 · centroid -0.7539 · gate +1',
-        '246: room +0 · centroid -1.1452 · gate +0',
-        '256: room +2 · centroid -1.3017 · gate +0',
-        '321: room +1 · centroid -0.7115 · gate +1',
-        '327: room +1 · centroid -0.6312 · gate +1',
-        '346: room +0 · centroid -1.1301 · gate +0',
-        '360: room +0 · centroid -1.2423 · gate +0',
-        '500: room +0 · centroid -1.2538 · gate +0',
+        '32: room +0 · centroid -0.6214 · gate +1',
+        '131: room +3 · centroid -2.1942 · gate +2',
+        '247: room +4 · centroid -1.1939 · gate +1',
+        '309: room +3 · centroid -1.2128 · gate +1',
+        '339: room +1 · centroid -0.8531 · gate +1',
+        '354: room +0 · centroid -0.6700 · gate +1',
+        '370: room +1 · centroid -1.2068 · gate +1',
+        '383: room +1 · centroid -2.1318 · gate +2',
+        '390: room +0 · centroid -0.8403 · gate +1',
+        '393: room +0 · centroid -0.8829 · gate +1',
+        '401: room +0 · centroid -1.2734 · gate +1',
+        '402: room +1 · centroid -1.1612 · gate +1',
       ],
     });
   });

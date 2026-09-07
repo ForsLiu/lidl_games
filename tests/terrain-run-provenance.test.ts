@@ -19,13 +19,18 @@
  *
  *  1. **The upper bound**, over all 12,000 seeds of `tests/terrain-sample.ts`,
  *     on both gate lists: how many seeds' generated maps leave the Core
- *     unreachable *before* the Warden clearing. Two on the base arena
- *     (`244812834`, `709384557`, 0.0167%) and two on the four-gate one
- *     (`2888361945`, `-739`), disjoint sets — different generator input,
- *     different population. (Re-measured at 56x32 — fb166's resize; the three
- *     and five named at 36x20 no longer strand anything at this geometry, and
- *     these four are the fresh witnesses.)
- *     This is a genuine bound and not an estimate, and the argument is narrower
+ *     unreachable *before* the Warden clearing. **Re-measured at fb156's
+ *     4-gate layout: zero, on both gate lists, in this 12,000-seed sample** —
+ *     down from two apiece at the 3-gate 56x32 layout (`244812834`,
+ *     `709384557` on the base arena; `2888361945`, `-739` on the four-gate
+ *     one), and none of those four strands at this gate geometry either. A
+ *     fourth (and fifth, under the modifier) gate gives the flood many more
+ *     ways in, so stranding the Core at its fixed `CORE_X/CORE_Y` becomes rare
+ *     enough that 12,000 seeds no longer finds an example. So this layer's
+ *     witnesses come from a wider domain comb instead, over both gate lists:
+ *     `2910647699`, `3204297108` (base 4-gate) and `2465936159` (base+modifier
+ *     5-gate) each strand their own seed's map. This is still a genuine bound
+ *     and not an estimate for the seeds it names, and the argument is narrower
  *     than "the clearing only opens tiles": `allGatesReachable` dijkstras
  *     `blocked`, which comes from `staticBlocked`, which reads `terrainBlock`
  *     and hence `overlay.walkable` and **nothing else** — and
@@ -33,33 +38,32 @@
  *     set can only grow and reachability can only improve. (Its other writes,
  *     `high = 0` and `charBlock = 0`, are *not* monotone-safe for other
  *     predicates; they simply do not enter this one.)
- *  2. **The exact answer for those four**, which costs four more applies:
- *     every one is *rescued* by the Warden clearing, so the retry count over
- *     the sample is **0 of 12,000 on either gate list** and the bound above is
- *     not tight. That the 3x3
- *     clear closes this path is a side effect — it was added because 1.0% of
- *     seeds otherwise spawn the character in rock — and it is worth knowing it
- *     carries this too, because a change to it would move a number nothing
- *     else measures.
+ *  2. **The exact answer for those three**, which costs three more applies:
+ *     every one is *rescued* by the Warden clearing on its own seed's first
+ *     attempt (zero seed-retries), so the bound above is not tight for them
+ *     either. That the 3x3 clear closes this path is a side effect — it was
+ *     added because 1.0% of seeds otherwise spawn the character in rock — and
+ *     it is worth knowing it carries this too, because a change to it would
+ *     move a number nothing else measures.
  *
  * `tests/terrain-grid.test.ts` measures the same stranding over seeds 1..5000
- * and reads its own window's rate. This file is the domain-wide version and
- * reads 1 in 6000 on the raw map and 0 after the clear; the two are not
- * expected to agree exactly, and the window one is not the population a run
- * draws from (fb064j).
+ * and reads its own window's rate. This file is the domain-wide version; the
+ * two are not expected to agree exactly, and the window one is not the
+ * population a run draws from (fb064j).
  *
  * **What a reader holding only `RunConfig.seed` can and cannot do.**
  *
  * Cannot, and this is the correction a review had to make to an earlier version
  * of this paragraph: **regenerate the map from the seed alone.** The gate list
  * is a generator input, so `generateTerrain(40, cfg, GATES)` and the same seed
- * under fb077's Fourth Gate are different maps — hashes `5cecaef9` and
- * `72845dda`, **766 tiles apart**. A reader following "just regenerate from the
- * seed" on a `modifiers: ['gate']` bug report gets the wrong map, which is a
- * bigger hole than the retry this file studies and is the *same* blind spot the
- * immediately preceding item (fb065f) closed for the dump's bands. The map is a
- * function of seed **and gate list**, and both sweeps below are run on both
- * lists for that reason.
+ * under fb077's gate modifier (now a fifth gate, `MODIFIER_GATES`'s `south2`,
+ * since fb156 grew the base list to four) are different maps — hashes
+ * `9d4778d2` and `801f9bc8`, **756 tiles apart**. A reader following "just
+ * regenerate from the seed" on a `modifiers: ['gate']` bug report gets the
+ * wrong map, which is a bigger hole than the retry this file studies and is
+ * the *same* blind spot the immediately preceding item (fb065f) closed for the
+ * dump's bands. The map is a function of seed **and gate list**, and both
+ * sweeps below are run on both lists for that reason.
  *
  * Can: regenerate the map from seed *and* gate list, on every seed measured
  * here. Cannot: assume the *grid* matches even then — `applyRunTerrain` clears
@@ -149,27 +153,55 @@ describe('fb065h — a run plays its own seed’s map', () => {
   it('bounds the retry rate over the whole domain sample, on both gate lists', () => {
     // `checked`, not `seeds.length`: see `strandedIn`. A sample half of which
     // fell back would otherwise report the same bound over half the population.
+    //
+    // Re-measured at fb156's 4-gate layout: **zero** strand in this 12,000-seed
+    // sample on the base arena — down from two (`244812834`, `709384557`) at
+    // the 3-gate 56x32 layout, and neither of those two strands at this gate
+    // geometry either. A fourth gate gives the flood far more ways in, so
+    // 12,000 seeds no longer turns up an example; the witnesses for layer 2
+    // below come from a wider domain comb instead.
     const three = strandedIn(sampleSeeds());
     expect({ checked: three.checked, stranded: three.stranded }).toEqual({
       checked: 12000,
-      stranded: [244812834, 709384557],
+      stranded: [],
     });
-    // **The four-gate arena is a different population and was measured, not
-    // assumed** — the gate list is a generator input, so `World` under the
-    // `gate` modifier plays maps this sweep never sees. Recorded rather than
-    // re-swept here, on fb064r's two-layer pattern: the full four-gate sweep
-    // over the same 12,000 seeds reads **checked 12000, fallbacks 0, stranded
-    // 2** — `2888361945`, `-739` — and running it in-test doubled the file's
-    // cost, which is the wrong side of the fast tier. The two witnesses are
-    // re-measured (milliseconds each), which is what catches a generator
-    // change; the *distribution* is the recorded string. (Re-measured at
-    // 56x32; the five named at 36x20 do not strand on this geometry.)
-    const FOUR_GATE_STRANDED = [2888361945, -739];
-    expect(strandedIn(FOUR_GATE_STRANDED, FOUR).stranded).toEqual(FOUR_GATE_STRANDED);
-    // ...and they are fine on the base arena, which is the point: these are not
-    // "the same bad seeds plus two", they are a different population.
-    expect(strandedIn(FOUR_GATE_STRANDED).stranded).toEqual([]);
-    expect(strandedIn(three.stranded, FOUR).stranded).toEqual([]);
+    // **The five-gate arena (base + modifier) is a different population and was
+    // measured, not assumed** — the gate list is a generator input, so `World`
+    // under the `gate` modifier plays maps this sweep never sees. Also zero in
+    // this sample: the full five-gate sweep over the same 12,000 seeds reads
+    // **checked 12000, fallbacks 0, stranded 0** — down from two
+    // (`2888361945`, `-739`) at the 3-gate-plus-modifier layout, neither of
+    // which strands at this gate geometry either.
+    const five = strandedIn(sampleSeeds(), FOUR);
+    expect({ checked: five.checked, stranded: five.stranded }).toEqual({
+      checked: 12000,
+      stranded: [],
+    });
+    // The old 3-gate witnesses are fine on both of today's gate lists — not
+    // because the two populations converged, but because none of these four
+    // seeds strands anything at this geometry at all.
+    expect(strandedIn([244812834, 709384557, 2888361945, -739], GATES).stranded).toEqual([]);
+    expect(strandedIn([244812834, 709384557, 2888361945, -739], FOUR).stranded).toEqual([]);
+  });
+
+  it('the domain still strands rare Cores outside the 12,000-seed sample, on both gate lists', () => {
+    // Since layer 1's sample no longer contains an example on either gate
+    // list, these come from a wider domain comb instead (a ~600,000-seed comb,
+    // stride 40961 from 0, for the base arena; a ~250,000-seed comb, two
+    // strides, for the five-gate one) — the same shape fb064r's `WITNESSES`
+    // uses when a property's true extreme is not in the fixed sample. Each
+    // still strands its own seed's map, checked directly rather than assumed
+    // from the comb.
+    const BASE_STRANDED = [2910647699, 3204297108];
+    expect(strandedIn(BASE_STRANDED, GATES).stranded).toEqual(BASE_STRANDED);
+    // ...and they are fine on the five-gate arena, which is the point: these
+    // are not "the same bad seeds plus a modifier", they are a different
+    // population.
+    expect(strandedIn(BASE_STRANDED, FOUR).stranded).toEqual([]);
+
+    const FIVE_GATE_STRANDED = [2465936159];
+    expect(strandedIn(FIVE_GATE_STRANDED, FOUR).stranded).toEqual(FIVE_GATE_STRANDED);
+    expect(strandedIn(FIVE_GATE_STRANDED, GATES).stranded).toEqual([]);
   });
 
   it('and the bound is not tight: the Warden clearing rescues every one', () => {
@@ -187,8 +219,8 @@ describe('fb065h — a run plays its own seed’s map', () => {
     console.warn = (): void => {};
     try {
       for (const [gates, seeds] of [
-        [GATES, [244812834, 709384557]],
-        [FOUR, [2888361945, -739]],
+        [GATES, [2910647699, 3204297108]],
+        [FOUR, [2465936159]],
       ] as ReadonlyArray<readonly [readonly GateDef[], readonly number[]]>) {
         for (const seed of seeds) {
           const raw = rawGrid(seed, gates);
@@ -231,16 +263,17 @@ describe('fb065h — a run plays its own seed’s map', () => {
 
   it('records the jitter-off control, so the number is attributable', () => {
     // fb064l's precedent: a rate measured only at the shipped config says
-    // nothing about which part of the generator owns it. Recorded offline over
-    // the same 12,000 seeds at `density.jitter: 0` — fb064a's generator
-    // exactly — which strands **2**: 3000000654 and 3000001827, the same
-    // 0.0167% as the shipped config's own two. Both sets are disjoint, so the
-    // per-seed budgets move *which* seeds strand rather than how many, and
-    // neither config's rate is meaningfully different from the other at this
-    // sample size. Only the two named seeds are re-measured here; the full
-    // sweep is a second pass over the same sample and its result is the
-    // recorded string above. (Re-measured at 56x32; the two named at 36x20
-    // — 476740782, 3157512897 — do not strand on this geometry.)
+    // nothing about which part of the generator owns it. Re-measured at
+    // fb156's 4-gate layout: the 12,000-seed sample no longer strands anything
+    // at either `density.jitter` setting (layer 1, above), so — as with the
+    // shipped-config witnesses — the two named here come from a wider domain
+    // comb (`114485995`, `127183905`, ~100,000-seed comb at `density.jitter:
+    // 0`, base gates). Both sets are disjoint: neither strands at the shipped
+    // config, and neither of the shipped-config witnesses strands without
+    // jitter, so the per-seed budgets move *which* seeds strand rather than
+    // establishing which setting is safer. (At the 3-gate 56x32 layout this
+    // read `3000000654`/`3000001827`; neither strands at this gate geometry
+    // either.)
     const noJitter = parseTerrain({
       ...(terrainRaw as Record<string, unknown>),
       density: {
@@ -248,14 +281,14 @@ describe('fb065h — a run plays its own seed’s map', () => {
         jitter: 0,
       },
     });
-    expect(strandedIn([3000000654, 3000001827], GATES, noJitter).stranded).toEqual([
-      3000000654, 3000001827,
+    expect(strandedIn([114485995, 127183905], GATES, noJitter).stranded).toEqual([
+      114485995, 127183905,
     ]);
     // ...and they are not stranded at the shipped config, which is what makes
     // the two sets disjoint rather than nested.
-    expect(strandedIn([3000000654, 3000001827]).stranded).toEqual([]);
+    expect(strandedIn([114485995, 127183905]).stranded).toEqual([]);
     // The shipped two, likewise, are fine without jitter.
-    expect(strandedIn([244812834, 709384557], GATES, noJitter).stranded).toEqual([]);
+    expect(strandedIn([2910647699, 3204297108], GATES, noJitter).stranded).toEqual([]);
   });
 
   it('states the limit of the seed: it reproduces the map, not the board', () => {
@@ -281,13 +314,15 @@ describe('fb065h — a run plays its own seed’s map', () => {
       if (raw.terrainKind[i] !== run.terrainKind[i]) differs++;
     }
     // Same seed, same map — pinned by hash so a generator change reddens here
-    // rather than silently changing what "reproduces" means...
-    expect(generateTerrain(seed, cfg, GATES).hash).toBe('3d7c70c8');
-    // ...and still not the same board. **7 tiles**, the Warden's clearing and
-    // nothing else: both sides here are Grids built from the same gate list,
-    // so the structural Core-footprint override (fb065c's extra 4) cancels and
-    // what is left is exactly the 3x3 clear. A reader holding the seed can
-    // rebuild the map; these 7 tiles are what they cannot know from it.
-    expect(differs).toBe(7);
+    // rather than silently changing what "reproduces" means... (was `3d7c70c8`
+    // at the 3-gate 56x32 layout; the fourth gate changes seed 4's map too.)
+    expect(generateTerrain(seed, cfg, GATES).hash).toBe('11793174');
+    // ...and still not the same board. **8 tiles** (was 7), the Warden's
+    // clearing and nothing else: both sides here are Grids built from the same
+    // gate list, so the structural Core-footprint override (fb065c's extra 4)
+    // cancels and what is left is exactly the 3x3 clear. A reader holding the
+    // seed can rebuild the map; these 8 tiles are what they cannot know from
+    // it.
+    expect(differs).toBe(8);
   });
 });
