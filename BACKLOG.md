@@ -785,7 +785,42 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       Q177's retraction. The real blocker the correction exposed is the tick
       cap, which is **p12e**'s, not a new item's.
 
-- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+- [x] (p12h) [bug] **DONE 2026-09-07** — bisected to two additive causes, only
+      one of which was a bug this item owned to fix. (1) **fb076->fb077**:
+      fb077 ("wire generated terrain into every non-practice World run")
+      flipped `tools/a4probe.ts`'s probe from the flat arena it was always
+      tuned against to real generated terrain, purely because its `RunConfig`
+      never set `practice: true` — a scope leak, not intended difficulty
+      (this gate's own header says it isolates solo-tower TD viability from
+      other systems, the same reason it sets `world.invulnerable`). Confirmed
+      by checking out the commit before fb077 (exact reproduction of fb076's
+      authored 5/5/5/5/4/5/4) and the commit at/after fb077 (drops to
+      {1,1,0,0,1,3,0}, matching the item's own HEAD-control number exactly).
+      (2) **p12c**'s `baseHpMul: 20` (not tier-scaled, hits T1 as hard as
+      every tier) takes {1,1,0,0,1,3,0} to {0,0,0,0,0,0,0} — already
+      acknowledged in p12c's own commit message as a cost it deepened but did
+      not cause, and explicitly not this item's (BALANCE DIRECTION v2's own
+      T3-anchor tradeoff, owned by p12d's gate rewrite). **Fixed (1) only**:
+      `runSingleType` now sets `practice: true` (its only other effect, dev
+      commands, is inert here); verified this alone restores viability by
+      reverting `baseHpMul` to 1 via a content override (not a `/data` edit)
+      and re-running all seven towers — **{5,5,5,5,4,4,5}**, matching/
+      bettering the original table, pinned as a new passing test rather than
+      left as an unverified claim. At real HEAD content the gate's own
+      numbers are unchanged (still 0/5 for all seven, since cause (2) alone
+      already saturates every tower to zero) — the fix is real but its effect
+      is currently masked by the separately-owned anchor; `.skip`-ed with the
+      honest number, re-enable point **p12d**. code-reviewer: APPROVE, no
+      Critical/Major (one pre-existing stale-docstring nit elsewhere, out of
+      scope). qa-playtester independently re-ran 3 towers through the fix
+      (matched {5,5,5,5} exactly), checked `practice`'s RNG-independence
+      (terrain generation uses its own local seed, not `w.rng` — zero
+      determinism risk from skipping it), checked no other test/tool depends
+      on the old terrain-degraded numbers as a fixture, and ran the full
+      touched file (534s, green) — PASS. `vitest.fast.config.ts`'s exclude
+      comment for this file re-measured and updated (the new case alone is
+      ~515s). Original text follows.
+      G13's solo-viability clause (`tests/a4-single-type.test.ts`)
       was **already largely red before p12c**, and nobody had measured it.
       Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
       identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can

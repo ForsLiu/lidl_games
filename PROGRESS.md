@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG p12h done: bisected G13's solo-viability regression
+  to two additive causes, fixed the one that was a bug.** `tests/a4-single-
+  type.test.ts` probes whether one tower type alone can solo all 18 TD waves
+  at T1 (`tools/a4probe.ts`, `world.invulnerable = true` to isolate TD from
+  VS combat). Authored (fb076): {arrow_spire:5, ballista:5, ember_brazier:5,
+  frost_obelisk:5, tesla_coil:4, mortar:5, venom_spore:4} of 5 seeds; HEAD
+  read all zeroes. Checking out commits either side of the two candidate
+  changes and re-running the exact probe found: (1) fb077 ("wire generated
+  terrain into every non-practice World run") flipped this probe from the
+  flat arena it was tuned against to real generated terrain, purely because
+  `runSingleType`'s `RunConfig` never set `practice: true` — an accidental
+  scope leak (map geometry was never meant to be part of what this gate
+  measures), dropping the table to {1,1,0,0,1,3,0}; (2) p12c's `baseHpMul: 20`
+  (not tier-scaled, hits T1 as hard as T3/T5) then takes that to all zeroes —
+  a real, deliberate difficulty change for a different gate, already named in
+  p12c's own commit message and explicitly deferred to p12d (the gate-rewrite
+  item), not this one's to reverse. Fixed only (1): `runSingleType` now sets
+  `practice: true` (confirmed its only other effect, enabling dev commands,
+  is inert here — this probe never issues one; confirmed terrain generation
+  uses its own local seed rather than `w.rng`, so the fix carries zero
+  determinism risk). Verified the fix actually restores viability rather than
+  asserting it: a new test reverts `baseHpMul` to 1 via a `loadContent`
+  override (not a `/data` edit) and re-runs all seven towers through the
+  fixed probe, measuring **{5,5,5,5,4,4,5}** — matching/bettering the
+  original table. At real HEAD content the gate's own numbers are unchanged
+  (still 0/5 for all seven, since cause (2) alone already saturates
+  everything to zero); `.skip`-ed with the honest number, re-enable point
+  p12d. `tools/a4probe.ts` also gained an optional `runContent` parameter
+  (defaulting to real content) so the new test can override in-memory
+  without touching `/data`; confirmed backward-compatible with every other
+  caller. code-reviewer: APPROVE, no Critical/Major (independently re-ran
+  two towers and matched the numbers; one pre-existing stale-docstring nit
+  elsewhere, out of scope). qa-playtester independently re-ran three more
+  towers through the fix (matched exactly), checked no other test/tool
+  depends on the old terrain-degraded numbers as a fixture, and ran the full
+  touched file (534s) green — PASS. `vitest.fast.config.ts`'s stale exclude
+  comment for this file was re-measured and corrected (the new case alone is
+  ~515s; the whole file was already excluded). `npm run test:fast` green
+  throughout (the one known pre-existing, unrelated fb119 failure aside).
+
 - **2026-09-07 — BACKLOG p12e done: the final boss no longer double-counts
   `baseHpMul`, closing the p12 arc's censored-run blocker (QUESTIONS Q177/
   Q184).** Diagnosis (already logged in p12e's own text): `data/enemies.json`'s
