@@ -4593,3 +4593,43 @@ highest-impact item here by a wide margin** and sits third only for that reason.
   `terrain-cost-retry-ratio.test.ts`, is pre-existing-excluded); the run's 59
   failures are entirely in the 20 non-terrain files named above, none of them
   `tests/terrain*`.
+
+- (2026-09-07, fb166 QA round) **PASS on the item's literal acceptance, plus
+  one new out-of-scope regression and one honesty correction on the
+  no-retune claim.**
+
+  **New bug, not in the fallout list above: `tests/fb027-selection-panels.
+  test.ts` is now flaky (~43% of file-runs), not merely grid-size-broken.**
+  Isolated by swapping only `src/sim/grid.ts` between the pre-fb166 commit
+  and this one with everything else held fixed: 0/20 file-runs failed at
+  36x20, 13/30 (~43%) at 56x32. Cause: its local `freeTileNear` helper
+  (line ~42) checks `w.grid.passable(tx, ty)`, which is true for
+  walkable-but-not-buildable ground (rough), so on an unlucky real seed
+  (the file draws one via `Math.random()` per test, which is fine — it is
+  UI, not `/src/sim`) it can hand `buildTower` a rough tile, which no-ops
+  silently (`{ok:false}`, no throw) rather than building, leaving
+  `structureAt` null for a later `!.id` read. Fix is one word in the test
+  (`passable` -> `buildable`) but the file is outside every path this
+  lane's Scope allows editing — filed here for whichever lane picks up
+  fb166's fallout, alongside the 20 already listed.
+
+  **Honesty correction: the "clears comfortably" framing above is true of
+  the 5000-seed (1..5000) sample it was measured on, not of the domain a
+  real run draws from.** QA ran a 100,000-seed odd-stride comb across the
+  full uint32 domain (the domain `src/ui/main.ts`'s `Math.random()` draw
+  actually covers, per `fb064j`) and found the same zero fallbacks / zero
+  band violations, but with far thinner margins than "comfortable" implies:
+  `maxGateDetour` reaches **exactly 1.5** — zero headroom, verified to 20
+  significant digits, not float noise — at seed `1200939788`; `walkableFrac`'s
+  domain-sampled floor is `0.609375` (slack 0.0094 against the 0.6 floor,
+  not the low-sample's 0.0445); `buildableNormalFrac`'s is `0.465960` (slack
+  0.016, not 0.051). Nothing is illegal — every one of these is inside its
+  band, and the generator's own seed+1 retry is exactly the safety net for
+  a worse one — but the earlier framing overstated how much room the config
+  has left, which is the opposite of this project's own measurement rules.
+  Restated: the shipped bands hold across the full domain with real but
+  much thinner headroom than the low sample suggested; `maxGateDetour` in
+  particular is one bad seed away from its ceiling, domain-wide, same as it
+  was pre-resize (the old ledger's own two ceiling-edge witnesses record the
+  identical situation at 36x20). Not a defect to fix — a claim to not
+  repeat uncorrected.

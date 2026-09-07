@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/terrain: BACKLOG-TERRAIN fb166 done (terrain half of
+  the owner's bigger-map order).** `src/sim/grid.ts`'s `GRID_W`/`GRID_H`
+  flip to 56x32 (from 36x20), with `GATES`/`MODIFIER_GATES` rescaled to
+  stay on the new border — left un-rescaled, `east` and the Fourth Gate's
+  `south` would land on interior tiles, since the border check is exact
+  (`tx===GRID_W-1` etc.), not proportional. Every geometry-dependent
+  assertion `tests/terrain*` owns (25 files: golden hashes, exact
+  tile-count fixtures, witness seeds, the band/cost/headroom ledgers) is
+  re-measured against the new size; `data/terrain.json` needed no retune
+  (density/blob/constraint values already clear every band, confirmed by
+  QA over both a 5000-seed sample and a 100,000-seed full-domain comb —
+  the domain-wide margins are real but thinner than the sample first
+  suggested, corrected in BACKLOG-TERRAIN.md's Log rather than left
+  overstated). `npx vitest run tests/terrain*.test.ts`: 411 passed + 1
+  pre-existing skip, 25/25 files green, independently reproduced by both
+  code-reviewer (APPROVE, 2 Minors folded in — a retry-count bound
+  loosened more than the geometry required, a stale sample-size comment)
+  and qa-playtester. QA also found one new out-of-scope regression:
+  `tests/fb027-selection-panels.test.ts` is now ~43% flaky (a helper picks
+  walkable-but-not-buildable tiles, which silently no-ops `buildTower` on
+  an unlucky real seed) — one-word fix, logged rather than made since the
+  file is outside this lane's Scope.
+
+  **Confirmed, deliberately not fixed here (outside this lane's Scope,
+  logged in BACKLOG-TERRAIN.md for the merge):** `src/sim/world.ts:591`
+  still hardcodes the Fourth Gate's south tile at the old grid's border
+  (12,19) instead of (19,31) — a real, currently-shipping bug for any run
+  with the Fourth Gate modifier on, with a `.skip`ped regression test
+  ready to un-skip once fixed. `tests/grid.test.ts` (3/11 fail) and
+  `tests/fb077-terrain-wiring.test.ts` (3/19 fail) hardcode old-grid
+  geometry/witness seeds. 20 further non-terrain fast-tier files
+  (act1/act2, four class-board* files, content-complete, p1a-sealing,
+  p6d-nine-classes, p8d-boss-termination, q15/q45 fuzz suites,
+  t2-selection, five ui-fb*/ui-input files) fail for grid-size reasons of
+  their own — full list and root causes in BACKLOG-TERRAIN.md's Log. A
+  stale "1498" sample-size comment in `vitest.fast.config.ts`/
+  `vitest.perf.config.ts` is now 1502. None of this is mysterious — every
+  failure has a named, understood cause — but fixing it means editing
+  files outside `src/sim/terrain/**`, `data/terrain.json`, `tests/
+  terrain*`, and `src/sim/grid.ts`, which this lane's Scope forbids; it is
+  main-lane (and other-lanes') work at the next merge.
+
 - **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
   broadphase used a constant `range * 0.5 + 2` margin around the swept
   line's midpoint, which only bounds the rectangle's true reach
