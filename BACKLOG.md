@@ -666,7 +666,64 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+- [x] (p12e) [bug] **DONE 2026-09-07** — the diagnosis below was right and the
+      fix is one `/data` value: `data/enemies.json` `warden_eater.hp`
+      **365000 -> 54750**, no `/src` change, so `baseHpMul` keeps applying
+      uniformly (CLAUDE.md's "tuning lives in `/data`" default) and only the
+      boss's own anchor moves.
+      **The naive unwind was measured and rejected**, which is the whole
+      lesson of this item: 365000/20 = 18250 restores the exact pre-p12c
+      *product* but not the pre-p12c *fight*, because DPS output has moved
+      since fb099 fitted 365,000 (p12a's kitPower, p12b's tower ladder) — it
+      measured 8.8s-43.7s across the 24 T3 seeds and undershot the 20s floor
+      on 3 of 13 kills. Re-fit by measurement to 54750 (3x that anchor):
+      **min 36.4s / max 149.4s / mean 67.9s**, against a pre-fix
+      **138.5s-772.2s** spread on the same seeds.
+      **Win rate is untouched, and that was verified, not assumed**: code
+      review re-ran the full 24-seed T3 sweep either side and got 13/24 both
+      times with **every seed's outcome identical seed-for-seed** — this
+      moves fight duration, not who wins. G1's band, the >20s floor
+      (`boss.test.ts`, `p8d`) and `p12c`'s `baseHpMul` pin all hold.
+      **The acceptance line is met in substance but not literally, recorded
+      rather than rounded up**: `npm run status`'s 88-run snapshot goes
+      **24/88 timeouts -> 4/88**, not to zero. qa-playtester characterised
+      the residual four exactly (cryomancer T1 s1/s2, animist T1 s2,
+      engineer+corpse T3 s2) and showed they are a *different* phenomenon —
+      all four are the **stock unscripted policy** (no class actives, no Core
+      purchases) against `tools/status.ts`'s own tighter 45-minute cap, and
+      the same seeds/classes win cleanly in ~80s fights through the scripted
+      harness. Chasing them with this same lever would re-break the 20s floor
+      for weak kits, so they are filed as **p12i** instead.
+      Regression test `tests/p12e-boss-hp-anchor.test.ts` (red before, green
+      after), fast-tier excluded at 384 s per `vitest.fast.config.ts`'s own
+      >60 s rule. Code review filed four Majors against the first draft — a
+      fast-tier budget violation, a **fabricated** "seed 7 = 972.4s" figure
+      whose case actually measured 138.5s and so reproduced nothing (re-run
+      independently a third time here; the fast case is now **seed 11**, the
+      real 772.2s worst of seeds 1-24), a spawned-HP figure 10x high because
+      the prose forgot fb153a's `numberScale` (T1 spawns **109,500**, not
+      1,095,000 — and BACKLOG/QUESTIONS' own 7.3M/8.36M read 10x high for
+      the same reason), and this missing BACKLOG/PROGRESS update — all four
+      fixed before commit. Original text follows.
+- [ ] (p12i) [balance] The four residual `npm run status` timeouts p12e left,
+      characterised but not closed (qa-playtester on p12e): cryomancer T1
+      seed 1 (wave 17) and seed 2 (wave 18), animist T1 seed 2 (wave 18),
+      engineer+`corpse` Core T3 seed 2 (wave 20). All four are the **stock
+      unscripted policy** — no class actives fired, no Core upgrades bought —
+      against `tools/status.ts`'s 45-minute cap, and every one of them wins
+      in a ~80s boss fight once the scripted harness plays the kit, so this
+      is the **wave-11-to-17 wall** (p10i, behind G8/G14/most of G23) showing
+      through the snapshot, not a boss-anchor problem: lowering
+      `warden_eater.hp` further to chase them would re-break the >20s
+      fight-length floor for weak kits (p12e measured exactly that at the
+      18250 anchor). Acceptance: either the four run to a terminal outcome
+      inside the snapshot's own cap with no HP-anchor change (name the lever
+      and show the before/after), or the snapshot's cap/policy is restated
+      with a recorded reason so a censored run stops being scored as a loss
+      — and `npm run status` regenerated either way — refs: BACKLOG p12e's
+      acceptance line, p10i, QUESTIONS Q159/Q160/Q184.
+
+      **Original p12e text follows.** **Now the blocker for this whole arc** (QUESTIONS Q177),
       and **diagnosed — start from this, not from a fresh sweep.** Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:

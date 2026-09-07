@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG p12e done; p12i filed.** The blocker QUESTIONS Q177
+  named is closed with one `/data` value: `data/enemies.json`
+  `warden_eater.hp` **365000 -> 54750**. p12c's roster-wide `baseHpMul: 20`
+  applies to every enemy (`src/sim/enemies.ts`), including a final boss whose
+  365,000 was fitted by fb099/p10k *before* that multiplier existed, so the
+  boss silently inherited a 20x anchor and the fight ran 138.5s-772.2s across
+  the 24 T3 gate seeds instead of its fitted ~51-57s — the tail that was
+  censoring runs at the tick cap and poisoning `npm run status`'s snapshot.
+  No `/src` change: `baseHpMul` still applies uniformly, only the boss's own
+  anchor moved (CLAUDE.md's "tuning lives in `/data`" default).
+  **The naive unwind was measured and rejected, which is the item's real
+  lesson.** 365000/20 = 18250 restores the exact pre-p12c *product*, but not
+  the pre-p12c *fight*: DPS output has moved since fb099 (p12a's kitPower,
+  p12b's tower ladder), and it measured 8.8s-43.7s, undershooting the sim's
+  own 20s floor on 3 of 13 kills. Re-fit by measurement to 54750 — min 36.4s
+  / max 149.4s / mean 67.9s. **Win rate is untouched and that was verified,
+  not asserted**: the full 24-seed T3 sweep was re-run either side of the
+  change and every seed's outcome is identical seed-for-seed (13/24 both
+  times). Duration moved; nobody's win or loss did.
+  **Recorded honestly rather than rounded up:** the acceptance line said zero
+  timeouts; the snapshot goes **24/88 -> 4/88**. qa-playtester pinned the
+  residual four (cryomancer T1 s1/s2, animist T1 s2, engineer+`corpse` T3 s2)
+  and proved they are a different animal — all four are the *stock
+  unscripted* policy (no actives, no Core buys) against `tools/status.ts`'s
+  tighter 45-minute cap, and all four win in ~80s fights once the scripted
+  harness plays the kit. That is p10i's wave-11-to-17 wall showing through
+  the snapshot, and pushing boss HP lower to chase it would re-break the 20s
+  floor (measured at the 18250 anchor). Filed as **p12i**.
+  **Code review filed four Majors against the first draft, all fixed before
+  commit**, and two are worth remembering. (1) The regression test cited seed
+  7 as a "972.4s pre-fix fight"; re-run, it measures **138.5s** and *passes
+  without the fix* — a fabricated number attached to a case that reproduced
+  nothing. Independently re-measured here a third time (138.5s confirmed) and
+  the fast case is now **seed 11**, the genuine 772.2s worst of seeds 1-24,
+  verified red pre-fix and green post-fix. (2) The new prose put T1 spawned
+  boss HP at 1,095,000; it is **109,500** — the arithmetic skipped fb153a's
+  `numberScale` (0.1). The same slip makes BACKLOG/QUESTIONS' long-quoted
+  "7.3M/8.36M" boss HP figures read 10x high; the assertions were always
+  computed through `scaled()` and so were never wrong, only the prose was.
+  Also: the test is fast-tier excluded (`vitest.fast.config.ts`) at 384s per
+  that config's own >60s rule, and BACKLOG/PROGRESS were updated (this
+  entry), which the first draft had skipped.
+
 - **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
   broadphase used a constant `range * 0.5 + 2` margin around the swept
   line's midpoint, which only bounds the rectangle's true reach

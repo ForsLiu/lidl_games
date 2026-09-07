@@ -54,6 +54,12 @@ export default mergeConfig(
         'tests/q14-mutation-smoke.test.ts',
         // 20-seed × cycles:6 full boss runs.
         'tests/boss.test.ts',
+        // p12e: 12 full T3 `runScripted` runs (one per contested seed, each a
+        // complete TD + VS + boss fight against the full Constellation tree)
+        // to measure the boss fight's own length — measured standalone 384 s,
+        // the same class as `boss.test.ts` directly above and past this
+        // config's own ~60 s rule.
+        'tests/p12e-boss-hp-anchor.test.ts',
         // Long mandatory-mechanism live sims (multi-seed full runs).
         'tests/a3-movement-mandatory.test.ts',
         'tests/a9-economy.test.ts',

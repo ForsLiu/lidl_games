@@ -93,7 +93,47 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
-  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
+  //
+  // p12e (QUESTIONS Q177, BACKLOG p12e): p12c's roster-wide `baseHpMul: 20`
+  // (`data/enemies.json`) applies to every enemy including this one — the
+  // 365,000 above was fitted *before* that multiplier existed, so it
+  // compounded to 730,000 spawned at T1 (36,500 loaded x 20 — see the
+  // `numberScale` note below for why this is not the 7.3M that BACKLOG and
+  // QUESTIONS both quote) and the fight exploded from its fitted ~51-57s to
+  // a measured 138s-772s spread across the 24 contested T3 seeds
+  // (`tests/p12e-boss-hp-anchor.test.ts`), which is what drove most of the
+  // 24/88 `npm run status` T1-snapshot timeouts this item cuts to 4/88.
+  //
+  // A pure unwind (365000 / 20 = 18250, reproducing the exact pre-p12c
+  // product) was tried first and measured *too fast*: 8.8s-43.7s across the
+  // same 24 T3 seeds, undershooting the 20s floor on 3 of 13 kills. DPS
+  // output has moved since fb099 fitted 365,000 (p12a's kitPower, p12b's
+  // tower tier ladder), so restoring the same *product* no longer restores
+  // the same *fight length* — the floor and the tail move on different
+  // curves (escalation is time-gated, not HP-gated), so this needed a
+  // measured re-fit, not an algebraic inverse.
+  //
+  // Landed on authored 365000 -> 54750 (3x the pure-unwind anchor) after
+  // measuring the response: min 36.4s / max 149.4s / mean 67.9s over the
+  // same 24 T3 seeds, real headroom over both the 20s floor and the 300s
+  // ceiling `tests/p12e-boss-hp-anchor.test.ts` polices, no timeouts, 13/24
+  // wins (54.2%, inside the T3 [35%,70%] band `tests/p10d-run-length.
+  // test.ts` already asserts) — not exempting the boss from the multiplier
+  // in code, per CLAUDE.md's "tuning lives in /data" default. Code review
+  // re-ran that sweep independently and got the same 13/24, with every seed's
+  // outcome identical seed-for-seed either side of the change: this moves
+  // fight *duration*, not who wins.
+  //
+  // The spawned number, stated once and correctly, because two rounds of
+  // prose here got it wrong: the authored 54,750 is scaled by fb153a's
+  // `numberScale` (0.1, `data/modifiers.json`) at load, so the row loads as
+  // 5,475 and the *T1 spawned* HP is 5475 x `baseHpMul` 20 = **109,500** —
+  // not 1,095,000, which is what this comment said before code review
+  // caught it. (BACKLOG/QUESTIONS' 7.3M/8.36M figures read 10x high for the
+  // same reason — they multiply the authored row rather than the loaded one.
+  // Assertions below are computed through `scaled()`, so they were never
+  // wrong; only the prose was.)
+  it('spawns at 3:01 with 109,500 HP scaled by tier', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
     // to read the rung it names rather than whichever tier the gates happen
@@ -104,14 +144,15 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
+    // p12c: the authored HP times the roster-wide `baseHpMul` — the
     // Warden-Eater is an enemy and takes the roster multiplier like every
-    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
-    // pinned so a re-anchor moves the fixture with the game; the *authored*
-    // number is still asserted, just not the spawned one. The fight-length
-    // case below is what proves this is still a beatable fight rather than a
-    // wall, and it is measured, not assumed.
-    expect(e.maxHp).toBeCloseTo(scaled(365000) * w.content.enemies.baseHpMul, 0);
+    // other one. Derived rather than pinned so a re-anchor moves the fixture
+    // with the game; the *authored* number is still asserted, just not the
+    // spawned one. The fight-length case below is what proves this is still
+    // a beatable fight rather than a wall, and it is measured, not assumed.
+    // p12e: authored 365,000 -> 54,750 (see the header comment above,
+    // measured, not a pure algebraic unwind of `baseHpMul`).
+    expect(e.maxHp).toBeCloseTo(scaled(54750) * w.content.enemies.baseHpMul, 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed
@@ -119,7 +160,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(scaled(365000) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(scaled(54750) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
   });
 
