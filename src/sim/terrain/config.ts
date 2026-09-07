@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import raw from '../../../data/terrain.json';
 import { GATES, GRID_H, GRID_W } from '../grid';
+import { Hasher } from '../hash';
 
 /**
  * The arena's own limits, which several bands are unsatisfiable past.
@@ -590,6 +591,29 @@ export function loadTerrain(): TerrainConfig {
 /** Validate an arbitrary object as a terrain config (tests, Tuner previews). */
 export function parseTerrain(value: unknown): TerrainConfig {
   return schema.parse(value);
+}
+
+/**
+ * fb065i: a short, deterministic fingerprint of a `TerrainConfig`, so a dump
+ * (`describe.ts`) can carry a trace of the config it was measured under
+ * instead of being silently reinterpreted next to whatever `/data` happens to
+ * be on disk when someone reads it later.
+ *
+ * `JSON.stringify(cfg)` over the whole parsed object, deliberately, rather
+ * than a hand-picked list of "the fields that matter": `measureTerrain`'s own
+ * doc comment already names several (`coreGateClearance`, `minCorridorWidth`)
+ * and a maintained list is exactly the kind of thing this item exists to stop
+ * needing — a field added to a band calculation later and forgotten here would
+ * silently under-fingerprint the config, the same failure shape fb064b closed
+ * for `contentHash()`. `TerrainConfig` is a plain JSON-shaped object (zod's
+ * own output for this schema — arrays, strings, numbers, booleans, nested
+ * objects only) with a key order fixed by the schema's own declaration order,
+ * so `JSON.stringify` of two configs with the same content is byte-identical
+ * regardless of how each was constructed (`loadTerrain()`, `parseTerrain()` on
+ * a hand-built object, or a Tuner-edited draft).
+ */
+export function configFingerprint(cfg: TerrainConfig): string {
+  return new Hasher().str(JSON.stringify(cfg)).hex();
 }
 
 function deepFreeze<T>(value: T): T {

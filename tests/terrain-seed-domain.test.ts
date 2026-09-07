@@ -287,12 +287,29 @@ describe('fb064j — signed and unsigned views of one key are one map', () => {
 });
 
 describe('fb064j — the retry walk stays inside the domain', () => {
-  // The band no shipped seed misses; `minCoreLegalFrac: 0.5` makes roughly a
+  // The band no shipped seed misses; `minCoreLegalFrac: 0.53` makes roughly a
   // quarter of seeds degenerate, which is what puts the retry path under test.
+  // Re-measured at fb156's four-gate layout: `0.5` (fb166's value) now
+  // retries 0 of the 60 seeds this file walks — the fourth gate gives the
+  // generator another way to clear a low bar — so the threshold moved up to
+  // where the walk is exercised again (17 of 60 retry at 0.53).
   const strict = withConfig((raw) => {
-    (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.5;
+    (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.53;
   });
-  /** `strict`'s generation parameters with every band switched off. */
+  /**
+   * `strict`'s generation parameters with every band switched off.
+   *
+   * `maxGateDetour` joined the override at the 56x32 re-fit: it has no
+   * ceiling in the schema (`config.ts` — "a large value is a legitimate
+   * 'band off'"), but this object had never set one, so it silently kept
+   * carrying whatever `cfg.constraints.maxGateDetour` ships with. At 36x20 no
+   * seed in this file's ranges ever measured a detour past that ceiling, so
+   * the gap cost nothing; at 56x32, one seed in `-60..0`'s walk does (a bigger
+   * arena admits bigger detours), and "every band switched off" stopped being
+   * true. Found here rather than argued: without this line the test below
+   * failed on seed -43's walk with `raw.attempts` 2, not the 1 an actually
+   * band-free config guarantees.
+   */
   const alwaysAccepts = withConfig((raw) => {
     Object.assign(raw.constraints as Record<string, number>, {
       minWalkableFrac: 0,
@@ -300,6 +317,7 @@ describe('fb064j — the retry walk stays inside the domain', () => {
       minGateReachFrac: 0,
       minCoreLegalFrac: 0,
       minCorridorWidth: 1,
+      maxGateDetour: 1e6,
     });
   });
 
@@ -344,16 +362,29 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     // but the reported seed left the domain it claims to be in.
     //
     // The band is local rather than `strict` since fb064l: at
-    // `minCoreLegalFrac: 0.5` the key 2 ** 31 - 1 now measures 0.504043 and
-    // is accepted, so there is no walk left to test. 0.505 rejects it. The
-    // walk is three steps rather than two and that is not a weaker test but a
-    // stronger one — key 2 ** 31 (0.487047) is rejected too, so the walk
-    // *crosses* the int32 boundary and keeps counting instead of stopping on
-    // it, which is exactly the arithmetic the fb064j fix was about. No
-    // `minCoreLegalFrac` can make it a two-step walk: any band that rejects
-    // 0.504043 also rejects 0.487047.
+    // `minCoreLegalFrac: 0.53` the key 2 ** 31 - 1 is accepted, so there is no
+    // walk left to test.
+    //
+    // **Re-measured again at fb156's four-gate layout**, and the direction
+    // flipped from the fb166-era note this replaces: key 2 ** 31 - 1 now
+    // measures *higher* on every band than key 2 ** 31 (coreLegalFrac
+    // 0.604416 vs 0.556497, walkable 0.741629 vs 0.738281), so no single
+    // `minCoreLegalFrac` threshold can reject the first and accept the
+    // second — the old two-step shape is not available at this layout.
+    // `minWalkableFrac` does the job instead, over three keys rather than
+    // two: key 2 ** 31 - 1 measures 0.741629, key 2 ** 31 measures 0.738281
+    // (still below it), and key 2 ** 31 + 1 measures 0.748326 — the first key
+    // past the starting point's own share. `minWalkableFrac: 0.742` rejects
+    // the first two and accepts the third, so this is a three-step walk now,
+    // landing past 2 ** 31 rather than exactly on it. That is still the
+    // arithmetic the fb064j fix is about: a naive `(requested + n) | 0` would
+    // have reported this candidate's seed as a negative int32 partway through
+    // the walk. This is a fact about the current scatter, not a rule the
+    // schema enforces — a future retune may move the walk's length or
+    // direction again, and that is this test's job to catch, not a
+    // regression to chase.
     const crossing = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.505;
+      (raw.constraints as Record<string, number>).minWalkableFrac = 0.742;
     });
     const m = generateTerrain(2 ** 31 - 1, crossing);
     expect(m.attempts).toBe(3);
@@ -366,21 +397,31 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     expect(m.hash).toBe(direct.hash);
   });
 
-  it('a walk off the top of uint32 wraps to seed 0', () => {
-    // No shipped-config seed reaches this, so the wrap is forced: seed -1
-    // measures walkableFrac 0.69166 and seed 0 measures 0.69305, so a band
-    // between them makes 0xffffffff degenerate and 0 the answer.
+  it('a walk off the top of uint32 wraps around and keeps counting from 0', () => {
+    // No shipped-config seed reaches this, so the wrap is forced.
+    //
+    // **Re-measured at fb156's four-gate layout.** `coreLegalFrac` at key
+    // 0xffffffff is 0.552153, and the first key after the wrap to beat it is
+    // key 11 (0.598696) — every key from 0 through 10 measures lower
+    // (0.593437 down to 0.507828, none above the top key's own share). A
+    // `minCoreLegalFrac` anywhere in (0.593437, 0.598696] — 0.595 here —
+    // walks 0xffffffff and every key 0..10 as degenerate and lands on key 11,
+    // which is the stronger demonstration anyway: the walk does not just
+    // touch the wrap and stop, it keeps counting through it. Twelve attempts
+    // is past the shipped `maxAttempts: 8`, so this fixture also raises it —
+    // a property of this test's own config, not of `/data`.
     const wrap = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minWalkableFrac = 0.6925;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.595;
+      (raw as Record<string, number>).maxAttempts = 20;
     });
     for (const s of [-1, MAX_TERRAIN_SEED]) {
       const m = generateTerrain(s, wrap);
       expect(m.fallback).toBe(false);
-      expect(m.attempts).toBe(2);
-      expect(m.seed).toBe(0);
+      expect(m.attempts).toBe(13);
+      expect(m.seed).toBe(11);
       expect(m.requestedSeed).toBe(s);
       expect(legalUnder(m, wrap)).toBe(true);
-      const direct = generateTerrain(0, wrap);
+      const direct = generateTerrain(11, wrap);
       expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
       expect(m.hash).toBe(direct.hash);
     }
@@ -411,7 +452,32 @@ describe('fb064j — provenance on the fallback map', () => {
 });
 
 describe('fb064j — the band cliff is a property of the whole domain', () => {
-  it('pins the far-domain seed that sits exactly on the walkable floor', () => {
+  // TODO(fb166 resize): this pin is not a stale value, it is now provably
+  // unsatisfiable and no seed search can fix that. At 36x20 the arena has
+  // 720 tiles and `minWalkableFrac: 0.6` lands on the exact integer 432 =
+  // 720 * 0.6, so a map at precisely zero headroom against the band is a real
+  // floating-point value some seed can hit. At 56x32 the arena has 1792
+  // tiles, and 1792 is not a multiple of 5 (1792 * 0.6 = 1075.2) — so no
+  // integer `walkableCount` can ever divide out to the IEEE-754 double `0.6`
+  // exactly. Checked exhaustively rather than argued: `k / 1792 === 0.6` is
+  // false for every integer k in [0, 1792], because 0.6 itself is not exactly
+  // representable and no `k/1792` rounds to that same stored double (the two
+  // nearest candidates are 1075/1792 = 0.599888... and 1076/1792 =
+  // 0.600446..., both measurably off it). This is a fact about the grid's
+  // area and the band's decimal, not about the generator or this test.
+  //
+  // Left `.skip`ped per CLAUDE.md working rule 6 rather than deleted or
+  // loosened to "close to the floor," which would quietly drop the "zero
+  // headroom" claim the test exists to make. A real fix is one of: retune
+  // `minWalkableFrac` to a value `data/terrain.json` can hit exactly at
+  // 56x32 (e.g. anything of the form n/1792, or n/56, or n/32), or change
+  // this test's claim to "the smallest walkableCount `generateTerrain` can
+  // return is `Math.ceil(total * minWalkableFrac)`" (1076 here) and pin a
+  // seed that hits *that* integer instead of the literal band value. Filed
+  // as a real finding in this item's report rather than fixed here, since
+  // both remedies are calls about `/data` or about the assertion's meaning,
+  // not about re-measuring a number this file already commits to.
+  it.skip('pins the far-domain seed that sits exactly on the walkable floor', () => {
     // fb064a's Log records seed 7957 at walkableFrac exactly 0.6000 against a
     // `>= 0.60` band — zero headroom, passing only because the band is `>=`.
     // That was measured over seeds 1..20000 and read as a fact about that
@@ -425,6 +491,9 @@ describe('fb064j — the band cliff is a property of the whole domain', () => {
     // below the band is regenerated at seed+1, so 0.600000 is the smallest
     // walkable share `generateTerrain` can *return*, and finding a seed that
     // sits exactly on it stayed a search rather than a surprise.
+    //
+    // (36x20-era seed pair kept below for provenance; at 56x32 no seed pair
+    // can pass the `walkableFrac` assertion — see the TODO above.)
     for (const s of [4294805928, -161368]) {
       const m = generateTerrain(s, cfg);
       const q = measureTerrain(m, cfg);
@@ -463,16 +532,16 @@ describe('fb064j — golden hash per region', () => {
       '4294967294': golden(2 ** 32 - 2),
       '4294967295': golden(MAX_TERRAIN_SEED),
     }).toEqual({
-      '-2147483648': 'd8573b44',
-      '-12345': 'cb3ee3a6',
-      '-1': '077808d2',
-      '0': '58fa46d9',
-      '2147483646': '3956f8e2',
-      '2147483647': '2563a26b',
-      '2147483648': 'd8573b44',
-      '3000000000': '12a572e3',
-      '4294967294': 'd27c038b',
-      '4294967295': '077808d2',
+      '-2147483648': '05da9e17',
+      '-12345': 'c451d779',
+      '-1': '0fa2bebb',
+      '0': '2c0c332c',
+      '2147483646': 'c9fc20e5',
+      '2147483647': '38874522',
+      '2147483648': '05da9e17',
+      '3000000000': '5e79ce27',
+      '4294967294': '87a1ca01',
+      '4294967295': '0fa2bebb',
     });
   });
 
@@ -501,6 +570,6 @@ describe('fb064j — golden hash per region', () => {
       2: generateTerrain(2, asFb064a).hash,
       42: generateTerrain(42, asFb064a).hash,
       1000: generateTerrain(1000, asFb064a).hash,
-    }).toEqual({ 1: '03031f09', 2: '30ddb8d4', 42: 'b2e86488', 1000: '473db113' });
+    }).toEqual({ 1: 'd4eed3a8', 2: '89b69c81', 42: '20de3e8d', 1000: 'af1667c2' });
   });
 });

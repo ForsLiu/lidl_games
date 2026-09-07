@@ -309,16 +309,29 @@ describe('suggestCoreAnchor (fb064h)', () => {
     // value quietly voided that exemption. 177 and 381 each kill both radius
     // mutants; the hand-built fixture below does not, since its 4x4 of build
     // room resolves correctly at radius 1 too. (Review.)
+    //
+    // **Re-measured again at fb166's 56x32 resize.** Every value below moved —
+    // the grid, the gate positions relative to it and `CORE_X/CORE_Y`'s own
+    // distance to the arena's new center all changed what each seed's scatter
+    // lands on — so this is a re-measurement of `suggestCoreAnchor`'s real
+    // output, the same discipline the fb064l re-derivation above used, not a
+    // hand-computed guess. What this pass did NOT redo is the mutant-kill
+    // classification two paragraphs up: confirming which seeds still exercise
+    // the build-room key vs. `ROOM_RADIUS` vs. the plain lowest-index tie
+    // would mean re-running each mutant against the new maps, which is
+    // outside a resize item's scope. The claims above should be treated as
+    // unverified at 56x32 until someone does that pass; what is verified here
+    // is that this table matches what the shipped code actually returns today.
     const golden: ReadonlyArray<readonly [number, number]> = [
-      [3, 349],
-      [13, 421],
-      [24, 385],
-      [40, 421],
-      [97, 347],
-      [112, 347],
-      [177, 385],
-      [189, 348],
-      [381, 350],
+      [3, 529],
+      [13, 529],
+      [24, 529],
+      [40, 529],
+      [97, 586],
+      [112, 529],
+      [177, 530],
+      [189, 529],
+      [381, 474],
     ];
     for (const [seed, want] of golden) {
       expect(suggestCoreAnchor(generateTerrain(seed, cfg), cfg), `seed ${seed}`).toBe(want);
