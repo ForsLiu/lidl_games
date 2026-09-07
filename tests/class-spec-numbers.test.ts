@@ -1070,14 +1070,21 @@ const LEDGER: readonly Figure[] = [
       // unimplemented. Re-pinned to the new lines (fb084's enabler is the
       // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
       // authoring `summonCap: 1` on Kinship's `mods`.
+      //
+      // A qa-playtester pass on fb084 found the generic bonus can drive the
+      // Pop Turret/Manifest total to <=0, which `spawnClassSummon` would
+      // otherwise read as its own "uncapped" sentinel (Bone Pylons' literal
+      // `0` call) — fixed with an explicit `cap <= 0` guard at both sites,
+      // hoisting the expression into a named `const cap` in the process (a
+      // second re-pin, still no `/data` change).
       srcLines: [
         {
           file: CLASSES_TS,
           needle: 'summonCap',
           lines: [
-            '(eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
             'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
-            '(eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
           ],
         },
         // Pinning the three cap lines catches a `+1` folded *into* them, but

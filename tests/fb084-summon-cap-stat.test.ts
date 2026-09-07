@@ -13,6 +13,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { applyCommand } from '../src/sim/run';
+import { buildTower } from '../src/sim/towers';
 import { killEnemy, spawnEnemy } from '../src/sim/enemies';
 import { STAT_DISPLAY, STAT_KIND, STAT_SCALED } from '../src/sim/statkeys';
 import { derive, emptyStats } from '../src/sim/stats';
@@ -71,5 +72,49 @@ describe('fb084: summonCap stat key', () => {
     necro.recomputeDerived();
     applyCommand(necro, { k: 'class_active' });
     expect(necro.classSummons.filter((s) => s.kind === 'necro_skeleton')).toHaveLength(necroBaseCap + 1);
+  });
+
+  /**
+   * qa-playtester found this via hostile testing (not a shipped-content
+   * bug — Kinship's own `mods` are still `{}`, so no `/data` row reaches
+   * it today): `spawnClassSummon` (classes.ts) reads a `cap <= 0` argument
+   * as its own "uncapped" sentinel (Bone Pylons' deliberate literal `0`
+   * call, `updatePactedTowers`), not "no room." Before fb084 the two
+   * player-cast sites below could never pass a non-positive total (their
+   * only inputs were a positive `/data` constant and a non-negative
+   * skill-card bonus); fb084's new `summonCapBonus` is the first
+   * arbitrarily-signed lever into that total, so a large-enough negative
+   * source could have driven Pop Turret/Manifest to spawn *unboundedly*,
+   * never evicting, instead of "cannot summon." Both sites now guard
+   * `cap <= 0` and return before spawning (the same shape
+   * `fireRaiseSkeletons`' pre-existing `room <= 0` guard already has).
+   */
+  it('a summonCap bonus that drives the total to zero or negative spawns nothing, rather than uncapping the ability', () => {
+    // Engineer: Pop Turret (active2, cooldown-gated).
+    const eng = new World(cfg({ classKey: 'engineer' }));
+    eng.gold = 1e6;
+    const engBaseCap = content.classByKey.get('engineer')!.active2.summonCap!;
+    eng.stats.add('test:fb084-negative', 'summonCap', -engBaseCap);
+    eng.recomputeDerived();
+    for (let i = 0; i < 20; i++) {
+      eng.warden.active2Cooldown = 0;
+      applyCommand(eng, { k: 'class_active2' });
+    }
+    expect(eng.classSummons.filter((s) => s.kind === 'engineer_turret')).toHaveLength(0);
+
+    // Animist: Manifest Spirit (active1, gated on a nearby attacking tower).
+    const ani = new World(cfg({ classKey: 'animist' }));
+    ani.gold = 1e6;
+    ani.warden.x = 10;
+    ani.warden.y = 10;
+    buildTower(ani, ani.content.towerByKey.get('arrow_spire')!.id, 11, 10);
+    const aniBaseCap = content.classByKey.get('animist')!.active1.summonCap!;
+    ani.stats.add('test:fb084-negative', 'summonCap', -aniBaseCap * 100);
+    ani.recomputeDerived();
+    for (let i = 0; i < 15; i++) {
+      ani.warden.active1Cooldown = 0;
+      applyCommand(ani, { k: 'class_active' });
+    }
+    expect(ani.classSummons.filter((s) => s.kind === 'animist_spirit')).toHaveLength(0);
   });
 });

@@ -710,11 +710,17 @@ function fireSummonTurret(w: World, cls: ClassDef): void {
   if (!def || !def.attack) return;
   const p = towerSummonProfile(w, def, 1);
   const share = eff.summonStatMul ?? 0;
+  // p7a (§6.3) skill card "Extra Turret": summon cap +1/rank. fb084: plus any passive-authored bonus (e.g. Animist Kinship's own +1).
+  const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;
+  // fb084 QA: a stacked-negative bonus can drive this to <=0, which
+  // `spawnClassSummon` would otherwise read as its own "uncapped" sentinel
+  // (Bone Pylons' deliberate literal-0 call) rather than "no room" — guard
+  // it here the same way `fireRaiseSkeletons`' `room <= 0` already does.
+  if (cap <= 0) return;
   spawnClassSummon(
     w,
     'engineer_turret',
-    // p7a (§6.3) skill card "Extra Turret": summon cap +1/rank. fb084: plus any passive-authored bonus (e.g. Animist Kinship's own +1).
-    (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,
+    cap,
     wd.x,
     wd.y,
     p.dps * share,
@@ -1027,11 +1033,14 @@ function fireManifestSpirit(w: World, cls: ClassDef): void {
   const p = towerSummonProfile(w, def, maxLevel(def));
   // p7a (§6.3): "Active1 potency +25%" on the spirit's damage share.
   const share = (eff.summonStatMul ?? 0) * active1PotencyMul(w);
+  // p7a: skill card "Kindred Spirits" — spirit cap +1/rank. fb084: plus any passive-authored bonus (Animist Kinship's own +1).
+  const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;
+  // fb084 QA: see fireSummonTurret's identical guard above.
+  if (cap <= 0) return;
   spawnClassSummon(
     w,
     'animist_spirit',
-    // p7a: skill card "Kindred Spirits" — spirit cap +1/rank. fb084: plus any passive-authored bonus (Animist Kinship's own +1).
-    (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus,
+    cap,
     s.tx + 0.5,
     s.ty + 0.5,
     p.dps * share,
