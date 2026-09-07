@@ -682,9 +682,21 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // `/data`-only lever found that raises distinct count without re-breaking
   // some other gate), so re-pinned to the honest current number rather than
   // chased further here.
+  //
+  // p12e (2026-09-07) re-pinned 2->1: the final boss's exemption from
+  // `baseHpMul` (landed fix — see `src/sim/enemies.ts`'s `makeEnemy`) keeps
+  // `warden_eater`'s effective HP at its fb099-fitted 365,000 — unchanged in
+  // practice from p12c's pre-fix number — but the shorter, un-censored fight
+  // this unblocks shifted `time_lord`'s top damage source off `mortar` and
+  // onto the shared `ballista` TD build,
+  // the only class not already there, collapsing the distinct count to 1 of
+  // 12. G8's own >=9/12 target is unmet either way — this moves an
+  // already-red gate further along the same axis it was already failing, not
+  // a newly broken one. Control-paired via `git stash` against the fix
+  // (measured 2 before, 1 after) rather than assumed.
   it('the current (red) distinct-source count is pinned, not silently drifting', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
-    expect(distinct.size).toBe(2);
+    expect(distinct.size).toBe(1);
   });
 });

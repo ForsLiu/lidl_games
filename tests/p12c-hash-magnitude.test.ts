@@ -8,11 +8,16 @@
  *
  * Latent until p12c: the largest hashed number in the sim was the final
  * boss's HP at 365,000 (quantized 3.7e8, comfortably inside range). p12c's
- * roster-wide `baseHpMul: 20` puts it at 7,300,000 — quantized 7.5e9, past
- * 2^32 — so **at T1, for the first time, the boss at full HP and the boss at
- * 42.5% HP hash the same**. Determinism was never at risk (the wrap is
- * deterministic); what was at risk is exactly what G2 exists to catch, a
- * replay divergence the hash cannot see.
+ * roster-wide `baseHpMul: 20` put it at 7,300,000 at the time — quantized
+ * 7.5e9, past 2^32 — so **at T1, for the first time, the boss at full HP and
+ * the boss at 42.5% HP hashed the same**. Determinism was never at risk (the
+ * wrap is deterministic); what was at risk is exactly what G2 exists to
+ * catch, a replay divergence the hash cannot see.
+ *
+ * p12e (2026-09-07) exempted the final boss (`TRAIT.finalBoss`) from
+ * `baseHpMul` entirely, so the roster no longer reaches this magnitude at T1
+ * today — the case below still pins the fix at the magnitude that exposed
+ * it, not at whatever the boss's HP happens to be this week.
  *
  * The fix folds the high half only when it carries information, so every
  * value inside int32 range hashes bit-identically to before — which is what
