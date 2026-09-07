@@ -228,11 +228,15 @@ the merge — never edited from this lane.
       `tests/terrain*` directory (26 files): 427 passed, 9 skipped (the
       pre-existing fb166-logged skips, unchanged), 0 failed. `npm run
       test:fast`: 272 passed files / 9 failed / 8 skipped, 4131 passed tests /
-      22 failed / 62 skipped — every failing file
-      (`tests/class-board.test.ts`, `tests/content-complete.test.ts`,
-      `tests/fb077-terrain-wiring.test.ts`, `tests/grid.test.ts`,
-      `tests/p1a-sealing.test.ts`, `tests/q45-cli-schema-violation.test.ts`)
-      confirmed pre-existing and unrelated by re-running two of them
+      22 failed / 62 skipped — **all 9 failing files, named** (a first pass
+      through this note named only 6 and left the other 3 implicit, corrected
+      here post-review): `tests/b007-tile-bounds.test.ts`,
+      `tests/class-board-windows.test.ts`, `tests/class-board.test.ts`,
+      `tests/content-complete.test.ts`, `tests/fb077-terrain-wiring.test.ts`,
+      `tests/grid.test.ts`, `tests/p1a-sealing.test.ts`,
+      `tests/q15-command-domain-fuzz.test.ts`,
+      `tests/q45-cli-schema-violation.test.ts` — confirmed pre-existing and
+      unrelated by re-running two of them
       (`tests/grid.test.ts`, `tests/content-complete.test.ts`'s Gatebreaker
       test) with this item's two new files stashed out via
       `git stash -u` — both failed identically without this item's changes

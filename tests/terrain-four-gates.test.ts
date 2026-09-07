@@ -80,6 +80,35 @@ const FOUR_GATES: readonly GateDef[] = [
 /** fb156: a tier modifier that adds a gate now goes to 5 — a second north gate. */
 const FIVE_GATES: readonly GateDef[] = [...FOUR_GATES, { key: 'north2', tx: 40, ty: 0 }];
 
+/**
+ * Self-verifying rather than reviewer-verified: the module comment above
+ * claims these fixtures sit on the real border and are pairwise non-adjacent
+ * (`flatCoreAnchorCount`'s documented precondition). A prior review confirmed
+ * both by hand; this makes the claim check itself on every run instead of
+ * resting on a comment.
+ */
+describe('fb156 — the fixtures this file builds are honest about their own geometry', () => {
+  it.each([
+    ['FOUR_GATES', FOUR_GATES],
+    ['FIVE_GATES', FIVE_GATES],
+  ] as const)('%s: every gate sits on the real 56x32 border', (_label, gates) => {
+    for (const g of gates) {
+      expect(g.tx === 0 || g.tx === GRID_W - 1 || g.ty === 0 || g.ty === GRID_H - 1).toBe(true);
+    }
+  });
+
+  it.each([
+    ['FOUR_GATES', FOUR_GATES],
+    ['FIVE_GATES', FIVE_GATES],
+  ] as const)('%s: no two gates are adjacent along a border (flatCoreAnchorCount precondition)', (_label, gates) => {
+    for (let i = 0; i < gates.length; i++) {
+      for (let j = i + 1; j < gates.length; j++) {
+        expect(gateDistance(gates[i].tx, gates[i].ty, [gates[j]])).toBeGreaterThan(1);
+      }
+    }
+  });
+});
+
 const SWEEP = 1200;
 
 /**
