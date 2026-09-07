@@ -167,7 +167,13 @@ describe('fb058: the four hover entries show sentence-form text with live number
   it('Passive/Tower passive/Active1/Active2 each get one .sw-cs-skill entry with the class-info.ts effect text', () => {
     const { root } = openHub();
     const swordsman = content.classByKey.get('swordsman')!;
-    const entries = [...root.querySelectorAll<HTMLElement>('.sw-cs-skill')];
+    // fb117 gave the Core-select panel its own `.sw-cs-skill` hover entries
+    // (deliberately reusing the same CSS class, per fb117's own comment) —
+    // scope to the Class panel's `.sw-classdetail` (rendered first) rather
+    // than querying the whole page, same as this file's other tests already
+    // do via `root.querySelector('.sw-classdetail')`.
+    const detail = root.querySelector('.sw-classdetail')!;
+    const entries = [...detail.querySelectorAll<HTMLElement>('.sw-cs-skill')];
     expect(entries).toHaveLength(4);
 
     const tips = entries.map((e) => e.querySelector('.sw-cs-tip')!.innerHTML);
