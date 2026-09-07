@@ -809,7 +809,53 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07** — F8 (dev and prod alike, not gated
+      on `devMode`) opens a self-contained note box (`src/ui/bugreport.ts`'s
+      `BugReportBox`, deliberately not `hud.ts`'s shared `.sw-modal`) that
+      pauses a running run for its duration and restores whatever pause state
+      held before. Submit builds a bundle (class/Core/tier/wave/phase/tick/
+      seed/content hash/`endHash`/the full recorded input log/a canvas
+      screenshot) and, in a dev build (`isDevBuild()`, the same predicate
+      `hud.ts`'s Tuner surface already gates on), POSTs it to a new
+      `/__bugreport/save` dev-server endpoint (`src/devserver/
+      bugReportPlugin.ts`/`bugReportSave.ts`, `apply: 'serve'`, mirroring
+      `tunerPlugin.ts`/`tunerSave.ts` exactly) which writes the replay
+      (`RecordedRun` JSON) and screenshot PNG under `/replays` and a
+      `bug-<timestamp>.md` into the inbox directory naming both paths plus
+      every metadata field; a production build downloads the same bundle as
+      one JSON file instead (no dev server to reach — confirmed absent from
+      a real `vite build` bundle). Q193 logs the `D:\lidl_inbox` default as an
+      injectable parameter (same shape `tunerPlugin.ts` already established
+      for `data/`), verbatim from the feedback text, with every test
+      injecting a temp dir instead. `tests/fb139-bug-report-replay.test.ts`
+      is the acceptance line's own literal ask: a real `Run` stepped partway,
+      saved through `saveBugReport`, read back off disk, and replayed via
+      `replayRecorded`/`hashWorld` (architecture rule 2) to confirm an
+      identical end-state hash at the recorded tick. CLAUDE.md's Full-tier
+      bullet now names a saved F8 bundle a first-class repro.
+      code-reviewer's one Critical (this session): the outer `window`
+      keydown listener wasn't gated on the box being open, so typing a note
+      — Escape, Enter, 'u'/'x'/'q'/'e', tower-slot digits — queued live
+      gameplay Commands and even unpaused the run via Escape's own
+      `togglePause`, the instant the box closed; fixed with an early return
+      right after the F8 branch, proven by a failing-then-passing regression
+      test dispatching real `KeyboardEvent`s at the open textarea.
+      qa-playtester's one Major (this session): a literal top-level JSON
+      `null` body is valid JSON (so the shared `readJsonBody`'s parse
+      `try/catch` never saw it), and the first property read on it threw as
+      an unhandled rejection inside the `async` middleware — crashing the
+      dev server instead of answering 400. Latent in the sibling
+      `tunerSaveMiddleware` too (same shape, pre-existing, confirmed by the
+      same repro) and fixed in both, each pinned by a regression test
+      confirmed red beforehand. `readJsonBody` also picked up a Minor fix in
+      the same pass: its own size cap is now parameterized (`maxBytes`,
+      default unchanged) so the bug-report endpoint's 64 MB cap (replay
+      bundles routinely dwarf a `/data` file) doesn't inherit the Tuner's
+      10 MB one — both caps now have their own regression test. `npm run
+      test:fast` (twice, before and after the fixes): only the documented,
+      pre-existing `q15`/`q45` host-load flake, reproduced identically on a
+      clean `git stash` of this whole diff. `npx tsc --noEmit` clean.
+      Original text follows. top priority: in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into
@@ -4010,7 +4056,30 @@ generation-rule boundary.
       overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
       `'terrain'` falls into the same drop-the-plan branch `'occupied'`
       did. Renderer string stays UI-lane fb116 (was fb091).
-- [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
+- [x] (fb079) [docs] **DONE 2026-09-07** — appended §10.5 (SPEC-FINAL.md)
+      verbatim from the feedback file plus the Q162/Q171 lane decisions,
+      folded G2's wording (a terrain-determinism clause) and §13's content
+      totals (the terrain file), noted the addition in a new MIGRATION.md
+      §8.6, and logged the append itself as Q194
+      (`[designer-fill]`, owner verdict pending). Docs-only — no `/src` or
+      `/data` touched. `npm run test:fast`'s SPEC-FINAL-parsing suites
+      (`tests/q10-gate-audit.test.ts`, `tests/fb038-status.test.ts`,
+      `tests/class-spec-numbers.test.ts`, `tests/equip-spec-numbers.test.ts`)
+      re-run green — the new G2 table row stays one line (no `|` introduced)
+      so `tools/gate-audit.ts`'s row parser is unaffected. code-reviewer
+      (light tier, docs-only) found two Major fidelity gaps on the first
+      pass, both fixed before this was marked done: the "verbatim" quote had
+      silently dropped two source clauses (the Core-legal-positions
+      rationale, "Tuner page (density/ratios editable)") and reflowed the
+      tile-types bullets into prose, losing the rock-passthrough
+      `[designer note]` and the `(Spitter)` example — now quoted as an
+      actual verbatim bullet list matching the source file; and a lane-
+      decisions bullet claimed the run's live gate list is threaded through
+      "every" gate-reading function, contradicting Q171(9)/open BACKLOG
+      fb134 (`describeTerrain` still reads the base `GATES` constant) — now
+      states that exception explicitly. Re-reviewed after the fixes: no
+      further findings.
+      Original text follows. SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
       `feedback/processed/20260903-121255-feature-terrain-generation.md`
@@ -4022,7 +4091,41 @@ generation-rule boundary.
       file; MIGRATION.md §8 notes the addition. Log the append in
       QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
       §10, §14 G2, §17. **Amended at the 2026-09-04 merge:** §10.5 must also cover the lane's later decisions (Q171) — Core placement rules and the suggested anchor, the high-ground families and the no-boss-family rule, the character-passage flag, the seed domain, the approach band (`maxGateDetour`) beside fb064a's bands, the uncontested-high repair, and the run-gate-list threading.
-- [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
+- [x] (fb080) [polish] **DONE 2026-09-07** — `data/terrain.json` joins the
+      fuzzed/Tuner-validated set. `src/sim/terrain/config.ts`'s module-private
+      `schema` is now the exported `TerrainFileSchema` (identical
+      `.superRefine`, tile-order pin included — `parseTerrain` is defined as
+      exactly `TerrainFileSchema.parse`, so nothing was lost); `content.ts`'s
+      `TUNER_FILES` gains a `terrain` entry with no `contentField` (same as
+      `warden`'s precedent — terrain has no cross-file reference for
+      `loadContent()`'s override union to dry-run). `tools/fuzz-data.ts`'s
+      `DATA_FILES` gains `'terrain'`, with the doc comment explaining the one
+      real wrinkle: `content.ts` reaches `terrain.json` *indirectly* (through
+      `terrain/config.ts`'s `TERRAIN_RAW`), not with its own direct import
+      like the other fourteen — `tests/q7-data-fuzz.test.ts`'s "mocks exactly
+      the files content.ts imports" pin now checks that indirection
+      explicitly (both link strings asserted) rather than either breaking or
+      silently special-casing it. `tests/q7-loader-holes.ts` regenerated via
+      the documented `Q7_RECORD=1` procedure — diffed against the prior file
+      to confirm every change is a new, additive `terrain.*` entry and
+      nothing pre-existing moved. `tools/mutation-probe.ts` needed no change:
+      confirmed it carries no per-file `/data` registry of its own (it
+      copies the whole `data/` directory and targets known `/src` source
+      regressions, not individual data files) — code-reviewer verified this
+      directly. Zero `/data` content changes; no new validation logic beyond
+      wiring. `npm run test:fast` (4155 passed, 53 skipped, only the
+      documented pre-existing `q15`/`q45` flake) and `npx tsc --noEmit`
+      clean. code-reviewer (full tier — touches `/src/sim`): **APPROVE**,
+      two Minor/one Nit (documented rather than fixed: a future indirectly-
+      reached file needs its own hand-added exception in the same q7 test,
+      no structural safeguard forces that; the fuzz-data.ts/q7-loader-holes
+      comments' "new file shows up as a mismatch" framing is pre-existing
+      and only covers direct-import files, not a `/data`-directory readdir)
+      — independently traced the Tuner save path and spot-checked several
+      regenerated hole entries against the real schema and shipped values,
+      confirmed honestly measured. BACKLOG-TERRAIN fb064f's terrain page
+      builds on this next.
+      Original text follows. `data/terrain.json` is unknown to every data tool:
       `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
       `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
       `TERRAIN_RAW` precisely so q7's import-seam pin stays honest until this
@@ -4067,7 +4170,87 @@ generation-rule boundary.
       `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
       `* areaMul` (align tower beams with vswield/classes or pin the
       exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
-- [ ] (fb082) [bug] Poison Barrel's ground area applies poison **every
+- [x] (fb082) [bug] **DONE 2026-09-07** — `updateAreas`'s poison branch
+      (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
+      (`GroundArea.acc`, declared since the type was written but never read)
+      instead of firing every 60 Hz frame; authored explicitly as
+      `groundTickSeconds: 1` in `data/classes.json`'s Plaguebringer `active1`
+      (threaded through a new optional, `.positive()`-validated schema field
+      and read in `firePoisonBarrel`), with a loader cross-check refusing
+      `groundTickSeconds > groundDurationSeconds` (an authored value that
+      would silently, permanently disable the mechanic).
+      **A first pass shipped a real ~3.5x DPS regression** — code-reviewer
+      and qa-playtester independently measured it (429.6 -> 120 total damage
+      over the barrel's 5 s life). Root cause: gating call *frequency* alone
+      while leaving `applyPoison`'s pre-existing hardcoded `duration: 1.0`
+      unchanged let every stack fully expire before the next application
+      arrived (never more than 1 concurrent stack), where the pre-fix 60 Hz
+      spam had kept all `POISON_STACK_CAP` (3) slots refreshed almost
+      continuously. Fixed by passing `duration: tick * POISON_STACK_CAP`
+      instead, so consecutive per-`tick` applications overlap enough to
+      reach and sustain the cap — restoring the pre-fix magnitude while
+      still cadencing correctly (one *application* per tick, not one per
+      frame); a new test drives real per-frame DoT decay (`updateEnemies`)
+      alongside `updateAreas` to prove `dotStacks` actually reaches 3 at
+      steady state, confirmed red against the naive fix and green against
+      this one.
+      **qa-playtester also found a second bug in the same first pass**: a
+      poison area whose *entire* lifetime is a single `tickSeconds` window
+      (Venom Spore's own trail blob — a fresh one replaces it every
+      `special.interval`, `data/towers.json`) went permanently silent,
+      because the cadence accumulator was checked *after* the area's own
+      expiry early-return, losing its one scheduled application to a
+      `remaining`/`acc` rounding race at the boundary — measured 0 damage at
+      the shipped 1.4286 s interval. Fixed by re-ordering `updateAreas` so
+      the poison branch accumulates and checks cadence *before* marking the
+      area dead (every other type's expiry behaviour is unchanged, including
+      `'burn'`'s pre-existing, negligible sub-frame loss on its own exact
+      expiry frame); `vsspecials.ts`'s `updatePoisonTrail` now also sets
+      `tickSeconds: special.interval` explicitly, matching each blob's own
+      lifetime by construction rather than depending on the engine's `?? 1`
+      default happening to be smaller. A parametrized regression test
+      (`tests/p2c-vs-specials.test.ts`) drives real `updateAreas` over a full
+      blob lifetime at 1.4286/1/0.5 s intervals, confirmed red before the
+      re-ordering fix at every value.
+      A remaining, narrower limitation is logged rather than engineered
+      around: a poison area whose lifetime is *not* an exact multiple of its
+      own `tickSeconds` loses its trailing partial window (no fractional
+      "final tick" — `applyPoison`'s stack model has no notion of a partial
+      application). Not reachable by any shipped `/data` row today (Poison
+      Barrel is 5/1, Venom Spore's blob now ties `tickSeconds` to its own
+      exact lifetime) and not part of this item's acceptance; qa-playtester
+      flagged it as a Major worth a future item if a duration-scaling skill
+      card (e.g. Time Lock's own "+2s/rank" pattern) is ever authored for
+      Poison Barrel.
+      **Re-review round (code-reviewer + qa-playtester again, same session):
+      both APPROVE/PASS**, empirically re-measuring the DPS fix (independent
+      methodology landed within noise of the first measurement, confirming
+      the restored magnitude is genuinely close to the pre-fix baseline, not
+      just "improved") and re-driving the Venom Spore fix at three interval
+      values through the real tower-build pipeline. One more Minor closed
+      from that pass: `groundDurationSeconds <= 0` with `groundTickSeconds`
+      left unauthored slipped past the exceeds-check (which only compares
+      when both fields are present) and reached `firePoisonBarrel`'s `?? 1`
+      fallback — a lifetime that can never cross even the default cadence.
+      Now an independent, scoped-to-`ground_poison` positivity check (not a
+      schema-wide change, since `dash_trail`/`time_lock` share the same field
+      for a lifetime with no cadence to cross). Confirmed this closes no
+      further q7 census entries (the fuzzer mutates one field per trial, and
+      real data always authors `groundTickSeconds`, so this exact combination
+      was never reachable through the existing single-field mutation
+      families — verified by an unchanged `q7-data-fuzz` census before/after).
+      `tests/class-spec-numbers.test.ts`'s c008 ledger row for "applying
+      poison damage every second" moved `defect` -> `match` (census 67->68
+      match, 1->0 defect); `tests/q7-loader-holes.ts` regenerated twice via
+      the documented `Q7_RECORD=1` procedure (once for the new field, again
+      after the loader cross-check closed `groundDurationSeconds`'s own
+      stale negative/zero holes) — diffed both times to confirm purely
+      additive/closing changes. `npm run test:fast`: only the documented
+      pre-existing `q15`/`q45` flake. `npx tsc --noEmit` clean. Short cross-
+      lane note added to BACKLOG-CONTENT.md's Log (fb082 landed, unblocks
+      fb062's own remaining acceptance — zero-direct-damage/no-lifesteal and
+      tooltip tests — which this item does not touch).
+      Original text follows. Poison Barrel's ground area applies poison **every
       tick**: `updateAreas` (`src/sim/combat.ts`) calls `applyPoison(w, e,
       a.dps * scale, 1.0, 3, a.source)` at 60 Hz where SPEC-FINAL §4.1 says
       "applying poison damage every second" — the stack cap bounds the damage
