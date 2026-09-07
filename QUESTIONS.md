@@ -778,3 +778,20 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
+- **Q193. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+  measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
+  acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
+  gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this
+  item, run) a single or small (5-Core) scripted harness, so adding two more
+  tiers is a small multiple of their existing cost. G8's own T3 band is
+  inherently per-class (12 classes x 12 seeds already, ~10+ minutes), so a
+  literal per-class T1/T5 expansion would triple that file's cost for a
+  question the shared harness already answers: whether the T1/T5 rungs
+  themselves produce the intended easy/hard skew, independent of which class
+  is asking. Chose to add the companion checks once, on the same
+  `classKey: 'engineer'`/`hybrid` harness `tests/p12c-margin.test.ts` and
+  G1/G14 use, rather than per class. If a future item needs the per-class
+  reading specifically (e.g. to check whether the tier ladder skews any one
+  class's band differently from the rest), that is new work, not implied by
+  this one.
+

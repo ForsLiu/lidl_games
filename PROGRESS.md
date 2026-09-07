@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
+  rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
+  tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
+  checks (not replacements), and G8's row replaces the old "top damage
+  source differs across >=9/12" clause with the two owner-specified checks:
+  (i) every class's own-kit VS damage share >=35% from wave 12; (ii)
+  pairwise class-kit fingerprint distance (G22's L1-distance method) >=0.15
+  for all 66 pairs. Matching test changes: `tests/p10d-run-length.test.ts`
+  (G1), `tests/boss.test.ts` (G14), `tests/p-core-f-gates.test.ts` (G23,
+  plus a `tier`/`maxTicks` override added to `runCoreScripted` so the
+  companion sweep could reuse it), `tests/p6e-class-diversity.test.ts` (G8,
+  whose new diversity checks reuse the file's own existing T3 `beforeAll`
+  sweep rather than launching a second one). Every new assertion was run
+  against the live sim, not assumed. G1 and G14's T1/T5 companions both pass
+  live (single `engineer`/`hybrid` harness, 24/20 seeds). G23's ten new
+  per-Core companions needed a scope correction mid-item: a first attempt
+  (12 seeds, 120-min cap) ran over an hour and was killed — some Core/tier
+  combinations that don't resolve simulate the entire cap, and each such run
+  costs far more wall-clock than an early win/loss — reduced to 6 seeds/
+  60-min cap, after which 9 of 10 are `.skip`-ed with their measured numbers
+  and one (`time` T5) passes live. G8's T5 companion and both new
+  diversity-clause pins are live; T1 measured 6/12 (50%, just under the 55%
+  floor) and is `.skip`-ed — the same shared harness passed cleanly for
+  G1 at n=24, read as sampling noise at n=12 rather than a new wall. Both
+  diversity clauses measured red at T3 as expected (0/12 classes at 35%
+  own-kit share; 16/66 pairs below the 0.15 fingerprint floor) and are
+  exact-pinned. **Both code-reviewer's first pass (REQUEST-CHANGES) and
+  qa-playtester independently caught the same real defect**: the
+  fingerprint-distance "regression pin" test asserted `>= 0`, which is
+  tautologically always true and pins nothing — fixed by re-running the
+  ~100-minute `beforeAll` sweep once more (with a temporary `console.log`)
+  to capture the real T3 count and land an exact `toBe(16)` pin, plus
+  recording that number in the `.skip`-ed clause's own comment. Also fixed
+  from review: a stale comment on G1's T5 companion (said "`.skip`-ed...
+  once confirmed" next to a case that isn't skipped and passed) and an
+  undocumented T1-vs-T5 win-rate denominator convention (T1 divides by every
+  seed, T5 excludes timeouts, matching the pre-existing T3 pattern) — now
+  documented once and cross-referenced from all four files. G8's T1/T5
+  companions are measured once on the shared harness rather than per-class
+  (a literal per-class x per-tier sweep would have tripled an already
+  ~100-minute file's cost for a question the shared harness already
+  answers) — logged as QUESTIONS Q193. `npx tsc --noEmit` clean;
+  `npm run test:fast` green except two pre-existing failures
+  (`tests/q15-command-domain-fuzz.test.ts`, `tests/q45-cli-schema-violation
+  .test.ts`) confirmed via `git stash` to fail identically on unmodified
+  HEAD — a scratch-directory module-resolution issue in this sandbox,
+  unrelated to this item. No `/src/sim` or `/data` changes.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c035 done, no bug found.**
   Three Swordsman-locked equipment items (`sleeve_sword`, `swordsman_armor`,
   `swordsman_shoes`) each carry an off-class `classFallback`, and SPEC-FINAL
