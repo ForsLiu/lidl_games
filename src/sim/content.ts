@@ -979,7 +979,7 @@ const ClassSlotPassiveSchema = z.object({
    * engine code. Read with a `?? 1` fallback, so its absence is inert too.
    */
   charDotSpeedMul: num.optional(),
-  /** `chronal_surge` (fb013): every `waveInterval` TD waves cleared, towers gain one free uncapped range/AoE bump (`completeWave`, run.ts) — no milestone triggers, just `bonusRangeMul`/`bonusAoeMul` folded into the ordinary `towerRange`/`area` Stats sources. */
+  /** `chronal_surge` (fb013): every `waveInterval` TD waves cleared, towers gain one free uncapped range/AoE bump (`completeWave`, run.ts) — no milestone triggers, just `bonusRangeMul`/`bonusAoeMul` folded into the ordinary `towerRange`/`towerArea` Stats sources (fb083 split the AoE half off the global `area` key). */
   waveInterval: num.optional(),
   bonusRangeMul: num.optional(),
   bonusAoeMul: num.optional(),
