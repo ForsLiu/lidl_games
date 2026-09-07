@@ -280,9 +280,48 @@ export function shredArmor(e: Enemy, points: number): void {
  * damage source already funnels through (direct hits and DoT ticks alike,
  * since a stack's `source` string survives to tick time). Never applied to
  * tower damage, which has its own economy and its own `towerDamageMul`.
+ *
+ * BACKLOG p12f / QUESTIONS Q175 and Q193: the wave-only term above was
+ * measured unable to close BALANCE DIRECTION v2 §A's >=35% own-kit-share
+ * target by any `data/classes.json` magnitude, because a VS-wielded weapon
+ * rides an axis this term never touched — `typeMasteryMul` (progression.ts),
+ * a per-built-tower-type VS boon that is explicitly `"uncapped": true` and so
+ * keeps compounding every level-up for the whole run, while the kit's own
+ * upgrade path (skill cards, `applyOffer`'s `skill_card` case) caps at
+ * `maxRank` and stops being offered — so once a run's skill cards saturate,
+ * *every* further level-up can only grow the wielded side. `powerMul` itself
+ * is not the gap: `classes.ts`'s `class_active` sources already multiply by
+ * it exactly like `vswield.ts`'s wielded damage does. `kitBuildMul` below
+ * rides the same per-rank formula `typeMasteryMul` uses, off the player's own
+ * `typeMasteryRanks` investment, so the kit compounds on the actual VS build
+ * the run produced rather than only on wave count.
  */
 export function kitPowerMul(w: World): number {
-  return 1 + 0.12 * w.wavesCleared;
+  return (1 + 0.12 * w.wavesCleared) * kitBuildMul(w);
+}
+
+/**
+ * p12f: the kit's build-scaling term — the *average* Type Mastery rank
+ * across every tower type the player has invested a VS boon in (0 if none),
+ * fed through `typeMasteryMul`'s own `1 + perRank * rank` formula rather than
+ * a second authored curve, so the kit tracks the same uncapped per-rank
+ * bonus a wielded attack gets instead of inventing a new one. Deliberately
+ * the *average*, not the sum or the max: a wielded attack of a given type
+ * only ever sees that one type's own rank (`typeMasteryMul(w, towerKey)` in
+ * `vswield.ts`), so crediting the kit with every type's rank at once would
+ * put it ahead of any single wielded attack rather than merely even with it.
+ * A `for...in` loop over `typeMasteryRanks` avoids `Object.values`'s
+ * temporary array on a path `dotVaryingMul` calls every kit hit and DoT tick.
+ */
+function kitBuildMul(w: World): number {
+  let sum = 0;
+  let count = 0;
+  for (const key in w.typeMasteryRanks) {
+    sum += w.typeMasteryRanks[key];
+    count++;
+  }
+  if (count === 0) return 1;
+  return 1 + w.content.boons.typeMastery.perRank * (sum / count);
 }
 
 const CLASS_SOURCE_PREFIX = 'class_';

@@ -712,6 +712,86 @@ numerator does not. Recorded red rather than forced; the closure is
 **QUESTIONS Q175** and **BACKLOG p12f**, sequenced after p12c so it tunes
 against p12b/p12c's baseline.
 
+### 6. p12f — `kitBuildMul`: riding the same axis (QUESTIONS Q175/Q193)
+
+Re-diagnosed before picking a route: `class_active`'s damage already
+multiplies by `w.derived.powerMul` exactly like `vswield.ts`'s wielded
+damage does (`classes.ts:280` vs `vswield.ts:375`), so `powerMul` — the
+Constellation/stat stack — was never the gap. What a wielded attack gets and
+a kit source does not is `typeMasteryMul` (`progression.ts`): a per-built-
+tower-type VS boon, **`"uncapped": true`** (`data/vsupgrades.json`), that
+keeps compounding every level-up for the run's length. The kit's own upgrade
+path — skill cards — caps at `maxRank` (2) and stops being offered, so every
+level-up past that point can only grow the wielded side. This is route (a)
+from Q175: `kitPowerMul` (`src/sim/enemies.ts`) now multiplies by
+`kitBuildMul(w)`, which reads the *average* rank across the player's own
+`typeMasteryRanks` through `typeMasteryMul`'s own `1 + perRank * rank`
+formula — the same axis, not an invented one — deliberately the average
+rather than the sum, so the kit never gets ahead of what any single wielded
+attack earns for the same investment. `/src/sim`, not `/data`, because Q175
+already showed no `data/classes.json` magnitude can close a gap the wave-only
+term structurally cannot reach; CLAUDE.md architecture rule 4's data-only
+preference is documented here as the reason a justification is on record.
+
+**Measured (2026-09-07, `KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, fresh
+control on this session's HEAD — p12c/p12e had landed since p12a's own
+control, so this is not a re-use of that number):**
+
+| class | control (wave-only) | treatment (+ kitBuildMul) |
+|---|---|---|
+| swordsman | 0.42% | 0.67% |
+| plaguebringer | 19.69% | **25.71%** |
+| engineer | 0.22% | 0.33% |
+| pyromancer | 0.41% | 0.85% |
+| archer | 0.15% | 0.22% |
+| necromancer | 0.22% | 0.42% |
+| cryomancer | 0.66% | 0.49% |
+| stormcaller | 2.00% | 2.28% |
+| bloodlord | 0.00% | 0.00% |
+| animist | 0.02% | 0.04% |
+| paladin | 0.03% | 0.18% |
+| time_lord | 10.07% | 13.02% |
+
+**Still 0/12 at the 35% target** — honestly recorded, not forced. 11/12
+classes move in the intended direction (cryomancer's control->treatment dip,
+0.66%->0.49%, is a seed-level outcome flip, not the mechanism: see below).
+`bloodlord` stays flat at 0.00% by construction — per Q175, its only
+VS-attributed kit source is `basicAttack.dps`, which is TD-only
+(`src/sim/run.ts:541`) and so contributes nothing to a VS-window metric
+regardless of any multiplier on top of it; closing `bloodlord`'s (and
+`paladin`'s multiplier-shaped-kit share, which *did* move here, 0.03%->0.18%,
+via its Judgement Active) own reading is a separate, still-open problem this
+item does not claim to have solved. Distinct top-source count moved 1/12 ->
+3/12 (`mortar`/`frost_obelisk`/`ballista`), informative only — G8's diversity
+clause is p12d's, not this item's.
+
+Two seeds (of 24 run) flipped outcome (`necromancer` 1/2->0/2, `cryomancer`
+1/2->2/2) — the same run-shape sensitivity every prior p12a/p12c/p12e change
+in this arc showed at this sample size, not attributed to a specific cause;
+a 2-seed sample is not evidence about which seed-level branch flipped, only
+about the aggregate share column, per CLAUDE.md's own measurement rules.
+
+**Gate re-confirmation (same HEAD, before -> after this change):**
+
+| gate | before | after |
+|---|---|---|
+| G1 (`tests/p10d-run-length.test.ts`, 24 seeds) | 3/3 pass, `[35%,70%]` win band held, 0 tick-cap timeouts | 3/3 pass, unchanged |
+| G14 (`tests/boss.test.ts`, full file) | 14/14 pass, scripted kill 119.8s | 14/14 pass, scripted kill 121.3s |
+
+No band violation either side. `npm run test:fast` green apart from the
+pre-existing, unrelated `q15`/`q45` `tools/fuzz-command-domain` scratch-
+directory failures (confirmed identical on unmodified HEAD via `git stash`).
+
+**What this does not claim.** The dominant gap Q175 named — the sheer breadth
+of simultaneously-summed wielded sources across every built tower type, plus
+`upgradeStatMul`'s tier-upgrade scaling baked into `wielded.damage` itself —
+is untouched by this item; `kitBuildMul` closes only the one axis the kit was
+completely exempt from (uncapped Mastery stacking). Route (b) (cut
+VS-wielded scaling) and a `typeMasteryMul`-scale second pass on route (a)
+remain open if the target is revisited; not attempted here as out of a
+single [balance] item's blast radius, same reasoning Q175 gave for filing
+this as its own item.
+
 ## Tier ladder (p12b) — BALANCE DIRECTION v2 §B
 
 > **Superseded by "T1 re-anchor (p12c)" below.** p12b's *mechanism* stands —

@@ -791,7 +791,43 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       CLAUDE.md measurement rules ("a deferral is a measurement with an
       expiry date"), BACKLOG p12e.
 
-- [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
+- [x] (p12f) [balance] **DONE 2026-09-07** — chose Q175 route (a): `kitPowerMul`
+      (`src/sim/enemies.ts`) now multiplies by a new `kitBuildMul(w)` factor,
+      the *average* rank across the player's `typeMasteryRanks` fed through
+      `typeMasteryMul`'s own `1 + perRank * rank` formula. Re-diagnosed first:
+      `class_active` damage already carries `w.derived.powerMul` exactly like
+      a wielded attack does, so `powerMul` was never the gap; the real
+      asymmetry is `typeMasteryMul` being `"uncapped": true` while the kit's
+      own upgrade path (skill cards) caps at `maxRank` 2 and stops being
+      offered, so every level-up past that point only grows the wielded side.
+      Measured with a fresh control (p12c/p12e had landed since p12a's own):
+      **still 0/12 at the 35% target**, but 11/12 classes move in the intended
+      direction (best: plaguebringer 19.69% -> 25.71%, time_lord 10.07% ->
+      13.02%); `bloodlord` stays flat at 0.00% by construction (its only
+      VS-attributed source is the TD-only `basicAttack.dps`, per Q175, not a
+      failure of this lever). Honestly recorded, not forced, per the item's
+      own acceptance. G1 (`tests/p10d-run-length.test.ts`) and G14
+      (`tests/boss.test.ts`) both re-run in full before and after: identical
+      pass/band results both sides, no new tick-cap timeout. Full table:
+      BALANCE.md "p12f — kitBuildMul: riding the same axis"; decision record:
+      QUESTIONS Q193. 5 new unit tests in `tests/p12a-kit-power.test.ts`
+      pin `kitBuildMul`'s shape (no-op at zero ranks, single-type formula,
+      average-not-sum, multiplicative with the wave term, never touches tower
+      damage). `npm run test:fast` green apart from the pre-existing,
+      unrelated `q15`/`q45` `tools/fuzz-command-domain` failures (confirmed
+      identical on unmodified HEAD via `git stash`). code-reviewer: no
+      Critical/Major. qa-playtester: acceptance criteria confirmed measured
+      (not met, honestly), G1/G14 confirmed unaffected, no money-path or
+      determinism regression (the `typeMasteryRanks` values consumed were
+      already part of `hashWorld`'s replay hash before this change). **What
+      remains unclosed, deliberately**: the dominant share of the gap is the
+      breadth of simultaneously-summed wielded sources across every built
+      tower type plus `upgradeStatMul`'s tier scaling baked into
+      `wielded.damage` itself, not any single uncapped boon — closing that is
+      route (b) or a larger route (a) pass, both a p12b/p12c-sized shared
+      lever, out of this item's blast radius. Original text follows.
+
+      Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS
       Q175). p12a shipped `kitPower` (x3.16 by wave 18) and the x3 base
       re-anchor and moved the VS kit share from 0.00-1.67% to 0.00-5.16% —

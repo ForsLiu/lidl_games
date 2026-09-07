@@ -5,6 +5,59 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12f done, `/src/sim` + tests.** Chose
+  Q175 route (a) for BALANCE DIRECTION v2 §A's own-kit-share target:
+  `kitPowerMul` (`src/sim/enemies.ts`) now multiplies by a new `kitBuildMul(w)`
+  factor — the average rank across the player's `typeMasteryRanks`, fed
+  through `typeMasteryMul`'s own `1 + perRank * rank` formula, so the kit
+  compounds on the same **uncapped** VS-Mastery axis a wielded attack already
+  rides instead of only on wave count. Re-diagnosed first: `class_active`
+  damage already carries `w.derived.powerMul` exactly like a wielded attack
+  does (`classes.ts:280` vs `vswield.ts:375`), so `powerMul` was never the
+  gap — the real asymmetry is that `typeMasteryMul` is `"uncapped": true`
+  while the kit's own upgrade path (skill cards) caps at `maxRank` 2 and
+  stops being offered, so every level-up past that point can only grow the
+  wielded side. `/src/sim`, not `/data`, because Q175 already showed no
+  `data/classes.json` magnitude could close a structurally-unreachable gap;
+  the architecture-rule-4 deviation is justified and logged (QUESTIONS Q193).
+  Measured with a fresh control pair (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`,
+  since p12c/p12e had landed since p12a's own control): **still 0/12 classes
+  at the 35% target**, honestly recorded rather than forced, but 11 of 12
+  move in the intended direction (best: plaguebringer 19.69% -> 25.71%,
+  time_lord 10.07% -> 13.02%); `bloodlord` stays flat at 0.00% by
+  construction (its only VS-attributed source is the TD-only
+  `basicAttack.dps`, per Q175 — not a failure of this lever). Full table:
+  BALANCE.md "p12f — kitBuildMul: riding the same axis". G1
+  (`tests/p10d-run-length.test.ts`) and G14 (`tests/boss.test.ts`) both
+  re-run in full before and after this change: identical pass/band results
+  both sides (G1's `[35%,70%]` win band held, 0/24 tick-cap timeouts; G14
+  14/14 pass, scripted boss kill 119.8s -> 121.3s, within noise). 5 new unit
+  tests in `tests/p12a-kit-power.test.ts` pin `kitBuildMul`'s own shape
+  (no-op at zero ranks, single-type formula, average-not-sum, multiplicative
+  with the wave term, never touches tower damage) — all 19 tests in that file
+  green, plus the 10 pre-existing `class-kit-power-reach.test.ts` cases
+  unchanged. `npm run test:fast` green (4013 passed, 51 skipped) apart from
+  the pre-existing, unrelated `q15`/`q45` `tools/fuzz-command-domain`
+  scratch-directory failures (confirmed identical on unmodified HEAD via
+  `git stash`). code-reviewer pass: no Critical/Major (checked architecture
+  rules, determinism — the `for...in` aggregation is order-independent by
+  construction, and `typeMasteryRanks` was already part of `hashWorld`'s
+  replay hash before this change — and performance, since the loop only runs
+  on `class_`-prefixed hits, not per-tick). qa-playtester pass: acceptance
+  criteria confirmed measured (not met, honestly logged); G1/G14 confirmed
+  unaffected; no money-path (fresh account -> run -> death -> Results -> Hub,
+  stash/equip, Dawn Rekindle) or determinism/replay regression; noted two
+  seeds flipped win/loss outcome between control and treatment
+  (necromancer, cryomancer) as the same run-shape sensitivity every prior
+  p12a/p12c/p12e change showed at this sample size, not a new defect.
+  **What remains unclosed, deliberately**: the dominant share of the gap is
+  the breadth of simultaneously-summed wielded sources across every built
+  tower type plus `upgradeStatMul`'s tier scaling baked into
+  `wielded.damage` itself (Q175's "134.3M of 134.5M is wielded" swordsman
+  figure), not any single uncapped boon — closing that is route (b) (cut
+  VS-wielded scaling) or a larger route (a) pass, both a p12b/p12c-sized
+  shared lever, out of this item's blast radius per its own filing reasoning.
+
 - **2026-09-07 — main lane: BACKLOG p12e done, `/data`-only.** Diagnosed
   (already logged when this item was filed) as `baseHpMul: 20` applying to
   the final boss like every ordinary enemy, taking `warden_eater` to 7.3M hp

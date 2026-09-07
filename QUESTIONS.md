@@ -784,3 +784,48 @@ Q91 and Q102 corrections if not yet done.
   Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and
   its measurement rules (control pair, before/after both recorded); SPEC-FINAL
   §14 G1/G14, BALANCE DIRECTION v2 §E, QUESTIONS Q177.
+
+- **Q193. [p12f] BALANCE DIRECTION v2 §A's own-kit-share target: chose route
+  (a) from Q175 — `kitPowerMul` now rides the player's actual `typeMastery`
+  investment, not only wave count — and it moves the metric without closing
+  it: 0/12 classes still clear 35%, but 11 of 12 move in the intended
+  direction (best: plaguebringer 19.69% -> 25.71%).** Re-diagnosed before
+  picking: `class_active` damage already multiplies by `w.derived.powerMul`
+  exactly like a wielded attack does (`classes.ts:280` vs `vswield.ts:375`),
+  so `powerMul` (the Constellation/stat stack) was never the actual gap Q175's
+  prose named. The real asymmetry is `typeMasteryMul` (`progression.ts`): a
+  per-built-tower-type VS boon marked `"uncapped": true`
+  (`data/vsupgrades.json`) that keeps compounding every level-up for the run's
+  length, applied only to wielded damage — while the kit's own upgrade path
+  (skill cards) caps at `maxRank` 2 and stops being offered, so every
+  level-up past that point can only grow the wielded side. Implemented as
+  `kitBuildMul(w)` (`src/sim/enemies.ts`), a second factor on `kitPowerMul`
+  reading the *average* rank across `w.typeMasteryRanks` through
+  `typeMasteryMul`'s own `1 + perRank * rank` formula — average, not sum, so
+  the kit never gets ahead of what any single wielded attack earns for the
+  same investment; multiplicative with the existing wave term. `/src/sim`,
+  not `/data`, because Q175 already showed no `data/classes.json` magnitude
+  could reach this: architecture rule 4's data-only preference is overridden
+  here on that basis, recorded per the rule's own "wherever possible."
+  Measured with p12a's own control-pair method (`KIT_SHARE_MEASURE=1
+  KIT_SHARE_SEEDS=2`, fresh control against this session's HEAD since
+  p12c/p12e landed since p12a's original control): full before/after table
+  in BALANCE.md "p12f — kitBuildMul: riding the same axis". `bloodlord`
+  stays flat at 0.00% by construction (its only VS-attributed kit source is
+  the TD-only `basicAttack.dps`, per Q175) — not a failure of this item's
+  lever, a separate still-open problem. G1 (`tests/p10d-run-length.test.ts`)
+  and G14 (`tests/boss.test.ts`) both re-confirmed green before and after,
+  no band violation, no new tick-cap timeout. **What remains unclosed and
+  deliberately unattempted**: the dominant share of the gap is not any single
+  uncapped boon but the sheer breadth of simultaneously-summed wielded
+  sources across every built tower type plus `upgradeStatMul`'s tier-upgrade
+  scaling baked into `wielded.damage` itself (Q175's "134.3M of 134.5M is
+  wielded" swordsman figure) — closing that is route (b) (cut VS-wielded
+  scaling, a p12b/p12c-sized shared lever) or a larger route (a) pass, both
+  out of this item's blast radius per its own filing reasoning. Recorded red
+  rather than forced, same as Q175 itself. — Reason: CLAUDE.md rule 5
+  (choose, log, continue), the item's own "you do not have to hit >=9/12 —
+  honest measurement, don't force it," and measurement rules (control pair,
+  before/after both recorded, blast-radius check before calling a lever
+  narrow); SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §A, QUESTIONS Q175,
+  BACKLOG p12f.
