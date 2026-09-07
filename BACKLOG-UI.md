@@ -4195,7 +4195,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` `tools/fuzz-command-domain` flake class red
       — refs: SPEC-FINAL §4.1
       (Swordsman combo), §11 (indicators).
-- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
+- [x] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
       heart, corpse pile, time monolith); selecting one fills the bottom panel
@@ -4204,10 +4204,54 @@ logs a blocker below rather than editing `/data` itself.
       numbers pulled from `/data`; locked Cores render greyed with their
       unlock condition shown (owner feedback
       `feedback/processed/20260904-162645-feature-core-select-ui.md`).
-      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
-      render; a test asserts hover text numbers equal `/data` values; locked
-      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
-- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+      **DONE 2026-09-07** — new `src/ui/core-select.ts` (`coreSelectSummaryMarkup`
+      for the always-visible base HP/upgrade-track line, `coreSelectEffectsMarkup`
+      for the hover-only TD effect/VS effect/per-step entries), reusing fb058's
+      `.sw-classrow`/`.sw-classcard`/`.sw-classcard-art`/`.sw-classskills`/
+      `.sw-cs-skill`/`.sw-cs-tip` CSS verbatim (nothing class-specific in those
+      rules) rather than duplicating them — `hub.ts`'s Core panel now renders
+      the same tall-card layout as the Class panel instead of the old
+      `.sw-choices` list, which is deleted from `style.css` (no other
+      reference existed). `core-info.ts` gains `coreBaseEffectMarkup`/
+      `coreStepEffectMarkup` exports for the per-phase/per-step tooltip
+      bodies; `coreDetailMarkup`/`coreLiveMarkup` untouched (still used by a
+      unit test and the in-run tooltip respectively). Locked-card handling
+      (disabled attribute, no click listener, unlock-condition text) carried
+      over unchanged from the prior list-based markup. New
+      `tests/ui-fb117-core-select.test.ts` (7 tests): card count/lock-state,
+      summary content against live `/data`, click-to-select for both locked
+      and unlocked cards, and hover-entry content/count for both a
+      single-effects-dimension Core (Stone Heart) and a two-phase one
+      (Carnivorous Plant). code-reviewer **APPROVE** (no Critical/Major; one
+      Minor noting `coreDetailMarkup` is now UI-dead code kept alive only by
+      its own unit test — left as-is, still meaningfully testing the combined
+      base+steps view; one Nit on `steps.length < upgrade.count`, a
+      pre-existing schema allowance no current `/data/cores.json` entry hits).
+      qa-playtester **PASS**: independently re-verified all four acceptance
+      lines, adversarially probed a Core with absent `effects`, a Core with
+      zero/omitted upgrade steps, spam-clicking every locked card in a row
+      (selection never moves), an `unlockedCores` save omitting the default
+      Core (`defaultCoreKey` guard still holds), and live-vs-hardcoded numbers
+      via a synthetic content override — no bugs found. Filed one Minor
+      fragility finding: three pre-existing tests
+      (`ui-fb058-class-select.test.ts`, `fb022-info-surfacing.test.ts`) read
+      `.sw-classcard.on`/`.sw-classdetail` unscoped, which only stayed correct
+      because the Class panel happens to render before the Core panel in
+      `hub.ts` — now that both panels share those CSS classes, a future
+      panel-reorder could silently break them. Fixed same session: the
+      `.sw-classcard.on` read now qualifies `[data-class]` (Core cards use
+      `data-core`, so this alone disambiguates); the three unscoped
+      `.sw-classdetail` reads now go through a small `classDetail(root)`
+      helper (added to both test files) that finds the `.sw-panel` whose
+      `<h2>` reads "Class" rather than relying on DOM order. Re-verified all
+      three files green after the fix (51/51). `npx tsc --noEmit` clean.
+      `npm run test:fast`: 279 passed / 8 skipped files, 4146 passed tests,
+      only the pre-existing `q15`/`q45` flake class red — both code-reviewer
+      and qa-playtester independently reproduced the `q45` failure on the
+      pre-fb117 parent commit too, confirming it predates this item — refs:
+      SPEC-FINAL §5.5, §11, fb058.
+
+- [x] (fb177) [feat] normal priority: per-tower attack projectile/beam
       visuals — every tower type gets a distinct registered VFX entry: Arrow
       (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
       Mortar (lobbed shell, arc + impact crater flash), Electric (instant
@@ -4221,6 +4265,64 @@ logs a blocker below rather than editing `/data` itself.
       Acceptance: a VFX-registry test fails for any of the 10 towers missing
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+      **Renumbered from fb098 at filing time** — this file already had an
+      unrelated `[x] (fb098)` (the 2026-09-04 colorblind-palette-audit item,
+      line ~2260); a within-file id collision, not just the cross-file kind
+      this Log has flagged before. See Log entry below.
+      **DONE 2026-09-07** — new `TOWER_VFX` registry (`src/render/vfx-
+      registry.ts`, all 10 towers, `fire`/`travel`/`impact` string fields),
+      mirroring fb016's `CLASS_VFX`/`CORE_VFX` coverage-test pattern
+      (`missingVfxCoverage` gained an optional `towerKeys` param). Wiring it
+      up surfaced and fixed four real, previously-invisible-or-wrong render
+      gaps, each with its own regression test in the new
+      `tests/ui-fb098-tower-vfx.test.ts` (15 tests): (1) Frost Obelisk's
+      `pulse` fx event had no case in `canvas.ts`'s `ingest()` at all
+      (`default: break`) — its periodic aura tick had zero visual; now
+      reuses the existing `nova` CastFx ring, which also fixes every other
+      inherent-radius AoE splash sharing that same dead code path
+      (`damagetypes.ts`'s radius splashes, a VS-wielded aura). (2) A
+      VS-wielded Ember Brazier cone looked up a `'flame_cone'` style key
+      `theme.ts`'s `STYLES` never registered, silently falling back to the
+      generic default look instead of TD's own `STYLES.ember_brazier`
+      visual — Ember Brazier is the only `cone`-kind attack in either
+      phase, so this now always reads its own style. (3) The identical bug
+      for Arrow Spire's `shot` (`'arrow_volley'`, never registered) and
+      Tesla Coil's `arc` (`'chain_lightning'`, actually Stormcaller's
+      Active1 `ClassEffect.kind`, not a tower style) — both fixed the same
+      way, found by qa-playtester's first pass on this item (see below).
+      (4) Venom Spore's `poison`-kind attack is an instant hit (unlike
+      Ballista/Mortar's real `Projectile`) that only ever emitted `'spore'`,
+      an event `ingest()` had no case for — its shot was completely
+      invisible in both phases; added a tracer case reusing `STYLES.
+      venom_spore`, also found by that same qa-playtester pass. Beacon
+      Totem/Harvest Sprout (`attack: null`, no sim fire event to hang a cue
+      on) get a new render-side ambient "aura pulse tick" ring in
+      `drawStructures` (signature now takes `view` too), keyed off `w.tick`
+      (deterministic sim state, not wall-clock time) on a 2s cadence, TD-only
+      and suppressed under `reducedMotion` (matching fb086's other ambient
+      cues). code-reviewer **APPROVE** on the first pass (no Critical/Major;
+      one Minor — `TOWER_VFX.mortar.impact` claimed an "impact crater flash"
+      that doesn't exist, `detonate()`'s `'boom'` event is screen-shake only
+      — fixed same session, wording corrected to describe what actually
+      renders rather than adding a new visual). qa-playtester **FAILed the
+      first pass** with the two real bugs in (3)/(4) above, both reproduced
+      twice independently against the live render code (not just reading the
+      new test file) and fixed same session with 4 new regression tests;
+      a **second qa-playtester re-verification pass PASSed**, independently
+      reproducing both original repros against the fix (and confirming they
+      failed again on the pre-fix commit, restoring the tree after), and
+      separately confirmed the one deliberately-left-open gap: Tesla Coil's
+      `arc` fx event is genuinely shared with Stormcaller's Chain Surge
+      Active1 (both route through `combat.ts`'s `chainHit`, which takes a
+      `source` string but never passes it to `emit`) with no field to
+      disambiguate them — verified `chainHit`'s own signature and every
+      call site to confirm this isn't fixable without a `/src/sim` change,
+      out of this lane's Scope; logged below rather than left unexplained
+      or papered over. `npx tsc --noEmit` clean. `npm run test:fast`: 280
+      passed / 8 skipped files, 4161 passed tests, only the pre-existing
+      `q15`/`q45` flake class red (independently confirmed unrelated —
+      reproduces identically on the pre-fb177 parent commit — by both the
+      code-reviewer and qa-playtester passes).
 
 - [x] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
@@ -4341,7 +4443,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` flake class red — refs: fb145, fb074,
       fb087, QUALITY.md BETA.
 
-- [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+- [x] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
       covers the hidden `visibilitychange` edge, but neither fires for a run
       that begins in an already-backgrounded document: fb074's boot-resume
@@ -4359,6 +4461,39 @@ logs a blocker below rather than editing `/data` itself.
       true BEFORE constructing the `Game`, boots a fresh run and a persisted
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
+      **DONE 2026-09-07** — one line at the very end of `beginRun`
+      (`src/ui/main.ts`, after every Hud/renderer/input-listener setup call in
+      that function): `if (document.hidden && this.run.world.outcome ===
+      'running' && !this.paused) this.setPaused(true);` — the same guard shape
+      `onFocusLost` already uses, reusing `setPaused(true)` (not a raw field
+      write) so pause-entry side effects (`clearKeysForPause`, `hud.
+      setPaused`) run identically to every other pause path. Fires for both a
+      fresh `startRun` and a `tryResumePersistedRun` resume, since both funnel
+      through this same `beginRun` tail. New `tests/ui-fb171-hidden-boot-
+      pause.test.ts` (4 tests): a fresh run and a persisted resume, each
+      booted with `document.hidden` stubbed true before `Game` construction
+      (same shadowing convention as `ui-fb145`'s own `setHidden`), plus a
+      `hidden === false` control for each. code-reviewer **APPROVE**: no
+      Critical/Major; one Minor — the guard omitted the `!this.paused`
+      conjunct `onFocusLost` carries (harmless today since `this.paused` was
+      just set `false` a few lines up, but implicit rather than enforced) —
+      fixed same session, added the conjunct plus a comment explaining why.
+      qa-playtester **PASS**: confirmed the shipped tests are genuine
+      regression tests (checked out the pre-fix parent commit with the new
+      test file still in place — both `hidden=true` cases failed there,
+      controls still passed, restored after), and independently probed
+      Practice/Training Grounds (both route through the same `beginRun` tail,
+      confirmed protected), `document.hidden === undefined` (short-circuits
+      falsy, no throw), a reveal after a hidden-boot pause (stays paused,
+      matching fb071/fb145's manual-resume convention), and the
+      already-finished-outcome case (`tryResumePersistedRun`'s `finish()`
+      diverts a done run to the Hub before `beginRun` is ever called, so the
+      `outcome === 'running'` guard is defensive symmetry, not dead code) —
+      no bugs found. Also ran a money-path sanity sweep (death flow, save
+      fuzz, Retry/New Run config carry-over) with no interaction found.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped
+      files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
+      red.
 
 - [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
@@ -4548,6 +4683,22 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-07, id collision (within-file, not cross-file this time): the
+  queue's per-tower VFX item was filed as `fb098`, but this same file
+  already had an unrelated `[x] (fb098)` (2026-09-04, the colorblind-
+  palette-audit item) — a duplicate id inside one file, not the
+  cross-file kind the 2026-09-06 merge entry below warns about (that one
+  git silently merges without a murmur; this one a plain in-file grep for
+  `(fb098)` would have caught immediately, so it's worth a beat: whatever
+  wrote the queue entry didn't grep the file it was appending to first).
+  Renumbered the per-tower VFX item to **fb177** (max id anywhere was 176,
+  per the same allocate-from-shared-high-water-mark convention the
+  2026-09-06 entry recommends). Not renamed: the already-pushed commits'
+  messages, the new `tests/ui-fb098-tower-vfx.test.ts` filename, and
+  in-code comments referencing "fb098" — left as-is, same as the
+  2026-09-06 entry's own six commits, with this entry as the map for
+  anyone reading those artifacts cold.
 
 - 2026-09-07, fb151: **cannot be implemented in-scope, skipped rather than
   attempted.** Read `fireDashSlash` (`src/sim/classes.ts`) end to end before

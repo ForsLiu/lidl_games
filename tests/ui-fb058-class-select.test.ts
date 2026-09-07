@@ -46,6 +46,19 @@ function openHub(
   return { root, hub };
 }
 
+/**
+ * fb117 gave the Hub's Core panel its own `.sw-classdetail` block sharing the
+ * Class panel's CSS class — scope by which `.sw-panel` the `<h2>` names
+ * "Class", not by "first one in the DOM", so this stays correct even if the
+ * two panels' order in `hub.ts` ever changes (qa-playtester finding, fb117).
+ */
+function classDetail(root: HTMLElement): HTMLElement {
+  const panel = [...root.querySelectorAll<HTMLElement>('.sw-panel')].find(
+    (p) => p.querySelector('h2')?.textContent === 'Class',
+  )!;
+  return panel.querySelector<HTMLElement>('.sw-classdetail')!;
+}
+
 describe('fb058: Class-select screen — normal profile shows exactly 3 classes', () => {
   it('renders exactly 3 class cards, one per NORMAL_PROFILE_CLASS_KEYS entry, with showHiddenClasses off', () => {
     const { root } = openHub();
@@ -81,7 +94,7 @@ describe('fb058: the dev "show hidden classes" toggle reveals the full roster', 
     root.querySelector<HTMLElement>('[data-class="engineer"]')!.dispatchEvent(
       new window.MouseEvent('click', { bubbles: true }),
     );
-    expect(root.querySelector('.sw-classdetail')!.textContent).toContain(
+    expect(classDetail(root).textContent).toContain(
       content.classByKey.get('engineer')!.passive.name,
     );
 
@@ -94,7 +107,7 @@ describe('fb058: the dev "show hidden classes" toggle reveals the full roster', 
     const cards = [...root.querySelectorAll<HTMLElement>('.sw-classcard[data-class]')];
     expect(cards).toHaveLength(3);
     expect(new Set(cards.map((c) => c.dataset.class))).toEqual(new Set(NORMAL_PROFILE_CLASS_KEYS));
-    const detail = root.querySelector('.sw-classdetail')!;
+    const detail = classDetail(root);
     expect([...detail.querySelectorAll('.sw-cs-skill')]).toHaveLength(4);
     // Falls back to a class that is both visible and unlocked (swordsman, per
     // `visibleClasses[0]` in hub.ts), never staying pinned to hidden Engineer.
@@ -107,7 +120,7 @@ describe('fb058: selecting a class fills the bottom panel with band/number stats
     const { root } = openHub();
     const swordsman = content.classByKey.get('swordsman')!;
     const bands = CLASS_BANDS.swordsman;
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(bands.range); // 'low'
     expect(detail).toContain(bands.dmg); // 'high'
     expect(detail).toContain(`${swordsman.basicAttack.range} tiles`);
@@ -121,7 +134,7 @@ describe('fb058: selecting a class fills the bottom panel with band/number stats
       new window.MouseEvent('click', { bubbles: true }),
     );
     const plaguebringer = content.classByKey.get('plaguebringer')!;
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${plaguebringer.basicAttack.range} tiles`);
     expect(detail).toContain(CLASS_BANDS.plaguebringer.range);
   });
@@ -152,7 +165,10 @@ describe('fb058: a locked class can never reach RunConfig, even from a corrupted
     hub.show();
 
     // The previewed selection is allowed to be the locked swordsman card...
-    const onCard = root.querySelector<HTMLElement>('.sw-classcard.on');
+    // fb117 gave the Core panel its own `.sw-classcard[data-core]` cards
+    // sharing the same `.sw-classcard`/`.on` classes — `[data-class]` is what
+    // actually scopes this to the Class panel's card, not DOM order.
+    const onCard = root.querySelector<HTMLElement>('.sw-classcard[data-class].on');
     expect(onCard?.dataset.class).toBe('swordsman');
     expect(meta.unlockedClasses).not.toContain('swordsman');
 
@@ -167,7 +183,13 @@ describe('fb058: the four hover entries show sentence-form text with live number
   it('Passive/Tower passive/Active1/Active2 each get one .sw-cs-skill entry with the class-info.ts effect text', () => {
     const { root } = openHub();
     const swordsman = content.classByKey.get('swordsman')!;
-    const entries = [...root.querySelectorAll<HTMLElement>('.sw-cs-skill')];
+    // fb117 gave the Core-select panel its own `.sw-cs-skill` hover entries
+    // (deliberately reusing the same CSS class, per fb117's own comment) —
+    // scope to the Class panel's `.sw-classdetail` (rendered first) rather
+    // than querying the whole page, same as this file's other tests already
+    // do via `root.querySelector('.sw-classdetail')`.
+    const detail = root.querySelector('.sw-classdetail')!;
+    const entries = [...detail.querySelectorAll<HTMLElement>('.sw-cs-skill')];
     expect(entries).toHaveLength(4);
 
     const tips = entries.map((e) => e.querySelector('.sw-cs-tip')!.innerHTML);

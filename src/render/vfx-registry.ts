@@ -239,17 +239,101 @@ export const CORE_VFX: Record<string, CoreVfxEntry> = {
 };
 
 /**
- * Returns which of `classKeys`/`coreKeys` have no registry row — empty on the
- * real content. Exists so the checklist test (and, if a future session wants
- * it, a loader-time dev warning) can assert coverage against whatever
- * `/data` actually authors, not a hand-copied list that can drift from it.
+ * fb098 (SPEC-FINAL §5, §11, owner feedback
+ * `feature-tower-projectile-sprites.md`): one entry per tower key, the same
+ * "so a gap is caught by a coverage test rather than silently rendering
+ * nothing" shape fb016 established for `CLASS_VFX`/`CORE_VFX` above. `fire`
+ * is what happens at the tower the instant it fires, `travel` is what the
+ * shot looks like in flight (or why there isn't one — `palisade` has no
+ * attack at all, `beacon_totem`/`harvest_sprout` are auras with no
+ * targeted hit), `impact` is what happens at the hit location. The actual
+ * rendering these describe is wired in `canvas.ts`: `w.projectiles` (a real
+ * sim `Projectile`, so travel already reflects the tower's own authored
+ * `projectileSpeed`) for `ballista`/`mortar`/`venom_spore`, `drawTracers`'
+ * `shot`/`arc` cases for `arrow_spire`/`tesla_coil`, the `cone`/`pulse` cast
+ * cases for `ember_brazier`/`frost_obelisk`, and `drawStructures`' render-side
+ * ambient pulse for `beacon_totem`/`harvest_sprout` (no sim event exists for
+ * an `attack: null` tower to hang one on). `theme.ts`'s `STYLES` carries the
+ * actual per-tower projectile color/shape for the towers that travel — not
+ * re-derived here, to avoid the two tables drifting (same reasoning
+ * `STYLES`'s own comment gives for reading `CLASS_VFX[key].basic.color`
+ * instead of a third copy).
+ */
+export interface TowerVfxEntry {
+  fire: string;
+  travel: string;
+  impact: string;
+}
+
+/** SPEC-FINAL §13's ten towers (`data/towers.json`). */
+export const TOWER_VFX: Record<string, TowerVfxEntry> = {
+  palisade: {
+    fire: 'none — a wall, no attack',
+    travel: 'n/a',
+    impact: 'n/a',
+  },
+  arrow_spire: {
+    fire: 'the shot fires the instant its line-of-fire hit lands (kind `single` resolves synchronously, no travel delay to the damage itself)',
+    travel: 'a fast dart tracer along the shot line (drawTracers, `STYLES.arrow_spire`)',
+    impact: 'the shared per-damage-type hit flash, plus a Bleeding tick mark at milestone 4',
+  },
+  ballista: {
+    fire: 'a bolt tracer leaves the tower the instant it fires',
+    travel: 'a real `Projectile` (`w.projectiles`) travelling at the tower\'s authored `projectileSpeed`, piercing every enemy on its line',
+    impact: 'the shared per-damage-type hit flash on every enemy it pierces through',
+  },
+  ember_brazier: {
+    fire: 'a flame cone sweep flash at the tower\'s facing (the `cone` cast case, `STYLES.ember_brazier`)',
+    travel: 'instant — a cone attack has no projectile, the swept area is the hit',
+    impact: 'the shared per-damage-type hit flash plus each struck enemy\'s own Burning DoT marker',
+  },
+  frost_obelisk: {
+    fire: 'a pulse ring at the tower on every aura tick (the `pulse` cast case)',
+    travel: 'instant — an aura attack has no projectile, its radius is the hit area',
+    impact: 'the shared per-damage-type hit flash plus each struck enemy\'s own frost/frozen status ring',
+  },
+  tesla_coil: {
+    fire: 'an instant jagged arc from the tower to the first target',
+    travel: 'chained jagged arcs, one per jump (drawTracers\' kinked-segment draw). The underlying `arc` fx event is also shared by Stormcaller\'s Chain Surge Active1 (both funnel through combat.ts\'s chainHit) with no source field to tell them apart, so a Stormcaller cast currently reads as this same tesla_coil style rather than its own — a known gap, not this registry\'s to close (needs a source-tagged sim event, outside src/render)',
+    impact: 'the shared per-damage-type hit flash on every enemy in the chain',
+  },
+  mortar: {
+    fire: 'a shell leaves the tower the instant it fires',
+    travel: 'a real `Projectile` (`w.projectiles`) arcing — a rendered height lift, the sim shell itself travels flat — at the tower\'s authored `projectileSpeed`',
+    impact: 'a screen-shake pulse (the `boom` fx case) plus the shell\'s own AoE splash, each struck enemy getting the shared per-damage-type hit flash — no dedicated crater/flash draw of its own yet',
+  },
+  venom_spore: {
+    fire: 'the spore fires the instant its hit lands (kind `poison` resolves synchronously — an instant hit, not a real physics `Projectile` the way Ballista/Mortar are — no travel delay to the damage itself)',
+    travel: 'a glob tracer trailing a drip along the shot line (drawTracers, `STYLES.venom_spore`)',
+    impact: 'the shared per-damage-type hit flash plus the glob\'s own AoE splash and each struck enemy\'s Poison DoT marker',
+  },
+  beacon_totem: {
+    fire: 'a render-side ambient aura pulse ring on a fixed cadence (drawStructures — a pure support aura has no sim `fire` event to hang one on)',
+    travel: 'n/a — the aura is a passive attack-speed buff, not a targeted hit',
+    impact: 'n/a',
+  },
+  harvest_sprout: {
+    fire: 'a render-side ambient aura pulse ring on a fixed cadence (drawStructures, same mechanism as Beacon Totem)',
+    travel: 'n/a — an economy tower, no attack',
+    impact: 'n/a',
+  },
+};
+
+/**
+ * Returns which of `classKeys`/`coreKeys`/`towerKeys` have no registry row —
+ * empty on the real content. Exists so the checklist test (and, if a future
+ * session wants it, a loader-time dev warning) can assert coverage against
+ * whatever `/data` actually authors, not a hand-copied list that can drift
+ * from it.
  */
 export function missingVfxCoverage(
   classKeys: readonly string[],
   coreKeys: readonly string[],
-): { classes: string[]; cores: string[] } {
+  towerKeys: readonly string[] = [],
+): { classes: string[]; cores: string[]; towers: string[] } {
   return {
     classes: classKeys.filter((k) => !CLASS_VFX[k]),
     cores: coreKeys.filter((k) => !CORE_VFX[k]),
+    towers: towerKeys.filter((k) => !TOWER_VFX[k]),
   };
 }
