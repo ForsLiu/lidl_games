@@ -11,6 +11,43 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — main lane: BACKLOG fb179 done, negative result, no
+  QUESTIONS.md content moved.** fb178's deferred point 3: move every
+  QUESTIONS.md entry whose owner verdict is dated more than 14 days before
+  the run date to a new `docs/QUESTIONS-ARCHIVE.md`. Measured first, per the
+  item's own caution against a wrong archival dropping a verdict a fresh
+  session needs: QUESTIONS.md carries no per-entry verdict dates, only the
+  "Verdict log" section's dated batch headers, which name the Q-ranges each
+  batch actually verdicted — Q1-Q121 on 2026-08-27 (`feedback/verdicts-q1-
+  121`), Q122-Q133 on 2026-08-28, Q134-Q154 on 2026-09-01, and Q94/Q155-Q167
+  on 2026-09-04 (`feedback/processed/20260904-223211-verdicts-q155-167.md`,
+  never logged into the Verdict log section itself, dated from the feedback
+  file's own timestamp). Every entry from Q168 onward cites a `fb1xx`/`p12x`
+  item from this same week and is newer still. A full-file grep for any date
+  before 2026-08-25 (`2026-0[1-7]-|2026-08-0[0-9]|2026-08-1[0-9]|2026-08-2[0-
+  4]`) returned zero matches, confirming no verdict predates the batch log's
+  earliest entry. Run date is 2026-09-07; the 14-day cutoff is 2026-08-24.
+  Every verdict date found (2026-08-27 through 2026-09-07) falls **inside**
+  that 14-day window — the earliest is only 11 days old. **Result: zero of
+  the 173 `(owner verdict:` entries qualify for archival** (4 of those 173 —
+  Q193-Q196 — are themselves still `pending` and never move on age alone,
+  so 169 entries actually carry a verdict; all 169 fall inside the window
+  regardless), so QUESTIONS.md is
+  unchanged (still 918 lines; the item's own "~400 lines" acceptance
+  assumed enough entries would be old enough, which is not yet true — no
+  verdict in this file predates 2026-08-27, so nothing crosses 14 days
+  until 2026-09-10 at the earliest). `pendingQuestions()`
+  (`tools/status.ts`) was re-run before and after this measurement and
+  returns the identical pending set both times, as expected since no bytes
+  of QUESTIONS.md changed — the acceptance's control-check clause holds
+  trivially. Created `docs/QUESTIONS-ARCHIVE.md` (header only, empty,
+  append-only) so the destination CLAUDE.md's Sources-of-truth list already
+  names exists on disk, ready for the first real archival once verdicts
+  age past the cutoff. Re-measure this item (or a successor) on or after
+  2026-09-10, when the Q1-Q121 batch first crosses 14 days old. No `/src`
+  or `/data` change; `npm run test:fast` unaffected (no code path touches
+  QUESTIONS.md's content).
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT fb062 done (in-lane portion).**
   Pinned Poison Barrel's every-second poison mechanic and, while scoping it,
   found and fixed a real bug: `firePoisonBarrel` (`src/sim/classes.ts`)
