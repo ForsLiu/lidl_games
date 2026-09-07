@@ -4195,7 +4195,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` `tools/fuzz-command-domain` flake class red
       — refs: SPEC-FINAL §4.1
       (Swordsman combo), §11 (indicators).
-- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
+- [x] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
       heart, corpse pile, time monolith); selecting one fills the bottom panel
@@ -4204,9 +4204,53 @@ logs a blocker below rather than editing `/data` itself.
       numbers pulled from `/data`; locked Cores render greyed with their
       unlock condition shown (owner feedback
       `feedback/processed/20260904-162645-feature-core-select-ui.md`).
-      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
-      render; a test asserts hover text numbers equal `/data` values; locked
-      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
+      **DONE 2026-09-07** — new `src/ui/core-select.ts` (`coreSelectSummaryMarkup`
+      for the always-visible base HP/upgrade-track line, `coreSelectEffectsMarkup`
+      for the hover-only TD effect/VS effect/per-step entries), reusing fb058's
+      `.sw-classrow`/`.sw-classcard`/`.sw-classcard-art`/`.sw-classskills`/
+      `.sw-cs-skill`/`.sw-cs-tip` CSS verbatim (nothing class-specific in those
+      rules) rather than duplicating them — `hub.ts`'s Core panel now renders
+      the same tall-card layout as the Class panel instead of the old
+      `.sw-choices` list, which is deleted from `style.css` (no other
+      reference existed). `core-info.ts` gains `coreBaseEffectMarkup`/
+      `coreStepEffectMarkup` exports for the per-phase/per-step tooltip
+      bodies; `coreDetailMarkup`/`coreLiveMarkup` untouched (still used by a
+      unit test and the in-run tooltip respectively). Locked-card handling
+      (disabled attribute, no click listener, unlock-condition text) carried
+      over unchanged from the prior list-based markup. New
+      `tests/ui-fb117-core-select.test.ts` (7 tests): card count/lock-state,
+      summary content against live `/data`, click-to-select for both locked
+      and unlocked cards, and hover-entry content/count for both a
+      single-effects-dimension Core (Stone Heart) and a two-phase one
+      (Carnivorous Plant). code-reviewer **APPROVE** (no Critical/Major; one
+      Minor noting `coreDetailMarkup` is now UI-dead code kept alive only by
+      its own unit test — left as-is, still meaningfully testing the combined
+      base+steps view; one Nit on `steps.length < upgrade.count`, a
+      pre-existing schema allowance no current `/data/cores.json` entry hits).
+      qa-playtester **PASS**: independently re-verified all four acceptance
+      lines, adversarially probed a Core with absent `effects`, a Core with
+      zero/omitted upgrade steps, spam-clicking every locked card in a row
+      (selection never moves), an `unlockedCores` save omitting the default
+      Core (`defaultCoreKey` guard still holds), and live-vs-hardcoded numbers
+      via a synthetic content override — no bugs found. Filed one Minor
+      fragility finding: three pre-existing tests
+      (`ui-fb058-class-select.test.ts`, `fb022-info-surfacing.test.ts`) read
+      `.sw-classcard.on`/`.sw-classdetail` unscoped, which only stayed correct
+      because the Class panel happens to render before the Core panel in
+      `hub.ts` — now that both panels share those CSS classes, a future
+      panel-reorder could silently break them. Fixed same session: the
+      `.sw-classcard.on` read now qualifies `[data-class]` (Core cards use
+      `data-core`, so this alone disambiguates); the three unscoped
+      `.sw-classdetail` reads now go through a small `classDetail(root)`
+      helper (added to both test files) that finds the `.sw-panel` whose
+      `<h2>` reads "Class" rather than relying on DOM order. Re-verified all
+      three files green after the fix (51/51). `npx tsc --noEmit` clean.
+      `npm run test:fast`: 279 passed / 8 skipped files, 4146 passed tests,
+      only the pre-existing `q15`/`q45` flake class red — both code-reviewer
+      and qa-playtester independently reproduced the `q45` failure on the
+      pre-fb117 parent commit too, confirming it predates this item — refs:
+      SPEC-FINAL §5.5, §11, fb058.
+
 - [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
       visuals — every tower type gets a distinct registered VFX entry: Arrow
       (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),

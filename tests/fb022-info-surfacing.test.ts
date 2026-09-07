@@ -64,6 +64,18 @@ function mountHub(meta: MetaState = defaultMeta()): { root: HTMLElement; hub: Hu
   return { root, hub, latest: () => current };
 }
 
+/**
+ * fb117 gave the Hub's Core panel its own `.sw-classdetail` block sharing the
+ * Class panel's CSS class — scope by which `.sw-panel` the `<h2>` names
+ * "Class", not by "first one in the DOM" (qa-playtester finding, fb117).
+ */
+function classDetail(root: HTMLElement): HTMLElement {
+  const panel = [...root.querySelectorAll<HTMLElement>('.sw-panel')].find(
+    (p) => p.querySelector('h2')?.textContent === 'Class',
+  )!;
+  return panel.querySelector<HTMLElement>('.sw-classdetail')!;
+}
+
 function hudCoreTooltip(w: World): string {
   document.body.innerHTML = '<div id="app"></div>';
   const root = document.getElementById('app') as HTMLElement;
@@ -99,7 +111,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   it('the Hub Class panel shows the selected class\'s active/passive numbers straight off content.classes', () => {
     const { root } = mountHub();
     const swordsman = content.classes.classes.find((c) => c.key === 'swordsman')!;
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${swordsman.active1.cooldownSeconds}s`); // Circle Slash cooldown
     expect(detail).toContain(String(swordsman.active1.radius)); // Circle Slash radius
     expect(detail).toContain(String(swordsman.active1.damage)); // Circle Slash damage
@@ -113,7 +125,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const { root } = mountHub();
     const plaguebringer = content.classes.classes.find((c) => c.key === 'plaguebringer')!;
     root.querySelector<HTMLElement>('[data-class="plaguebringer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${plaguebringer.active1.cooldownSeconds}s`); // Poison Barrel cooldown
     expect(detail).toContain(String(plaguebringer.active1.radius)); // Poison Barrel radius
   });
