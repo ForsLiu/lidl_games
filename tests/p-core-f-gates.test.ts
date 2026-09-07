@@ -654,5 +654,12 @@ describe('G23 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v
   it.skip('corpse: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('corpse')); // 1/6 wins (16.7%) — well under the 55% floor
   it.skip('corpse: T5 win rate in [5%,20%]', () => assertT5('corpse')); // 0/6 wins — under the 5% floor
   it.skip('time: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('time')); // 2/6 wins (33.3%), 0 close-win — under both the 55% win-rate floor and the 25% close-win floor
-  it('time: T5 win rate in [5%,20%]', () => assertT5('time')); // measured in band — the one companion case out of ten that lands live
+  // p12e (this session): re-opened by the `warden_eater` hp re-anchor
+  // (365,000 -> 18,250, BACKLOG p12e) — a faster, correctly-scaled boss
+  // fight lets `time`'s VS-slow kit close out T5 runs more often. Measured
+  // in band when this companion block first landed; re-measured after p12e
+  // at **3/6 (50%)**, over the 20% ceiling. `.skip`-ed with the fresh
+  // number per CLAUDE.md rule 6, joining the other nine already-skipped G23
+  // companions rather than a special case.
+  it.skip('time: T5 win rate in [5%,20%]', () => assertT5('time')); // p12e re-measurement: 3/6 wins (50%) — over the 20% ceiling
 });

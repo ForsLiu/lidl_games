@@ -981,6 +981,11 @@ regression is filed as **p12h** with its bisect candidates named.
 The deepening is still a real trade rather than a defect — a tower that soloed
 the whole curve was a statement about a difficulty the bot won 100% of the time
 with the Core untouched — and it is the strongest argument against keeping the
-anchor at 20, which is an owner call, not a silent one. The final boss also takes the
-roster multiplier (365,000 → 7.3M at T1); its fight-length case still passes,
-measured rather than assumed.
+anchor at 20, which is an owner call, not a silent one. The final boss also took the
+roster multiplier at the time this was written (365,000 → 7.3M at T1); its
+fight-length case still passed, measured rather than assumed. **Superseded by
+p12e**: that compounding (the boss's already fitted HP taking `baseHpMul` a
+second time) was diagnosed as the cause of the tick-cap censoring in
+G1/G8/G14/G23's win-rate measurements and fixed by pre-dividing the authored
+`warden_eater.hp` by `baseHpMul` (365,000 → 18,250), so the boss no longer
+carries the roster multiplier's *effect* twice — see BACKLOG p12e.

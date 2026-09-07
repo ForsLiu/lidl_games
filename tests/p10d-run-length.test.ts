@@ -183,17 +183,29 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThanOrEqual(0.7);
   });
 
-  it.skip('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
-    // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
-    // `'running'` — censored *victories*, not losses (they win at 47.4 and
-    // 46.6 min when the cap is lifted), which silently understates both the
-    // win rate this file reports and the mean it measures. Asserted rather
-    // than left to prose.
-    //
-    // **p12c made this worse, as its contested runs were always going to:
-    // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
-    // takes longer than one the bot walks. That is the strongest argument
-    // yet for §E/p12e, which owns eliminating timeouts and will un-skip this.
+  // p12e (this session): un-skipped. qa-playtester found 2 of these 24 seeds
+  // sitting at the 45-minute cap as `'running'` — censored *victories*, not
+  // losses (they win at 47.4 and 46.6 min when the cap is lifted), which
+  // silently understates both the win rate this file reports and the mean
+  // it measures. p12c made this worse (6 of 24 at T3), because a run that is
+  // genuinely fought takes longer than one the bot walks. Root cause:
+  // `data/enemies.json`'s `warden_eater` hp (365,000, authored before
+  // `baseHpMul` existed) was taking the roster-wide `baseHpMul: 20` on top
+  // of its own already-fitted value, inflating T1 boss HP 365,000 -> 7.3M
+  // (8.36M at T3) and stretching boss fights from ~50s to 380s-1187s
+  // depending on build — the tail p12e's own diagnosis names. Fixed by
+  // re-anchoring the authored value to 18,250 (365,000 / 20) so the
+  // multiplier restores the original fitted fight length instead of
+  // compounding it — a `/data`-only change, no code-path change (the boss
+  // still takes `baseHpMul` and the tier ladder exactly as before).
+  // Re-measured live against this exact 24-seed/T3 harness (a standalone
+  // script reusing `runScripted`/`cfg` the same way this file's own
+  // top-level `reports` above does, not kept in `tools/` — q47's crash-
+  // coverage census requires a pinned schema-violation test for anything
+  // permanent there, disproportionate for a one-off measurement script):
+  // 2/24 timeouts before the fix, 0/24 after — this live assertion below is
+  // that same re-measurement, not a separate claim.
+  it('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
     const stalled = reports.filter((r) => r.outcome === 'running');
     expect(stalled.map((r) => r.seed), detail).toEqual([]);
   });

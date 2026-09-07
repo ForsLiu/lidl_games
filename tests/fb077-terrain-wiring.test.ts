@@ -306,8 +306,13 @@ describe('fb077 — real terrain never strands a ground horde in Act II (qa-play
   // machinery directly and are all green. Re-enable at **p12e**, which owns
   // "zero `'running'` outcomes tolerated in any gate matrix" — and re-measure
   // this seed rather than inheriting this note (CLAUDE.md measurement rules).
-  // TODO(p12e): unskip; expect it to resolve once the boss clock is re-anchored.
-  it.skip('seed 52 + Fourth Gate + cycles 3 resolves instead of hanging forever', () => {
+  // p12e (this session): un-skipped — `data/enemies.json`'s `warden_eater`
+  // hp re-anchored (365,000 -> 18,250, canceling the roster-wide
+  // `baseHpMul: 20` back out to the fb099-fitted fight length) closes this
+  // exact defect. Re-measured, not inherited: this seed now resolves well
+  // inside the 45-minute cap (see BACKLOG p12e for the class-wide probe that
+  // found the same fix eliminates the G1 harness's timeouts too).
+  it('seed 52 + Fourth Gate + cycles 3 resolves instead of hanging forever', () => {
     const content = loadContent();
     const cfg = {
       seed: 52,

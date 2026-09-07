@@ -36,8 +36,14 @@ describe('p12c — Hasher.num distinguishes magnitudes past int32', () => {
   });
 
   it("the final boss's own HP range is injective under the hash", () => {
-    // p12c's shipped boss HP (365,000 x baseHpMul 20) and the fractions of it
-    // a real fight passes through.
+    // The magnitude the boss's HP reached under p12c's shipped `baseHpMul: 20`
+    // (365,000 x 20) — a fixed illustrative value for this hash-collision
+    // regression, not read from live content. p12e later re-anchored the
+    // *authored* `warden_eater.hp` (365,000 -> 18,250) so the boss no longer
+    // reaches this magnitude in practice, but the fix this test guards
+    // (`Hasher.num` staying injective past int32) has to hold at any
+    // magnitude a future re-tune might reach, so the historical number stays
+    // a valid, deliberately-oversized probe.
     const full = 7_300_000;
     const seen = new Map<string, number>();
     for (const frac of [1, 0.9, 0.75, 0.5, 0.425, 0.25, 0.1, 0.01]) {

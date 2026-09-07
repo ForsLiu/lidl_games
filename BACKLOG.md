@@ -700,7 +700,47 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+- [x] (p12e) [bug] **DONE 2026-09-07.** `data/enemies.json`'s `warden_eater`
+      hp re-anchored 365,000 -> 18,250 (365,000 / `baseHpMul` 20), canceling
+      the roster-wide multiplier's accidental double-count against the
+      boss's already fb099-fitted fight length rather than compounding it —
+      the diagnosed cause, confirmed exactly as this item's own text
+      predicted (`src/sim/enemies.ts`'s `makeEnemy` applies `baseHpMul` and
+      the tier ladder to every enemy including the boss, with no exemption).
+      A `/data`-only change; `tests/boss.test.ts`'s two `scaled(365000)`
+      literals and its title moved to `scaled(18250)`. Re-measured live
+      (not assumed): the G1 24-seed/T3 harness's timeout count went 2/24 ->
+      0/24, and its own tick-cap assertion (`'no seed reaches the tick
+      cap'`) is un-skipped and green; `tests/fb077-terrain-wiring.test.ts`'s
+      seed-52 case (previously hanging to the 45-minute cap) is un-skipped
+      and resolves in ~11s; `tests/boss.test.ts`'s full file, including the
+      `>20s` fight-length floor and both G14 T1/T5 companions, is green.
+      One expected side effect: G23's `time: T5` companion (p12d) flipped
+      from in-band to 3/6 (50%, over the 20% ceiling) now that a correctly-
+      scaled boss lets that Core close out T5 runs more often — re-skipped
+      with the fresh number, joining G23's other nine already-skipped
+      companions. G8's own T1/T5 companion block and its two diversity pins
+      were also re-checked (code-reviewer and qa-playtester both flagged
+      this as the one real remaining risk): the win-rate companions were
+      unaffected, but the fingerprint-distance pin moved 16 -> 20/66 failing
+      pairs (a real, expected consequence of the shorter boss-phase damage
+      window shifting each class's whole-run damage-share vector) and is
+      fixed to the re-measured number. **Not** re-derived in this item: G8's
+      twelve individual T3 per-class win-rate numbers and G23's T3
+      per-Core describe block, both already `.skip`-ed pending P10/an owner
+      verdict and not plausibly moved by a boss-only fight-length change per
+      those files' own documented TD-wave-economy root cause — logged as
+      QUESTIONS Q194 rather than re-run a second ~30-90-minute sweep each
+      for numbers that were already red. `npm run status`'s STATUS.md
+      regen (also named in this item's original acceptance) is deferred to
+      its normal cadence point (CLAUDE.md: every ~20 backlog items), not
+      done per-item. `npx tsc --noEmit` clean; `npm run test:fast` green
+      except the two pre-existing, already-confirmed-unrelated failures.
+      Also fixed while here: two stale post-fix doc references
+      (`BALANCE.md`'s present-tense "365,000 -> 7.3M" boss note, and
+      `tests/p12c-hash-magnitude.test.ts`'s docstring) reframed as history.
+      Original text follows.
+      **Now the blocker for this whole arc** (QUESTIONS Q177),
       and **diagnosed — start from this, not from a fresh sweep.** Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:

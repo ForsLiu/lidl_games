@@ -795,3 +795,36 @@ Q91 and Q102 corrections if not yet done.
   class's band differently from the rest), that is new work, not implied by
   this one.
 
+- **Q194. [p12e] Full G1/G8/G14/G23 all-classes/all-Cores/T1-T3-T5
+  re-verification and a `npm run status` regen were not completed against
+  this item's fix; a targeted re-check was, and both code-reviewer and
+  qa-playtester's own live re-runs are the record of what was and wasn't
+  covered.** p12e's acceptance text asks for a full sweep. What actually
+  landed: `data/enemies.json`'s `warden_eater.hp` re-anchor (365,000 ->
+  18,250) closes the diagnosed defect (boss HP double-counting
+  `baseHpMul`), confirmed by re-running `tests/boss.test.ts` (G14, full
+  file), `tests/p10d-run-length.test.ts` (G1, full file, including the
+  newly-live tick-cap assertion, twice), `tests/fb077-terrain-wiring.test.ts`
+  (the seed-52 hang repro), `tests/p-core-f-gates.test.ts` (G22 full, G23's
+  T1/T5 companion block full — one case, `time` T5, moved and was
+  re-skipped with its fresh number), and `tests/p6e-class-diversity.test.ts`
+  (G8)'s own T1/T5 companion block plus its two diversity-clause pins (one
+  clause moved, 16->20/66 failing fingerprint pairs, fixed; the other,
+  own-kit share, held at 0). What was **not** re-run: G8's twelve
+  individual per-class T3 win-rate `.skip`-ed cases (the file's own
+  ~30-minute `beforeAll`, already paid once for the companion/pin checks
+  above, was not re-run a second time to re-derive each of those twelve
+  numbers) and G23's T3 per-Core describe block (only G22, which shares the
+  same `beforeAll`-free per-test cost, was re-run). Both code-reviewer and
+  qa-playtester independently flagged this as the item's one real open gap
+  and both were satisfied once the G8 companion/pin re-check above landed —
+  neither found the remaining T3 per-class/per-Core numbers *likely* to have
+  moved (G8/G23's T3 win/loss shape is dominated by the TD wave-11-17
+  economy wall documented at length in `tests/p6e-class-diversity.test.ts`'s
+  own header, not boss-fight timing), but "likely fine" is a measurement
+  gap, not a closed one. Filed rather than chased further in this item: a
+  full re-derivation of every `.skip`-ed T3 per-class/per-Core number plus
+  the `npm run status` regen p12e's acceptance also names is real work,
+  reasonably scoped as its own item (or folded into the next `npm run
+  status` cadence point, CLAUDE.md's "every ~20 backlog items").
+

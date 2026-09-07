@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12e done (the p12 arc's blocker —
+  boss HP double-counted `baseHpMul`).** QUESTIONS Q177 diagnosed that
+  `data/enemies.json`'s `warden_eater` hp (365,000) was authored before the
+  roster-wide `baseHpMul` field existed; once `baseHpMul` (currently 20)
+  landed, `src/sim/enemies.ts`'s `makeEnemy` applied it to every enemy
+  including the boss with no exemption, multiplying the boss's already
+  fb099-fitted fight length by another 20x and stretching some fights past
+  the sim's tick cap — corrupting the win-rate measurements p12d's gate
+  rewrites depend on with censored ("running") outcomes. Fixed by
+  re-anchoring the authored value to 18,250 (365,000 / 20), a `/data`-only
+  change that cancels the double-count while leaving the tier ladder and
+  any boss-HP run modifier applying exactly as before (confirmed via
+  `src/sim/enemies.ts`'s actual multiplication order). Re-measured live
+  throughout rather than assumed: the G1 24-seed/T3 harness's timeout count
+  went 2/24 -> 0/24 (that harness's own `.skip`-ed tick-cap assertion is now
+  live and green); `tests/fb077-terrain-wiring.test.ts`'s seed-52 hang
+  repro (previously stalling to the 45-minute cap) now resolves in ~11s and
+  is un-skipped; `tests/boss.test.ts`'s full file (including the `>20s`
+  fight-length floor and G14's T1/T5 companions) is green. code-reviewer
+  and qa-playtester both independently caught the item's one real risk —
+  G8's companion/pin checks (`tests/p6e-class-diversity.test.ts`) were not
+  yet re-verified against the fix, and G23's sibling `time: T5` companion
+  had already visibly flipped (3/6, 50%, over the 20% ceiling — a
+  correctly-scaled boss lets that Core close out T5 runs more often,
+  re-skipped with the fresh number). Re-ran G8's own companion block and
+  both diversity pins: win-rate companions unaffected, but the
+  fingerprint-distance pin moved 16 -> 20/66 failing pairs (a real,
+  expected consequence of the shorter boss-phase damage window reshaping
+  each class's whole-run damage-share vector) and is fixed to the
+  re-measured number. Not re-derived: G8's twelve individual T3 per-class
+  win-rate numbers and G23's T3 per-Core describe block — both already
+  `.skip`-ed pending P10/an owner verdict, not plausibly moved by a
+  boss-only fight-length change per those files' own documented TD-wave-
+  economy root cause, and each its own ~30-90-minute sweep — logged as
+  QUESTIONS Q194 along with the deferred `npm run status` regen (also named
+  in this item's acceptance; left to its normal every-~20-items cadence).
+  Also fixed: two stale doc references to the pre-fix "365,000 -> 7.3M"
+  magnitude (`BALANCE.md`, `tests/p12c-hash-magnitude.test.ts`'s docstring),
+  reframed as history. `npx tsc --noEmit` clean; `npm run test:fast` green
+  except the two pre-existing, already-confirmed-unrelated failures
+  (`tests/q15-command-domain-fuzz.test.ts`, `tests/q45-cli-schema-violation
+  .test.ts`). No `/src/sim` changes.
+
 - **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
   rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
   tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
