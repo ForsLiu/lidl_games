@@ -93,7 +93,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
-  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
+  it('spawns at 3:01 with 365,000 HP scaled by tier, exempt from baseHpMul', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
     // to read the rung it names rather than whichever tier the gates happen
@@ -104,14 +104,14 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
-    // Warden-Eater is an enemy and takes the roster multiplier like every
-    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
-    // pinned so a re-anchor moves the fixture with the game; the *authored*
-    // number is still asserted, just not the spawned one. The fight-length
-    // case below is what proves this is still a beatable fight rather than a
-    // wall, and it is measured, not assumed.
-    expect(e.maxHp).toBeCloseTo(scaled(365000) * w.content.enemies.baseHpMul, 0);
+    // p12e: the Warden-Eater no longer takes the roster-wide `baseHpMul`. Its
+    // 365,000 was independently fitted (fb099) to a real boss-fight length
+    // *without* that multiplier; p12c's x20 stacked on top of the fit rather
+    // than replacing it, taking fights from 180-380s to 920-1187s and pushing
+    // contested seeds past the gate matrices' tick cap (QUESTIONS Q177/Q184).
+    // At T1 the tier rung is exactly 1.0, so the spawned HP is just the
+    // authored (scaled) number.
+    expect(e.maxHp).toBeCloseTo(scaled(365000), 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed
@@ -119,8 +119,38 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(scaled(365000) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(scaled(365000) * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
+  });
+
+  // p12e (QUESTIONS Q177/Q184): the *final* boss and ordinary enemies must
+  // diverge on `baseHpMul` specifically, not merely differ in final HP
+  // (which the tier rung and `mods.bossHp` would explain on their own) —
+  // this pins the exemption itself rather than an emergent number.
+  it('exempts only the final boss from baseHpMul while ordinary enemies still take it', () => {
+    const w = act2World(1);
+    const husk = spawnEnemy(w, 'husk', 5, 5, { overlay: false })!;
+    const huskDef = w.content.enemyByKey.get('husk')!;
+    expect(w.content.enemies.baseHpMul).toBeGreaterThan(1);
+    expect(husk.maxHp).toBeCloseTo(huskDef.hp * w.content.enemies.baseHpMul, 0);
+
+    const e = boss(w);
+    const bossDef = w.content.enemyByKey.get('warden_eater')!;
+    // The boss takes neither `baseHpMul` nor `mods.enemyHp`/`w.mods.bossHp`
+    // (both default 0 here) — just the authored HP.
+    expect(e.maxHp).toBeCloseTo(bossDef.hp, 0);
+    expect(e.maxHp).not.toBeCloseTo(bossDef.hp * w.content.enemies.baseHpMul, 0);
+  });
+
+  // code-reviewer (p12e): `gatebreaker` carries `TRAIT.boss` too (it's a
+  // wave-18 miniboss, not the Warden-Eater) — the exemption must be keyed on
+  // `TRAIT.finalBoss` specifically, the same distinction `dotVaryingMul`
+  // already draws for its own boss-only ramp, or this silently 20x-nerfs it.
+  it('does not exempt gatebreaker (TRAIT.boss but not TRAIT.finalBoss) from baseHpMul', () => {
+    const w = act2World(1);
+    const gate = spawnEnemy(w, 'gatebreaker', 5, 5, { overlay: false })!;
+    const gateDef = w.content.enemyByKey.get('gatebreaker')!;
+    expect(gate.maxHp).toBeCloseTo(gateDef.hp * w.content.enemies.baseHpMul, 0);
   });
 
   it('moves through three phases as its HP falls', () => {

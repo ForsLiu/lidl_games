@@ -17,6 +17,13 @@
  * The fix folds the high half only when it carries information, so every
  * value inside int32 range hashes bit-identically to before — which is what
  * keeps terrain's pinned map hashes and every recorded end-state hash valid.
+ *
+ * p12e note: the final boss no longer takes `baseHpMul` (it was double-
+ * counting an already-fitted HP, QUESTIONS Q177/Q184), so 7,300,000 is no
+ * longer a number the sim actually produces for it. The literal stays as a
+ * representative past-int32 magnitude fixture — this file tests `Hasher.num`
+ * in isolation, not the boss's current HP — rather than being re-derived from
+ * content that could again drift under it.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -35,9 +42,10 @@ describe('p12c — Hasher.num distinguishes magnitudes past int32', () => {
     expect(hashOf(7_300_000)).not.toBe(hashOf(3_105_696)); // ...the hash no longer does
   });
 
-  it("the final boss's own HP range is injective under the hash", () => {
-    // p12c's shipped boss HP (365,000 x baseHpMul 20) and the fractions of it
-    // a real fight passes through.
+  it('a representative past-int32 HP range is injective under the hash', () => {
+    // p12c's pre-p12e shipped boss HP (365,000 x baseHpMul 20, no longer what
+    // the boss actually spawns at — see file header) and the fractions of it
+    // a real fight passes through. Kept as the magnitude fixture regardless.
     const full = 7_300_000;
     const seen = new Map<string, number>();
     for (const frac of [1, 0.9, 0.75, 0.5, 0.425, 0.25, 0.1, 0.01]) {
