@@ -4735,6 +4735,21 @@ logs a blocker below rather than editing `/data` itself.
 
 ## Log
 
+- 2026-09-07, fb174: **skipped this session, not attempted — genuinely
+  in-scope but too large for this iteration, by its own acceptance text.**
+  fb174 asks for a table-free, measurement-only replacement for fb149's
+  declared `DECAYS`/`PATCH`/`FLAT` classification (`tests/ui-fb149-falloff-
+  wording.test.ts`): fire every Active of every one of the 12 classes
+  through its OWN required setup (charges via `tickClassCharge`, stored
+  Wrath, ground-field ticking through `updateAreas`, summon lifetimes —
+  four genuinely distinct firing mechanics, not one shared harness), then
+  derive the falloff clause presence/absence from the measured per-target
+  damage profile alone. The item's own text already names this "well
+  beyond one wording item" — this session's remaining budget went to
+  fb175/fb176 instead (both fully scoped, in-lane, and much smaller).
+  Left `[ ]`, not blocked — a future session with a full item's budget to
+  spend on just this one probe harness should pick it up next.
+
 - 2026-09-07, fb172 (for the main lane — a QUESTIONS.md entry this lane
   cannot write directly, QUESTIONS.md not being in this file's Scope):
   fb172's own acceptance text named an open UX question — "which copy wins,
