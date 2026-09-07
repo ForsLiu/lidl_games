@@ -87,17 +87,41 @@ still in test headers.
       could silently drop a verdict a fresh session needs. Verification:
       `npx vitest run tests/fb038-status.test.ts tests/fb038-status-cli.test.ts`
       and `npm run test:fast` green — refs: feedback/feature-token-economy.md.
-- [ ] (fb179) [polish] token economy (fb178) point 3, deferred: QUESTIONS.md
-      is 918 lines with 175 `(owner verdict:` entries. Move every entry whose
+- [x] (fb179) [polish] **DONE 2026-09-07, negative result, no content
+      moved.** token economy (fb178) point 3, deferred: QUESTIONS.md is 918
+      lines with 175 `(owner verdict:` entries. Move every entry whose
       verdict is dated more than 14 days before the run date to
       `docs/QUESTIONS-ARCHIVE.md` (append-only, original order); a pending
       entry (no verdict yet) never moves regardless of age.
-      `tools/status.ts`'s `pendingQuestions()` only ever reports entries with
-      no verdict, so it needs no change — verify it still reports the same
-      pending set before/after as a control. Acceptance: live QUESTIONS.md
-      under ~400 lines; every pending entry and every verdict newer than 14
-      days unchanged in place; `docs/QUESTIONS-ARCHIVE.md` contains every
-      moved entry verbatim; `npm run test:fast` green — refs:
+      **Measured before moving anything**, per this item's own caution
+      ("a wrong archival could silently drop a verdict a fresh session
+      needs"): QUESTIONS.md has no per-entry verdict dates, only the
+      "Verdict log" section's dated batch headers naming which Q-range each
+      batch verdicted — Q1-Q121 on 2026-08-27, Q122-Q133 on 2026-08-28,
+      Q134-Q154 on 2026-09-01, Q94/Q155-Q167 on 2026-09-04 (dated from
+      `feedback/processed/20260904-223211-verdicts-q155-167.md`'s own
+      timestamp — that batch was never logged into the Verdict log section
+      itself, a pre-existing gap left as-is since it doesn't change this
+      item's outcome). Every entry Q168+ cites an `fb1xx`/`p12x` item from
+      this same week, newer still. A full-file grep for any date before
+      2026-08-25 returned zero matches. Run date 2026-09-07, 14-day cutoff
+      2026-08-24 — every verdict found (2026-08-27 through 2026-09-07) is
+      **inside** the window, the oldest by only 11 days. **Result: 0 of the
+      173 `(owner verdict:` entries qualify** (4 of those 173 — Q193-Q196 —
+      are themselves still `pending` and never move on age alone, so 169
+      entries actually carry a verdict; all 169 fall inside the window
+      regardless). QUESTIONS.md is unchanged (still 918
+      lines — the "~400 lines" acceptance assumed entries old enough to
+      exist yet, which isn't true until 2026-09-10 at the earliest, when
+      the Q1-Q121 batch first crosses 14 days). `tools/status.ts`'s
+      `pendingQuestions()` re-run before/after returns the identical
+      pending set, as expected with zero bytes changed — the control-check
+      clause holds trivially. Created `docs/QUESTIONS-ARCHIVE.md` (header
+      only, empty, append-only) so CLAUDE.md's Sources-of-truth list, which
+      already names it, points at a real file, ready for the first real
+      move once verdicts age past the cutoff. **Re-measure on or after
+      2026-09-10** rather than re-running this exact analysis from scratch.
+      No `/src`/`/data` change; `npm run test:fast` unaffected — refs:
       feedback/feature-token-economy.md point 3, BACKLOG.md fb178.
 
 ### Recently completed
