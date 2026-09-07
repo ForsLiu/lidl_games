@@ -47,6 +47,19 @@ before executing further.**
 
 ### Actionable in this lane
 
+- [ ] (fb180) [polish] token economy (fb178, main lane): this file is well
+      past the 400-line budget fb178 set for live backlog files. Move every
+      `[x]` item (session-1/session-2 done items, c001-c041's now-Done rows)
+      to `docs/BACKLOG-DONE.md` under a `## BACKLOG-CONTENT.md` section, in
+      original order, keeping only open/blocked items and the last 10 done
+      ids inline. `tools/status.ts`'s `backlogPaths()` already reads
+      `docs/BACKLOG-DONE.md` (fb178), so a feedback citation moved there
+      stays in STATUS.md's ledger — verify with
+      `npx vitest run tests/fb038-status.test.ts` after. Acceptance: this
+      file under ~400 lines; every open/blocked item's full text unchanged;
+      `npm run test:fast` green — refs: feedback/feature-token-economy.md,
+      BACKLOG.md fb178.
+
 - [x] (c001) [bug] **DONE 2026-09-03.** class Actives ignore the `area` stat. SPEC-FINAL §2's stat
       table says Area "applies to every attack, active, and effect", and
       `towers.ts`, `vswield.ts`, `damagetypes.ts` and `enemies.ts` all scale
