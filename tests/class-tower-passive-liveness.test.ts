@@ -1020,12 +1020,14 @@ describe('c036: equipment and class-tower-passive bonuses on the same stat key m
     expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
   });
 
-  it('proven live, not vacuous — collapsing the two sources into one additive pool reddens both rows above', () => {
-    // Simulates the regression the item names: one pool where the two
-    // sources' *percentages* sum before the `1 + ...` factor is taken,
-    // instead of each source contributing its own `(1 + pct)` multiplicative
-    // term. `0.1 + 0.1 = 0.2` -> factor `1.2`, not the real `1.1 * 1.1 =
-    // 1.21`.
+  it('formula sanity check — an additive pool would read x1.20 where the rows above read x1.21', () => {
+    // Not a real-`Content`/`World` mutation test (the two `it`s above already
+    // are, via `effectiveTowerRange`/`effectiveTowerAoe` on real built
+    // structures) — this is a self-contained arithmetic check naming the
+    // regression shape directly: one pool where the two sources'
+    // *percentages* sum before the `1 + ...` factor is taken, instead of each
+    // source contributing its own `(1 + pct)` multiplicative term.
+    // `0.1 + 0.1 = 0.2` -> factor `1.2`, not the real `1.1 * 1.1 = 1.21`.
     const additivePool = (...pcts: number[]): number => 1 + pcts.reduce((s, p) => s + p, 0);
     const multiplicativePool = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1);
     expect(additivePool(0.1, 0.1)).toBeCloseTo(1.2, 10);

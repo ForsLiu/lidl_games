@@ -2166,10 +2166,11 @@ describe('c012 — the two §7 figures stated as a composition', () => {
     ).toBeCloseTo(columnOnly * Number(shoesFallbackQuoted![1]), 10);
   });
 
-  it('c035: proven live, not vacuous — a mutated single-item factor changes the joint product by the same factor', () => {
-    // A same-shape control the way c022/c028's devices insist on: this isn't
-    // asserting "some number changed", it is asserting the multi-item helper
-    // actually composes the single-item ones rather than reading a cached or
+  it('c035: formula sanity check — a mutated single-item factor changes the joint product by the same factor', () => {
+    // Not a real-`Content` mutation test in c009/c022's sense (see those for
+    // the device that rebuilds `Content` with a binding stripped) — this is a
+    // self-contained arithmetic check that the multi-item helper actually
+    // composes the single-item readings rather than reading a cached or
     // unrelated figure. Perturbing one single-item reading and re-deriving
     // the expected joint value must track it.
     const classKey = 'engineer';

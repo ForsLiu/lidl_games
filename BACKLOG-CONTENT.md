@@ -38,6 +38,9 @@ scoped to this lane and appended `c001`-`c005` below them. Run again in
 session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
 Run again 2026-09-06 (`c029` was the last actionable one left, all of
 `c001`-`c031` now Done/Skipped/Blocked), appending `c032`-`c036`.
+Run again 2026-09-07 (`c036` was the last actionable one left, all of
+`c032`-`c036` now Done — see the Log), appending `c037`-`c041` below the
+owner items.
 
 ### Actionable in this lane
 
@@ -798,7 +801,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       reproducing QA's exact repro. Full `tests/class-*.test.ts` glob (19
       files, 783 tests) and `npx tsc --noEmit` green.
 
-- [ ] (c033) [balance] G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
+- [x] (c033) [balance] **DONE 2026-09-07 — measured, no `/data` change (see the Log).** G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
       verdict, `feedback/processed/20260904-223211-verdicts-q155-167.md`) into
       two checks: (i) every class's own-kit VS share >=35% from wave 12
       (p12a/p12f's target) and (ii) pairwise class-kit fingerprint distance
@@ -821,7 +824,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       `data/classes.json` tune only - refs: SPEC-FINAL §14 G8, BALANCE
       DIRECTION v2 §D, BACKLOG.md p12d, c002, c030.
 
-- [ ] (c034) [bug] `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
+- [x] (c034) [bug] **DONE 2026-09-07 (see the Log — the acceptance clause's own formula overstated the real ceiling by one exponent; the real formula is what's tested).** `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
       accepted with G10/G11's absolute pins converted to ratio form "and still
       pass" (BACKLOG.md p12a acceptance), but that verification lived in
       `tests/p6d-nine-classes.test.ts`/`tests/p6b-swordsman.test.ts` — both
@@ -843,7 +846,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       that must turn them red. In-lane only, no `/data` change - refs:
       SPEC-FINAL §14 G10/G11, BACKLOG.md p12a.
 
-- [ ] (c035) [bug] the three Swordsman-locked equipment items' off-class fallbacks are proven
+- [x] (c035) [bug] **DONE 2026-09-07.** the three Swordsman-locked equipment items' off-class fallbacks are proven
       individually and never jointly. `tests/equip-spec-numbers.test.ts`
       proves `sleeve_sword` alone composes to §7's 1.2x1.2 and `swordsman_armor`
       alone to 1.1x1.5 on an Engineer, and `tests/fb015-equipment.test.ts`
@@ -868,7 +871,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       a real bug, in which case only `data/equipment.json` moves) - refs:
       SPEC-FINAL §2 (stacking), §7, §14 G5.
 
-- [ ] (c036) [bug] equipment-sourced and class-tower-passive-sourced bonuses on the same stat
+- [x] (c036) [bug] **DONE 2026-09-07.** equipment-sourced and class-tower-passive-sourced bonuses on the same stat
       key have never been jointly measured, though both are explicitly separate
       §2 "sources" that must multiply. `sniper_bracelet` (+10% `towerRange`)
       and Archer's *Ranger's Eye* (+10% `towerRange`, `data/classes.json`
@@ -887,6 +890,102 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       x1.21 — both read the real `derived`/`effectiveTowerRange` path the file
       already uses, not a hand-rolled formula. In-lane only - refs: SPEC-FINAL
       §2 (stacking), §14 G5, c013.
+
+- [ ] (c037) [bug] `c036`'s same-stat-key stacking check has a twin gap on the
+      **character-passive** slot, not just `towerPassive`. An exhaustive
+      diff of every class `passive`/`towerPassive` mods key against every
+      `data/equipment.json` mods/`classFallback` key finds exactly four
+      overlaps: `area` (Animist/`normal_bracelet`, c036) and `towerRange`
+      (Archer/`sniper_bracelet`, c036) are now covered — but `towerCost`
+      (Engineer's *character* passive "Efficient Engineering" -10%, vs
+      `normal_necklace` -20%) and `leech` (Bloodlord's *character* passive
+      "Blood Frenzy" +3%, vs `bleeding_ring` +0.01%) are not, and nothing in
+      the suite equips `normal_necklace` on an Engineer or `bleeding_ring` on
+      a Bloodlord at the same time its own passive is live. Acceptance: a
+      `tests/class-passive-liveness.test.ts` (or `tests/equip-*`) case builds
+      an Engineer with `normal_necklace` equipped and asserts the effective
+      `towerCost` factor is `(1-0.1)(1-0.2) = 0.72`, not `1-0.3 = 0.70`; a
+      second case builds a Bloodlord with `bleeding_ring` and asserts the
+      effective `leech` factor is `(1.03)(1.0001)`, not `1.0301` — both read
+      through the real `derived`/`Stats.factor()` path, not a hand-rolled
+      formula, the same device `c036` uses. In-lane only - refs: SPEC-FINAL §2
+      (stacking), §14 G5, c036.
+
+- [ ] (c038) [polish] the roster size (12 classes) is a **hardcoded
+      assumption in at least three lane files with no shared source and no
+      self-check**: `tests/class-kit-fingerprint.test.ts` (c033, "66 pairs"),
+      `tests/class-kit-damage-share.test.ts` (c002, "distinct top sources:
+      N/12"), and `tests/class-time-lord-band.test.ts` (c003's "11 of 12
+      classes measured"). `fb057`/`fb059` (owner queue, next in line) add
+      classes #13 and #14, and every one of those ratios silently keeps
+      reading against the old roster size until someone notices — the same
+      failure shape `c014`/`c029` fixed for hardcoded board coordinates,
+      applied to a hardcoded *count* instead of a hardcoded *tile*.
+      Acceptance: a shared lane module (or a single new
+      `tests/class-roster-size.test.ts`) exports the live
+      `content.classes.classes.length` and each of the three files above
+      asserts against it rather than a literal `12`/`66`; the new file also
+      asserts a synthetic roster of 13 changes the pair count formula's
+      output, so the check is proven live rather than a tautology. In-lane
+      only, no `/data` change - refs: c002, c003, c014, c029, c033, fb057,
+      fb059.
+
+- [ ] (c039) [balance] `c033`'s pairwise fingerprint measurement (2026-09-07,
+      2 seeds) found 50/66 pairs already clear BALANCE DIRECTION v2 §D's 0.15
+      floor, but two of the three closest pairs share a class:
+      `necromancer`/`bloodlord` (0.0355) and `bloodlord`/`animist` (0.0720).
+      c033's own acceptance left the tune decision open ("if a
+      `data/classes.json`-only tune plainly raises the passing-pair count...
+      take it; if not, log the numbers") and this lane logged rather than
+      tried, per CLAUDE.md rule 6 (never force a fragile tune) and the
+      2-seed sample's own thinness. This item is the actual attempt, with a
+      proper control-run pair. Acceptance: a `balance-analyst`-owned pass
+      identifies which of Bloodlord's authored kit fields could plausibly
+      shift its damage-source mix away from `necromancer`/`animist` without
+      moving win rate; if a concrete, small change raises the >=0.15 count
+      measured at >=6 seeds without moving any class's win rate outside its
+      own current band (control-run pair, before/after), take it and log
+      both readings; if no such change is found, log the negative result and
+      the fields considered rather than force one — either outcome closes
+      the item. In-lane (`data/classes.json` only if a tune is taken) - refs:
+      SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D, c033, CLAUDE.md rule 6.
+
+- [ ] (c040) [balance] `c033` measured only the **damage-source** half of
+      BALANCE DIRECTION v2 §D clause (ii)'s "damage-source/damage-type
+      vector method" — G22's own `fingerprint()` (`tests/p-core-f-
+      gates.test.ts`) is `damageShareVector` (by weapon/kit-bucket key) plus
+      an economy delta, with no damage-*type* term, so that is what c033
+      reproduced. `RunReport.damageByType` (physical/electric/poison/etc.)
+      has never been tried as the vector for clause (ii), and it could
+      plausibly separate classes whose damage-*source* mix looks similar
+      (two classes both tower-dominated by `mortar`) but whose damage-*type*
+      mix differs (a Cryomancer's frost kit vs a Stormcaller's electric one
+      behind the same tower). Acceptance: a control-run measurement (no
+      `/data` change) builds the same 12-class T1 vectors keyed by
+      `damageByType` instead of `damageByWeapon`, reuses `l1Distance`, reports
+      the pass count and closest pairs the same way `c033` does, and states
+      plainly whether it raises the count — a metric *change* to clause (ii)
+      itself is a definition decision, so log the number for `p12d`/owner
+      sign-off rather than swap the gate's metric from here. In-lane
+      measurement only - refs: SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D,
+      c033.
+
+- [ ] (c041) [polish] c018/c019's summon-cooldown headroom numbers (Engineer
+      59 ticks, Animist 119 ticks at shipped `/data`, recorded 2026-09-04)
+      are a measurement with an expiry date (CLAUDE.md's measurement rules)
+      that has never been re-checked, and at least two balance-affecting
+      changes have landed since (`p12c`'s T1 `baseHpMul: 20`, `fb077`'s
+      terrain generation) — neither obviously touches summon-cadence
+      headroom, but c030 found "obviously unrelated" wrong twice already on
+      this exact kind of assumption. Acceptance: re-run the headroom
+      derivation `c018`'s Log describes (cooldown cliff vs shipped
+      cooldown) against current `/data`, record the new margin beside the
+      old one with today's date, and note whether either card's margin
+      dropped enough to be worth flagging for `p10r`; a `.skip`-ed assertion
+      pinning the new floor is acceptable if the margin is still comfortably
+      positive, matching `c003`'s own convention. In-lane, `/data` unchanged
+      unless the re-measurement finds a genuine regression - refs: CLAUDE.md
+      measurement rules, c018, c019, c030.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -987,6 +1086,95 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c033/c034/c035/c036 (2026-09-07) — the diversity clause's half (ii), an independent G10/G11 re-derivation, and two cross-source stacking gaps
+
+- **Shape**: four new/extended files, no `/src` or `/data` byte moved on any
+  of the four. `tests/class-kit-fingerprint.test.ts` (new, c033),
+  `tests/class-g10-g11-verify.test.ts` (new, c034), extensions to
+  `tests/equip-spec-numbers.test.ts` (c035) and
+  `tests/class-tower-passive-liveness.test.ts` (c036). code-reviewer
+  (APPROVE, no Critical/Major — one Minor on two "proven live" test titles
+  overclaiming rigor for a self-contained arithmetic check rather than a real
+  `Content` mutation, fixed by renaming both to "formula sanity check" and
+  clarifying in comments which assertions in the same test are the real
+  mutation-backed ones) and qa-playtester (PASS, no bugs found) both ran
+  independently against all three code-touching items; c033 was skimmed by
+  both per its lighter measurement-only shape.
+- **c033 — RECORDED (2026-09-07, `CLASS_FINGERPRINT_MEASURE=1
+  FINGERPRINT_SEEDS=2`, 12 classes x seeds 1-2, T1, `cycles: 6`, full tree,
+  `hybrid`, ~610s wall clock):** 50/66 pairs already clear the 0.15 floor.
+  Closest 3: `necromancer`/`bloodlord` 0.0355, `bloodlord`/`animist` 0.0720,
+  `archer`/`paladin` 0.0820. A lighter sample than c002's 12-seed convention
+  (2 seeds vs 12, disclosed as such in the file header) — a control-run
+  baseline, not a mechanism claim, per CLAUDE.md's measurement rules. No
+  `/data` tune attempted this item: the acceptance's own branching
+  ("if a plain tune... take it; if not, log") pointed at logging given the
+  thin sample and CLAUDE.md rule 6's caution against forcing a fragile tune;
+  the actual tune attempt is filed as `c039` below rather than skipped
+  silently. `p12d` (BACKLOG.md) now has the number it needed.
+- **c034 — the acceptance clause's own formula does not match the code, and
+  the delivered test uses the code's, not the clause's.** The item text names
+  `(1+chainGrowth)^chainCap` for G11; on shipped `data/classes.json`
+  (`chainGrowth: 0.20`, `chainCap: 8`) that is `1.2^8 = 4.300`, over the 3.6
+  ceiling. `src/sim/classes.ts`'s `fireChainSurge` caps the exponent at
+  `chainCap - 1` (`capIndex`), giving the real reachable ceiling
+  `1.2^7 = 3.583` — matching both G11 and `tests/p6d-nine-classes.test.ts`'s
+  own main-lane derivation, and already independently recorded in
+  QUESTIONS.md Q120. The delivered file uses the real formula and adds an
+  assertion pinning the discrepancy itself (the literal clause formula
+  computed and shown to exceed 3.6) rather than silently "fixing" the item
+  text. G10's dps-optimal-charge derivation is a line-for-line reproduction
+  of `p6d`'s own algorithm, independently verified against shipped
+  `/data` (optimal hold ~3.5s, inside 2-6s) and proven live under both of the
+  acceptance's named mutations (`chainCap` 8->10 for G11, `chargeCapSeconds`
+  5->30 for G10). qa-playtester additionally found — and confirmed is not a
+  gap in the item, just a scope note — that this file only re-derives from
+  `/data` fields and never calls `fireChainSurge`/`fireDeadeyeDraw` itself,
+  so it cannot catch a *runtime logic* regression in those functions (only a
+  `/data` drift); that runtime coverage already exists separately in
+  `tests/class-passive-magnitudes.test.ts` (c011, verified by QA via mutation).
+- **c035 — the three Swordsman-locked fallbacks, proven jointly.** Two-item
+  (Sleeve Sword + Swordsman Armor on Engineer/Cryomancer, product 1.44x1.65 =
+  2.376) and three-item (+ Swordsman Shoes, attack-speed product plus the
+  shoes' movement fallback simultaneously) cases added to
+  `tests/equip-spec-numbers.test.ts`'s existing `equipmentAttackSpeedFactor`
+  block. QA mutation-tested two real bug shapes against `src/sim/stats.ts`:
+  the generic additive-instead-of-multiplicative `Stats.factor()` change, and
+  the more literal "last-write-wins" shape (collapsing every equipped item's
+  source key to one shared string) — both reddened all three new assertions.
+- **c036 — equipment and class-tower-passive bonuses on the same key
+  multiply.** `sniper_bracelet`+Archer *Ranger's Eye* (`towerRange`) and
+  `normal_bracelet`+Animist *Wide Grove* (`area`) both read the real
+  `effectiveTowerRange`/`effectiveTowerAoe` path via a `towerWorldWithEquipment`
+  helper (a straight extension of the file's existing `towerWorld`), asserting
+  x1.21 against a naive-additive x1.20. QA's same `Stats.factor()` mutation
+  reddened both. A full stat-key diff (every class `passive`/`towerPassive`
+  mods key vs every equipment mods/`classFallback` key) found exactly four
+  overlaps total; this item covers the two on `towerPassive` rows. The other
+  two (`towerCost`: Engineer's *character* passive vs `normal_necklace`;
+  `leech`: Bloodlord's *character* passive vs `bleeding_ring`) are filed as
+  `c037`.
+- **Generation rule run** (fewer than 3 actionable items remained after
+  c033-c036): (a) diffed against STATUS.md's current §14 gate table — every
+  lane-relevant gate already green (G5, G9, G10, G11, G12, G20, G22) or,
+  where red, blocked on `/data` outside Scope (towers.json/waves.json
+  balance, G1/G8/G13/G14/G23, all filed in BACKLOG.md already); (b) an
+  exhaustive stat-key diff between class passives/tower-passives and
+  equipment mods (SPEC-FINAL §2/§7 coverage) found the `c037` gap directly;
+  (c) one engineer's-judgment item each for: protecting the four just-shipped
+  gate-adjacent tests against the imminent `fb057`/`fb059` roster-size change
+  (`c038`), following through on `c033`'s own deferred tune question
+  (`c039`), trying the "damage-type" half of BALANCE DIRECTION v2 §D's own
+  wording that `c033` didn't (`c040`), and re-checking `c018`/`c019`'s
+  headroom numbers for staleness (`c041`). **Disclosed shortcut**: (a) used
+  the existing STATUS.md rather than re-running the ~1h `tools/sweep.ts` +
+  `handoff-metrics.ts` regeneration, since no lane-scoped gate state would
+  plausibly have changed since its last regeneration and the full sweep's
+  cost is disproportionate to a single generation-rule pass; a future
+  session regenerating STATUS.md at a phase boundary supersedes this if it
+  disagrees. Appended `c037`-`c041`, ordered by value; `c037` executed next
+  (see its own entry below once done).
 
 ### c030 (2026-09-06) — two deferrals, both expired, both moved
 
