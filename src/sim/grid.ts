@@ -82,6 +82,99 @@ export const GATES: readonly GateDef[] = [
  */
 export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 3, ty: GRID_H - 1 }];
 
+/**
+ * fb177: the position-legality subset of `openGate`'s rules — integer tile,
+ * on the grid, not a corner, on the border (read here off plain coordinates,
+ * since the constructor's caller-supplied gate list has no tile array yet to
+ * read `openGate`'s own border check off of) — for `Grid`'s constructor to
+ * validate a custom gate list (`jitterGates` output included) by the same
+ * standard `openGate` holds a gate opened after construction to.
+ *
+ * **Not called from `openGate` itself**, despite stating the same rule in
+ * three of its four branches (integer/off-grid/corner; `openGate` keeps its
+ * own copies of those three inline, unchanged). Tried first, per this file's
+ * own "verify, don't guess" standard: replacing `openGate`'s inline checks
+ * with a call to this function — including its border check in place of
+ * `openGate`'s own `this.tile[i] !== TileType.Border` — reddened two tests in
+ * `tests/terrain-gate-open.test.ts`. The cause is a *pre-existing* defect,
+ * not this refactor: `GATES.east` (`{ tx: 35, ty: 17 }`, the old 36-wide
+ * grid's east border column, uncorrected since fb166's resize to 56 wide — a
+ * live, separately-tracked bug, BACKLOG-TERRAIN.md's fb181) is baked in at
+ * construction as a `Gate` tile that is not, geometrically, on the current
+ * border. `openGate`'s early return for an already-open gate runs *before*
+ * its border check today, so re-opening that already-baked tile is a no-op;
+ * moving a coordinate-based border check ahead of that early return (which a
+ * shared call must, since it cannot see `this.tile` before construction
+ * finishes) makes the same call throw instead. That is a real behavior
+ * change to `openGate` this item has no license to make — its own
+ * acceptance is additive-only, "byte-identical to today" — so `openGate`
+ * keeps its original inline checks and this function is used by the
+ * constructor alone, per this file's own license to duplicate rather than
+ * force a shared call where sharing is not, in fact, safe.
+ */
+function assertGatePositionLegal(tx: number, ty: number, tag: string): void {
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+    throw new Error(`${tag}: (${tx}, ${ty}) is not an integer tile`);
+  }
+  if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
+    throw new Error(`${tag}: (${tx}, ${ty}) is off the grid`);
+  }
+  // No gate can work in a corner: its only interior neighbour is diagonal, the
+  // flow field never reaches it, and `allGatesReachable()` goes false the
+  // moment one exists.
+  if ((tx === 0 || tx === GRID_W - 1) && (ty === 0 || ty === GRID_H - 1)) {
+    throw new Error(`${tag}: (${tx}, ${ty}) is a corner; no gate is reachable there`);
+  }
+  // Only wall becomes a gate. An interior "gate" is a spawn point with open
+  // ground behind it and no wall to be a hole in.
+  if (!(tx === 0 || ty === 0 || tx === GRID_W - 1 || ty === GRID_H - 1)) {
+    throw new Error(`${tag}: (${tx}, ${ty}) is not a border tile`);
+  }
+}
+
+/**
+ * fb177: validates a whole gate list against `assertGatePositionLegal`, plus
+ * the one rule that only makes sense for a *list* — no two entries may target
+ * the same tile. `MODIFIER_GATES` never collides with `GATES` today, but a
+ * caller-constructed list (`jitterGates` output, or a hand-built one) could,
+ * and baking two gates onto one tile would silently drop one of them with no
+ * error at all.
+ *
+ * **Not called on the constructor's own default.** Measured while writing
+ * this item: `GATES.east` — `{ tx: 35, ty: 17 }` — fails its own
+ * `assertGatePositionLegal` "on the border" check against the *current*
+ * `GRID_W = 56` (`35` is neither `0` nor `GRID_W - 1 = 55`). `tx: 35` is the
+ * old 36-wide grid's east border column (`GRID_W - 1` before fb166's resize),
+ * left uncorrected when the constants moved to 56x32 — the exact defect
+ * BACKLOG-TERRAIN.md's fb181 (filed, unshipped as of this item) exists to add
+ * a regression test for, and fixing the coordinate itself is that item's job,
+ * not this one's: this item is additive-only, and its own acceptance
+ * requires `new Grid()` to stay byte-identical to today. Validating the
+ * default unconditionally would newly throw out of every one of the dozens
+ * of existing `new Grid()` call sites across `tests/terrain*` — turning an
+ * additive change into a breaking one over a bug this item did not
+ * introduce and is not scoped to fix. So `Grid`'s constructor calls this only
+ * when `gates !== GATES` (reference identity, not a value compare): the
+ * literal default keeps today's zero-validation behavior, unchanged, while
+ * any caller-supplied list — including one that happens to equal `GATES` by
+ * value rather than by reference — gets the full check. Once fb181 (or
+ * whatever fixes `GATES.east`) lands, this exemption becomes a no-op rather
+ * than a needed carve-out, but removing it is that item's call, not this
+ * one's.
+ */
+function assertGateListLegal(gates: readonly GateDef[]): void {
+  const seen = new Map<number, string>();
+  for (const g of gates) {
+    assertGatePositionLegal(g.tx, g.ty, `Grid: gate '${g.key}'`);
+    const i = g.ty * GRID_W + g.tx;
+    const prior = seen.get(i);
+    if (prior !== undefined) {
+      throw new Error(`Grid: gates '${prior}' and '${g.key}' both target tile (${g.tx}, ${g.ty})`);
+    }
+    seen.set(i, g.key);
+  }
+}
+
 export const CORE_X = 25;
 export const CORE_Y = 9;
 export const CORE_W = 2;
@@ -245,7 +338,22 @@ export class Grid {
 
   private dirty = true;
 
-  constructor() {
+  /**
+   * fb177: `gates` defaults to the static `GATES` (unchanged: every existing
+   * `new Grid()` call site bakes exactly the same three tiles it always has),
+   * but a caller may pass any other legal list — `jitterGates(seed)`'s 4-gate
+   * output included — to build a grid whose baked border-gate tiles match it
+   * instead. Validated with the same rules `openGate` enforces on a gate
+   * opened after construction (`assertGatePositionLegal`), plus a
+   * within-list duplicate-tile check no single-gate call needs. This does
+   * *not* wire `jitterGates` into any live run — `world.ts` still builds a
+   * bare `new Grid()` — it only makes the constructor capable of accepting a
+   * custom list.
+   */
+  constructor(gates: readonly GateDef[] = GATES) {
+    // fb177: see `assertGateListLegal`'s doc comment for why the literal
+    // default (`gates === GATES`, by reference) is exempt.
+    if (gates !== GATES) assertGateListLegal(gates);
     this.tile = new Uint8Array(GRID_W * GRID_H);
     this.occ = new Int32Array(GRID_W * GRID_H);
     this.blocked = new Uint8Array(GRID_W * GRID_H);
@@ -267,7 +375,7 @@ export class Grid {
           x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1 ? TileType.Border : TileType.Open;
       }
     }
-    for (const g of GATES) this.tile[g.ty * GRID_W + g.tx] = TileType.Gate;
+    for (const g of gates) this.tile[g.ty * GRID_W + g.tx] = TileType.Gate;
     for (const i of this.coreTiles()) this.tile[i] = TileType.Core;
     for (let i = 0; i < this.tile.length; i++) this.blocked[i] = this.staticBlocked(i);
     this.ground = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
@@ -551,6 +659,23 @@ export class Grid {
    * case at the merge.
    */
   openGate(tx: number, ty: number): void {
+    // fb177: these three checks (integer/on-grid/not-corner) restate the same
+    // rule `assertGatePositionLegal` states for the constructor's
+    // custom-gate-list validation — duplicated rather than shared, per that
+    // function's own doc comment. The border check below reads live
+    // `this.tile`, unchanged, and deliberately is *not* folded into the
+    // shared helper either: this method's own early return (a re-open is a
+    // no-op) runs *before* that check, and
+    // `GATES.east` is currently baked in at a position that is not, in fact,
+    // on the real 56-wide border (`{ tx: 35, ty: 17 }` is the old 36-wide
+    // grid's east column, uncorrected since fb166's resize — a live,
+    // separately-tracked defect, BACKLOG-TERRAIN.md's fb181). Moving the
+    // border check ahead of that early return — measured, not assumed —
+    // makes re-opening that already-baked gate throw where today it is a
+    // silent no-op, which is exactly the behavior change this item's own
+    // "byte-identical to today" acceptance forbids introducing. So this
+    // method's check order and its border rule are untouched; only the part
+    // that was already state-independent moved out.
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
       throw new Error(`openGate: (${tx}, ${ty}) is not an integer tile`);
     }
