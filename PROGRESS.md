@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c038 done, one premise
+  correction, no bug found.** The item's own premise named three files with a
+  hardcoded roster-size assumption ("12 classes"); checked against the code,
+  only `tests/class-kit-fingerprint.test.ts` actually pinned a live literal
+  (`toBe(12)`/`toBe(66)`) — `class-kit-damage-share.test.ts` already derives
+  its counts from `content.classes.classes` live, and
+  `class-time-lord-band.test.ts` has its own comment disclaiming a
+  roster-count pin (naming three *other*, out-of-lane files that carry one).
+  New `tests/class-roster-size.ts` (mirrors `class-board.ts`'s shared-module
+  precedent, c014) exports `rosterSize()`/`pairCount()`/`ROSTER_SIZE`/
+  `PAIR_COUNT`, read live off `content.classes.classes.length`; the
+  fingerprint file's invariant now reads those instead of the literals. New
+  `tests/class-roster-size.test.ts` re-derives both independently and clones a
+  class row plus its required `vsupgrades.json` skillCards entry into a
+  synthetic 13th class, proving `pairCount`'s formula itself moves (66 -> 78)
+  rather than just the count field. code-reviewer approved (no
+  Critical/Major; one Nit noting the fingerprint file's own updated assertion
+  is now tautological against the shared cached `Content`, which is correct
+  since the live-formula proof lives in the new file's independently-loaded
+  case instead). `npx tsc --noEmit` clean; `npm run test:fast` 4046 passed,
+  same two pre-existing unrelated `q15`/`q45` failures.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c037 done, one measurement,
   one premise correction, no bug found.** `c036`'s same-stat-key stacking
   check had a twin gap on the *character*-passive slot: Engineer's *Efficient

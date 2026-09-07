@@ -1039,7 +1039,7 @@ owner items.
       `q15`/`q45` fuzz-command-domain failures c029 already logged as present
       on HEAD.**
 
-- [ ] (c038) [polish] the roster size (12 classes) is a **hardcoded
+- [x] (c038) [polish] **DONE 2026-09-07.** the roster size (12 classes) is a **hardcoded
       assumption in at least three lane files with no shared source and no
       self-check**: `tests/class-kit-fingerprint.test.ts` (c033, "66 pairs"),
       `tests/class-kit-damage-share.test.ts` (c002, "distinct top sources:
@@ -1057,6 +1057,33 @@ owner items.
       output, so the check is proven live rather than a tautology. In-lane
       only, no `/data` change - refs: c002, c003, c014, c029, c033, fb057,
       fb059.
+      **The "at least three lane files" premise was checked against the code,
+      not assumed, and only one of the three actually pinned a live literal.**
+      `tests/class-kit-damage-share.test.ts` already derives `KEYS`/`rows.length`
+      from `content.classes.classes` live — its "N/12" text is all doc-comment
+      measurement history or `console.log` strings, never a runtime assertion.
+      `tests/class-time-lord-band.test.ts` has its own code comment (line ~201)
+      stating it deliberately avoids a roster-count pin, naming three *other*,
+      out-of-lane files that carry one (`fb013-timelord`, `grid`,
+      `p6d-nine-classes` — none in this lane's Scope). Only
+      `tests/class-kit-fingerprint.test.ts` had a live `expect(KEYS.length).
+      toBe(12)` / `.toBe(66)`. New `tests/class-roster-size.ts` exports
+      `rosterSize()`/`pairCount()`/`ROSTER_SIZE`/`PAIR_COUNT` (mirroring
+      `class-board.ts`'s shared-module precedent from c014); the fingerprint
+      file's invariant now reads those instead of the literals. New
+      `tests/class-roster-size.test.ts` re-derives both from an independent
+      `loadContent()` call (not a tautology against the module's own cached
+      value) and, separately, clones a class row plus its required
+      `data/vsupgrades.json` `skillCards` entry into a synthetic 13th class,
+      proving `pairCount`'s formula itself moves (66 -> 78) rather than just
+      the count field. code-reviewer approved (no Critical/Major; one Nit
+      noting `class-kit-fingerprint.test.ts`'s own updated assertion is now
+      tautological against the shared cached `Content` — correctly so, since
+      the live-formula proof was deliberately placed in
+      `class-roster-size.test.ts`'s independently-loaded case instead).
+      `npx tsc --noEmit` clean; `npm run test:fast` (run together with c040's
+      edits to the same file, below): 4046 passed, same two pre-existing
+      unrelated `q15`/`q45` failures.
 
 - [ ] (c039) [balance] `c033`'s pairwise fingerprint measurement (2026-09-07,
       2 seeds) found 50/66 pairs already clear BALANCE DIRECTION v2 §D's 0.15

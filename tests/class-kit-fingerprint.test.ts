@@ -134,6 +134,7 @@ import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
+import { PAIR_COUNT, ROSTER_SIZE, pairCount } from './class-roster-size';
 import { cfg, runScripted } from './helpers';
 
 const content = loadContent();
@@ -268,9 +269,16 @@ describe.skipIf(!MEASURE)('c033: class-kit fingerprint measurement (opt-in)', ()
   });
 });
 
-describe('c033: invariants the tune must not break (fast tier)', () => {
-  it('every class has exactly 12 distinct keys to pair (66 combinations)', () => {
-    expect(KEYS.length).toBe(12);
-    expect((KEYS.length * (KEYS.length - 1)) / 2).toBe(66);
+describe('c033/c038: invariants the tune must not break (fast tier)', () => {
+  it('every class has exactly ROSTER_SIZE distinct keys to pair (PAIR_COUNT combinations)', () => {
+    // `c038`: was a literal `toBe(12)`/`toBe(66)`, which `fb057`/`fb059`
+    // (roster #13, #14) would have silently outrun — a stale pin
+    // indistinguishable from a real regression to whoever hit it next.
+    // `ROSTER_SIZE`/`PAIR_COUNT` (`class-roster-size.ts`) read
+    // `content.classes.classes.length` live, so this line moves with the
+    // roster instead of needing a manual bump.
+    expect(KEYS.length).toBe(ROSTER_SIZE);
+    expect((KEYS.length * (KEYS.length - 1)) / 2).toBe(PAIR_COUNT);
+    expect(pairCount(KEYS.length)).toBe(PAIR_COUNT);
   });
 });
