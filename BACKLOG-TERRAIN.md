@@ -142,7 +142,7 @@ the merge — never edited from this lane.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
-- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+- [x] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
       edges, jittered along the edge) instead of 3, and tier modifiers that add
       a gate now go to **5**. Every existing gate rule still applies unchanged:
       gates are never sealed, connectivity >= 80% of walkable, Core legality
@@ -154,6 +154,103 @@ the merge — never edited from this lane.
       property tests pass at 4 gates across **1000 seeds**; nothing in
       `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
       SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+      **The generator needed zero code changes.** Every gate-aware function in
+      `src/sim/terrain/**` (`generateTerrain`, `attempt`, `sealPockets`,
+      `measureTerrain`, `legalCoreAnchors`, `gateComponent`, `corridorsOk`,
+      `gatesOpen`/`gatesConnected`, `validateCorePlacement`,
+      `suggestCoreAnchor`, `maxGateDetour`/`measureApproach`) already takes an
+      explicit `gates: readonly GateDef[] = GATES` parameter, built for
+      fb077's Fourth Gate modifier — confirmed by reading every one of those
+      files rather than assumed. `data/terrain.json` was greped and inspected
+      field by field: every value is a fraction, a radius, an attempt cap, or
+      the tile/high-ground tables, none of which name a gate or a count.
+      New file `tests/terrain-four-gates.test.ts` (24 tests, ~0.4s) builds its
+      own `FOUR_GATES`/`FIVE_GATES` fixtures — one gate per edge, genuinely on
+      the 56x32 border, jittered off each edge's centre the way `GATES`' own
+      three are — rather than reusing the shipped `GATES`/`MODIFIER_GATES`,
+      because this item's own filing above already found `GATES`' `east` and
+      `MODIFIER_GATES`' `south` no longer sit on the 56x32 border (`fb153b`'s
+      to fix). Measured over a 1200-seed sweep per fixture in the committed
+      suite, and cross-checked at 12000 seeds per fixture with a companion
+      script (`tests/terrain-four-gates-sweep.ts`, "a script, not a suite" in
+      `terrain-balance-ab.ts`'s sense — its header carries the full table):
+      **zero fallback maps at 4 or 5 gates, at every seed count tried (1200,
+      2000, 5000, 12000)**, matching the 3-gate baseline's own 0/12000 on the
+      identical sweep. Worst observed margins over the 12000-seed cross-check,
+      four gates: `walkableFrac` 0.621094 against a 0.6 floor,
+      `buildableNormalFrac` 0.486607 against 0.45, `coreLegalFrac` 0.460993
+      against 0.15, `maxGateDetour` 1.444444 against a 1.5 ceiling; five
+      gates: 0.618862 / 0.489397 / 0.460168 / 1.493976 against the same four
+      floors/ceiling. The five-gate detour margin (1.493976 of 1.5) is the
+      tightest number in the table, and it is **not** a fragility fb156
+      introduces — the 3-gate baseline hits 1.492063 on the identical sweep,
+      so the tightness is a property of the shipped density/corridor
+      config at 56x32 rather than of gate count. `gateReachFrac` measured
+      exactly 1.0 and `gatesOpen`/`gatesConnected`/`corridorsOk` held on all
+      36000 generated maps across the three fixtures. `legalCoreAnchors`'
+      enumerated set was checked directly against `coreGateClearance` (3) at
+      both gate counts — every anchor's footprint clears every gate by more
+      than the clearance, not merely "the band held" — and
+      `validateCorePlacement` was checked at the exact clearance boundary on
+      real generated terrain. Boundary seeds (`MIN_TERRAIN_SEED`, `-1`, `0`,
+      `MAX_TERRAIN_SEED`) and determinism (same seed -> same hash and tiles,
+      twice) both hold at 4 and 5 gates.
+      One real, non-blocking finding surfaced while testing `describeTerrain`/
+      `parseTerrainDump`: `describeTerrain` takes an explicit `gates`
+      override, but `parseTerrainDump` does not — it re-imports the live
+      `GATES` constant and checks a dump's base three positions against those
+      literal, currently-shipped coordinates by design ("they are fixed by
+      the build"). That means a dump only ever round-trips against *this
+      build's real* gate positions, never against a fixture this lane
+      invents — pinned by a positive test (round-trips a real 4-gate dump
+      using `GATES` plus a border-corrected `south`) and a negative one
+      (a dump built from `FOUR_GATES`' own coordinates is correctly refused).
+      It needs no fix and is not a new Log item: `parseTerrainDump` reads
+      `GATES`/`MODIFIER_GATES` dynamically and mentions no count anywhere, so
+      the day `fb153b` relocates `GATES` to the real new positions this exact
+      function validates against them with zero `describe.ts` change — logged
+      inline in the test file's own comments for the next reader rather than
+      duplicated here. Separately, `describeTerrain`'s `HEADER_KEYS.gates`
+      closed set (today `west, north, east, south`) has no 5th name yet, so a
+      novel modifier-gate key is correctly refused; this is the same
+      `fb153b`-owned `MODIFIER_GATES` array already logged above, needing no
+      new entry. `config.ts`'s `MAX_WALKABLE_FRAC`/`flatCoreAnchorCount`
+      ceilings (used only to validate `data/terrain.json` at load time) are
+      computed off the literal base-3 `GATES` import rather than a
+      runtime-supplied gate count; measured rather than assumed to be
+      harmless: at `coreGateClearance: 3` the 3-gate flat-map ceiling is
+      0.999299 anchors and a parallel 4-/5-gate computation moves it to
+      0.999307/0.999295 — a fourth-decimal difference dwarfed by the shipped
+      `minCoreLegalFrac: 0.15` floor sitting nowhere near either — so it is
+      recorded here as checked-and-ruled-out, not filed as a Log item.
+      **Verification.** `npx tsc --noEmit` clean. `npx vitest run
+      tests/terrain-four-gates.test.ts`: 24/24 green in ~0.4s. The full
+      `tests/terrain*` directory (26 files): 427 passed, 9 skipped (the
+      pre-existing fb166-logged skips, unchanged), 0 failed. `npm run
+      test:fast`: 272 passed files / 9 failed / 8 skipped, 4131 passed tests /
+      22 failed / 62 skipped — every failing file
+      (`tests/class-board.test.ts`, `tests/content-complete.test.ts`,
+      `tests/fb077-terrain-wiring.test.ts`, `tests/grid.test.ts`,
+      `tests/p1a-sealing.test.ts`, `tests/q45-cli-schema-violation.test.ts`)
+      confirmed pre-existing and unrelated by re-running two of them
+      (`tests/grid.test.ts`, `tests/content-complete.test.ts`'s Gatebreaker
+      test) with this item's two new files stashed out via
+      `git stash -u` — both failed identically without this item's changes
+      present, matching the fb166-logged 56x32 blast radius (hardcoded `36`
+      in `tests/grid.test.ts`, Gatebreaker/sealing numbers tuned at the old
+      grid area) rather than anything this item touched. No file under
+      `tests/terrain*` appears in the failing-file list. **Subagent review:
+      no Agent-spawning tool was available in this execution context** (the
+      same constraint fb166 recorded), so this item was self-reviewed against
+      `.claude/agents/code-reviewer.md`'s and `.claude/agents/qa-playtester.md`'s
+      checklists directly rather than through a real subagent turn — stated
+      here plainly rather than claimed as a subagent pass. Self-review found
+      no Critical/Major issues; the one real defect the self-review process
+      itself caught mid-work (this file's first draft called
+      `tests/terrain-legality.ts`'s `legalUnder`, which fixes its
+      `measureTerrain` call to the base-3 default and so scored every 4-/5-gate
+      map as illegal) was root-caused and fixed before commit by threading
+      `terrainLegal(measureTerrain(map, cfg, gates), cfg)` through instead.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
