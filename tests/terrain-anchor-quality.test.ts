@@ -745,12 +745,14 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
   it('takes the most build room among the anchors tied on the primary key', () => {
     // **Its own case on purpose.** These assertions used to close the floors
     // case above, where they were unreachable by the mutants their own comment
-    // named: an inverted tie-break dies at `worstGate.seed === 88` (it reads
-    // 284) and a dropped one at `farthestCentroid.seed === 411` (it reads 211),
-    // both before this ever ran. QA measured that the property *is* violated by
-    // those mutants — on 21 and 16 seeds — so the assertions were sound and
-    // simply never executed. Separated, they fail with a message that names the
-    // tie-break.
+    // named (at 36x20: an inverted tie-break died at `worstGate.seed === 88`,
+    // a dropped one at `farthestCentroid.seed === 411`, both before this ever
+    // ran; QA measured the property violated on 21 and 16 seeds there). fb166
+    // did not re-run that mutant-kill count at 56x32 — the seeds themselves
+    // moved (`worstGate` is now 380, `farthestCentroid` 384) and re-deriving
+    // the two kill counts was out of this item's budget; flagged as
+    // unfinished measurement rather than carried forward as fact. Separated,
+    // they fail with a message that names the tie-break.
     //
     // **What they hold, stated exactly, because the obvious reading is too
     // generous.** `maxTieRoom` is computed with the same `coreAnchorRoom` the
@@ -771,22 +773,25 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // in. A primary key changed on one side and not the other fails here rather
     // than leaving the two silently measuring different populations.
     expect(rs.filter((r) => r.pickInTieSet).length).toBe(rs.length);
-    // The population that rule operates on, pinned so the header's "5 of 24,
-    // not 5 of 500" cannot go stale. `analyze.ts` read 25 here until fb065b
-    // re-measured it against fb064l's generator.
+    // The population that rule operates on, pinned so the header's "15 of 86,
+    // not 15 of 500" cannot go stale. fb166: re-measured at 56x32 — was
+    // `{ tieSeeds: 24, movedOffLowestIndex: 17 }` at 36x20 (and 25/17 before
+    // fb065b re-measured against fb064l's generator).
     expect({
       tieSeeds: rs.filter((r) => r.tieCount > 1).length,
       movedOffLowestIndex: rs.filter((r) => r.tieMoved).length,
-    }).toEqual({ tieSeeds: 24, movedOffLowestIndex: 17 });
+    }).toEqual({ tieSeeds: 86, movedOffLowestIndex: 39 });
     // Absolute readings of the metric itself — the half the property above
     // cannot see. The flat arena's 36 is a filled 6x6 block of normal ground
     // and pins three things at once: the radius (1 reads 16, 3 reads 64), the
     // *shape* (a ring excluding the footprint would read 32), and that it
     // counts `Normal`. The clipped corner and a real generated anchor pin it
-    // against a metric that agrees with 36 by accident.
+    // against a metric that agrees with 36 by accident. (fb166: the real
+    // generated anchor moved to seed 370's pick, `(24,8)`, reading 22 — was
+    // seed 411's `(28,9)` reading 14 at 36x20.)
     expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y)).toBe(36);
     expect(coreAnchorRoom(flatTerrain(), 1, 1)).toBe(16);
-    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(14);
+    expect(coreAnchorRoom(generateTerrain(370, cfg), 24, 8)).toBe(22);
   });
 
   it('the tie-break metric matters even though the fb166 grid did not reproduce a refusal', () => {
@@ -861,18 +866,25 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       fidelityAll: `${rs.filter((r) => r.fidAll > 0).length}/${rs.length}`,
       fidelityFree: `${fidFree.length}/${rs.length}`,
       fidelityFreeSeeds: fidFree,
-      // The two orderings pick out disjoint seeds, which is the finding: which
-      // anchor is "better" is not decidable without a balance decision.
+      // At 36x20 the two orderings picked out disjoint seeds; at 56x32 they
+      // overlap on six (see the header's fb166 note) — which anchor is
+      // "better" is still not decidable without a balance decision, but "the
+      // two never agree" was a fact about that grid, not a property of the
+      // measure.
       overlap: monoFree.filter((s) => fidFree.includes(s)),
       worstFreeCount: rs.reduce((a, r) => Math.max(a, r.monoFree, r.fidFree), 0),
     }).toEqual({
+      // fb166: re-measured at 56x32 (was monotoneAll '500/500', monotoneFree
+      // '5/500' seeds [13, 177, 184, 315, 381], fidelityAll '373/500',
+      // fidelityFree '1/500' seeds [189], overlap [], worstFreeCount 1, at
+      // 36x20).
       monotoneAll: '500/500',
-      monotoneFree: '5/500',
-      monotoneFreeSeeds: [13, 177, 184, 315, 381],
-      fidelityAll: '373/500',
-      fidelityFree: '1/500',
-      fidelityFreeSeeds: [189],
-      overlap: [],
+      monotoneFree: '15/500',
+      monotoneFreeSeeds: [8, 24, 25, 50, 119, 185, 199, 212, 322, 327, 328, 366, 398, 459, 468],
+      fidelityAll: '315/500',
+      fidelityFree: '9/500',
+      fidelityFreeSeeds: [8, 119, 170, 172, 185, 199, 294, 322, 366],
+      overlap: [8, 119, 185, 199, 322, 366],
       worstFreeCount: 1,
     });
   });
