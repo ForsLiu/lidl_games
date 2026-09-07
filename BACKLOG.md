@@ -4429,6 +4429,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       fb087), then either restore a <60 s standalone run or move q15 to the
       exclude list with the measured time; the config comment matches the
       measurement — refs: CLAUDE.md test tiers, fb087.
+      **2026-09-07 re-measurement: the symptom has changed and the old
+      "hangs" diagnosis is stale.** On this host q15 no longer times out —
+      it fails in ~1.3s, standalone and under `npm run test:fast` alike,
+      with `Error: Cannot find module '.../tools/fuzz-command-domain'
+      imported from .../tools/fuzz-command-domain-worker.ts`. `q45` (which
+      exercises the same `probeInWorker` machinery via a scratch-copied
+      tree) fails the same way. Root-caused with a Vitest-free repro (a
+      bare `node` script spawning the same `new Worker(WORKER_PATH,
+      {execArgv: ['--import', 'tsx/esm']})` call `fuzz-command-domain.ts`
+      itself uses): the extensionless relative import
+      (`fuzz-command-domain-worker.ts`'s `from './fuzz-command-domain'`)
+      resolves fine when the exact same `--import tsx/esm` flag runs on the
+      **main thread**, but fails to resolve inside a spawned
+      **`Worker`** thread on this host's `tsx@4.23.12` (`package.json` only
+      pins `^4.19.2`) under Node `22.22.2` — tsx's ESM resolve hook does not
+      appear to intercept bare specifiers inside a worker's own execArgv
+      registration here, and the failure is not specific to one import: a
+      manual `.ts`/`.js`-suffixed rewrite of the worker's own import moves
+      the identical error one level deeper, to the next extensionless
+      import inside `fuzz-command-domain.ts` itself
+      (`.../src/sim/run`) — a real fix would mean adding explicit
+      extensions to every transitively-imported specifier reachable from
+      the worker entry point, or pinning/patching the `tsx` dependency
+      itself, either of which is a materially different, larger, and
+      environment-sensitive change than this item's own acceptance text
+      anticipated ("find why the probe hangs"). Left open rather than
+      attempted blind, since a "fix" that only silences this exact
+      `tsx@4.23.12` patch could read as broken or unnecessary on a
+      differently-resolved `^4.19.2` install (CI, another contributor's
+      machine) and cannot be verified here either way — a floating-version
+      dependency bug is a judgment call for the owner (pin `tsx` to a known
+      version and verify across environments, or find whichever tsx patch
+      regressed worker resolution and report upstream) rather than a
+      same-session code fix. `q45`'s failure is the identical root cause,
+      not a second bug — refs: CLAUDE.md test tiers, fb087.
 - [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
       tier cannot see, both expired measurements: `tests/a3-movement-
       mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`
