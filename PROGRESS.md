@@ -11,6 +11,37 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT fb180 done, docs only.**
+  `BACKLOG-CONTENT.md` was well past fb178's 400-line budget for live
+  backlog files (3807 lines). Every `[x]` item from the Queue (c001-c041,
+  all Done/Skipped/Blocked) plus the entire `## Log` section moved verbatim,
+  in original order, to `docs/BACKLOG-DONE.md` under a new
+  `## BACKLOG-CONTENT.md` heading — the exact treatment fb178 itself gave
+  `BACKLOG.md`; verified programmatically (every item id and the full `##
+  Log` text byte-identical between the old file and the archive, none
+  missing, none duplicated). Kept live, full text unchanged: the `## Scope`
+  section (one cross-reference line updated since the Log it pointed to no
+  longer lives in this file); the three still-blocked/skipped in-lane items
+  (`c004`, `c002`, `c010`) and the five still-blocked owner items (`fb056`,
+  `fb057`, `fb059`, `fb061`, `fb062`); a new `### Recently completed` list
+  of the last 10 done ids (`c032`-`c041`) as one-liners. `BACKLOG-CONTENT.md`
+  is now 210 lines. `tools/status.ts`'s `backlogPaths()` already reads
+  `docs/BACKLOG-DONE.md` (fb178), so every feedback-ledger citation for an
+  id now living in the archive still resolves —
+  `npx vitest run tests/fb038-status.test.ts` green (27/27). code-reviewer
+  APPROVE (no Critical/Major; two Minor — this entry closes the missing-
+  PROGRESS.md-update one, and an unrelated `npm install`-driven
+  `package-lock.json` diff was reverted rather than committed — plus a Nit
+  noting `c004`/`c002`/`c010`'s unchanged text still says "see the Log",
+  softened by the new pointer note just above it). `npm run test:fast`:
+  4227 passed, 53 skipped, only the two pre-existing unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (present on HEAD, unrelated to this docs-only change). No `/src` or
+  `/data` change — refs: feedback/feature-token-economy.md, BACKLOG.md
+  fb178, BACKLOG-CONTENT.md fb180. **Moved to `docs/PROGRESS-ARCHIVE.md` by
+  this same item, to keep this file's last-10 window:** the prior oldest
+  entry, 2026-09-07's `BACKLOG fb079` (SPEC-FINAL §10.5 append).
+
 - **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
   rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
   tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
@@ -284,40 +315,3 @@
   tile-order pin included, actually runs on a Tuner-edited document) and
   spot-checked several regenerated hole entries against the real schema and
   shipped `/data` values.
-
-- **2026-09-07 — BACKLOG fb079 done, docs only.** SPEC-FINAL.md gains §10.5
-  (Terrain generation & Core placement), written verbatim from `feedback/
-  processed/20260903-121255-feature-terrain-generation.md` plus the
-  `lane/terrain` design decisions already owner-approved at QUESTIONS Q162/
-  Q171 (tile kinds and the six generation bands, structural gate mains,
-  sealing/fallback semantics, the `a/(a+1)` Core-band ceiling, Core
-  placement and its suggested anchor, high-ground's no-boss-family rule, the
-  per-kind `blocksCharacter` flag, the `[-2^31, 2^32-1]` seed domain, the
-  `maxGateDetour` approach band, the uncontested-high repair, and the
-  run-gate-list threading) — the section itself carries an unresolved owner
-  item forward (BACKLOG fb129's Act II high-ground/Burrower residual).
-  §14's G2 row gained a terrain-determinism clause (same seed → identical
-  map + hash, seed+1 regeneration is itself deterministic); §13's content
-  totals gained `data/terrain.json`; MIGRATION.md gained a new §8.6 noting
-  the spec catching up to what the lane had already built and merged; the
-  append itself is logged as QUESTIONS Q194, `[designer-fill]`, owner
-  verdict pending. Zero `/src` or `/data` changes — confirmed by re-running
-  every SPEC-FINAL-parsing suite (`tests/q10-gate-audit.test.ts`,
-  `tests/fb038-status.test.ts`, `tests/class-spec-numbers.test.ts`,
-  `tests/equip-spec-numbers.test.ts`, 291 tests) green, including
-  `tools/gate-audit.ts`'s own G2-row parser against the edited table.
-  code-reviewer's first pass found two Major fidelity gaps, both fixed
-  before this was marked done: the "verbatim" quote had silently dropped
-  two source clauses (the Core-legal-positions rationale and "Tuner page
-  (density/ratios editable)") and reflowed the tile-types bullets into
-  prose, losing the rock-passthrough `[designer note]` and the `(Spitter)`
-  example — replaced with an actual verbatim quote of the source file's own
-  bullet lists; and a lane-decisions bullet claimed the run's live gate
-  list is threaded through "every" gate-reading function, contradicting
-  Q171(9)/open BACKLOG fb134 (`describeTerrain` still reads the module's
-  base `GATES` constant, confirmed live in `src/sim/terrain/describe.ts`) —
-  now states that exception explicitly. Diffed the corrected quote
-  line-for-line against the source feedback file to confirm true verbatim
-  fidelity (one intentional blank line added for Markdown blockquote
-  paragraph spacing, no other difference).
-
