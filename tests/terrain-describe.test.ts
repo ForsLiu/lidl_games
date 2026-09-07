@@ -946,13 +946,9 @@ describe('fb065i — a dump carries a fingerprint of the config it was measured 
   // A config that measures real bands differently from the shipped one, so a
   // fingerprint mismatch is checked against something that would actually
   // change `measure` if this file re-measured (it must not).
-  const otherCfg: TerrainConfig = parseTerrain(
-    JSON.parse(
-      JSON.stringify(cfg, (key, value) =>
-        key === 'coreGateClearance' ? 4 : (value as unknown),
-      ),
-    ),
-  );
+  const otherCfg: TerrainConfig = withConfig((raw) => {
+    (raw as Record<string, unknown>).coreGateClearance = 4;
+  });
 
   it('the bands line carries config=<fingerprint>, first field, matching configFingerprint(cfg)', () => {
     const map = generateTerrain(1, cfg);
