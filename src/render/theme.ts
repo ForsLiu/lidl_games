@@ -235,3 +235,45 @@ export function floatingNumberFontSize(value: number, fontScale = 1): number {
 export function floatingNumberFontWeight(value: number, fontScale: number): 'bold' | 'normal' {
   return fontScale > 1 || value >= FLOATING_NUMBER_FONT.boldThreshold ? 'bold' : 'normal';
 }
+
+/**
+ * fb116: a deterministic per-tile lightness jitter so a scattered field of the
+ * same terrain kind (`data/terrain.json`'s per-kind `color`) reads as organic
+ * texture rather than a flat, uniform stamp — without touching `/src/sim`
+ * (architecture rule 1: no `Math.random` there) or breaking replay/render
+ * determinism (a real hash of the tile's own coordinates, not a draw-order- or
+ * frame-dependent value, so the same seed always paints the same tile the same
+ * shade). `TERRAIN_JITTER` is a presentation constant, not a balance number —
+ * unlike `FLOATING_NUMBER_FONT` there is no `/data` precedent for a
+ * render-only cosmetic range, and fb159's own Log entry already established
+ * that a literal here is consistent with this file's existing tables.
+ */
+export const TERRAIN_JITTER = 0.12;
+
+/** `#rrggbb` -> `[r, g, b]`, each 0-255. Malformed input (missing `data/terrain.json` color) falls back to mid-grey rather than throwing mid-frame. */
+function hexToRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return [128, 128, 128];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/** Cheap, deterministic, non-cryptographic integer hash of one tile's coordinates, folded to [0, 1). */
+function tileJitterFraction(tx: number, ty: number): number {
+  let h = (tx * 374761393 + ty * 668265263) ^ (tx * 2654435761);
+  h = (h ^ (h >>> 13)) >>> 0;
+  return (h % 1000) / 1000;
+}
+
+/**
+ * `baseHex` lightened or darkened by up to `TERRAIN_JITTER` (a fraction of
+ * 255), keyed off the tile's own coordinates so it is stable across every
+ * redraw and every viewer of the same seed.
+ */
+export function terrainTileFill(baseHex: string, tx: number, ty: number): string {
+  const [r, g, b] = hexToRgb(baseHex);
+  const offset = Math.round((tileJitterFraction(tx, ty) - 0.5) * 2 * TERRAIN_JITTER * 255);
+  const clamp8 = (v: number): number => Math.min(255, Math.max(0, v));
+  const hex2 = (v: number): string => clamp8(v).toString(16).padStart(2, '0');
+  return `#${hex2(r + offset)}${hex2(g + offset)}${hex2(b + offset)}`;
+}

@@ -25,6 +25,21 @@ function slotStorageKey(slot: number): string {
 }
 
 /**
+ * fb172: the exact string this module itself last wrote as BOTH `SAVE_KEY`
+ * and `slotStorageKey(slot)` (the two are only ever set equal at a flush —
+ * `syncActiveSlotKey`/`switchToSlot` below) — a shared "last known-good sync
+ * point" per slot. Lets `switchToSlot` tell "nothing has touched either file
+ * since we last synced them" apart from "an out-of-process write (a per-file
+ * cloud restore) landed on one side or the other" without needing any
+ * timestamp field on `MetaState` itself (`src/meta/meta.ts`/`src/sim/types.ts`
+ * are out of this lane's Scope, so a real save-time timestamp isn't
+ * reachable from here).
+ */
+function slotLastFlushKey(slot: number): string {
+  return `${SLOT_KEY_PREFIX}${slot + 1}.lastflush.v1`;
+}
+
+/**
  * fb147 (qa-playtester finding during fb147 verification): the slot THIS page
  * load is playing, pinned at boot by `ensureActiveSlotMigrated` and never
  * moved afterwards — a switch is always followed by a reload (`hub.ts`, fb100),
@@ -128,7 +143,12 @@ function syncActiveSlotKey(): void {
     if (sessionSlot === null) sessionSlot = active;
     else if (sessionSlot !== active) return;
     const live = globalThis.localStorage?.getItem(SAVE_KEY);
-    if (live != null) globalThis.localStorage?.setItem(slotStorageKey(active), live);
+    if (live != null) {
+      globalThis.localStorage?.setItem(slotStorageKey(active), live);
+      // fb172: this normal, in-session flush IS a new "last known-good sync
+      // point" for the outgoing-switch check below.
+      globalThis.localStorage?.setItem(slotLastFlushKey(active), live);
+    }
   } catch {
     // Storage unavailable: `SAVE_KEY` is no more written than the slot key is.
   }
@@ -168,21 +188,63 @@ export function slotHasData(slot: number): boolean {
 }
 
 /**
+ * fb172: whether it is safe for `switchToSlot` to flush the live `SAVE_KEY`
+ * into `slot`'s own key — true unless an out-of-process write (a per-file
+ * cloud restore, the scenario `slotLastFlushKey`'s doc comment describes)
+ * landed on `SAVE_KEY`, on `slot`'s own key, or both, since this module's
+ * own last flush. A slot with no flush history yet (`known === null` — never
+ * played this session, or an account that predates this fix) reads as safe,
+ * matching this function's pre-fix behavior exactly for that case.
+ */
+function slotUnchangedSinceOurLastFlush(slot: number): { safe: boolean; slotFile: string | null } {
+  const slotFile = globalThis.localStorage?.getItem(slotStorageKey(slot)) ?? null;
+  const known = globalThis.localStorage?.getItem(slotLastFlushKey(slot));
+  if (known == null) return { safe: true, slotFile };
+  const live = globalThis.localStorage?.getItem(SAVE_KEY) ?? null;
+  return { safe: slotFile === known && live === known, slotFile };
+}
+
+/**
  * Flushes the live `SAVE_KEY` into the current slot's own key, loads `slot`'s
  * own key (if any) into `SAVE_KEY` — or clears `SAVE_KEY` for a never-used
  * slot, so the next `loadMeta()` naturally falls back to `defaultMeta()`,
  * which doubles as the "create" affordance — and records `slot` as active.
  * Returns false (a no-op) for the already-active slot, an out-of-range index,
  * or an unavailable localStorage.
+ *
+ * fb172 (code-reviewer finding during fb147 review): the outgoing flush below
+ * used to run unconditionally, so an out-of-process restore of either
+ * `SAVE_KEY` or the outgoing slot's own file (a per-file cloud provider) was
+ * silently destroyed by this same flush at the next switch-away — the
+ * `slotUnchangedSinceOurLastFlush` guard refuses it instead of picking a side
+ * un-asked (the acceptance's "either... or" — this takes the "refuse the
+ * overwrite" branch, not "keep both and tell the player", which needs UX the
+ * owner hasn't chosen — see BACKLOG-UI.md's Log for the QUESTIONS.md note).
  */
 export function switchToSlot(slot: number): boolean {
   if (!inRange(slot)) return false;
   const current = getActiveSlot();
   if (slot === current) return false;
   try {
-    const live = globalThis.localStorage?.getItem(SAVE_KEY);
-    if (live != null) globalThis.localStorage?.setItem(slotStorageKey(current), live);
-    else globalThis.localStorage?.removeItem(slotStorageKey(current));
+    const { safe, slotFile } = slotUnchangedSinceOurLastFlush(current);
+    if (safe) {
+      const live = globalThis.localStorage?.getItem(SAVE_KEY);
+      if (live != null) {
+        globalThis.localStorage?.setItem(slotStorageKey(current), live);
+        globalThis.localStorage?.setItem(slotLastFlushKey(current), live);
+      } else {
+        globalThis.localStorage?.removeItem(slotStorageKey(current));
+        globalThis.localStorage?.removeItem(slotLastFlushKey(current));
+      }
+    } else if (slotFile != null) {
+      // fb172: re-sync our own bookkeeping to the slot file's actual current
+      // content (never to `live` — that's the side we just refused to trust)
+      // so a FUTURE switch-away compares against present reality instead of
+      // being stuck refusing forever against this one stale record.
+      globalThis.localStorage?.setItem(slotLastFlushKey(current), slotFile);
+    } else {
+      globalThis.localStorage?.removeItem(slotLastFlushKey(current));
+    }
 
     const incoming = globalThis.localStorage?.getItem(slotStorageKey(slot));
     if (incoming != null) globalThis.localStorage?.setItem(SAVE_KEY, incoming);
@@ -213,6 +275,11 @@ export function deleteSlot(slot: number): boolean {
   if (!inRange(slot)) return false;
   try {
     globalThis.localStorage?.removeItem(slotStorageKey(slot));
+    // fb172: a deliberate delete is not a "foreign write since our last
+    // flush" — clearing the record too means a later re-created slot's first
+    // switch-away is compared against nothing (reads as safe), not against a
+    // stale pre-deletion value it can never match again.
+    globalThis.localStorage?.removeItem(slotLastFlushKey(slot));
     if (slot === getActiveSlot()) globalThis.localStorage?.removeItem(SAVE_KEY);
     return true;
   } catch {

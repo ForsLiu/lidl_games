@@ -666,7 +666,35 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+- [x] (p12e) [bug] **DONE 2026-09-07** — the diagnosed fix landed as-named:
+      the final boss (`TRAIT.finalBoss`, not the broader `TRAIT.boss` —
+      `gatebreaker` also carries `boss` and must keep taking the roster
+      multiplier, code-reviewer's first-pass Critical finding on this item)
+      is now exempted from `baseHpMul` in `makeEnemy`, restoring fb099's
+      independently-fitted ~180-380s boss fight instead of stacking p12c's
+      x20 on top of it. Measured on a 24-seed T3 `runScripted`/`hybrid`/
+      full-tree matrix: **0/24 timeouts** (was some fraction of a comparable
+      batch stalling at the tick cap), **11/24 wins (45.8%)** — unchanged
+      from Q177's own figure, confirming the fix removes censoring without
+      moving difficulty — boss-kill times back at 188-222s. qa-playtester
+      independently re-swept 24 seed x tier x policy combinations (zero
+      timeouts throughout) and live-spawned both `gatebreaker` (still takes
+      the full multiplier, 1,763,065 hp at wave 18) and the final boss
+      (36,500 hp = authored value, zero multiplier) in real runs, not just
+      unit tests; also grepped `src/` for stale hardcoded million-scale boss-
+      HP assumptions (none found). `src/ui/codex-collections.ts`'s enemies
+      column mirrors the same exemption (code-reviewer Major finding: it
+      would otherwise show the boss at its old unreachable 7.3M). Both named
+      re-enable points closed: `tests/fb077-terrain-wiring.test.ts`'s seed-52
+      case is un-skipped and passes; `tests/boss.test.ts`'s four-seed
+      mechanism check was already passing, unaffected by the shorter fight.
+      **Not attempted, and left to p12d** (which already owns re-running the
+      four gate matrices to rewrite their text/bands): the full "all classes,
+      all 5 Cores, T1/T3/T5" G1/G8/G14/G23 sweep and a fresh `npm run status`
+      snapshot named in this item's original acceptance — this item fixed and
+      verified the root cause on a representative sample rather than
+      re-running every gate combination twice. Original text follows.
+      **Now the blocker for this whole arc** (QUESTIONS Q177),
       and **diagnosed — start from this, not from a fresh sweep.** Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:
@@ -4008,7 +4036,26 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [ ] (fb081) [bug] `src/sim/combat.ts`'s `lineHit` broadphase uses a
+- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — margin fixed to
+      `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`), matching the
+      `fireCrimsonRush` fix already shipped; the sibling inconsistency was
+      resolved by aligning, not pinning — `towers.ts`'s `single`/`pierce`
+      kinds now pass `LINE_HALF_WIDTH * area` to `lineHit`/`bestLineDirection`,
+      matching `vswield.ts` and every other attack shape in the same function
+      (SPEC-FINAL §2: Area "applies to every attack, active, and effect").
+      `tests/fb081-linehit-broadphase.test.ts` pins the `dash_line` areaMul-4
+      corner-miss regression, written first and confirmed red at HEAD
+      (CLAUDE.md rule 3). code-reviewer's one Major finding — the new
+      tower-beam footprint had no row in `tests/class-wide-grove-reach.test.ts`'s
+      c013 ledger, the exact completeness guard built for this failure mode —
+      was closed by adding an Arrow Spire CONSUMERS row and a Ballista
+      DEVIATIONS row (aim-only `bestLineDirection`, mirroring the existing
+      wielded-side entry). qa-playtester independently reproduced the
+      pre-fix miss via `git stash` on `towers.ts` alone (proving the
+      `towers.ts` half is load-bearing, not just the `combat.ts` margin),
+      confirmed baseline (`areaMul===1`) behavior is unchanged, and found no
+      bugs. Original text follows.
+      `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
       stop being hit (BACKLOG-CONTENT.md c001 Log; measured first-miss
