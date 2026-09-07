@@ -42,7 +42,14 @@ import {
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
-import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type BasicImpactShape, type VfxShape } from './vfx-registry';
+import {
+  ACTIVE_KIND_SHAPE,
+  AREA_SCALED_ACTIVE_KINDS,
+  CLASS_VFX,
+  CORE_VFX,
+  type BasicImpactShape,
+  type VfxShape,
+} from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -1496,9 +1503,15 @@ export class Renderer {
     const chargeRatio = cap > 0 ? Math.min(1, wd.active1Charge / cap) : 1;
     ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
     if (cls.active1.kind === 'charge_nova') {
+      // fb115: `circleSlashValues` returns the authored (unscaled) radius —
+      // `fireCircleSlash` (classes.ts) wraps it in `classArea(w, authoredRadius)`
+      // == `authoredRadius * w.derived.areaMul` before it ever hits an enemy, so
+      // drawing the bare value here previews a footprint that drifts from the
+      // real one the moment any Area source (an item, a boon) is live. `w.derived`
+      // is public sim state, not a re-derivation of a private helper.
       const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
       ctx.beginPath();
-      ctx.arc(wd.x * TILE, wd.y * TILE, radius * TILE, 0, Math.PI * 2);
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
       ctx.stroke();
     } else if (cls.active1.kind === 'charge_pierce') {
       const dir = normalize(view.cursorX - wd.x, view.cursorY - wd.y);
@@ -1844,13 +1857,37 @@ export class Renderer {
    * `circleSlashValues`/the class effect handlers in classes.ts resolve
    * their hit area from, not a live-scaled preview (a charge-scaled nova's
    * live radius is already shown in-combat by `drawChargeIndicator`).
+   *
+   * fb115: "the same authored radius" was true of the SHAPE but not of the
+   * SCALE for most kinds — `AREA_SCALED_ACTIVE_KINDS` below is every `kind`
+   * whose `fire*` handler in `src/sim/classes.ts` wraps this exact field in
+   * `classArea(w, eff.radius)` (an Area-scaled AoE) rather than passing it raw
+   * into a target/structure SEARCH radius (`nearestEnemy`/`nearestStructure`,
+   * which Area never touches) or a placement offset (`ice_wall`) or an
+   * unused placeholder (`dash_line`, `poison_boost`). Scaling the latter set
+   * would trade one drift bug for a new one the opposite way — verified
+   * per-kind against classes.ts rather than guessed:
+   *   scaled:   burst_damage (fireEffect), charge_nova (fireCircleSlash),
+   *             ground_poison (firePoisonBarrel), frost_nova (fireFrostNova),
+   *             recall_totem (fireRecallTotem), clarion_taunt
+   *             (fireClarionTaunt), judgement (fireJudgement), time_mark
+   *             (fireTimeMark), time_lock (fireTimeLock).
+   *   unscaled: charge_pierce (fireDeadeyeDraw's shot LENGTH reuses the
+   *             field, unrelated to Area), repair_heal/death_pact/
+   *             blood_tithe (nearestStructure search), dash_volley
+   *             (nearestEnemy search), chain_lightning (nearestEnemy
+   *             search), raise_skeletons/manifest_spirit (summonRadius
+   *             search, a different field), ice_wall (`radius` is a
+   *             placement-offset fallback, `(eff.radius || 1)`), dash_line/
+   *             poison_boost (field unused, radius: 0).
    */
   private drawSkillHoverRing(w: World, view: ViewState): void {
     if (!view.hoveredSkill) return;
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return;
     const eff = view.hoveredSkill === 'active1' ? cls.active1 : cls.active2;
-    const radius = eff.radius ?? 0;
+    const areaMul = AREA_SCALED_ACTIVE_KINDS.has(eff.kind) ? w.derived.areaMul : 1;
+    const radius = (eff.radius ?? 0) * areaMul;
     if (radius <= 0) return;
     const ctx = this.ctx;
     ctx.strokeStyle = PALETTE.heartstone;

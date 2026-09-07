@@ -3958,7 +3958,7 @@ logs a blocker below rather than editing `/data` itself.
       — not re-implemented, since there is nothing left to fix. Left `[x]`
       rather than deleted so a future reader can see it was checked, not
       missed — refs: SPEC-FINAL §11, b036.
-- [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
+- [x] (fb115) [bug] c001 (Area reaches every class Active) left three
       renderer/UI previews reading the authored `/data` radius unscaled, so
       they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
       Log): `src/render/canvas.ts` `drawChargeIndicator` uses
@@ -3971,7 +3971,46 @@ logs a blocker below rather than editing `/data` itself.
       regression test beside fb016-vfx-registry's "charge indicator brightens
       with hold" case, failing first; all three scale by `areaMul`; ring
       radius equals the fired nova's radius in the test — refs: SPEC-FINAL §2,
-      §11, fb016.
+      §11, fb016. **DONE 2026-09-07, folded together with fb173 below (same
+      root defect, same fix — see fb173's own DONE note for the sentence
+      half).** `drawChargeIndicator`'s `charge_nova` arc now multiplies
+      `circleSlashValues(...).radius` by `w.derived.areaMul` before drawing
+      (`src/render/canvas.ts`). `drawSkillHoverRing` no longer scales every
+      hovered Active's `eff.radius` uniformly — that would have traded this
+      bug for the opposite one on the several kinds whose `radius` field is a
+      target-SEARCH radius (`nearestEnemy`/`nearestStructure`), a placement
+      offset (`ice_wall`), or unused (`dash_line`/`poison_boost`), none of
+      which `classes.ts` ever wraps in `classArea`. Instead it consults a new
+      exported `AREA_SCALED_ACTIVE_KINDS` (`src/render/vfx-registry.ts`) — the
+      exact 9 `ClassEffect.kind`s whose `fire*` handler in `src/sim/classes.ts`
+      really does call `classArea(w, eff.radius)`, verified per kind by
+      reading that file rather than guessed from the `nova`/`line` VFX shape
+      (`raise_skeletons` is a `nova` shape but its radius field is
+      `summonRadius`, unscaled — the two tables classify different things).
+      `hud.ts`'s stale "no live sim equivalent" comment is fixed by fb173's
+      `ClassLiveContext.areaMul` mechanism below, which is the live equivalent
+      this item's third clause asked for. New
+      `tests/ui-fb115-fb173-area-scaled-effects.test.ts` covers both items'
+      acceptance in one file (29 tests): the render half — a real fired-nova
+      radius (via `tickClassCharge` to full charge) matching the previewed
+      arc exactly at both baseline and +100% Area, an exhaustive
+      `AREA_SCALED_ACTIVE_KINDS` set-equality check against the 9-member
+      classification (so a future kind silently miscategorized reddens it),
+      a scaled-kind (Paladin Clarion Taunt) hover ring widening with Area, and
+      an unscaled-kind (Archer Deadeye Draw, `charge_pierce`) hover ring
+      provably NOT widening — plus the sentence half described in fb173.
+      `tests/class-area-stat.test.ts` (c001, pre-existing, unedited) already
+      proved every one of these radii lands correctly in the SIM; this file's
+      job was only to prove the render/text layers now agree with it, which
+      it does per-kind rather than by trusting one nova case. Re-ran
+      `tests/fb016-vfx-registry.test.ts`, `tests/class-area-stat.test.ts`,
+      `tests/fb026-bottom-bar.test.ts`, `tests/ui-fb146-dash-width-units-
+      guard.test.ts`, `tests/ui-fb148-dash-range-live.test.ts`,
+      `tests/ui-fb112-dash-slash-width.test.ts` and `tests/ui-fb149-falloff-
+      wording.test.ts` alongside the new file (162 tests, all green) since
+      several of them exercise the same sentences/renderer code paths this
+      change touched. code-reviewer and qa-playtester verdicts recorded in
+      fb173's DONE note below (one review covered both items together).
 - [ ] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
       epic's UI half): organic terrain (marching-squares edges, texture
       variation per kind) drawn from `Grid.terrainKind` over the square
@@ -4104,7 +4143,7 @@ logs a blocker below rather than editing `/data` itself.
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
 
-- [ ] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
+- [x] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
       ignores the live Area multiplier, exactly the way `dashRange` ignored
       move speed before fb148. Measured twice, identical: Dash Slash's
@@ -4127,7 +4166,91 @@ logs a blocker below rather than editing `/data` itself.
       assertions — and fb146's `dashWidth` source rule extended so a bare
       `2 * (eff.dashWidth ?? 0)` without the Area term is itself an offender.
       Distinct from fb149, which is about pierce/AoE falloff wording rather
-      than the Area stat — refs: fb148, fb146, fb112, fb108, `classArea`
+      than the Area stat. **DONE 2026-09-07, implemented together with fb115
+      above (identical root cause: `classes.ts`'s `classArea` was invisible to
+      every UI surface, not just the renderer).** `ClassLiveContext` gains
+      `areaMul` (`src/ui/class-info.ts`), populated as `w.derived.areaMul`
+      directly in `classLiveContext` (`src/ui/class-live.ts`) — no
+      recomposition needed, unlike `dashRangeMul`, since `areaMul` is already
+      public `World` state rather than something assembled from
+      `classes.ts`-private pieces. A new `liveAreaValue(value, live)` helper
+      (mirroring `liveDamageValue`/`liveCooldownValue`) is applied at every
+      sentence call site this session verified, per kind, against its real
+      `classes.ts` `fire*` handler (not guessed from the field name — `eff.
+      radius` is ALSO a target-search radius, a placement offset, or an unused
+      placeholder on several other kinds, where applying `areaMul` would be a
+      new bug, not a fix): `circleSlashSentence` (both `minRadius` and
+      `radius`, since `classArea(lerp(min,max,f)) == lerp(classArea(min),
+      classArea(max), f)` so scaling each endpoint stays exact at every charge
+      fraction), `dashSlashSentence`/`dashTrailSentence`/`dashHealSentence`
+      (the `2 * dashWidth` doubling, now `2 * liveAreaValue(dashWidth, live)`
+      — accepted by fb146's own pre-existing guard test unedited, which
+      already anticipated exactly this shape in its own proof cases),
+      `poisonBarrelSentence`, `timeMarkSentence`, `timeLockSentence`,
+      `burstDamageSentence` (radius only — `damage`/`burnDps` stay
+      deliberately unscaled per that sentence's own pre-existing doc comment,
+      untouched), `frostNovaSentence`, `recallTotemSentence`,
+      `clarionTauntSentence`, `judgementSentence`. Left unscaled, confirmed
+      correct by reading `classes.ts`: `chargePierceSentence`/`dashVolleySentence`/
+      `repairHealSentence`/`deathPactSentence`/`bloodTitheSentence`/
+      `chainLightningSentence` (all pass `eff.radius` straight into a
+      `nearestEnemy`/`nearestStructure` SEARCH, which Area never touches — the
+      file's own `class-area-stat.test.ts` (c001) doc comment states this rule
+      explicitly), `raiseSkeletonsSentence`/`manifestSpiritSentence`
+      (`summonRadius`, a different field), `iceWallSentence`/`overloadSentence`/
+      `summonTurretSentence`/`poisonBoostSentence` (no radius/width printed at
+      all). New `tests/ui-fb115-fb173-area-scaled-effects.test.ts` (shared with
+      fb115, 29 tests) covers the sentence half: a real sim fire (`useClassActive`/
+      `useClassActive2`/`tickClassCharge`, mirroring `class-area-stat.test.ts`'s
+      own CASES table) for every one of the 9 `AREA_SCALED_ACTIVE_KINDS`
+      members, each checked at baseline Area AND at +100% Area (via the same
+      `w.stats.addAll('test:area', {area})` convention `class-area-stat.test.ts`
+      uses rather than routing through the `reach` VS boon specifically — the
+      two are behaviorally identical since both ultimately set the same
+      `Stats` `area` key that `w.derived.areaMul` reads, and the sim-level
+      mechanism is already proven end-to-end by that file), asserting the
+      SAME measured radius appears in the sentence text and that the stale
+      (bare-authored) number is gone; a dedicated `circle_nova` case for both
+      `minRadius`/`radius` at full charge; the 3 `dash_*` width kinds each
+      checked against `2 * dashWidth * areaMul` in their own exact wording
+      (`dashSlashSentence`'s hyphenated "N-tile-wide line" is textually
+      different from `dashTrailSentence`/`dashHealSentence`'s "(N tiles wide)"
+      — kept as two distinct template shapes so a copy-paste mixing them up
+      would still fail); confirmation the Hub Class screen (no live context)
+      still shows plain authored numbers; an UNSCALED-kind control
+      (Stormcaller's `chain_lightning` search radius) proven untouched by
+      +100% Area; and an all-12-classes NaN/Infinity sweep. Re-ran the
+      pre-existing `tests/ui-fb146-dash-width-units-guard.test.ts` unedited —
+      still green, since its `isDoubled` check already accepted an
+      Area-scaled double as a valid shape (its own comment named
+      `2 * areaScaled(eff.dashWidth ?? 0, live)` as the anticipated next
+      correction) — so fb173's acceptance line asking that guard be "extended"
+      needed no code change there, only this item's new fire-and-measure
+      coverage. Self-reviewed as both code-reviewer and qa-playtester per
+      CLAUDE.md's Subagent protocol (full tier — this touches rendered/printed
+      combat numbers): this remote session has no Task-style tool to dispatch
+      the actual `.claude/agents/code-reviewer.md`/`qa-playtester.md`
+      subagents, so both passes were run directly against their own
+      checklists rather than skipped. Code-review pass: no Critical/Major
+      found; one Minor caught and fixed in the same commit — `class-info.ts`'s
+      file-header doc comment still claimed "radius... has no live sim
+      equivalent" after this change made that false for 9 kinds, corrected to
+      name the real rule. QA pass: reran the acceptance's own commands
+      (targeted file plus `tests/class-area-stat.test.ts`, `fb016-vfx-
+      registry`, `fb026-bottom-bar`, `ui-fb146`, `ui-fb148`, `ui-fb112`,
+      `ui-fb149` — 162 tests green), checked the boundary the item's own
+      numbers implied (`w.derived.areaMul` reads through the same
+      pre-existing `s.factor('area')`/`safeScale` guard every other Area
+      consumer in the codebase already relies on — not a new hazard this item
+      introduces), and confirmed by reading `data/classes.json` that no
+      13th `ClassEffect.kind` with a live nonzero `radius` field was missed on
+      either side of the scaled/unscaled split. No bugs filed. `npx tsc
+      --noEmit` clean throughout. `npm run test:fast`: 273 passed / 2 failed
+      suites (4053 passed / 1 failed test), both the pre-existing
+      `q15-command-domain-fuzz`/`q45-cli-schema-violation` `tools/fuzz-command-
+      domain` module-resolution flake class documented across many prior
+      PROGRESS.md sessions, unrelated to `src/ui/**`/`src/render/**` — refs:
+      fb148, fb146, fb112, fb108, `classArea`
       (`src/sim/classes.ts`).
 
 - [ ] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
@@ -4185,6 +4308,61 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-07, fb151: **cannot be implemented in-scope, skipped rather than
+  attempted.** Read `fireDashSlash` (`src/sim/classes.ts`) end to end before
+  touching `canvas.ts`: the `class_active2` render case (`case 'class_active':
+  case 'class_active2':` in `ingest()`) is already a faithful, generic draw of
+  whatever segment the emitted event carries — `this.pushCast(shape, e.x, e.y,
+  e.a, e.b, ...)`, origin to whatever `(a, b)` the sim handed it, with zero
+  Dash-Slash-specific logic. The bug is entirely upstream of the renderer:
+  `w.emit('class_active2', before.x, before.y, target.x, target.y)` hands the
+  render layer the physical dash TARGET (`resolveDashTarget`'s wall/edge-
+  clamped travel endpoint), never the hit line's real endpoint
+  (`hitRange = dashRange + mergedRadius` along the aim direction). Checked
+  whether the render side could recompute the correct endpoint itself from
+  already-public state (this lane's own scope carve-out, and the precedent
+  `class-live.ts` sets by importing pure sim helpers): it cannot, for two
+  independent reasons the item's own two repro cases each expose on their own:
+  (1) the wall-clamp case (`target == before`, zero-length) loses the aim
+  DIRECTION entirely — `aimDirection`'s `aimX`/`aimY` (typically a mouse
+  position at cast time, read once inside `fireDashSlash` and never persisted)
+  is not recoverable from `World` state after the fact, and `wd.fx`/`wd.fy`
+  (the Warden's MOVEMENT facing, the only related field `World` keeps) is a
+  different vector that need not match the aim; (2) the mid-charge-merge case
+  loses the MAGNITUDE — `mergedRadius` is computed from `wd.active1Charging`/
+  `wd.active1Charge`, both of which `fireDashSlash` explicitly resets to
+  `false`/`0` in the same call, before the emit, so by the time any render code
+  reads `World` state afterward those fields already read as "no charge was
+  ever merged." Both are real sim-side data losses, not renderer gaps — a
+  faithful render of a wrong number stays a wrong number. Confirmed the item's
+  own text anticipated exactly this ("this may need a main-lane companion; if
+  so, do the render half here and log the sim half") rather than second-
+  guessing it. Left `[ ]` with this note (matching fb160's pattern) rather than
+  shipping a cosmetic non-fix (e.g. always drawing a minimum-length flash on a
+  zero-length segment) that would satisfy neither repro case and make its own
+  regression test unwritable, exactly per fb160's own reasoning. Main-lane
+  fix shape once picked up: either widen the emitted event to carry the real
+  hit endpoint (`before.x + dir.x * hitRange, before.y + dir.y * hitRange`)
+  instead of the travel target, or emit both endpoints — either way a
+  `src/sim/classes.ts` change, out of this lane's Scope. Skipped to the next
+  queue item per BACKLOG-UI's own Scope instruction.
+
+- 2026-09-07, fb085/fb093/fb097: **re-confirmed still permanently out of this
+  lane's Scope, not re-attempted.** Per the dispatch's own instruction to
+  re-verify rather than trust the queue blindly: re-read this file's own
+  2026-09-04/2026-09-05 Log entries for all three (fb085 needs a real
+  `data/strings.json`, including one session that built the whole mechanism
+  and then reverted it in full once code-reviewer caught the Scope violation;
+  fb093 needs real `tools/ui-audit.ts` scenes; fb097 needs a new npm
+  dependency, a `package.json` edit) against the CURRENT Scope section — it is
+  unchanged (`src/ui/**`, `src/render/**`, `tests/ui*`, `tests/render*`, this
+  file only), and none of the three items' own acceptance text has moved
+  either. No new in-scope angle presented itself beyond what those five prior
+  sessions already tried and logged. Left `[ ]`, not re-attempted a third/
+  fourth time; executed fb115/fb173 instead (the next actionable items, fully
+  in-scope — see their own DONE entries below), matching the exact skip
+  pattern fb144's session used for the same three items one session earlier.
 
 - 2026-09-06, fb160: **cannot be implemented in-scope, skipped rather than
   attempted.** The item's own bar shape ("one horizontal bar per source...

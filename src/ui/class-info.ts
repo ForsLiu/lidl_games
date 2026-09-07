@@ -6,10 +6,14 @@
  * `cooldownSeconds` and `damage`/`dps` resolve through the same formulas the
  * sim itself uses — `w.derived.cdr`, `classAttackPowerMul`/`characterDamage`,
  * classes.ts) — and, since fb148, `dashRange`, which every `dash_*` kind
- * scales by current move speed (`dashDistance`/`classDashDuration`, fb053).
- * Every other field (radius, knockback, summon counts, ...) has no live sim
- * equivalent to resolve through, so it falls back to the plain authored /data
- * number — the file header's own stated rule.
+ * scales by current move speed (`dashDistance`/`classDashDuration`, fb053),
+ * and, since fb115/fb173, `radius`/`dashWidth` on the specific kinds whose
+ * `fire*` handler in `classes.ts` wraps that field in `classArea(w, ...)` —
+ * see `liveAreaValue`'s own doc comment for exactly which. Every other field
+ * (knockback, summon counts, a search/placement radius on the several kinds
+ * where that field is NOT Area-scaled, ...) has no live sim equivalent to
+ * resolve through, so it falls back to the plain authored /data number — the
+ * file header's own stated rule.
  */
 
 import type { ClassDef, ClassEffect } from '../sim/content';
@@ -65,6 +69,20 @@ export interface ClassLiveContext {
    * `dashRangeMul`, which every `dash_*` kind reads.
    */
   swordsmanShoes?: boolean;
+  /**
+   * fb115/fb173: `w.derived.areaMul` — the exact factor `classArea(w, radius)`
+   * (`src/sim/classes.ts`, module-private) applies to an Active's `radius`/
+   * `dashWidth` field wherever that field is really an Area-scaled AoE
+   * footprint, not a search radius (`repair_heal`/`death_pact`/`blood_tithe`/
+   * `chain_lightning`/`dash_volley` all pass `eff.radius` straight into
+   * `nearestEnemy`/`nearestStructure`, which Area never touches) or a
+   * different field entirely (`summonRadius`). `liveAreaValue` below is the
+   * one place that distinction is applied; see its own doc comment for which
+   * sentences call it. Optional for the same reason `dashRangeMul` is: the
+   * Hub's pre-run Class screen has no run to read and legitimately shows the
+   * authored base.
+   */
+  areaMul?: number;
 }
 
 /**
@@ -134,11 +152,30 @@ function liveCooldownValue(value: number, live?: ClassLiveContext, cooldownFacto
   return live ? value * (cooldownFactor ?? 1 - live.cdr) : value;
 }
 
+/**
+ * fb115/fb173: applies `live.areaMul` to a radius/half-width value that is
+ * really an Area-scaled AoE footprint at the sim's own fire site — see
+ * `ClassLiveContext.areaMul`'s doc comment for exactly which fields that is
+ * and which it deliberately is not. Every call site below is one this file
+ * confirmed against its `src/sim/classes.ts` `fire*` handler, not guessed
+ * from the field name alone (`eff.radius` is also a target-search radius on
+ * several other kinds, where this must NOT be applied).
+ */
+function liveAreaValue(value: number, live?: ClassLiveContext): number {
+  return value * (live?.areaMul ?? 1);
+}
+
 function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const minDamage = liveDamageValue(eff.minDamage ?? 0, live);
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Hold to charge a self-centered nova: release immediately to hit everything within ${trimNum(eff.minRadius ?? 0)} tiles for ${trimNum(minDamage)} damage, or hold up to ${trimNum(eff.chargeCapSeconds ?? 0)}s for a ${trimNum(eff.radius)}-tile hit dealing ${trimNum(damage)} damage and knocking enemies back ${trimNum(eff.knockback ?? 0)} tiles.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  // fb115: `fireCircleSlash` wraps BOTH ends of the charge lerp in the same
+  // `classArea(w, authoredRadius)` (classes.ts), so `classArea(lerp(min, max,
+  // f)) === lerp(classArea(min), classArea(max), f)` — scaling each endpoint
+  // here before printing stays exact at every charge fraction, not just 0/1.
+  const minRadius = liveAreaValue(eff.minRadius ?? 0, live);
+  const radius = liveAreaValue(eff.radius, live);
+  return `Hold to charge a self-centered nova: release immediately to hit everything within ${trimNum(minRadius)} tiles for ${trimNum(minDamage)} damage, or hold up to ${trimNum(eff.chargeCapSeconds ?? 0)}s for a ${trimNum(radius)}-tile hit dealing ${trimNum(damage)} damage and knocking enemies back ${trimNum(eff.knockback ?? 0)} tiles.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**
@@ -161,13 +198,15 @@ function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
   // itself never fires on this path. A player reading the old text as
   // "still get the nova" could whiff completely (charge behind them, dash
   // ahead) while paying a full Active1 cooldown for nothing.
-  return `Dash ${trimNum(liveDashRange(eff, live) * (live?.swordsmanShoes ? 2 : 1))} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage.${LINE_FALLOFF_CLAUSE} Usable mid-Circle-Slash-charge: the charge's radius extends this line's reach and its damage is added to this hit — the nova itself does not fire. Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live) * (live?.swordsmanShoes ? 2 : 1))} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * liveAreaValue(eff.dashWidth ?? 0, live))}-tile-wide line for ${trimNum(damage)} damage.${LINE_FALLOFF_CLAUSE} Usable mid-Circle-Slash-charge: the charge's radius extends this line's reach and its damage is added to this hit — the nova itself does not fire. Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Drops a ${trimNum(eff.radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  // fb115: `firePoisonBarrel`'s `GroundArea.radius` is `classArea(w, eff.radius)`.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Drops a ${trimNum(radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -188,8 +227,10 @@ function timeMarkSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
   const pastDps = liveDamageValue(eff.markPastDotDps ?? 0, live);
   const presentDps = liveDamageValue(eff.markPresentDotDps ?? 0, live);
   const recharge = liveCooldownValue(eff.rechargeSeconds ?? 0, live, cooldownFactor);
+  // fb115: `fireTimeMark` calls `classArea(w, eff.radius)` for its pulse.
+  const radius = liveAreaValue(eff.radius, live);
   return (
-    `Pulses ${trimNum(eff.radius)} tiles, advancing every enemy hit one stage of a 4-stage mark. ` +
+    `Pulses ${trimNum(radius)} tiles, advancing every enemy hit one stage of a 4-stage mark. ` +
     `Unmarked: rewinds to its position from ${trimNum(eff.markRewindSeconds ?? 0)}s ago and takes ${trimNum(pastDps)} damage/s for ${trimNum(eff.markPastDotSeconds ?? 0)}s. ` +
     `Past: stun-locked and takes ${trimNum(presentDps)} damage/s for ${trimNum(eff.markPresentDotSeconds ?? 0)}s. ` +
     `Present: slowed ${formatPct(eff.markFutureSlowAmount ?? 0)} for ${trimNum(eff.markFutureSlowSeconds ?? 0)}s and takes its current HP as damage over ${trimNum(eff.markFutureDotSeconds ?? 0)}s. ` +
@@ -201,8 +242,10 @@ function timeMarkSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
 function timeLockSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const recharge = liveCooldownValue(eff.rechargeSeconds ?? 0, live, cooldownFactor);
+  // fb115: `fireTimeLock`'s zone `radius` is `classArea(w, eff.radius)`.
+  const radius = liveAreaValue(eff.radius, live);
   return (
-    `Traps every enemy within ${trimNum(eff.radius)} tiles for ${trimNum(eff.groundDurationSeconds ?? 5)}s — they cannot leave and are immune to Time's rewind-pull — dealing ${trimNum(dps)} damage/s for ${trimNum(eff.zoneDotSeconds ?? 10)}s to each. ` +
+    `Traps every enemy within ${trimNum(radius)} tiles for ${trimNum(eff.groundDurationSeconds ?? 5)}s — they cannot leave and are immune to Time's rewind-pull — dealing ${trimNum(dps)} damage/s for ${trimNum(eff.zoneDotSeconds ?? 10)}s to each. ` +
     `Re-casting while a zone is active teleports its enemies into the new one and detonates all of their remaining DoT damage at once. ` +
     `${eff.maxCharges ?? 1} charges, ${trimNum(recharge)}s to recharge each.`
   );
@@ -226,7 +269,11 @@ function humanizeKey(key: string): string {
  */
 function burstDamageSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Deals ${trimNum(eff.damage)} damage to everything within ${trimNum(eff.radius)} tiles, burning them for ${trimNum(eff.burnDps ?? 0)} damage/s for ${trimNum(eff.burnDuration ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+  // fb115: unlike `damage`/`burnDps` (deliberately plain — see the doc comment
+  // above), `fireEffect`'s search is `w.enemiesInRadius(x, y, classArea(w,
+  // eff.radius))` — the radius alone is Area-scaled.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Deals ${trimNum(eff.damage)} damage to everything within ${trimNum(radius)} tiles, burning them for ${trimNum(eff.burnDps ?? 0)} damage/s for ${trimNum(eff.burnDuration ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
 }
 
 function repairHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -249,7 +296,7 @@ function summonTurretSentence(eff: ClassEffect, live?: ClassLiveContext, cooldow
 function dashTrailSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, leaving ${trimNum(eff.trailSegments ?? 0, 0)} fire patches (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide) along the path, each dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${PATCH_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, leaving ${trimNum(eff.trailSegments ?? 0, 0)} fire patches (${trimNum(2 * liveAreaValue(eff.dashWidth ?? 0, live))} tiles wide) along the path, each dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${PATCH_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**
@@ -287,7 +334,9 @@ function deathPactSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 function frostNovaSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Deals ${trimNum(damage)} damage to everything within ${trimNum(eff.radius)} tiles, applying Frost — an already-Frosted enemy freezes solid instead. Cooldown ${trimNum(cd)}s.`;
+  // fb115: `fireFrostNova` searches `w.enemiesInRadius(wd.x, wd.y, classArea(w, eff.radius))`.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Deals ${trimNum(damage)} damage to everything within ${trimNum(radius)} tiles, applying Frost — an already-Frosted enemy freezes solid instead. Cooldown ${trimNum(cd)}s.`;
 }
 
 function iceWallSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -320,7 +369,7 @@ function bloodTitheSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownF
  */
 function dashHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, healing ${trimNum(eff.healPerEnemy ?? 0)} HP for each enemy passed through (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide). Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(liveDashRange(eff, live))} tiles toward the cursor, healing ${trimNum(eff.healPerEnemy ?? 0)} HP for each enemy passed through (${trimNum(2 * liveAreaValue(eff.dashWidth ?? 0, live))} tiles wide). Cooldown ${trimNum(cd)}s.`;
 }
 
 function manifestSpiritSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -330,17 +379,24 @@ function manifestSpiritSentence(eff: ClassEffect, live?: ClassLiveContext, coold
 
 function recallTotemSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Places a totem for ${trimNum(eff.totemDurationSeconds ?? 0)}s: you and your summons within ${trimNum(eff.radius)} tiles attack ${formatPct(eff.auraAtkSpdMul ?? 0)} faster. In Tower Defense it also taunts nearby enemies toward it. Cooldown ${trimNum(cd)}s.`;
+  // fb115: `fireRecallTotem`'s `auraRadius` is `classArea(w, eff.radius)`.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Places a totem for ${trimNum(eff.totemDurationSeconds ?? 0)}s: you and your summons within ${trimNum(radius)} tiles attack ${formatPct(eff.auraAtkSpdMul ?? 0)} faster. In Tower Defense it also taunts nearby enemies toward it. Cooldown ${trimNum(cd)}s.`;
 }
 
 function clarionTauntSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Forces every enemy within ${trimNum(eff.radius)} tiles to target you for ${trimNum(eff.tauntDurationSeconds ?? 0)}s; damage you take during it banks more strongly into Wrath. Cooldown ${trimNum(cd)}s.`;
+  // fb115: `fireClarionTaunt` reads `classArea(w, cls.active1.radius)` — the
+  // same field this sentence is handed, whichever slot authors `clarion_taunt`.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Forces every enemy within ${trimNum(radius)} tiles to target you for ${trimNum(eff.tauntDurationSeconds ?? 0)}s; damage you take during it banks more strongly into Wrath. Cooldown ${trimNum(cd)}s.`;
 }
 
 function judgementSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Releases all stored Wrath as a holy nova within ${trimNum(eff.radius)} tiles, dealing ${trimNum(eff.wrathDamageMul ?? 0)}× the stored amount as damage.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  // fb115: `fireJudgement`'s AoE `radius` is `classArea(w, eff.radius)`.
+  const radius = liveAreaValue(eff.radius, live);
+  return `Releases all stored Wrath as a holy nova within ${trimNum(radius)} tiles, dealing ${trimNum(eff.wrathDamageMul ?? 0)}× the stored amount as damage.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 /**
