@@ -962,3 +962,75 @@ describe('c009: the negative control — each signal dies with its own binding',
     });
   }
 });
+
+/**
+ * c036 — an equipment-sourced bonus and a class-tower-passive-sourced bonus
+ * on the *same stat key*, measured together for the first time.
+ *
+ * SPEC-FINAL §2 treats each equipped item and each class as its own source,
+ * multiplying via `Stats.factor` (`Π over sources of (1 + that source's
+ * summed ranks)`, `stats.ts`) — the same mechanism `c035` (lane's own
+ * `tests/equip-spec-numbers.test.ts`) proved holds across several equipped
+ * items at once. This item is the tower-passive twin: `sniper_bracelet`
+ * (`towerRange: 0.1`) and Archer's *Ranger's Eye* (`towerRange: 0.1`,
+ * `data/classes.json`) write the same key, and so do `normal_bracelet`
+ * (`area: 0.1`) and Animist's *Wide Grove* (`area: 0.1` — the same global key
+ * `c013` found also reaches every one of the 24 class Actives). Every
+ * existing test grants one such source at a time; if `factor()`'s per-source
+ * product ever collapsed same-key sources into one additive pool, both would
+ * still pass individually and the combined case would silently read +20%
+ * (additive) instead of the correct x1.21 (+21%, multiplicative) — a
+ * plausible regression shape a single-source test cannot see.
+ */
+describe('c036: an equipment source and a class-tower-passive source on the same stat key multiply', () => {
+  /** `towerWorld`'s equipment-carrying twin — everything else identical. */
+  function towerWorldWithEquipment(classKey: string, equipment: readonly string[]): World {
+    const w = new World(cfg({ classKey, equipment: [...equipment] }), content);
+    w.gold = 1e6;
+    w.warden.attackCooldown = 1e9;
+    w.warden.x = WX;
+    w.warden.y = WY;
+    return w;
+  }
+
+  it("Archer + Sniper Bracelet: a Spire's range is base x1.21 (x1.1 tower passive x x1.1 equipment), not x1.20", () => {
+    const base = effectiveTowerRange(towerWorld(CONTROL), content.towerByKey.get(SPIRE)!);
+    const classOnly = effectiveTowerRange(towerWorld('archer'), content.towerByKey.get(SPIRE)!);
+    const itemOnly = effectiveTowerRange(
+      towerWorldWithEquipment(CONTROL, ['sniper_bracelet']),
+      content.towerByKey.get(SPIRE)!,
+    );
+    const both = effectiveTowerRange(
+      towerWorldWithEquipment('archer', ['sniper_bracelet']),
+      content.towerByKey.get(SPIRE)!,
+    );
+    // Each half read straight off `/data`, no retyped 0.1s, so a retune of
+    // either the passive or the item moves this row with it.
+    const classMul = 1 + content.classByKey.get('archer')!.towerPassive.mods.towerRange!;
+    const itemMul = 1 + content.equipment.items.find((i) => i.key === 'sniper_bracelet')!.mods.towerRange!;
+    expect(classOnly / base, 'harness: Ranger\'s Eye alone did not measure x1.1').toBeCloseTo(classMul, 10);
+    expect(itemOnly / base, 'harness: Sniper Bracelet alone did not measure x1.1').toBeCloseTo(itemMul, 10);
+    expect(
+      both / base,
+      'the two same-key sources did not multiply — additive collapse would read x1.20 here instead',
+    ).toBeCloseTo(classMul * itemMul, 10);
+    expect(both / base).toBeCloseTo(1.21, 10);
+  });
+
+  it("Animist + Normal Bracelet: effective AoE area is base x1.21 (x1.1 Wide Grove x x1.1 equipment), not x1.20", () => {
+    const mortar = content.towerByKey.get(MORTAR)!;
+    const base = effectiveTowerAoe(towerWorld(CONTROL), mortar);
+    const classOnly = effectiveTowerAoe(towerWorld('animist'), mortar);
+    const itemOnly = effectiveTowerAoe(towerWorldWithEquipment(CONTROL, ['normal_bracelet']), mortar);
+    const both = effectiveTowerAoe(towerWorldWithEquipment('animist', ['normal_bracelet']), mortar);
+    const classMul = 1 + content.classByKey.get('animist')!.towerPassive.mods.area!;
+    const itemMul = 1 + content.equipment.items.find((i) => i.key === 'normal_bracelet')!.mods.area!;
+    expect(classOnly / base, 'harness: Wide Grove alone did not measure x1.1').toBeCloseTo(classMul, 10);
+    expect(itemOnly / base, 'harness: Normal Bracelet alone did not measure x1.1').toBeCloseTo(itemMul, 10);
+    expect(
+      both / base,
+      'the two same-key sources did not multiply — additive collapse would read x1.20 here instead',
+    ).toBeCloseTo(classMul * itemMul, 10);
+    expect(both / base).toBeCloseTo(1.21, 10);
+  });
+});
