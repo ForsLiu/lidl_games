@@ -478,6 +478,20 @@ export class Game {
     // setting that actually applies on resume. Seed it here the same way
     // `setSpeed`/`setShowRanges` above seed their own presentation state.
     this.hud.syncAutoPickToggle(cfg.autoPickLevelUps === true);
+    // fb171: `onFocusLost`'s `blur`/`visibilitychange` listeners (bound below,
+    // via `bindGlobalInput`) can only pause a run that is already showing when
+    // the document backgrounds — a run that BOOTS (fresh or a fb074 resume)
+    // in an already-hidden document (e.g. a browser restoring a background
+    // tab) binds those listeners too late to ever see a hide event; the only
+    // one left to arrive is the reveal, which `onFocusLost`'s own
+    // `!document.hidden` guard correctly ignores. Mirrors that same
+    // `outcome === 'running' && !this.paused` guard at bind time instead
+    // (code-reviewer: `this.paused` is always false here today — just set a
+    // few lines up — but the explicit conjunct keeps that an enforced
+    // invariant rather than an implicit one a future insertion between the
+    // two could silently break), so the player never gets dropped straight
+    // into live combat with no visible pause.
+    if (document.hidden && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
   }
 
   /**
@@ -593,6 +607,22 @@ export class Game {
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) return;
       onFocusLost();
+      // fb170 (qa-playtester finding during fb145 QA): this handler's own
+      // comment above already calls `hidden` the last reliable moment before
+      // a mobile freeze/discard, but until now it only paused — the actual
+      // checkpoint write happens in `frame()`'s 60-tick throttle
+      // (`this.inputLog.length - this.lastPersistedLen >= 60`), which the
+      // pause this same call just triggered stops from ever running again.
+      // Flushes directly, bypassing the throttle, through the exact same
+      // `persistRun()` every throttled call already uses — so
+      // `persistDisabled`/cross-tab `runSessionId` ownership are honoured
+      // identically, not re-implemented here. Guarded the same way
+      // `onFocusLost` is (`outcome === 'running'`), so hiding the Hub (no
+      // run) or an already-finished run writes nothing new.
+      if (this.run && this.run.world.outcome === 'running') {
+        this.persistRun();
+        this.lastPersistedLen = this.inputLog.length;
+      }
     });
     // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
     // actual laid-out box (canvas.ts), not a fixed constant, so a live window

@@ -93,6 +93,51 @@ export const ENEMY_COLORS: Record<string, string> = {
 };
 
 /**
+ * fb158 (owner feedback `ui-enemy-attack-indicators`, render half): one
+ * distinct color per `EnemyDef.attackKind` (src/sim/content.ts), for the
+ * small per-enemy attack-kind icon and its range ring. Keyed by the same
+ * seven literal strings the schema authors rather than importing `EnemyDef`
+ * itself, matching `ENEMY_COLORS`'s own loose `Record<string, string>`
+ * keying just above — the icon's *shape* (drawn in canvas.ts) is what
+ * actually distinguishes a kind for a colorblind player; color is a second,
+ * non-load-bearing cue.
+ */
+export const ATTACK_KIND_COLORS: Record<string, string> = {
+  melee: '#e0857a',
+  ranged: '#8fc7e0',
+  bomber: '#ff8a5c',
+  healer: '#7fe0a8',
+  buffer: '#ffd166',
+  burrower: '#a07a5a',
+  phaser: '#c9a8ff',
+};
+
+export interface AttackKindIconShape {
+  /** A solid disc (`fill()`) vs. a hollow ring (`stroke()`). */
+  filled: boolean;
+  /** The larger of the two icon radii this file's canvas icon draws in. */
+  big: boolean;
+  /** Half-opacity, vs. full. */
+  faded: boolean;
+}
+
+/**
+ * fb158: the one place that turns an `attackKind` into a shape — both
+ * `canvas.ts`'s `drawAttackKindIcon` (the in-game marker) and `enemy-info.ts`'s
+ * DOM icon (HUD enemy panel, Codex) key off this, so the two surfaces the
+ * item's acceptance line asks to agree ("the Codex enemy pages show the same
+ * icon") cannot drift apart into showing different shapes for one kind.
+ * Every kind gets a unique (filled, big, faded) triple.
+ */
+export function attackKindIconShape(kind: string): AttackKindIconShape {
+  return {
+    filled: kind === 'melee' || kind === 'bomber' || kind === 'buffer' || kind === 'phaser',
+    big: kind === 'bomber' || kind === 'healer' || kind === 'phaser',
+    faded: kind === 'buffer' || kind === 'burrower' || kind === 'phaser',
+  };
+}
+
+/**
  * Per-source projectile and tracer looks (playtest report, 2026-08-25: "should
  * have different bullet projection animation/sprite for different towers").
  *
@@ -151,4 +196,84 @@ const STYLES: Record<string, ProjectileStyle> = {
 export function projectileStyle(source: string): ProjectileStyle {
   const key = source.startsWith('terrain_') ? source.slice('terrain_'.length) : source;
   return STYLES[key] ?? DEFAULT_STYLE;
+}
+
+/**
+ * fb159 (owner feedback `ui-damage-font-scaling`): floating damage numbers
+ * scale with their own value instead of a fixed 12px, so a 10-damage tick and
+ * a several-thousand-damage boss nova don't render identically. Size is
+ * `base + k*log10(value)`, clamped to `[base, max]`; `boldThreshold` is the
+ * value at and above which a number renders bold rather than normal weight
+ * ("10 small, 100 medium, 1000+ large and bold" — the owner feedback's own
+ * three anchors). Crit/execute keeps its own multiplier on top of this
+ * (`executeFontScale`, already data-driven in `data/damagetypes.json`) rather
+ * than losing it; a DoT aggregate tick (fb060) renders at `dotFontScale` of
+ * the same computed size instead of the flat, value-blind 0.7 it used before.
+ *
+ * BACKLOG-UI.md Log: this table belongs in `/data` per this item's own
+ * acceptance line ("Constants are data-driven... not literals in the
+ * renderer") — genuinely out of this lane's Scope (`/data` isn't
+ * `src/ui/**`/`src/render/**`), so it stays a literal here and the migration
+ * is logged for the main-lane merge rather than silently left non-compliant.
+ */
+export const FLOATING_NUMBER_FONT = {
+  base: 9,
+  k: 4,
+  max: 26,
+  boldThreshold: 1000,
+  dotFontScale: 0.8,
+};
+
+/** The `base + k*log10(value)` size in px, clamped, times any crit/execute multiplier. */
+export function floatingNumberFontSize(value: number, fontScale = 1): number {
+  const f = FLOATING_NUMBER_FONT;
+  const raw = f.base + f.k * Math.log10(Math.max(1, value));
+  return Math.min(f.max, Math.max(f.base, raw)) * fontScale;
+}
+
+/** Bold once `value` reaches the large-number anchor, or unconditionally for a crit/execute's own extra styling. */
+export function floatingNumberFontWeight(value: number, fontScale: number): 'bold' | 'normal' {
+  return fontScale > 1 || value >= FLOATING_NUMBER_FONT.boldThreshold ? 'bold' : 'normal';
+}
+
+/**
+ * fb116: a deterministic per-tile lightness jitter so a scattered field of the
+ * same terrain kind (`data/terrain.json`'s per-kind `color`) reads as organic
+ * texture rather than a flat, uniform stamp — without touching `/src/sim`
+ * (architecture rule 1: no `Math.random` there) or breaking replay/render
+ * determinism (a real hash of the tile's own coordinates, not a draw-order- or
+ * frame-dependent value, so the same seed always paints the same tile the same
+ * shade). `TERRAIN_JITTER` is a presentation constant, not a balance number —
+ * unlike `FLOATING_NUMBER_FONT` there is no `/data` precedent for a
+ * render-only cosmetic range, and fb159's own Log entry already established
+ * that a literal here is consistent with this file's existing tables.
+ */
+export const TERRAIN_JITTER = 0.12;
+
+/** `#rrggbb` -> `[r, g, b]`, each 0-255. Malformed input (missing `data/terrain.json` color) falls back to mid-grey rather than throwing mid-frame. */
+function hexToRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return [128, 128, 128];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/** Cheap, deterministic, non-cryptographic integer hash of one tile's coordinates, folded to [0, 1). */
+function tileJitterFraction(tx: number, ty: number): number {
+  let h = (tx * 374761393 + ty * 668265263) ^ (tx * 2654435761);
+  h = (h ^ (h >>> 13)) >>> 0;
+  return (h % 1000) / 1000;
+}
+
+/**
+ * `baseHex` lightened or darkened by up to `TERRAIN_JITTER` (a fraction of
+ * 255), keyed off the tile's own coordinates so it is stable across every
+ * redraw and every viewer of the same seed.
+ */
+export function terrainTileFill(baseHex: string, tx: number, ty: number): string {
+  const [r, g, b] = hexToRgb(baseHex);
+  const offset = Math.round((tileJitterFraction(tx, ty) - 0.5) * 2 * TERRAIN_JITTER * 255);
+  const clamp8 = (v: number): number => Math.min(255, Math.max(0, v));
+  const hex2 = (v: number): string => clamp8(v).toString(16).padStart(2, '0');
+  return `#${hex2(r + offset)}${hex2(g + offset)}${hex2(b + offset)}`;
 }

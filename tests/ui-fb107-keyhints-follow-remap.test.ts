@@ -4,22 +4,24 @@
  * fb107 (QUALITY.md BETA key remapping, fb073): every key-hint string in the
  * in-run HUD and the Hub ignored the player's remapped `keyBindings` and
  * always showed the hardcoded defaults (Q/E/WASD/R/F/C/P/V/U/X/0) — this
- * covers the bottom-bar badge, the help legend, the character panel's Active
- * rows, the class-select tooltip label, and the Dusk onboarding prompt.
+ * covers the bottom-bar badge, the help legend, the bottom bar's Active hover
+ * tooltip, the class-select tooltip label, and the Dusk onboarding prompt.
+ * (fb157 later moved the character panel's own Active rows to that same
+ * bottom-bar hover tooltip and dropped the panel's copy, so the coverage this
+ * file used to carry for the panel now lives in the bottom-bar case below.)
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { Hud, characterPanelMarkup, type HudCallbacks } from '../src/ui/hud';
+import { Hud, type HudCallbacks } from '../src/ui/hud';
 import { Hub } from '../src/ui/hub';
 import { World } from '../src/sim/world';
 import type { DevOp } from '../src/sim/types';
 import { defaultSettings } from '../src/ui/settings';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultKeyBindings, type KeyBindings } from '../src/ui/keybindings';
-import { characterPanelData } from '../src/ui/character-panel';
 import { finishSundering } from '../src/sim/sundering';
 import { cfg } from './helpers';
 
@@ -127,13 +129,6 @@ describe('fb107: key hints follow the player\'s remapped keyBindings', () => {
     const a1Tip = root.querySelector('#sw-bb-a1-tip')?.innerHTML ?? '';
     expect(a1Tip).toContain('G, Active 1');
     expect(a1Tip).not.toContain('Q, Active 1');
-  });
-
-  it('the character panel\'s Active rows show the rebound key', () => {
-    const w = new World(cfg({ classKey: 'swordsman' }));
-    const html = characterPanelMarkup(characterPanelData(w), w, REMAPPED);
-    expect(html).toContain('G, Active 1');
-    expect(html).toContain('H, Active 2');
   });
 
   it('the Hub class-select tooltip label shows the rebound key', () => {

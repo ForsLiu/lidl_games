@@ -21,6 +21,7 @@ import { GRID_H, GRID_W, TILE } from '../src/sim/grid';
 import { bindCanvasInput, makeKeyDownHandler, pointerToTile } from '../src/ui/input';
 import { Hub } from '../src/ui/hub';
 import { World } from '../src/sim/world';
+import { spawnEnemy } from '../src/sim/enemies';
 import { canRefund, defaultMeta, allocate, refund } from '../src/meta/meta';
 import { loadContent } from '../src/sim/content';
 import { defaultSettings } from '../src/ui/settings';
@@ -292,6 +293,113 @@ describe('the DPS/VS panels dock instead of covering the whole screen (fb051)', 
       new window.MouseEvent('mousedown', { button: 0, clientX: 32 * 5 + 4, clientY: 32 * 7 + 4, bubbles: true }),
     );
     expect(queue).toEqual([{ k: 'build', tower: arrow.id, tx: 5, ty: 7 }]);
+  });
+});
+
+/**
+ * fb157 (owner feedback `ui-character-panel-compact`) rebuilt the in-run
+ * character panel as a `.sw-dock` corner panel, the same treatment fb051
+ * gave the DPS/VS panels above. qa-playtester's real-browser pass on the
+ * first shape (docked to the stage's LEFT edge) found it colliding with
+ * `.sw-rail-left` (the pre-existing Build rail, fb065) — jsdom's own lack of
+ * layout could not have caught that, but the *side* it docks to is a plain
+ * CSS fact this suite can pin down. The same pass also found `Hud.modalOpen`
+ * still counted the panel as a blocking full-stage overlay (stale from when
+ * it really was one), hiding `#sw-bottombar` and any live boss banner the
+ * instant it opened — fixed by dropping the character panel from
+ * `modalOpen` and adding it to `railAutoCollapsed()` (the same right-edge
+ * rail the DPS/VS panels already collapse).
+ */
+describe('the character panel docks to the same right edge as DPS/VS, and is not a blocking modal (fb157 qa-fix)', () => {
+  function mountHudWithCanvas(): { root: HTMLElement; hud: Hud; world: World; queue: Command[] } {
+    const root = mount();
+    const queue: Command[] = [];
+    const hud = new Hud(root, noopHudCallbacks(queue));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: 1152, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: 640, configurable: true });
+    hud.canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+    return { root, hud, world, queue };
+  }
+
+  it('docks to the right edge (not the left, which collides with the Build rail) with no backdrop blur', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    expect(panel.classList.contains('sw-modal'), 'no full-screen overlay element').toBe(false);
+    expect(panel.classList.contains('sw-dock')).toBe(true);
+    expect(panel.classList.contains('sw-dock-left'), 'must not dock left — collides with the Build rail').toBe(false);
+
+    const style = getComputedStyle(panel);
+    expect(style.position).toBe('absolute');
+    expect(style.right).toBe('8px');
+    expect(style.left).toBe('auto');
+    expect(style.width).toBe('340px');
+    expect(style.backdropFilter === '' || style.backdropFilter === 'none', 'no blur').toBe(true);
+  });
+
+  it('leaves the canvas interactive while open, same as the DPS/VS panels', () => {
+    const { hud, world, queue } = mountHudWithCanvas();
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    expect(hud.modalOpen, 'a docked panel must not be treated as a full-screen modal').toBe(false);
+
+    const arrow = world.content.towerByKey.get('arrow_spire')!;
+    const view = { selectedTower: arrow.id, cursorX: 0, cursorY: 0 };
+    bindCanvasInput({
+      canvas: hud.canvas,
+      view,
+      keys: new Set(),
+      queue: { push: (c) => queue.push(c) },
+      isBlocked: () => hud.modalOpen,
+    });
+    hud.canvas.dispatchEvent(
+      new window.MouseEvent('mousedown', { button: 0, clientX: 32 * 5 + 4, clientY: 32 * 7 + 4, bubbles: true }),
+    );
+    expect(queue).toEqual([{ k: 'build', tower: arrow.id, tx: 5, ty: 7 }]);
+  });
+
+  it('leaves the bottom bar and a live boss banner visible while open, in both Act I and Act II', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    spawnEnemy(world, 'gatebreaker', 5, 5);
+
+    for (const phase of ['act1_wave', 'act2'] as const) {
+      world.phase = phase;
+      hud.update(world);
+      const bottomBar = root.querySelector('#sw-bottombar') as HTMLElement;
+      const bossBar = root.querySelector('#sw-bossbar') as HTMLElement;
+      expect(bottomBar.classList.contains('sw-off'), `${phase}: bottom bar hidden before opening`).toBe(false);
+      expect(bossBar.hidden, `${phase}: boss banner hidden before opening`).toBe(false);
+
+      hud.toggleCharacterPanel(world);
+      hud.update(world);
+      expect(bottomBar.classList.contains('sw-off'), `${phase}: bottom bar must stay visible`).toBe(false);
+      expect(bossBar.hidden, `${phase}: boss banner must stay visible`).toBe(false);
+
+      hud.toggleCharacterPanel(world); // close, so the next phase starts from closed
+      hud.update(world);
+    }
+  });
+
+  it("collapses the right info rail while open, same as the DPS/VS panels' own treatment", () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    const rail = root.querySelector('#sw-rail-right') as HTMLElement;
+    expect(rail.classList.contains('collapsed')).toBe(false);
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    expect(rail.classList.contains('collapsed'), 'right rail must collapse to clear the docked panel').toBe(true);
+  });
+
+  it('still mutually excludes with the DPS/VS panels, which now share its edge', () => {
+    const { hud, world } = mountHudWithCanvas();
+    hud.toggleDpsPanel(world);
+    expect(hud.dpsPanelOpen).toBe(true);
+    hud.toggleCharacterPanel(world);
+    expect(hud.characterPanelOpen).toBe(true);
+    expect(hud.dpsPanelOpen, 'opening the character panel must close DPS, not stack on top of it').toBe(false);
   });
 });
 

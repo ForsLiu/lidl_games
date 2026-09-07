@@ -15,18 +15,14 @@ import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
+import { enemyAttackMarkup } from './enemy-info';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { characterBasicRange } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
 import { SPEEDS } from './pacer';
-import {
-  activeSkillMarkup,
-  classAbilitiesMarkup,
-  passiveSkillMarkup,
-  towerPassiveSkillMarkup,
-} from './class-info';
+import { activeSkillMarkup, passiveSkillMarkup, towerPassiveSkillMarkup } from './class-info';
 import { classLiveContext } from './class-live';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
@@ -96,7 +92,16 @@ export interface HudCallbacks {
   onToggleAutoPick(): void;
   /** SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   onToggleCharacterPanel(): void;
-  /** fb023 (SPEC-FINAL §7): swap an owned item into (or `null` out of) an equipment slot, mid-run, from the character panel. */
+  /**
+   * fb023 (SPEC-FINAL §7): swap an owned item into (or `null` out of) an
+   * equipment slot via the `equip_item` sim Command. fb157 removed the
+   * character panel's own click wiring to this (equipment is read-only
+   * in-run now) — kept on the interface rather than deleted, since the
+   * underlying Command stays a real, bot/replay-reachable action
+   * (architecture rule 3) and every existing `HudCallbacks` implementation
+   * already supplies a no-op here; removing it would only be a cosmetic
+   * cleanup at the cost of touching every one of those call sites.
+   */
   onEquipItem(slot: string, item: string | null): void;
   /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
   onToggleDpsPanel(): void;
@@ -258,7 +263,7 @@ export class Hud {
         <div class="sw-stage">
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
-          <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
+          <div class="sw-dock sw-off" id="sw-charpanel" hidden></div>
           <div class="sw-bossbar sw-off" id="sw-bossbar" hidden>
             <div class="sw-bossbar-name" id="sw-bossbar-name"></div>
             <div class="sw-meter sw-bossbar-meter"><i id="sw-bossbar-fill"></i></div>
@@ -432,23 +437,29 @@ export class Hud {
     });
   }
 
-  /** fb076: whether something other than the user's own handle toggle is forcing the right rail shut. */
+  /** fb076/fb157: whether something other than the user's own handle toggle is forcing the right rail shut. */
   private railAutoCollapsed(): boolean {
-    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_;
+    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_ || this.charPanelOpen;
   }
 
   /**
-   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.) and the DPS/
-   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) both dock to `.sw-stage`'s
-   * right edge — collapses the rail whenever either panel is open *or docked*
-   * (code review: the small reopen tab, `.sw-dpsdock`/`.sw-vsdock`, top:8/
-   * top:40 right:0, sits in the same top-right corner as this rail's own
-   * flex-end-aligned handle, so "docked" is not actually clear of it the way
-   * an earlier draft of this comment assumed) so the rail's handle and a
-   * dock's reopen tab never compete for the same click. Called every
-   * `update()` tick, the same "re-derive presentation state from the live
-   * flags every frame" pattern `syncDpsPanelToggle`/`syncVsPanelToggle`
-   * already use just above its call site.
+   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.), the DPS/
+   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) and (fb157) the character
+   * panel all dock to `.sw-stage`'s right edge — collapses the rail whenever
+   * any of them is open *or docked* (code review: the small reopen tab,
+   * `.sw-dpsdock`/`.sw-vsdock`, top:8/top:40 right:0, sits in the same
+   * top-right corner as this rail's own flex-end-aligned handle, so "docked"
+   * is not actually clear of it the way an earlier draft of this comment
+   * assumed) so the rail's handle and a dock's reopen tab never compete for
+   * the same click. fb157 moved the character panel from a full-screen
+   * modal to this same right-edge dock (qa-playtester finding: a first
+   * attempt at docking it to the *left* edge instead collided with the
+   * `#sw-rail-left` Build rail, which already lives there) — it has no
+   * "docked to a small tab" state of its own, so only `charPanelOpen`
+   * matters here, unlike the DPS/VS pair. Called every `update()` tick, the
+   * same "re-derive presentation state from the live flags every frame"
+   * pattern `syncDpsPanelToggle`/`syncVsPanelToggle` already use just above
+   * its call site.
    */
   private syncRailRightVisibility(): void {
     const rail = this.root.querySelector('#sw-rail-right') as HTMLElement | null;
@@ -748,25 +759,10 @@ export class Hud {
     const scrollTop = this.charPanelEl.querySelector('.sw-charcard')?.scrollTop ?? 0;
     this.charPanelEl.hidden = false;
     this.charPanelEl.classList.remove('sw-off');
-    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w, this.keyBindings);
+    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w);
     const card = this.charPanelEl.querySelector('.sw-charcard');
     if (card && scrollTop > 0) card.scrollTop = scrollTop;
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
-    for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runeqslot]')) {
-      const slot = el.dataset.runeqslot!;
-      el.addEventListener('click', () => {
-        if (w.equippedEquipment[slot]) this.cb.onEquipItem(slot, null);
-      });
-    }
-    for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runitem]')) {
-      const key = el.dataset.runitem!;
-      el.addEventListener('click', () => {
-        const item = w.content.equipmentByKey.get(key);
-        if (!item) return;
-        const isEq = w.equippedEquipment[item.slot] === key;
-        this.cb.onEquipItem(item.slot, isEq ? null : key);
-      });
-    }
   }
 
   private syncCharacterPanelToggle(): void {
@@ -996,9 +992,14 @@ export class Hud {
    * canvas. fb051 (bug-dps-panel-style): the DPS and VS panels dock to the
    * stage's edge (`.sw-dock`) rather than covering it, so they no longer
    * count here — gameplay stays visible and clickable while either is open.
+   * fb157 gave the character panel the same `.sw-dock` treatment (a
+   * qa-playtester finding on the item itself: this getter still listed it as
+   * blocking from when it was a full-screen `.sw-modal`, which hid the
+   * bottom bar and any live boss banner the instant it opened), so it is
+   * excluded here for the same reason.
    */
   get modalOpen(): boolean {
-    return !this.modal.hidden || !this.charPanelEl.hidden;
+    return !this.modal.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -1266,11 +1267,12 @@ export class Hud {
    * boss-clear gates otherwise have no legible HUD read on fight progress.
    * If more than one boss is alive at once, shows the lower-current-HP one
    * (the fight closer to resolving), per acceptance. Hidden behind
-   * `this.modalOpen` (pause/level-up/results/character panel) the same way
-   * `renderBottomBar` hides `#sw-bottombar` — those overlays are
-   * semi-transparent/blurred, not opaque, so without this the name and HP
-   * fraction would still read through underneath (qa-playtester, fb072
-   * verification).
+   * `this.modalOpen` (pause/level-up/results) the same way `renderBottomBar`
+   * hides `#sw-bottombar` — those overlays are semi-transparent/blurred, not
+   * opaque, so without this the name and HP fraction would still read
+   * through underneath (qa-playtester, fb072 verification). The docked DPS/
+   * VS/character panels (fb051, fb157) are not full-stage, so none of them
+   * hide this banner.
    */
   private renderBossBar(w: World): void {
     let boss: (typeof w.enemies)[number] | null = null;
@@ -1306,12 +1308,12 @@ export class Hud {
    * number for tests, so the fraction asserted there is exactly what paints.
    */
   private renderBottomBar(w: World): void {
-    // The overlays that are still full-stage sheets (pause/level-up/results,
-    // the character panel) hide the bar the same way `openModal`'s own
-    // panel-closing calls avoid stacking under them — painting the bar on top
-    // would float readable HP/gold numbers over what should be an opaque
-    // cover. The docked DPS/VS panels (fb051) are not full-stage, so they
-    // leave the bar showing.
+    // The overlays that are still full-stage sheets (pause/level-up/results)
+    // hide the bar the same way `openModal`'s own panel-closing calls avoid
+    // stacking under them — painting the bar on top would float readable
+    // HP/gold numbers over what should be an opaque cover. The docked DPS/
+    // VS/character panels (fb051, fb157) are not full-stage, so they leave
+    // the bar showing.
     const wasHidden = this.bb.root.classList.contains('sw-off');
     this.bb.root.classList.toggle('sw-off', this.modalOpen);
     if (this.modalOpen) {
@@ -1943,8 +1945,9 @@ export class Hud {
    * fb084: non-blocking — unlike `openModal`'s full-stage overlays, this
    * never covers the canvas or bottom bar, so gameplay stays visible and
    * clickable while it shows. Still hidden behind an actual modal (pause/
-   * level-up/results/character panel) the same way `renderBossBar` is, so it
-   * doesn't bleed through their semi-transparent cover.
+   * level-up/results) the same way `renderBossBar` is, so it doesn't bleed
+   * through their semi-transparent cover; the docked DPS/VS/character
+   * panels (fb051, fb157) are not modals in this sense and do not hide it.
    */
   private renderOnboarding(): void {
     if (!this.onboardingActive || this.modalOpen) {
@@ -2082,38 +2085,12 @@ function formatSourceValue(display: StatDisplay, value: number): string {
 }
 
 /**
- * fb022: the class's full active/passive/tower-passive effect text, with
- * `cooldownSeconds` and `damage`/`dps` resolved through the exact live
- * formulas the sim itself uses (`w.derived.cdr`, `classAttackPowerMul`) —
- * everything else (radius, knockback, summon counts, ...) has no live sim
- * equivalent to resolve through, so it falls back to the plain /data number,
- * same as the Hub's pre-run Class screen (`hub.ts`) which calls the same
- * `classAbilitiesMarkup` with no live context at all.
- */
-function characterAbilitiesMarkup(w: World, keyBindings: KeyBindings): string {
-  const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls) return '';
-  return classAbilitiesMarkup(cls, { live: classLiveContext(w, cls), keyBindings });
-}
-
-/**
- * fb023 (SPEC-FINAL §7): the character panel's Equipment section — six slot
- * boxes plus the owned-items list beside them, the same "click an owned item
- * to equip/swap into its slot" screen the Hub's Equipment tab uses, so a run
- * never has to return to the Hub to change loadout. Reads `w.equippedEquipment`/
- * `w.ownedEquipment` (live sim state, kept in step by the `equip_item`
- * Command) rather than `MetaState` — a run cannot reach back into the meta
- * layer once started (CLAUDE.md architecture rule 3).
- */
-/**
  * fb028: `w`'s live equipment-effect context — the same `EquipmentEffectContext`
  * shape `equipmentEffectMarkup` (`equipment-info.ts`) needs to resolve
  * Swordsman Armor's charge-rate note to the real `w.derived.attackSpeedMul`
  * rather than the plain, number-free text the Hub's pre-run screens show.
- * `equippedKeys` reads the live, swappable `w.equippedEquipment` — the same
- * state `hasEquipment` (sim/equipment.ts, b076) now gates every `effectKey`
- * mechanic on — so a cross-item note (Swordsman Armor + Sleeve Sword) stays
- * truthful after a mid-run `equip_item` swap, not just at run start.
+ * `equippedKeys` reads the live `w.equippedEquipment` — the same state
+ * `hasEquipment` (sim/equipment.ts, b076) gates every `effectKey` mechanic on.
  */
 function runEquipmentContext(w: World): EquipmentEffectContext {
   return {
@@ -2123,6 +2100,14 @@ function runEquipmentContext(w: World): EquipmentEffectContext {
   };
 }
 
+/**
+ * fb157 (owner feedback `ui-character-panel-compact`): the character panel's
+ * Equipment section is read-only in-run — loadout can only be changed from
+ * the Hub between runs, so the six slot boxes are plain display, not the
+ * `equip_item`-dispatching buttons fb023 gave them. Each slot still carries
+ * its item's live effect text (`equipmentEffectMarkup`), which is the only
+ * thing this section is for now that swapping is gone.
+ */
 function equipmentSectionMarkup(w: World): string {
   const ctx = runEquipmentContext(w);
   const slots = w.content.equipment.slots
@@ -2130,47 +2115,51 @@ function equipmentSectionMarkup(w: World): string {
       const key = w.equippedEquipment[slot] ?? null;
       const item = key ? w.content.equipmentByKey.get(key) : null;
       const tip = item ? `<div class="sw-eq-tip">${equipmentEffectMarkup(w.content, item, ctx)}</div>` : '';
-      return `<div class="sw-slot sw-runeq-slot" data-runeqslot="${slot}"
-                   title="${item ? `Click to unequip ${item.name}.` : ''}">
+      return `<div class="sw-slot sw-runeq-slot" title="Equipment is locked during a run — change loadout from the Hub.">
                 <span>${slot}</span><b>${item ? item.name : '—'}</b>${tip}
               </div>`;
     })
     .join('');
-  const owned = Object.entries(w.ownedEquipment).filter(([, n]) => n > 0);
-  const items =
-    owned.length === 0
-      ? '<p class="sw-note dim">No equipment owned yet.</p>'
-      : owned
-          .map(([key, count]) => {
-            const item = w.content.equipmentByKey.get(key);
-            if (!item) return '';
-            const isEq = w.equippedEquipment[item.slot] === key;
-            const tip = isEq ? 'Click to unequip.' : `Click to equip to ${item.slot}.`;
-            const eqTip = `<div class="sw-eq-tip">${equipmentEffectMarkup(w.content, item, ctx)}</div>`;
-            return `<button class="sw-lootitem sw-runeq-item ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
-                <b>${item.name}</b><small>${item.slot} · x${count}${isEq ? ' · equipped' : ''}</small>${eqTip}
-              </button>`;
-          })
-          .join('');
-  return `<div class="sw-sub">Equipment</div>
-    <div class="sw-equipped">${slots}</div>
-    <div class="sw-itemstash">${items}</div>`;
+  return `<div class="sw-sub">Equipment <small class="dim">(Hub only)</small></div>
+    <div class="sw-equipped">${slots}</div>`;
 }
 
 /**
- * SPEC-FINAL §2/§6.3/§11 (fb004): every final stat with its §2 multiplier
- * breakdown by source, plus every boon taken this run with rank and current
- * contribution, plus (fb022) the class's own active/passive effect text with
- * live numbers, plus (fb023) an Equipment section to swap loadout mid-run.
- * Equipment mods themselves are already folded into the generic Stats
- * sections above too, via fb015's `equipment:<key>` source — the section here
- * is only the equip/swap control surface, not a second source of numbers.
+ * fb157 (owner feedback `ui-character-panel-compact`): the always-visible
+ * stat set a player glances at mid-fight — HP, attack, attack speed, defense,
+ * movement speed, range, life regen, lifesteal. Reuses the exact live
+ * `w.derived` formulas `wardenInfoMarkup` (the T2 click-select panel) already
+ * reads, so the two surfaces can never disagree about what "Range" or
+ * "Defense" mean. Everything else a stat can carry — area, CDR, pickup,
+ * luck, and every stat's own per-source breakdown — lives only in the
+ * Details pull-down below, never duplicated up here.
  */
-export function characterPanelMarkup(
-  data: CharacterPanelData,
-  w?: World,
-  keyBindings: KeyBindings = defaultKeyBindings(),
-): string {
+function importantStatsMarkup(w: World): string {
+  const d = w.derived;
+  const rangeTiles = w.huntsWarden ? longestWieldedRange(w) : characterBasicRange(w);
+  const rows = [
+    row('HP', `${Math.ceil(w.warden.hp)} / ${Math.round(d.maxHp)}`),
+    row('Attack', formatPercent(d.powerMul - 1)),
+    row('Attack Speed', formatPercent(d.attackSpeedMul - 1)),
+    row('Defense', armourText(wardenArmor(w))),
+    row('Movement Speed', `${round1(d.moveSpeed)} tiles/s`),
+    row('Range', `${round1(rangeTiles)} tiles`),
+    row('Life Regen', `${round1(d.hpRegen)} /s`),
+    row('Lifesteal', formatPercent(d.leech)),
+  ];
+  return `<div class="sw-vitals">${rows.join('')}</div>`;
+}
+
+/**
+ * SPEC-FINAL §2/§6.3/§11 (fb004, reshaped by fb157 `ui-character-panel-compact`):
+ * a compact card — the always-visible vitals above, the (Hub-only, read-only)
+ * Equipment section, then every final stat's §2 multiplier breakdown by
+ * source and every boon taken this run, folded into a closed-by-default
+ * Details pull-down so the card fits a 1080p screen with no scrolling. The
+ * class's active/passive effect text moved to the bottom bar's own hover
+ * tooltips (fb026) and is deliberately not duplicated here.
+ */
+export function characterPanelMarkup(data: CharacterPanelData, w?: World): string {
   const boonRows =
     data.boons.length === 0
       ? '<p class="sw-note">No boons taken yet.</p>'
@@ -2197,26 +2186,22 @@ export function characterPanelMarkup(
     })
     .join('');
 
-  const abilities = w ? characterAbilitiesMarkup(w, keyBindings) : '';
-
   return `
-    <div class="sw-card sw-charcard wide">
+    <div class="sw-card sw-charcard">
+      <button class="sw-panelclose" data-act="close" aria-label="Close character panel">&times;</button>
       <h2>Character</h2>
-      <p class="sw-note">Every final stat's class &times; tree &times; equipment &times; boon breakdown
-        (SPEC-FINAL &sect;2: ranks within one source add, sources multiply).
-        Click a stat to see where it comes from.</p>
-      ${
-        abilities
-          ? `<div class="sw-sub">Active &amp; passive effects</div>
-             <div class="sw-classdetail">${abilities}</div>`
-          : ''
-      }
+      ${w ? importantStatsMarkup(w) : ''}
       ${w ? equipmentSectionMarkup(w) : ''}
-      <div class="sw-sub">Boons taken</div>
-      ${boonRows}
-      <div class="sw-sub">Stats</div>
-      <div class="sw-charstats">${statRows}</div>
-      <button class="sw-reroll" data-act="close">Close</button>
+      <details class="sw-chardetails">
+        <summary>Details</summary>
+        <p class="sw-note">Every final stat's class &times; tree &times; equipment &times; boon breakdown
+          (SPEC-FINAL &sect;2: ranks within one source add, sources multiply).
+          Click a stat to see where it comes from.</p>
+        <div class="sw-sub">Boons taken</div>
+        ${boonRows}
+        <div class="sw-sub">Stats</div>
+        <div class="sw-charstats">${statRows}</div>
+      </details>
     </div>`;
 }
 
@@ -2414,6 +2399,10 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const traits = def?.traits ?? [];
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
+    // fb158: the same attack-kind icon/description this file's canvas
+    // renderer draws as a range ring, so a selected enemy's panel and its
+    // on-screen ring can never disagree about what its attack does.
+    ...(def ? [row('Attack', enemyAttackMarkup(def))] : []),
     row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
     // p12b: the tier-scaled number, not the authored one — same convention as
     // the bounty row below. At T3 the two differ by the ladder's coreDamage

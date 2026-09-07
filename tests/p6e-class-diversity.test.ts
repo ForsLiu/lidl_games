@@ -683,10 +683,12 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // some other gate), so re-pinned to the honest current number rather than
   // chased further here.
   //
-  // p12e (2026-09-07) re-pinned 2->1: `data/enemies.json`'s `warden_eater.hp`
-  // re-anchor (365000 -> 18250, cancelling `baseHpMul`'s 20x so the boss
-  // fight's effective HP — and length — is unchanged) shifted `time_lord`'s
-  // top damage source off `mortar` and onto the shared `ballista` TD build,
+  // p12e (2026-09-07) re-pinned 2->1: the final boss's exemption from
+  // `baseHpMul` (landed fix — see `src/sim/enemies.ts`'s `makeEnemy`) keeps
+  // `warden_eater`'s effective HP at its fb099-fitted 365,000 — unchanged in
+  // practice from p12c's pre-fix number — but the shorter, un-censored fight
+  // this unblocks shifted `time_lord`'s top damage source off `mortar` and
+  // onto the shared `ballista` TD build,
   // the only class not already there, collapsing the distinct count to 1 of
   // 12. G8's own >=9/12 target is unmet either way — this moves an
   // already-red gate further along the same axis it was already failing, not

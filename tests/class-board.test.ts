@@ -111,6 +111,15 @@ const EXCEPTIONS: Record<string, string> = {
   'class-active2-cdr':
     'parks on a derived centre from grid.ts and places no tower, so it has no build tile to share; ' +
     'converting would move 90 cast-cadence baselines for no terrain gain',
+  // c029: this file deliberately calls `probeBoard(origin)` at five different
+  // origins (the shipped default plus the four this file's own `SHIFTED`
+  // suite already probes) to measure whether *other* importers' windows
+  // survive a shift — it has no single shared spot of its own to park or
+  // build on, so the "parks/builds on the shared spot" sink rules do not
+  // apply to it, exactly as they do not apply to this file.
+  'class-board-windows':
+    'measures other importers\' windows across several probeBoard(origin) calls at once, the way this ' +
+    'file does — it has no single shared spot of its own to pin',
 };
 
 /** Every file the rule applies to: the sweep minus the named exceptions. */

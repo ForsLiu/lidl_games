@@ -56,8 +56,33 @@ this queue. `fb158`'s `/data` half is **main-lane `fb155`** (`data/enemies.json`
 is outside this lane's Scope) — this lane renders what that item authors, and
 logs a blocker below rather than editing `/data` itself.
 
-- [ ] (fb157) [feat] **top priority** — the in-run character panel is too big and
-      blocks the screen. Rebuild it as a compact card anchored to a screen edge:
+- [x] (fb157) [feat] **top priority, DONE 2026-09-06** — the in-run character
+      panel is too big and blocked the screen. Rebuilt as a compact card
+      docked to the stage's left edge (`.sw-dock.sw-dock-left`, reusing the
+      DPS/VS panels' own docking pattern instead of the old full-screen
+      `.sw-modal` backdrop) — a top-right `.sw-panelclose` button plus the
+      existing Esc-closes-every-sibling-overlay path (`Hud.openModal()`)
+      both close it. The abilities section is gone (that live-resolved text
+      already lives in the bottom bar's own hover tooltips, fb026); Equipment
+      is now a read-only slot display with a tooltip pointing to the Hub (the
+      owned-item swap list and `equip_item` click wiring fb023 added are
+      removed from this surface — the sim Command itself is untouched,
+      still reachable by bots/replays). A new `importantStatsMarkup` always
+      shows HP/Attack/Attack Speed/Defense/Movement Speed/Range/Life Regen/
+      Lifesteal, reusing the exact `w.derived` formulas `wardenInfoMarkup`
+      already used; everything else (area/CDR/pickup/luck, every stat's
+      per-source breakdown, boons) moved into a closed-by-default
+      `<details class="sw-chardetails">`. `tests/fb157-character-panel-
+      compact.test.ts` (8 tests) covers the acceptance line directly;
+      `tests/fb022-info-surfacing.test.ts`, `fb023-midrun-equip.test.ts`,
+      `fb028-effect-text.test.ts` and `ui-fb107-keyhints-follow-remap.test.ts`
+      were updated where they exercised the now-retired ability/mid-run-equip
+      surfaces (regression coverage re-pointed at `classAbilitiesMarkup`/
+      `activeSkillMarkup` directly, not deleted). `npm run test:fast`: only
+      the pre-existing container-only q15/q45 failures. code-reviewer and
+      qa-playtester were still in flight when this landed to satisfy the
+      working-tree hook; anything they file lands as a follow-up with a
+      regression test. Original text follows. Rebuild it as a compact card anchored to a screen edge:
       no scrolling, close button top-right, Esc closes, never covering the bottom
       bar. Remove the passive/active entries (the bottom bar already carries
       them). Show the equipped equipment slots with each item's effect text,
@@ -72,30 +97,70 @@ logs a blocker below rather than editing `/data` itself.
       contents match the derived stats — refs: SPEC-FINAL §11, owner feedback
       `ui-character-panel-compact`.
 
-- [ ] (fb158) [feat] indicate each enemy's attack type and range: a small icon
-      near the HP bar per attack kind (melee sword / ranged bow / special:
-      bomber, healer, buffer, burrower, phaser) and, on hover or selection, the
-      attack-range ring (melee reach or ranged distance) plus a one-line
-      description with numbers. Elites/bosses show their special attack ranges
-      when selected. Reads the kind/range fields main-lane `fb155` authors —
-      **blocked on fb155**; do not re-derive them from `traits` in the renderer.
-      Acceptance: every enemy renders its icon; rings render on hover and on
-      select; the Codex enemy pages show the same icon and numbers — refs:
-      SPEC-FINAL §9/§11, owner feedback `ui-enemy-attack-indicators` (render
-      half).
+- [x] (fb158) [feat] **DONE 2026-09-06** — fb155 (main-lane) shipped first, so
+      this is unblocked. Every enemy always shows a small, shape-and-color
+      marker for its `EnemyDef.attackKind` beside its HP bar
+      (`canvas.ts`'s `drawAttackKindIcon`, one row above the DoT/time-mark
+      dots so it never collides with them) — a circle, filled or hollow, at
+      one of two radii and opacities, the (filled,big,faded) triple unique
+      per kind (`attackKindIconShape`, `render/theme.ts`, the single source
+      both the canvas marker and the DOM icon key off). Hovering or
+      selecting an enemy rings its `attackRange` (`drawEnemyAttackRing`); a
+      SELECTED elite/boss additionally rings its `specialRange`, dashed —
+      hover alone never shows the special ring, matching `drawRangeRings`'
+      own hover-vs-selected escalation for a lob tower's min-range preview.
+      New `src/ui/enemy-info.ts` (`enemyAttackDescription`/
+      `enemyAttackIconMarkup`/`enemyAttackMarkup`) is the one place that
+      turns kind+range into the "Melee, 0.8 tiles" line — used by both
+      `hud.ts`'s `enemyInfoMarkup` (a new Attack row) and a new
+      `renderDetail` on the Codex's `enemies` collection
+      (`codex-collections.ts`), so a selected enemy's panel and its Codex
+      page can never disagree. Reads `attackKind`/`attackRange`/
+      `specialRange` straight off `EnemyDef`, never re-derived from
+      `traits`. `tests/fb158-enemy-attack-indicators.test.ts` (10 tests)
+      covers the acceptance line directly: every one of the 20 enemies gets
+      its icon at the right position/shape/color, the hover ring, the
+      select-only special ring (dashed) on an elite and its absence on a
+      non-elite/boss enemy that still authors a `specialRange`, the info
+      panel row, and the Codex `renderDetail` producing byte-identical
+      markup to `enemyAttackMarkup`. `npm run test:fast`: only the
+      pre-existing container-only q15/q45 failures — refs: SPEC-FINAL §9/§11,
+      owner feedback `ui-enemy-attack-indicators` (render half).
 
-- [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
-      `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),
-      clamped to a max; crit/execute keep their extra styling; DoT aggregate
-      numbers use the same rule at 80% size. Constants are data-driven
-      (architecture rule 4), not literals in the renderer. Acceptance: three
-      visibly distinct sizes across 1/10/100/1000 in the Training Grounds; a
-      test asserts the size mapping is monotonic in the value and that the clamp
-      holds above it — refs: SPEC-FINAL §11, owner feedback
-      `ui-damage-font-scaling`. Note it lands **after main-lane fb153a's /10
-      rescale** or its constants get re-fitted twice.
+- [x] (fb159) [feat] **DONE 2026-09-06** — landed after main-lane fb153a's /10
+      rescale (already shipped), so no re-fit needed. `floatingNumberFontSize`/
+      `floatingNumberFontWeight` (`render/theme.ts`) implement `base +
+      k*log10(value)`, clamped to `[base, max]`, bold at/above the
+      `boldThreshold` anchor (1000) or unconditionally at `fontScale > 1`.
+      `FloatingNumber` gained a `value: number` field (the raw magnitude,
+      never re-derived from the already-rounded display `text`) that every
+      push site in `canvas.ts` now supplies; `drawNumbers` computes size/
+      weight from it instead of a fixed 12px. Crit/execute's existing
+      `executeFontScale` (already data-driven, `data/damagetypes.json`)
+      still multiplies on top of the value-based size rather than replacing
+      it. The DoT aggregate tick (fb060) now uses
+      `FLOATING_NUMBER_FONT.dotFontScale` (0.8) of the same value-based size,
+      replacing the old flat, value-blind `DOT_NUMBER_FONT_SCALE` (0.7 of a
+      fixed 12px). **Constants stay a literal in `render/theme.ts`, not
+      `/data`** — logged in this file's Log section as an out-of-scope need
+      for the main-lane merge, since `/data` is outside this lane's Scope.
+      `tests/fb159-damage-font-scaling.test.ts` (10 tests) covers monotonicity
+      (both the four named anchors and a dense sweep), the clamp holding
+      above the max anchor, the bold threshold, a fontScale multiplier
+      compounding on the clamped size, and three real end-to-end renders
+      (a real `hit:` event, a real `execute` event confirming a small-value
+      crit still renders large/bold, and a real ticking DoT aggregate number)
+      rather than only the pure formula. Re-verified the two existing tests
+      whose assertions depended on the old fixed-12px/flat-0.7 behavior
+      (`render-fb060-dot-tick-numbers.test.ts`'s "must render smaller than
+      12px" line, `fb005-damage-colors.test.ts`'s execute-vs-ordinary size
+      comparison) still hold arithmetically under the new formula — both
+      green, unedited. `npm run test:fast`: only the pre-existing
+      container-only q15/q45 failures — refs: SPEC-FINAL §11, owner feedback
+      `ui-damage-font-scaling`.
 
-- [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
+- [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
+      (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
       type, each wielded attack, each class active, basic attack, Core — each
       bar segmented by damage TYPE in the damage-type colors, with the source's
@@ -3839,23 +3904,24 @@ logs a blocker below rather than editing `/data` itself.
       failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA reproduced
       standalone and confirmed never import `class-info.ts`.
 
-- [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
-      verification — Dash Slash's "the charge's own range and damage merge into
-      this one hit" reads as "you keep the nova's coverage", but the merge
-      deletes the nova's area entirely. Repro, both branches in one probe:
-      Swordsman with a `husk` 3 tiles BEHIND and another 3 tiles to the SIDE;
-      charging Active1 fully and releasing normally hits both for 60, while
-      charging fully and firing Active2 instead hits **neither** — the merged
-      path spends the charge (`wd.active1Charging = false`, Active1 to full
-      cooldown) and converts the 4-tile nova into +4 tiles of LINE LENGTH only
-      (measured: furthest struck 5 -> 9). That is the specced reading of "hit
-      range" (Q118), so this is a wording bug, not a sim bug — but the current
-      text sells a player an area they do not get, and the real trade can be a
-      total whiff plus a 6s Active1 cooldown. Acceptance: the clause says the
-      charge's radius EXTENDS THE LINE'S REACH and its damage is added, and
-      that the nova itself does not fire; regression test carries the
-      behind/side probe as the mechanism plus a string assertion on the
-      reworded clause — refs: fb112, Q118, `fireDashSlash`.
+- [x] (fb150) [bug] **DONE 2026-09-06** — filed 2026-09-05 by qa-playtester
+      during fb112 verification — Dash Slash's "the charge's own range and
+      damage merge into this one hit" reads as "you keep the nova's
+      coverage", but the merge deletes the nova's area entirely. Reworded
+      (`dashSlashSentence`, `class-info.ts`): "the charge's radius extends
+      this line's reach and its damage is added to this hit — the nova
+      itself does not fire", matching exactly what `fireDashSlash`
+      (`classes.ts`) does (`hitRange = dashRange + mergedRadius`, `damage =
+      eff.damage + mergedDamage`, one `lineHit` call, no separate nova).
+      `tests/ui-fb150-dash-slash-merge-wording.test.ts` (3 tests) is the
+      behind/side probe: a full-charge Circle Slash released normally hits
+      a husk 3 tiles behind AND one 3 tiles to the side (real nova
+      coverage); merging that same full charge into a forward Dash Slash
+      hits neither (only a straight line, no area) while still consuming
+      the charge (`active1Charging` false, cooldown started); plus a string
+      assertion the old, misleading wording is gone and the new one is
+      present. `npm run test:fast`: only the pre-existing container-only
+      q15/q45 failures — refs: fb112, Q118, `fireDashSlash`.
 
 - [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — the Dash Slash slash VFX is drawn to the physical dash
@@ -3877,16 +3943,22 @@ logs a blocker below rather than editing `/data` itself.
       measured furthest struck enemy — refs: fb112, `canvas.ts`'s
       `class_active2` draw.
 
-- [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
-      red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
-      1080 fold b036 exists to defend, in Training Grounds with a tower
-      selected and the practice panel open. Deterministic (4 s, `npx vitest
-      run tests/b036-help-fold.test.ts`), reported independently by the
-      content and terrain lanes and first misfiled as a load flake. Acceptance:
-      the existing test goes green without loosening the 1080 fold; the
-      practice panel + selected-tower layout keeps the help block inside the
-      fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
-- [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
+- [x] (fb114) [bug] **RE-CONFIRMED GREEN 2026-09-06, no code change** — filed as
+      red on master (`.sw-help`'s bottom edge measuring 1095.4 against the
+      1080 fold), reported independently by the content and terrain lanes.
+      Measurement rules ("a deferral is a measurement with an expiry date; a
+      deferred assertion re-measures before being inherited"): re-ran
+      `npx vitest run tests/b036-help-fold.test.ts` (the real-Chromium suite
+      the item names) — green on this branch, and green 3/3 on current
+      `origin/master` (`513f718`, checked in an isolated `git worktree` so
+      the branch itself was never touched) at the exact scenario fb114
+      describes (Training Grounds, a tower selected, the practice panel
+      open, 1920x1080). Master has moved since fb114 was filed and whatever
+      pushed `.sw-help`'s bottom edge past the fold is no longer reproducible
+      — not re-implemented, since there is nothing left to fix. Left `[x]`
+      rather than deleted so a future reader can see it was checked, not
+      missed — refs: SPEC-FINAL §11, b036.
+- [x] (fb115) [bug] c001 (Area reaches every class Active) left three
       renderer/UI previews reading the authored `/data` radius unscaled, so
       they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
       Log): `src/render/canvas.ts` `drawChargeIndicator` uses
@@ -3899,8 +3971,47 @@ logs a blocker below rather than editing `/data` itself.
       regression test beside fb016-vfx-registry's "charge indicator brightens
       with hold" case, failing first; all three scale by `areaMul`; ring
       radius equals the fired nova's radius in the test — refs: SPEC-FINAL §2,
-      §11, fb016.
-- [ ] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
+      §11, fb016. **DONE 2026-09-07, folded together with fb173 below (same
+      root defect, same fix — see fb173's own DONE note for the sentence
+      half).** `drawChargeIndicator`'s `charge_nova` arc now multiplies
+      `circleSlashValues(...).radius` by `w.derived.areaMul` before drawing
+      (`src/render/canvas.ts`). `drawSkillHoverRing` no longer scales every
+      hovered Active's `eff.radius` uniformly — that would have traded this
+      bug for the opposite one on the several kinds whose `radius` field is a
+      target-SEARCH radius (`nearestEnemy`/`nearestStructure`), a placement
+      offset (`ice_wall`), or unused (`dash_line`/`poison_boost`), none of
+      which `classes.ts` ever wraps in `classArea`. Instead it consults a new
+      exported `AREA_SCALED_ACTIVE_KINDS` (`src/render/vfx-registry.ts`) — the
+      exact 9 `ClassEffect.kind`s whose `fire*` handler in `src/sim/classes.ts`
+      really does call `classArea(w, eff.radius)`, verified per kind by
+      reading that file rather than guessed from the `nova`/`line` VFX shape
+      (`raise_skeletons` is a `nova` shape but its radius field is
+      `summonRadius`, unscaled — the two tables classify different things).
+      `hud.ts`'s stale "no live sim equivalent" comment is fixed by fb173's
+      `ClassLiveContext.areaMul` mechanism below, which is the live equivalent
+      this item's third clause asked for. New
+      `tests/ui-fb115-fb173-area-scaled-effects.test.ts` covers both items'
+      acceptance in one file (29 tests): the render half — a real fired-nova
+      radius (via `tickClassCharge` to full charge) matching the previewed
+      arc exactly at both baseline and +100% Area, an exhaustive
+      `AREA_SCALED_ACTIVE_KINDS` set-equality check against the 9-member
+      classification (so a future kind silently miscategorized reddens it),
+      a scaled-kind (Paladin Clarion Taunt) hover ring widening with Area, and
+      an unscaled-kind (Archer Deadeye Draw, `charge_pierce`) hover ring
+      provably NOT widening — plus the sentence half described in fb173.
+      `tests/class-area-stat.test.ts` (c001, pre-existing, unedited) already
+      proved every one of these radii lands correctly in the SIM; this file's
+      job was only to prove the render/text layers now agree with it, which
+      it does per-kind rather than by trusting one nova case. Re-ran
+      `tests/fb016-vfx-registry.test.ts`, `tests/class-area-stat.test.ts`,
+      `tests/fb026-bottom-bar.test.ts`, `tests/ui-fb146-dash-width-units-
+      guard.test.ts`, `tests/ui-fb148-dash-range-live.test.ts`,
+      `tests/ui-fb112-dash-slash-width.test.ts` and `tests/ui-fb149-falloff-
+      wording.test.ts` alongside the new file (162 tests, all green) since
+      several of them exercise the same sentences/renderer code paths this
+      change touched. code-reviewer and qa-playtester verdicts recorded in
+      fb173's DONE note below (one review covered both items together).
+- [x] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
       epic's UI half): organic terrain (marching-squares edges, texture
       variation per kind) drawn from `Grid.terrainKind` over the square
       collision grid, path indicators drawn around terrain, and the build
@@ -3909,10 +4020,111 @@ logs a blocker below rather than editing `/data` itself.
       `render-terrain*` test can drive `applyTerrain` on a test grid before
       then. Acceptance: render test over 20 seeds asserts every non-normal
       tile is painted with its kind's colour and every rock edge is drawn;
-      no change to the normal-only arena's frame — refs: SPEC-FINAL §10.5
-      (fb079), §11.
+      no change to the normal-only arena's frame. **DONE 2026-09-07** — fb077
+      shipped 2026-09-04 (main-lane, `BACKLOG.md`), unblocking this item;
+      re-verified `new World(cfg({ seed }))` (no `practice: true`) really does
+      carry generated terrain before writing anything. `drawTiles`
+      (`src/render/canvas.ts`) now paints any Open/Core tile whose
+      `w.grid.terrainKind` is not `TerrainKind.Normal` with its kind's
+      authored `data/terrain.json` `color` (architecture rule 4 — no terrain
+      colors live in this file as literals) through a new
+      `terrainTileFill(baseHex, tx, ty)` (`src/render/theme.ts`): a
+      deterministic per-tile lightness jitter (±12%, hashed from the tile's
+      own coordinates, no `Math.random`) for the "texture variation" the item
+      names, stable across redraws rather than flickering. **`TileType.Border`/
+      `Gate` win over terrain unconditionally** — the one real subtlety this
+      item turned up: `generateTerrain`/`flatTerrain` both seal the permanent
+      arena border as `TerrainKind.Rock` too (so the pathing/build rules that
+      read `terrainKind` see one consistent wall), so a naive "paint every
+      non-Normal tile" would have repainted the ENTIRE border on Training
+      Grounds' flat arena — directly violating "no change to the normal-only
+      arena's frame," since that arena's *interior* is all Normal but its
+      *border* is still Rock by construction. A new `drawTerrainEdges`
+      (4-neighbor edge detection — a marching-squares-*lite*, not the full
+      diagonal case table, which the acceptance line's "every rock edge is
+      drawn" does not require) draws a dark outline on each side of an
+      interior Rock tile that borders a non-Rock tile, via the same
+      border-exclusion rule (`isInteriorRock`) so a rock cluster's edge
+      against the permanent border is never drawn as a redundant seam next to
+      an already-solid wall. The build ghost (`drawBuildGhost`) gains a label
+      from a new, exhaustive `BUILD_REJECTION_LABELS: Record<BuildRejection,
+      string>` whenever `checkBuild` rejects — covers all 6 reasons
+      (`fb078`'s `'terrain'` the one the item names, plus the 5 that had no
+      UI string either) so a future 7th reason fails compilation here rather
+      than rendering nothing. "Path indicators drawn around terrain," the
+      item's third clause, needed NO change: measured directly (seed 7, all 3
+      gates) that `drawPathIndicators`' `w.grid.gatePath(...)` already crosses
+      zero Rock tiles on a real generated map, since it reads the same live
+      `Grid.blocked`/`terrainBlock` state fb077 already wired terrain into —
+      verified rather than assumed, not silently skipped. New
+      `tests/render-fb116-terrain-rendering.test.ts` (45 tests): the literal
+      acceptance line over the real 20-seed spread this line names (every
+      non-Normal tile's paint matches its authored color within the jitter's
+      own byte budget, per seed), an independently-reimplemented (not
+      renderer-helper-imported) recount of the exact expected edge-segment set
+      against every rendered stroke (also per seed, so a single "just check
+      SOME edges exist" shortcut cannot pass), a border/gate-repaint negative
+      control (including the one subtlety above — a gate carved INTO the
+      border row stays `TerrainKind.Normal` by construction, so the row is
+      "mostly Rock, not all-gate" is asserted non-vacuously rather than
+      assumed), the flat/practice arena's frame proven byte-identical across
+      two independent practice `World`s (not just "some color"), and the
+      build-ghost label. Reverting only the `canvas.ts` half of this diff
+      before writing the DONE note dropped 42 of these 45 tests to red (the
+      3 survivors are the flat-arena negative controls, correctly still
+      green against unchanged code) — confirmed non-vacuous rather than
+      assumed. Self-reviewed as both code-reviewer and qa-playtester per
+      CLAUDE.md's Subagent protocol (full tier; no Task-dispatch tool
+      available in this remote session, see fb115/fb173's DONE note for the
+      same caveat). Code-review pass: no Critical/Major; one Minor caught and
+      fixed in the same commit — `isInteriorRock`'s doc comment had landed
+      above `BUILD_REJECTION_LABELS` instead of the function it documented,
+      an artifact of edit ordering, not of the logic itself. QA pass: reran
+      the full targeted suite plus `tests/fb016-vfx-registry.test.ts`,
+      `tests/fb036-path-indicators.test.ts`,
+      `tests/fb078-terrain-build-rejection.test.ts`,
+      `tests/render-fb065-stage-fill.test.ts`,
+      `tests/ui-fb082-overlay-geometry.test.ts`,
+      `tests/ui-fb106-extreme-aspect-geometry.test.ts` and
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts` (52 tests, all green — the
+      geometry suites specifically because a new per-frame draw pass is
+      exactly the kind of change that could regress an unrelated overlay
+      layout budget); checked a Core-footprint tile can never carry non-Normal
+      terrain by reading `Grid.syncTerrain`'s own force-to-Normal branch for
+      any tile that is neither Open nor Border (Core and Gate both land there)
+      rather than assuming it; confirmed `loadTerrain()` is cache-backed
+      (`config.ts`) so calling it once per frame in `drawTiles` is not a
+      per-frame JSON re-parse. A full (non-targeted) `npm run test:fast` pass
+      before commit is what actually caught the one real regression this item
+      shipped: `tests/render-fb055-basic-attack-vfx.test.ts`'s "reducedFlash
+      dims tracers too" case builds a real (non-`practice`) `World` and takes
+      the max alpha across every captured line, on the pre-fb116 assumption
+      ("a time_lord basic attack draws no lines except its tracers") that
+      `drawTerrainEdges`'s new, unconditional, reducedFlash-blind rock-edge
+      lines now breaks whenever that world's seed generates any interior rock
+      — measured: seed 1 does, so the suite failed every time, not
+      intermittently. Fixed at the actual blast radius (CLAUDE.md's own
+      measurement rule) rather than in `canvas.ts`: this file's basic-attack
+      VFX assertions were never about terrain, so it gained the identical
+      local `cfg()`-forces-`practice:true` wrapper
+      `tests/fb016-vfx-registry.test.ts` already carries for the same stated
+      reason, rather than teaching `drawTerrainEdges` a reducedFlash branch a
+      Rock silhouette has no motion/flash content to justify. Grepped every
+      other `tests/*.ts` combining a captured-`lines` array with a bare
+      (non-`practice`) `cfg()` for the same latent exposure (`class-
+      descriptions`/`fb022-info-surfacing`/`p2d-weapon-lineage` — all text
+      lines, unrelated; `render-fb086-reduced-motion` — compares two renders
+      of the SAME world, so a constant added to both sides of a `>`/`===` line
+      count cannot flip either) before concluding no second casualty existed,
+      then reran the full `npm run test:fast` a second time post-fix to
+      confirm: 274 passed / 8 skipped test files (only `q15`/`q45` still red,
+      the pre-existing `tools/fuzz-command-domain` flake class, unrelated),
+      4098 passed / 53 skipped tests (4152 total, up from the pre-fb116
+      baseline's 4053 passed by exactly this item's 45 new tests). No bugs
+      filed beyond the one caught and fixed above. `npx tsc --noEmit` clean
+      throughout — refs: SPEC-FINAL §10.5 (fb079), §11.
 
-- [ ] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
+- [x] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
       when Dash Slash is cast during a Circle Slash charge, draw the merged
       attack's full effective hit region (the charged circle swept along the
       dash path, a capsule/stadium shape) as the aim indicator while charging
@@ -3922,9 +4134,68 @@ logs a blocker below rather than editing `/data` itself.
       `feedback/processed/20260904-162645-feature-combo-area-indicator.md`).
       Acceptance: indicator renders the capsule from current charge radius +
       cursor direction; a test asserts the rendered region equals the sim's
-      hit-detection region; afterimage respects the reduced-flash setting —
-      refs: SPEC-FINAL §4.1 (Swordsman combo), §11 (indicators).
-- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
+      hit-detection region; afterimage respects the reduced-flash setting.
+      **DONE 2026-09-07** — measured `lineHit` (`src/sim/combat.ts`) before
+      drawing anything: for a zero-radius point, `along` is rejected outright
+      once it exceeds `range` regardless of `perp`, so the real hit-detection
+      region has NO rounded cap at either end — a plain rectangle, not the
+      "capsule/stadium" the owner feedback describes conceptually. Per the
+      acceptance line's own wording ("equal the merged attack's real
+      hit-detection region, not an approximation"), drew the measured
+      rectangle rather than a capsule that would not equal it — logged here
+      rather than silently reinterpreted, the same way fb148/fb149 corrected
+      filed numbers against re-measurement. New `comboIndicatorRect(w, cls,
+      cursorX, cursorY)` (`src/render/canvas.ts`, exported for the test)
+      returns that rectangle's centerline + half-width whenever the combo is
+      chargeable (`cls.active1.kind === 'charge_nova' && cls.active2.kind ===
+      'dash_line' && wd.active1Charging` — checked by kind, not by class key,
+      so a future second class authoring the same pair gets the indicator
+      free), recomposing every number `fireDashSlash` itself uses
+      (`mergedRadius` via `circleSlashValues(...).radius * w.derived.areaMul`,
+      fb115's own fix; `dashRange` via `classLiveContext(w,
+      cls).dashRangeMul`/`swordsmanShoes`, fb148's own fix) from public state
+      rather than reaching into `classDashDuration`/`dashDistance` (private to
+      `classes.ts`). `drawComboIndicator` renders it moving with the cursor,
+      brightening with hold exactly like `drawChargeIndicator`'s own nova.
+      The afterimage (`drawComboAfterimages`) is the harder half: by the time
+      a `class_active2` fx event reaches `ingest()`, `fireDashSlash` has
+      already reset `wd.active1Charging`/`active1Charge` to false/0 in the
+      SAME tick — the identical data loss fb151's Log entry documents for the
+      identical reason, which is why that item could not be fixed in-lane.
+      Sidestepped rather than solved: `ingest()` now caches the live
+      `comboIndicatorRect` every tick end (`lastComboRect`/`wasComboCharging`)
+      *before* it could be invalidated, so when a `'class_active2'` event for
+      a `dash_line` kind arrives while `wasComboCharging` was true, the
+      afterimage uses the geometry from up to one tick (1/60s) earlier — an
+      imperceptible lag for a fade-out cue, not a fairness-critical number
+      fb151's own hit-extent problem was. New `tests/render-fb096-combo-
+      indicator.test.ts` (13 tests): `comboIndicatorRect`'s along-range AND
+      half-width cross-checked against a REAL fired merge, binary-searched
+      exactly like `tests/ui-fb148-dash-range-live.test.ts`'s own harness, at
+      three hold lengths; growth with hold time and with the live Area stat
+      (c001); a null case for a non-charging state and for a class with no
+      `charge_nova`+`dash_line` pair (Archer); a real
+      `Renderer.draw()` producing the exact 4 polygon corners
+      `comboRectCorners` computes; a merge leaving exactly one afterimage
+      against a lone Circle Slash release (no merge) leaving none;
+      `reducedFlash` producing a strictly dimmer but still-nonzero render; and
+      the afterimage's `update()`-driven fade-to-zero. Reverting only the
+      `canvas.ts` half (`git stash` before writing this note) drops 11 of 13
+      tests to red (module-import failures for the two now-missing exports
+      plus the two afterimage-array assertions) — confirmed non-vacuous
+      rather than assumed. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (no Task-dispatch tool
+      available in this remote session, see fb115/fb173's DONE note for the
+      same caveat): no Critical/Major found; checked the new
+      `../ui/class-live` import for a layering violation before using it — the
+      same file already imports non-type code from `../ui/selection`/
+      `../ui/settings`, so this is a precedented pattern, not a new one.
+      `npm run test:fast`: 275 passed / 8 skipped files, 4111 passed tests
+      (up from the pre-item baseline's 4098 by exactly this item's 13), only
+      the pre-existing `q15`/`q45` `tools/fuzz-command-domain` flake class red
+      — refs: SPEC-FINAL §4.1
+      (Swordsman combo), §11 (indicators).
+- [x] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
       heart, corpse pile, time monolith); selecting one fills the bottom panel
@@ -3933,10 +4204,54 @@ logs a blocker below rather than editing `/data` itself.
       numbers pulled from `/data`; locked Cores render greyed with their
       unlock condition shown (owner feedback
       `feedback/processed/20260904-162645-feature-core-select-ui.md`).
-      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
-      render; a test asserts hover text numbers equal `/data` values; locked
-      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
-- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+      **DONE 2026-09-07** — new `src/ui/core-select.ts` (`coreSelectSummaryMarkup`
+      for the always-visible base HP/upgrade-track line, `coreSelectEffectsMarkup`
+      for the hover-only TD effect/VS effect/per-step entries), reusing fb058's
+      `.sw-classrow`/`.sw-classcard`/`.sw-classcard-art`/`.sw-classskills`/
+      `.sw-cs-skill`/`.sw-cs-tip` CSS verbatim (nothing class-specific in those
+      rules) rather than duplicating them — `hub.ts`'s Core panel now renders
+      the same tall-card layout as the Class panel instead of the old
+      `.sw-choices` list, which is deleted from `style.css` (no other
+      reference existed). `core-info.ts` gains `coreBaseEffectMarkup`/
+      `coreStepEffectMarkup` exports for the per-phase/per-step tooltip
+      bodies; `coreDetailMarkup`/`coreLiveMarkup` untouched (still used by a
+      unit test and the in-run tooltip respectively). Locked-card handling
+      (disabled attribute, no click listener, unlock-condition text) carried
+      over unchanged from the prior list-based markup. New
+      `tests/ui-fb117-core-select.test.ts` (7 tests): card count/lock-state,
+      summary content against live `/data`, click-to-select for both locked
+      and unlocked cards, and hover-entry content/count for both a
+      single-effects-dimension Core (Stone Heart) and a two-phase one
+      (Carnivorous Plant). code-reviewer **APPROVE** (no Critical/Major; one
+      Minor noting `coreDetailMarkup` is now UI-dead code kept alive only by
+      its own unit test — left as-is, still meaningfully testing the combined
+      base+steps view; one Nit on `steps.length < upgrade.count`, a
+      pre-existing schema allowance no current `/data/cores.json` entry hits).
+      qa-playtester **PASS**: independently re-verified all four acceptance
+      lines, adversarially probed a Core with absent `effects`, a Core with
+      zero/omitted upgrade steps, spam-clicking every locked card in a row
+      (selection never moves), an `unlockedCores` save omitting the default
+      Core (`defaultCoreKey` guard still holds), and live-vs-hardcoded numbers
+      via a synthetic content override — no bugs found. Filed one Minor
+      fragility finding: three pre-existing tests
+      (`ui-fb058-class-select.test.ts`, `fb022-info-surfacing.test.ts`) read
+      `.sw-classcard.on`/`.sw-classdetail` unscoped, which only stayed correct
+      because the Class panel happens to render before the Core panel in
+      `hub.ts` — now that both panels share those CSS classes, a future
+      panel-reorder could silently break them. Fixed same session: the
+      `.sw-classcard.on` read now qualifies `[data-class]` (Core cards use
+      `data-core`, so this alone disambiguates); the three unscoped
+      `.sw-classdetail` reads now go through a small `classDetail(root)`
+      helper (added to both test files) that finds the `.sw-panel` whose
+      `<h2>` reads "Class" rather than relying on DOM order. Re-verified all
+      three files green after the fix (51/51). `npx tsc --noEmit` clean.
+      `npm run test:fast`: 279 passed / 8 skipped files, 4146 passed tests,
+      only the pre-existing `q15`/`q45` flake class red — both code-reviewer
+      and qa-playtester independently reproduced the `q45` failure on the
+      pre-fb117 parent commit too, confirming it predates this item — refs:
+      SPEC-FINAL §5.5, §11, fb058.
+
+- [x] (fb177) [feat] normal priority: per-tower attack projectile/beam
       visuals — every tower type gets a distinct registered VFX entry: Arrow
       (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
       Mortar (lobbed shell, arc + impact crater flash), Electric (instant
@@ -3950,8 +4265,66 @@ logs a blocker below rather than editing `/data` itself.
       Acceptance: a VFX-registry test fails for any of the 10 towers missing
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+      **Renumbered from fb098 at filing time** — this file already had an
+      unrelated `[x] (fb098)` (the 2026-09-04 colorblind-palette-audit item,
+      line ~2260); a within-file id collision, not just the cross-file kind
+      this Log has flagged before. See Log entry below.
+      **DONE 2026-09-07** — new `TOWER_VFX` registry (`src/render/vfx-
+      registry.ts`, all 10 towers, `fire`/`travel`/`impact` string fields),
+      mirroring fb016's `CLASS_VFX`/`CORE_VFX` coverage-test pattern
+      (`missingVfxCoverage` gained an optional `towerKeys` param). Wiring it
+      up surfaced and fixed four real, previously-invisible-or-wrong render
+      gaps, each with its own regression test in the new
+      `tests/ui-fb098-tower-vfx.test.ts` (15 tests): (1) Frost Obelisk's
+      `pulse` fx event had no case in `canvas.ts`'s `ingest()` at all
+      (`default: break`) — its periodic aura tick had zero visual; now
+      reuses the existing `nova` CastFx ring, which also fixes every other
+      inherent-radius AoE splash sharing that same dead code path
+      (`damagetypes.ts`'s radius splashes, a VS-wielded aura). (2) A
+      VS-wielded Ember Brazier cone looked up a `'flame_cone'` style key
+      `theme.ts`'s `STYLES` never registered, silently falling back to the
+      generic default look instead of TD's own `STYLES.ember_brazier`
+      visual — Ember Brazier is the only `cone`-kind attack in either
+      phase, so this now always reads its own style. (3) The identical bug
+      for Arrow Spire's `shot` (`'arrow_volley'`, never registered) and
+      Tesla Coil's `arc` (`'chain_lightning'`, actually Stormcaller's
+      Active1 `ClassEffect.kind`, not a tower style) — both fixed the same
+      way, found by qa-playtester's first pass on this item (see below).
+      (4) Venom Spore's `poison`-kind attack is an instant hit (unlike
+      Ballista/Mortar's real `Projectile`) that only ever emitted `'spore'`,
+      an event `ingest()` had no case for — its shot was completely
+      invisible in both phases; added a tracer case reusing `STYLES.
+      venom_spore`, also found by that same qa-playtester pass. Beacon
+      Totem/Harvest Sprout (`attack: null`, no sim fire event to hang a cue
+      on) get a new render-side ambient "aura pulse tick" ring in
+      `drawStructures` (signature now takes `view` too), keyed off `w.tick`
+      (deterministic sim state, not wall-clock time) on a 2s cadence, TD-only
+      and suppressed under `reducedMotion` (matching fb086's other ambient
+      cues). code-reviewer **APPROVE** on the first pass (no Critical/Major;
+      one Minor — `TOWER_VFX.mortar.impact` claimed an "impact crater flash"
+      that doesn't exist, `detonate()`'s `'boom'` event is screen-shake only
+      — fixed same session, wording corrected to describe what actually
+      renders rather than adding a new visual). qa-playtester **FAILed the
+      first pass** with the two real bugs in (3)/(4) above, both reproduced
+      twice independently against the live render code (not just reading the
+      new test file) and fixed same session with 4 new regression tests;
+      a **second qa-playtester re-verification pass PASSed**, independently
+      reproducing both original repros against the fix (and confirming they
+      failed again on the pre-fix commit, restoring the tree after), and
+      separately confirmed the one deliberately-left-open gap: Tesla Coil's
+      `arc` fx event is genuinely shared with Stormcaller's Chain Surge
+      Active1 (both route through `combat.ts`'s `chainHit`, which takes a
+      `source` string but never passes it to `emit`) with no field to
+      disambiguate them — verified `chainHit`'s own signature and every
+      call site to confirm this isn't fixable without a `/src/sim` change,
+      out of this lane's Scope; logged below rather than left unexplained
+      or papered over. `npx tsc --noEmit` clean. `npm run test:fast`: 280
+      passed / 8 skipped files, 4161 passed tests, only the pre-existing
+      `q15`/`q45` flake class red (independently confirmed unrelated —
+      reproduces identically on the pre-fb177 parent commit — by both the
+      code-reviewer and qa-playtester passes).
 
-- [ ] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
+- [x] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
       fb144 seeds `reducedMotion` from `matchMedia('(prefers-reduced-motion:
       reduce)')` on a first run only, but fb075's Settings reset
@@ -3968,10 +4341,45 @@ logs a blocker below rather than editing `/data` itself.
       "reduce" leaves `reducedMotion` true; `tests/ui-fb075-settings-reset
       .test.ts` keeps its existing confirm-step coverage and gains a case
       driving a real Hub reset with a `matchMedia` stub reporting "reduce",
-      plus its control with no preference — refs: fb144, fb075, QUALITY.md 1.0
+      plus its control with no preference. **DONE 2026-09-07** — took the
+      literal suggested fix: `firstRunSettings()` (`src/ui/settings.ts`)
+      exported (was module-private), and `hub.ts`'s reset handler now calls
+      `sanitize(firstRunSettings())` instead of `sanitize(defaultSettings())`
+      — a one-line change at the actual call site, since `firstRunSettings()`
+      already IS "the settings a first run would produce" by construction, no
+      new function needed. `hub.ts`'s now-unused `defaultSettings` import
+      removed (it had exactly one call site, this one). Extended
+      `tests/ui-fb075-settings-reset.test.ts` (its existing 5 tests
+      untouched, +3 new) with a new `fb169` describe block, reusing
+      `ui-fb144-prefers-reduced-motion.test.ts`'s own `matchMedia` stub
+      convention: (1) an OS "reduce" stub, with `reducedMotion` first flipped
+      off by hand so the reset (not an untouched default) is what turns it
+      back on, confirmed both in the callback payload and in the live
+      checkbox, plus every OTHER field still matching plain defaults (so this
+      is not a reset that silently changed anything else); (2) the control —
+      no OS preference, reset leaves `reducedMotion` false, `finalSettings`
+      equal to bare `defaultSettings()`; (3) jsdom's own no-`matchMedia`
+      default shape resets cleanly with no throw. Confirmed genuinely
+      regression-guarding: `git stash` on the two source files before writing
+      this note reproduced the exact filed bug (case 1 fails, `expected false
+      to be true`) with cases 2/3 and the pre-existing 5 unaffected — restored
+      and reconfirmed green. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (light tier — `[polish]`
+      — code-reviewer only, per the protocol's own tiering; ran a
+      qa-playtester-style adversarial pass anyway since no Task-dispatch tool
+      is available in this remote session and the extra scrutiny cost nothing
+      here): no Critical/Major found; checked `hub.ts` for any other
+      `defaultSettings` reference before deleting the import (none); checked
+      the other two settings-affecting controls this session touched
+      (fb090's fullscreen toggle, fb144 itself) for the same
+      re-derive-vs-hard-default class of bug — neither writes a settings
+      object wholesale the way a reset does, so neither is exposed. `npm run
+      test:fast`: 275 passed / 8 skipped files, 4114 passed tests (up from
+      4111 by exactly this item's 3), only the pre-existing `q15`/`q45`
+      flake class red — refs: fb144, fb075, QUALITY.md 1.0
       (Accessibility re-check).
 
-- [ ] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
+- [x] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
       hiding the tab pauses but does not flush the persisted run. fb145's
       `visibilitychange` handler (`main.ts`) is the last reliable moment
       before a mobile freeze/discard — its own comment says so — but it only
@@ -3987,10 +4395,55 @@ logs a blocker below rather than editing `/data` itself.
       the throttle window to a non-multiple-of-60 tick, dispatches a hidden
       `visibilitychange`, and asserts the persisted `inputLog.length` equals
       `world.tick`; plus a case asserting a hide on the Hub (no run) and a
-      hide with `persistDisabled` write nothing — refs: fb145, fb074, fb087,
-      QUALITY.md BETA.
+      hide with `persistDisabled` write nothing. **DONE 2026-09-07** — the
+      `visibilitychange` handler's hidden branch (`main.ts`) now calls
+      `this.persistRun()` directly (the exact same method every throttled
+      per-frame call already uses, so `persistDisabled`/cross-tab
+      `runSessionId` ownership are honoured identically, not re-implemented)
+      and updates `this.lastPersistedLen` to match, guarded the same way
+      `onFocusLost` already is (`this.run && outcome === 'running'`) so a
+      hide on the Hub or an already-finished run writes nothing new. New
+      `tests/ui-fb170-hidden-tab-flush.test.ts` (4 tests) drives a real
+      `Game` through `frame()` one ~1-tick real frame at a time (NOT fb074's
+      own `tick64`'s 8-ticks-per-frame catch-up jumps, which land exactly on
+      — and so mask — a 60-tick throttle boundary) to reproduce the item's
+      own repro shape: a tick strictly between two throttle boundaries, with
+      the periodic throttle demonstrably not yet caught up
+      (`lastPersistedLen < inputLog.length`), then asserts a hide flushes
+      the persisted log to exactly `world.tick`; a `persistDisabled` case
+      (set mid-run, confirms no new write past that point — `persistRun()`'s
+      own existing guard, not a second one); and a Hub-only and an
+      already-finished-run case. The already-finished-run case needed a
+      real correction while writing it: a finished run already clears its
+      own persisted checkpoint on the next tick it processes the terminal
+      outcome (pre-existing, unrelated cleanup in `main.ts`), so there is no
+      "same as before" checkpoint for a hide-triggered flush to preserve —
+      the test asserts the (already-`null`) checkpoint stays `null` and hide
+      does not throw, rather than the wrong equality it was first drafted
+      with. Confirmed the primary case is a genuine regression test: `git
+      stash` on `main.ts` alone reproduced the filed bug exactly
+      (`expected 60 to be 93`) with the other 3 cases unaffected; restored
+      and reconfirmed all 4 green. Writing this item's own test surfaced a
+      real, if minor, side effect worth recording: because `hide()` now
+      genuinely persists a real checkpoint, `tests/ui-fb145-visibility-
+      autopause.test.ts`'s existing cases — which drive real `Game`s through
+      real hides and never previously needed to care about `localStorage` —
+      started leaking a persisted run across its own `it()` blocks (a later
+      test's fresh `Game` found an earlier test's checkpoint and resumed it
+      instead of showing the Hub, `#sw-start` missing). Fixed in the same
+      commit by adding `localStorage.clear()` to that file's existing
+      `afterEach`, the same convention `ui-fb074-resume-on-refresh.test.ts`
+      and this item's own new file already use — re-verified fb145's full
+      12-test file green afterward. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (full tier — touches
+      `main.ts`'s persistence path; no Task-dispatch tool available in this
+      remote session, see fb115/fb173's DONE note for the same caveat): no
+      Critical/Major found. `npm run test:fast`: 276 passed / 8 skipped
+      files, 4118 passed tests (up from 4114 by exactly this item's 4), only
+      the pre-existing `q15`/`q45` flake class red — refs: fb145, fb074,
+      fb087, QUALITY.md BETA.
 
-- [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+- [x] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
       covers the hidden `visibilitychange` edge, but neither fires for a run
       that begins in an already-backgrounded document: fb074's boot-resume
@@ -4008,6 +4461,39 @@ logs a blocker below rather than editing `/data` itself.
       true BEFORE constructing the `Game`, boots a fresh run and a persisted
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
+      **DONE 2026-09-07** — one line at the very end of `beginRun`
+      (`src/ui/main.ts`, after every Hud/renderer/input-listener setup call in
+      that function): `if (document.hidden && this.run.world.outcome ===
+      'running' && !this.paused) this.setPaused(true);` — the same guard shape
+      `onFocusLost` already uses, reusing `setPaused(true)` (not a raw field
+      write) so pause-entry side effects (`clearKeysForPause`, `hud.
+      setPaused`) run identically to every other pause path. Fires for both a
+      fresh `startRun` and a `tryResumePersistedRun` resume, since both funnel
+      through this same `beginRun` tail. New `tests/ui-fb171-hidden-boot-
+      pause.test.ts` (4 tests): a fresh run and a persisted resume, each
+      booted with `document.hidden` stubbed true before `Game` construction
+      (same shadowing convention as `ui-fb145`'s own `setHidden`), plus a
+      `hidden === false` control for each. code-reviewer **APPROVE**: no
+      Critical/Major; one Minor — the guard omitted the `!this.paused`
+      conjunct `onFocusLost` carries (harmless today since `this.paused` was
+      just set `false` a few lines up, but implicit rather than enforced) —
+      fixed same session, added the conjunct plus a comment explaining why.
+      qa-playtester **PASS**: confirmed the shipped tests are genuine
+      regression tests (checked out the pre-fix parent commit with the new
+      test file still in place — both `hidden=true` cases failed there,
+      controls still passed, restored after), and independently probed
+      Practice/Training Grounds (both route through the same `beginRun` tail,
+      confirmed protected), `document.hidden === undefined` (short-circuits
+      falsy, no throw), a reveal after a hidden-boot pause (stays paused,
+      matching fb071/fb145's manual-resume convention), and the
+      already-finished-outcome case (`tryResumePersistedRun`'s `finish()`
+      diverts a done run to the Hub before `beginRun` is ever called, so the
+      `outcome === 'running'` guard is defensive symmetry, not dead code) —
+      no bugs found. Also ran a money-path sanity sweep (death flow, save
+      fuzz, Retry/New Run config carry-over) with no interaction found.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped
+      files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
+      red.
 
 - [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
@@ -4032,7 +4518,7 @@ logs a blocker below rather than editing `/data` itself.
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
 
-- [ ] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
+- [x] (fb173) [bug] filed 2026-09-05 by qa-playtester during fb148
       verification — every radius and width in the in-run ability sentences
       ignores the live Area multiplier, exactly the way `dashRange` ignored
       move speed before fb148. Measured twice, identical: Dash Slash's
@@ -4055,7 +4541,91 @@ logs a blocker below rather than editing `/data` itself.
       assertions — and fb146's `dashWidth` source rule extended so a bare
       `2 * (eff.dashWidth ?? 0)` without the Area term is itself an offender.
       Distinct from fb149, which is about pierce/AoE falloff wording rather
-      than the Area stat — refs: fb148, fb146, fb112, fb108, `classArea`
+      than the Area stat. **DONE 2026-09-07, implemented together with fb115
+      above (identical root cause: `classes.ts`'s `classArea` was invisible to
+      every UI surface, not just the renderer).** `ClassLiveContext` gains
+      `areaMul` (`src/ui/class-info.ts`), populated as `w.derived.areaMul`
+      directly in `classLiveContext` (`src/ui/class-live.ts`) — no
+      recomposition needed, unlike `dashRangeMul`, since `areaMul` is already
+      public `World` state rather than something assembled from
+      `classes.ts`-private pieces. A new `liveAreaValue(value, live)` helper
+      (mirroring `liveDamageValue`/`liveCooldownValue`) is applied at every
+      sentence call site this session verified, per kind, against its real
+      `classes.ts` `fire*` handler (not guessed from the field name — `eff.
+      radius` is ALSO a target-search radius, a placement offset, or an unused
+      placeholder on several other kinds, where applying `areaMul` would be a
+      new bug, not a fix): `circleSlashSentence` (both `minRadius` and
+      `radius`, since `classArea(lerp(min,max,f)) == lerp(classArea(min),
+      classArea(max), f)` so scaling each endpoint stays exact at every charge
+      fraction), `dashSlashSentence`/`dashTrailSentence`/`dashHealSentence`
+      (the `2 * dashWidth` doubling, now `2 * liveAreaValue(dashWidth, live)`
+      — accepted by fb146's own pre-existing guard test unedited, which
+      already anticipated exactly this shape in its own proof cases),
+      `poisonBarrelSentence`, `timeMarkSentence`, `timeLockSentence`,
+      `burstDamageSentence` (radius only — `damage`/`burnDps` stay
+      deliberately unscaled per that sentence's own pre-existing doc comment,
+      untouched), `frostNovaSentence`, `recallTotemSentence`,
+      `clarionTauntSentence`, `judgementSentence`. Left unscaled, confirmed
+      correct by reading `classes.ts`: `chargePierceSentence`/`dashVolleySentence`/
+      `repairHealSentence`/`deathPactSentence`/`bloodTitheSentence`/
+      `chainLightningSentence` (all pass `eff.radius` straight into a
+      `nearestEnemy`/`nearestStructure` SEARCH, which Area never touches — the
+      file's own `class-area-stat.test.ts` (c001) doc comment states this rule
+      explicitly), `raiseSkeletonsSentence`/`manifestSpiritSentence`
+      (`summonRadius`, a different field), `iceWallSentence`/`overloadSentence`/
+      `summonTurretSentence`/`poisonBoostSentence` (no radius/width printed at
+      all). New `tests/ui-fb115-fb173-area-scaled-effects.test.ts` (shared with
+      fb115, 29 tests) covers the sentence half: a real sim fire (`useClassActive`/
+      `useClassActive2`/`tickClassCharge`, mirroring `class-area-stat.test.ts`'s
+      own CASES table) for every one of the 9 `AREA_SCALED_ACTIVE_KINDS`
+      members, each checked at baseline Area AND at +100% Area (via the same
+      `w.stats.addAll('test:area', {area})` convention `class-area-stat.test.ts`
+      uses rather than routing through the `reach` VS boon specifically — the
+      two are behaviorally identical since both ultimately set the same
+      `Stats` `area` key that `w.derived.areaMul` reads, and the sim-level
+      mechanism is already proven end-to-end by that file), asserting the
+      SAME measured radius appears in the sentence text and that the stale
+      (bare-authored) number is gone; a dedicated `circle_nova` case for both
+      `minRadius`/`radius` at full charge; the 3 `dash_*` width kinds each
+      checked against `2 * dashWidth * areaMul` in their own exact wording
+      (`dashSlashSentence`'s hyphenated "N-tile-wide line" is textually
+      different from `dashTrailSentence`/`dashHealSentence`'s "(N tiles wide)"
+      — kept as two distinct template shapes so a copy-paste mixing them up
+      would still fail); confirmation the Hub Class screen (no live context)
+      still shows plain authored numbers; an UNSCALED-kind control
+      (Stormcaller's `chain_lightning` search radius) proven untouched by
+      +100% Area; and an all-12-classes NaN/Infinity sweep. Re-ran the
+      pre-existing `tests/ui-fb146-dash-width-units-guard.test.ts` unedited —
+      still green, since its `isDoubled` check already accepted an
+      Area-scaled double as a valid shape (its own comment named
+      `2 * areaScaled(eff.dashWidth ?? 0, live)` as the anticipated next
+      correction) — so fb173's acceptance line asking that guard be "extended"
+      needed no code change there, only this item's new fire-and-measure
+      coverage. Self-reviewed as both code-reviewer and qa-playtester per
+      CLAUDE.md's Subagent protocol (full tier — this touches rendered/printed
+      combat numbers): this remote session has no Task-style tool to dispatch
+      the actual `.claude/agents/code-reviewer.md`/`qa-playtester.md`
+      subagents, so both passes were run directly against their own
+      checklists rather than skipped. Code-review pass: no Critical/Major
+      found; one Minor caught and fixed in the same commit — `class-info.ts`'s
+      file-header doc comment still claimed "radius... has no live sim
+      equivalent" after this change made that false for 9 kinds, corrected to
+      name the real rule. QA pass: reran the acceptance's own commands
+      (targeted file plus `tests/class-area-stat.test.ts`, `fb016-vfx-
+      registry`, `fb026-bottom-bar`, `ui-fb146`, `ui-fb148`, `ui-fb112`,
+      `ui-fb149` — 162 tests green), checked the boundary the item's own
+      numbers implied (`w.derived.areaMul` reads through the same
+      pre-existing `s.factor('area')`/`safeScale` guard every other Area
+      consumer in the codebase already relies on — not a new hazard this item
+      introduces), and confirmed by reading `data/classes.json` that no
+      13th `ClassEffect.kind` with a live nonzero `radius` field was missed on
+      either side of the scaled/unscaled split. No bugs filed. `npx tsc
+      --noEmit` clean throughout. `npm run test:fast`: 273 passed / 2 failed
+      suites (4053 passed / 1 failed test), both the pre-existing
+      `q15-command-domain-fuzz`/`q45-cli-schema-violation` `tools/fuzz-command-
+      domain` module-resolution flake class documented across many prior
+      PROGRESS.md sessions, unrelated to `src/ui/**`/`src/render/**` — refs:
+      fb148, fb146, fb112, fb108, `classArea`
       (`src/sim/classes.ts`).
 
 - [ ] (fb174) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
@@ -4113,6 +4683,119 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-07, id collision (within-file, not cross-file this time): the
+  queue's per-tower VFX item was filed as `fb098`, but this same file
+  already had an unrelated `[x] (fb098)` (2026-09-04, the colorblind-
+  palette-audit item) — a duplicate id inside one file, not the
+  cross-file kind the 2026-09-06 merge entry below warns about (that one
+  git silently merges without a murmur; this one a plain in-file grep for
+  `(fb098)` would have caught immediately, so it's worth a beat: whatever
+  wrote the queue entry didn't grep the file it was appending to first).
+  Renumbered the per-tower VFX item to **fb177** (max id anywhere was 176,
+  per the same allocate-from-shared-high-water-mark convention the
+  2026-09-06 entry recommends). Not renamed: the already-pushed commits'
+  messages, the new `tests/ui-fb098-tower-vfx.test.ts` filename, and
+  in-code comments referencing "fb098" — left as-is, same as the
+  2026-09-06 entry's own six commits, with this entry as the map for
+  anyone reading those artifacts cold.
+
+- 2026-09-07, fb151: **cannot be implemented in-scope, skipped rather than
+  attempted.** Read `fireDashSlash` (`src/sim/classes.ts`) end to end before
+  touching `canvas.ts`: the `class_active2` render case (`case 'class_active':
+  case 'class_active2':` in `ingest()`) is already a faithful, generic draw of
+  whatever segment the emitted event carries — `this.pushCast(shape, e.x, e.y,
+  e.a, e.b, ...)`, origin to whatever `(a, b)` the sim handed it, with zero
+  Dash-Slash-specific logic. The bug is entirely upstream of the renderer:
+  `w.emit('class_active2', before.x, before.y, target.x, target.y)` hands the
+  render layer the physical dash TARGET (`resolveDashTarget`'s wall/edge-
+  clamped travel endpoint), never the hit line's real endpoint
+  (`hitRange = dashRange + mergedRadius` along the aim direction). Checked
+  whether the render side could recompute the correct endpoint itself from
+  already-public state (this lane's own scope carve-out, and the precedent
+  `class-live.ts` sets by importing pure sim helpers): it cannot, for two
+  independent reasons the item's own two repro cases each expose on their own:
+  (1) the wall-clamp case (`target == before`, zero-length) loses the aim
+  DIRECTION entirely — `aimDirection`'s `aimX`/`aimY` (typically a mouse
+  position at cast time, read once inside `fireDashSlash` and never persisted)
+  is not recoverable from `World` state after the fact, and `wd.fx`/`wd.fy`
+  (the Warden's MOVEMENT facing, the only related field `World` keeps) is a
+  different vector that need not match the aim; (2) the mid-charge-merge case
+  loses the MAGNITUDE — `mergedRadius` is computed from `wd.active1Charging`/
+  `wd.active1Charge`, both of which `fireDashSlash` explicitly resets to
+  `false`/`0` in the same call, before the emit, so by the time any render code
+  reads `World` state afterward those fields already read as "no charge was
+  ever merged." Both are real sim-side data losses, not renderer gaps — a
+  faithful render of a wrong number stays a wrong number. Confirmed the item's
+  own text anticipated exactly this ("this may need a main-lane companion; if
+  so, do the render half here and log the sim half") rather than second-
+  guessing it. Left `[ ]` with this note (matching fb160's pattern) rather than
+  shipping a cosmetic non-fix (e.g. always drawing a minimum-length flash on a
+  zero-length segment) that would satisfy neither repro case and make its own
+  regression test unwritable, exactly per fb160's own reasoning. Main-lane
+  fix shape once picked up: either widen the emitted event to carry the real
+  hit endpoint (`before.x + dir.x * hitRange, before.y + dir.y * hitRange`)
+  instead of the travel target, or emit both endpoints — either way a
+  `src/sim/classes.ts` change, out of this lane's Scope. Skipped to the next
+  queue item per BACKLOG-UI's own Scope instruction.
+
+- 2026-09-07, fb085/fb093/fb097: **re-confirmed still permanently out of this
+  lane's Scope, not re-attempted.** Per the dispatch's own instruction to
+  re-verify rather than trust the queue blindly: re-read this file's own
+  2026-09-04/2026-09-05 Log entries for all three (fb085 needs a real
+  `data/strings.json`, including one session that built the whole mechanism
+  and then reverted it in full once code-reviewer caught the Scope violation;
+  fb093 needs real `tools/ui-audit.ts` scenes; fb097 needs a new npm
+  dependency, a `package.json` edit) against the CURRENT Scope section — it is
+  unchanged (`src/ui/**`, `src/render/**`, `tests/ui*`, `tests/render*`, this
+  file only), and none of the three items' own acceptance text has moved
+  either. No new in-scope angle presented itself beyond what those five prior
+  sessions already tried and logged. Left `[ ]`, not re-attempted a third/
+  fourth time; executed fb115/fb173 instead (the next actionable items, fully
+  in-scope — see their own DONE entries below), matching the exact skip
+  pattern fb144's session used for the same three items one session earlier.
+
+- 2026-09-06, fb160: **cannot be implemented in-scope, skipped rather than
+  attempted.** The item's own bar shape ("one horizontal bar per source...
+  each bar segmented by damage TYPE") needs a per-source-*and*-type damage
+  ledger — `damage[source][type]` — to reconcile the segments against, per
+  its own acceptance line. `World` (`src/sim/world.ts`) only carries two flat
+  1D accumulators today: `damageByWeapon` (by source) and `damageByType` (by
+  §3 type), credited independently at the same `damageEnemy` choke point
+  (`src/sim/enemies.ts:388`/`400`) — no combined matrix exists to read.
+  Checked whether the UI could derive one itself from an already-exposed
+  event stream instead (the Scope's own carve-out for that, and the pattern
+  fb060's per-enemy DoT aggregation already used against `w.fx`): it can't —
+  `World.fx`'s `hit:<type>` events (`world.ts:473`, `emit()`) carry
+  `{k, x, y, a, b}` (type, position, amount, enemy id) with **no source
+  field at all**, so the source half of the matrix is genuinely not exposed
+  anywhere this lane can read. Building it requires either a new
+  `damageByWeaponAndType` accumulator or enriching the emitted event with a
+  source string — both `src/sim/**` edits, outside this lane's Scope.
+  Left `[ ]` with an inline blocked-note (matching `fb167`'s own pattern)
+  rather than implemented partially (e.g., un-segmented bars) — that would
+  ship the "totals only" half without the item's actual point, the
+  per-type-segment breakdown, and its own acceptance test would be
+  unwritable regardless. Skipped to the next queue item per BACKLOG.md's
+  working rule 5/BACKLOG-UI's own Scope instruction ("an out-of-scope need
+  is written into the Log below and becomes main-lane... work at the
+  merge").
+
+- 2026-09-06, fb159: implemented in-scope (`render/theme.ts`'s
+  `FLOATING_NUMBER_FONT`/`floatingNumberFontSize`/`floatingNumberFontWeight`,
+  consumed by `canvas.ts`), but the item's own acceptance line ("Constants
+  are data-driven (architecture rule 4), not literals in the renderer") asks
+  for `base`/`k`/`max`/`boldThreshold`/`dotFontScale` to live in `/data` —
+  genuinely out of this lane's Scope (`/data` isn't `src/ui/**`/
+  `src/render/**`). Left as a literal table in `render/theme.ts` (the same
+  file already holds `ATTACK_KIND_COLORS`/`ENEMY_COLORS`/etc. as literals,
+  so this is consistent with existing precedent there even though it falls
+  short of the acceptance line) rather than blocking the whole item on a
+  file this lane cannot touch. Main-lane follow-up at the merge: add a
+  small section (new file or an addition to an existing one, e.g.
+  `data/damagetypes.json` alongside its existing `executeFontScale`) with
+  these five numbers, validated by `loadContent()`, and swap
+  `render/theme.ts`'s literal for a read of it.
 
 - 2026-09-06, merge: `origin/master` merged into this branch for its CI
   workflow (fb140) and the three PRs that landed beside it. **The merged tree

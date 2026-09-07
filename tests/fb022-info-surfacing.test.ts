@@ -36,6 +36,7 @@ import type { Selection } from '../src/ui/selection';
 import { characterPanelData } from '../src/ui/character-panel';
 import { characterPanelMarkup, wardenInfoMarkup } from '../src/ui/hud';
 import { classAbilitiesMarkup } from '../src/ui/class-info';
+import { classLiveContext } from '../src/ui/class-live';
 import { coreDetailMarkup, coreLiveMarkup } from '../src/ui/core-info';
 import { constellationSummaryMarkup, describeStat } from '../src/ui/tree-view';
 import { fieldLabel, fieldValueText, modLines } from '../src/ui/info-format';
@@ -61,6 +62,18 @@ function mountHub(meta: MetaState = defaultMeta()): { root: HTMLElement; hub: Hu
   });
   hub.show();
   return { root, hub, latest: () => current };
+}
+
+/**
+ * fb117 gave the Hub's Core panel its own `.sw-classdetail` block sharing the
+ * Class panel's CSS class — scope by which `.sw-panel` the `<h2>` names
+ * "Class", not by "first one in the DOM" (qa-playtester finding, fb117).
+ */
+function classDetail(root: HTMLElement): HTMLElement {
+  const panel = [...root.querySelectorAll<HTMLElement>('.sw-panel')].find(
+    (p) => p.querySelector('h2')?.textContent === 'Class',
+  )!;
+  return panel.querySelector<HTMLElement>('.sw-classdetail')!;
 }
 
 function hudCoreTooltip(w: World): string {
@@ -98,7 +111,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   it('the Hub Class panel shows the selected class\'s active/passive numbers straight off content.classes', () => {
     const { root } = mountHub();
     const swordsman = content.classes.classes.find((c) => c.key === 'swordsman')!;
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${swordsman.active1.cooldownSeconds}s`); // Circle Slash cooldown
     expect(detail).toContain(String(swordsman.active1.radius)); // Circle Slash radius
     expect(detail).toContain(String(swordsman.active1.damage)); // Circle Slash damage
@@ -112,18 +125,24 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const { root } = mountHub();
     const plaguebringer = content.classes.classes.find((c) => c.key === 'plaguebringer')!;
     root.querySelector<HTMLElement>('[data-class="plaguebringer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
+    const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${plaguebringer.active1.cooldownSeconds}s`); // Poison Barrel cooldown
     expect(detail).toContain(String(plaguebringer.active1.radius)); // Poison Barrel radius
   });
 
-  it('the in-run character panel resolves cooldownSeconds through w.derived.cdr, not the raw /data number', () => {
+  // fb157 (owner feedback `ui-character-panel-compact`) moved the class's
+  // active/passive effect text off the character panel entirely — the bottom
+  // bar's own per-icon hover tooltips (fb026's `activeSkillMarkup`/
+  // `classAbilitiesMarkup`) are its one live-resolved surface now, so these
+  // three regressions are re-pointed at that formatter directly rather than
+  // at a panel that no longer renders this text.
+  it("the bottom bar's Active hover tooltip resolves cooldownSeconds through w.derived.cdr, not the raw /data number", () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'cdr', 0.25); // 25% cooldown reduction
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expectedCooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
     expect(w.derived.cdr).toBeCloseTo(0.25, 10);
     // Rendered through the same `fieldValueText` rounding the formatter uses (2 decimals).
@@ -133,13 +152,13 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(rounded).not.toBe(cls.active1.cooldownSeconds);
   });
 
-  it('the in-run character panel resolves damage through classAttackPowerMul/characterDamage, not the raw /data number', () => {
+  it("the bottom bar's Active hover tooltip resolves damage through classAttackPowerMul/characterDamage, not the raw /data number", () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'power', 0.5); // +50% power
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expectedDamage = characterDamage(w, cls, cls.active1.damage);
     expect(classAttackPowerMul(w, cls)).toBeCloseTo(1.5, 10);
     const rounded = Math.round(expectedDamage * 100) / 100;
@@ -161,7 +180,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const cls = w.content.classByKey.get('swordsman')!;
     expect(w.derived.atkFlat).toBe(10);
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expected = (cls.basicAttack.dps * cls.basicAttack.interval + w.derived.atkFlat) / cls.basicAttack.interval;
     const rounded = Math.round(expected * 100) / 100;
     const naive = cls.basicAttack.dps + w.derived.atkFlat; // the interval-blind miscalculation
@@ -176,28 +195,46 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(html).not.toContain(`DPS: ${naive}/s`);
   });
 
-  it('the character panel omits the ability section entirely when built with no World (Hub-style pre-run call is unaffected)', () => {
+  // fb157: the panel's replacement for the old ability section — an
+  // always-visible vitals row and a read-only Equipment section — both
+  // require a World and both vanish on the Hub-style no-World call, the same
+  // shape the retired ability section used to have.
+  it('the character panel shows vitals and read-only equipment only when built with a World (Hub-style pre-run call is unaffected)', () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     const withWorld = characterPanelMarkup(characterPanelData(w), w);
     const withoutWorld = characterPanelMarkup(characterPanelData(w));
-    expect(withWorld).toContain('Active &amp; passive effects');
-    expect(withoutWorld).not.toContain('Active &amp; passive effects');
+    expect(withWorld).toContain('sw-vitals');
+    expect(withWorld).toContain('Equipment');
+    expect(withoutWorld).not.toContain('sw-vitals');
+    expect(withoutWorld).not.toContain('Equipment');
+    // The retired ability section must not have come back some other way.
+    expect(withWorld).not.toContain('Active &amp; passive effects');
   });
 });
 
 /* -------------------------------------------------------- Surface 2: core */
 
 describe('fb022 Surface 2: Core screen + in-run Core tooltip show TD/VS effect and step preview', () => {
-  it('the Hub Core panel groups Stone Heart\'s HP-bonus step as a TD effect, with the real step numbers', () => {
+  it("fb117: the Hub Core-select screen's Step 1 hover entry groups Stone Heart's HP-bonus step as a TD effect, with the real step numbers", () => {
     const { root } = mountHub();
     const stoneHeart = content.cores.cores.find((c) => c.key === 'stone_heart')!;
     // Stone Heart is the default core (unlockedByDefault), already selected.
     const detail = [...root.querySelectorAll('.sw-classdetail')].find((el) => el.textContent?.includes(stoneHeart.name))!;
     expect(detail).toBeTruthy();
-    expect(detail.textContent).toContain('TD effect');
-    expect(detail.textContent).not.toContain('VS effect'); // Stone Heart has no VS-only field
-    expect(detail.textContent).toContain(String(stoneHeart.upgrade.steps![0].coreHpBonus));
-    expect(detail.textContent).toContain(`${stoneHeart.upgrade.stepCost} gold`);
+    const entries = [...detail.querySelectorAll<HTMLElement>('.sw-cs-skill')];
+    // fb117: TD effect and VS effect are now two always-present hover labels
+    // (mirroring fb058's always-4 class-skill entries), so "VS effect" as a
+    // LABEL is expected even for a Core with no VS-only field — the
+    // meaningful check is that its TIP carries no real effect, unlike TD's.
+    const tdTip = entries[0].querySelector('.sw-cs-tip')!.textContent ?? '';
+    const vsTip = entries[1].querySelector('.sw-cs-tip')!.textContent ?? '';
+    expect(tdTip).toContain('No effect'); // Stone Heart's base `effects` is empty; its only mechanic is the HP-bonus step below
+    expect(vsTip).toContain('No effect');
+    const step1Tip = entries[2].querySelector('.sw-cs-tip')!.textContent ?? '';
+    expect(step1Tip).toContain('TD effect');
+    expect(step1Tip).not.toContain('VS effect'); // the step itself has no VS-only field
+    expect(step1Tip).toContain(String(stoneHeart.upgrade.steps![0].coreHpBonus));
+    expect(entries[2].querySelector('.sw-cs-label')!.textContent).toContain(`${stoneHeart.upgrade.stepCost}g`);
   });
 
   it('coreDetailMarkup groups Carnivorous Plant into both a TD (devour) and a VS (poison volley) list', () => {

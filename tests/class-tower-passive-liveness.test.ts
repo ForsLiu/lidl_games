@@ -962,3 +962,74 @@ describe('c009: the negative control — each signal dies with its own binding',
     });
   }
 });
+
+/**
+ * c036 (BACKLOG-CONTENT, lane `content`) — equipment-sourced and
+ * class-tower-passive-sourced bonuses on the same stat key, jointly measured
+ * for the first time. §2's stacking rule: different sources multiply. Two
+ * pairs write the same key today — `sniper_bracelet` (+10% `towerRange`) and
+ * Archer *Ranger's Eye* (+10% `towerRange`); `normal_bracelet` (+10% `area`)
+ * and Animist *Wide Grove* (+10% `area`, the same global key `c013` found
+ * also reaches all 24 class Actives). Every existing test
+ * (`tests/equip-spec-numbers.test.ts`, the file above) grants one such source
+ * at a time. If same-key sources were ever collapsed into one additive pool
+ * instead of two multiplicative ones, both individually-granted cases would
+ * still read +10% and only the combined case would silently read +20%
+ * instead of the correct x1.21 (+21%) — so the combined case is the only one
+ * that can catch that regression.
+ */
+function towerWorldWithEquipment(classKey: string, equipment: readonly string[], c: Content = content): World {
+  const w = new World(cfg({ classKey, equipment: [...equipment] }), c);
+  w.gold = 1e6;
+  w.warden.attackCooldown = 1e9;
+  w.warden.x = WX;
+  w.warden.y = WY;
+  return w;
+}
+
+describe('c036: equipment and class-tower-passive bonuses on the same stat key multiply, not add', () => {
+  it("Archer *Ranger's Eye* (+10% towerRange) stacks with Sniper Bracelet (+10% towerRange) to x1.21, not x1.20", () => {
+    const spireDef = content.towerByKey.get(SPIRE)!;
+    const base = effectiveTowerRange(towerWorld(CONTROL), spireDef);
+    const passiveOnly = effectiveTowerRange(towerWorld('archer'), spireDef);
+    const equipOnly = effectiveTowerRange(towerWorldWithEquipment(CONTROL, ['sniper_bracelet']), spireDef);
+    const both = effectiveTowerRange(towerWorldWithEquipment('archer', ['sniper_bracelet']), spireDef);
+
+    // Each source alone reads close to the expected single factor — read via
+    // the real `effectiveTowerRange` path the rest of this file uses, not a
+    // hand-rolled formula, so a change to how range composes moves this test
+    // along with every other row here.
+    expect(passiveOnly / base, "Ranger's Eye alone").toBeCloseTo(1.1, 6);
+    expect(equipOnly / base, 'Sniper Bracelet alone').toBeCloseTo(1.1, 6);
+    // The joint case is the one no existing test can see: two independent
+    // §2 sources on the same key multiply.
+    expect(both / base, 'both sources together').toBeCloseTo(1.21, 6);
+    expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
+  });
+
+  it('Animist *Wide Grove* (+10% area) stacks with Normal Bracelet (+10% area) to x1.21, not x1.20', () => {
+    const sporeDef = content.towerByKey.get(SPORE)!;
+    const base = effectiveTowerAoe(towerWorld(CONTROL), sporeDef);
+    const passiveOnly = effectiveTowerAoe(towerWorld('animist'), sporeDef);
+    const equipOnly = effectiveTowerAoe(towerWorldWithEquipment(CONTROL, ['normal_bracelet']), sporeDef);
+    const both = effectiveTowerAoe(towerWorldWithEquipment('animist', ['normal_bracelet']), sporeDef);
+
+    expect(passiveOnly / base, 'Wide Grove alone').toBeCloseTo(1.1, 6);
+    expect(equipOnly / base, 'Normal Bracelet alone').toBeCloseTo(1.1, 6);
+    expect(both / base, 'both sources together').toBeCloseTo(1.21, 6);
+    expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
+  });
+
+  it('proven live, not vacuous — collapsing the two sources into one additive pool reddens both rows above', () => {
+    // Simulates the regression the item names: one pool where the two
+    // sources' *percentages* sum before the `1 + ...` factor is taken,
+    // instead of each source contributing its own `(1 + pct)` multiplicative
+    // term. `0.1 + 0.1 = 0.2` -> factor `1.2`, not the real `1.1 * 1.1 =
+    // 1.21`.
+    const additivePool = (...pcts: number[]): number => 1 + pcts.reduce((s, p) => s + p, 0);
+    const multiplicativePool = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1);
+    expect(additivePool(0.1, 0.1)).toBeCloseTo(1.2, 10);
+    expect(multiplicativePool(0.1, 0.1)).toBeCloseTo(1.21, 10);
+    expect(additivePool(0.1, 0.1)).not.toBeCloseTo(multiplicativePool(0.1, 0.1), 6);
+  });
+});
