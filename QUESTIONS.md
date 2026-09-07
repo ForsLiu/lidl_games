@@ -759,3 +759,28 @@ Q91 and Q102 corrections if not yet done.
   control pair" is (b)'s own verification burden and does not apply once (b)
   is not the chosen option; fb163 is closed on that basis.
 
+
+- **Q192. [p12e] The boss's own pacing ramps were fitted pre-p12c; the fix is
+  to re-anchor its authored HP, not to exempt it from the roster multiplier in
+  code.** Q177 diagnosed p12e's run-length tail as entirely the boss fight
+  once `baseHpMul: 20` applied to `warden_eater` like every other enemy
+  (7.3M at T1). The item's two candidates — re-anchor `warden_eater.hp` in
+  `/data`, or exempt the boss from `baseHpMul` in code — produce identical
+  runtime numbers by construction (`18,250 x baseHpMul(20) = 365,000`), so
+  only the re-anchor needed an actual run. Measured at T3 over 24 seeds
+  (120-minute cap, so nothing censors either reading): HEAD's boss-kill-time
+  spread is 313-1153s (3.7x, longest run 51.15 min); re-anchoring
+  `warden_eater.hp` 365,000 -> 18,250 (exactly /`baseHpMul`) tightens that to
+  190-226s (1.19x, longest run 36.3 min) and moves the win rate by one seed
+  (11/24 -> 10/24 of 24, still inside G1's `[35%,70%]` band). At T1 the
+  re-anchor is bit-for-bit the boss's pre-p12c fixture (36,500 effective hp),
+  so every T1-pinned boss test is unaffected by construction. Chosen: the
+  **`/data`-only re-anchor** — same runtime numbers as the code-exemption
+  alternative, no engine change, per CLAUDE.md architecture rule 4.
+  Re-measured over the same 24 seeds: 0 stall at either the original
+  45-minute cap or a lifted 120-minute one, so `tests/p10d-run-length.test.ts`'s
+  tick-cap case and `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak are
+  both un-skipped. Full table in BALANCE.md "Boss HP re-anchor (p12e)". —
+  Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and
+  its measurement rules (control pair, before/after both recorded); SPEC-FINAL
+  §14 G1/G14, BALANCE DIRECTION v2 §E, QUESTIONS Q177.

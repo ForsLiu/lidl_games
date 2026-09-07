@@ -183,17 +183,24 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThanOrEqual(0.7);
   });
 
-  it.skip('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
-    // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
-    // `'running'` — censored *victories*, not losses (they win at 47.4 and
-    // 46.6 min when the cap is lifted), which silently understates both the
-    // win rate this file reports and the mean it measures. Asserted rather
-    // than left to prose.
-    //
-    // **p12c made this worse, as its contested runs were always going to:
-    // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
-    // takes longer than one the bot walks. That is the strongest argument
-    // yet for §E/p12e, which owns eliminating timeouts and will un-skip this.
+  // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
+  // `'running'` — censored *victories*, not losses (they win at 47.4 and
+  // 46.6 min when the cap is lifted), which silently understates both the
+  // win rate this file reports and the mean it measures. Asserted rather
+  // than left to prose.
+  //
+  // **p12c made this worse, as its contested runs were always going to:
+  // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
+  // takes longer than one the bot walks.
+  //
+  // p12e re-anchored `warden_eater`'s HP (BALANCE.md "Boss HP re-anchor
+  // (p12e)") so its own escalation/pacing ramps see the magnitude they were
+  // fitted to, instead of compounding with the roster-wide `baseHpMul`.
+  // Re-measured over the same 24 seeds at a lifted 120-minute cap: 0 seeds
+  // ever sit at `'running'` (longest run 36.3 min, seed 2's victory) — every
+  // seed resolves well inside this file's own 45-minute cap, so there is
+  // nothing left for a raised cap to censor. Un-skipped.
+  it('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
     const stalled = reports.filter((r) => r.outcome === 'running');
     expect(stalled.map((r) => r.seed), detail).toEqual([]);
   });

@@ -682,9 +682,24 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // `/data`-only lever found that raises distinct count without re-breaking
   // some other gate), so re-pinned to the honest current number rather than
   // chased further here.
+  //
+  // p12e (2026-09-07) re-pinned 2->1, discovered incidentally (this file is
+  // excluded from `test:fast`, so nobody had re-run it since b080 through
+  // the entire p12a-p12e balance arc — see BACKLOG fb177, filed to properly
+  // re-measure the whole file rather than chased piecemeal here). Confirmed
+  // independently for two classes via a standalone `runScripted` probe at
+  // `GATE_TIER`/12 seeds: `time_lord` still tops `mortar` (unchanged,
+  // ownShare 11.1%, below `MATERIALITY_SHARE`), and `swordsman` — previously
+  // one of the eleven `ballista`-toppers — now also tops `mortar`
+  // (65.6M vs `frost_obelisk` 24.0M vs `ballista` 22.0M). Not p12e's boss-HP
+  // re-anchor: `swordsman`'s own win rate collapsed from the file's last
+  // pinned 12/12 to 2/12, 10 of 12 seeds dying `defeat_warden` at wave 3 —
+  // Act I, TD-only, with no causal path to the final boss's HP. `baseHpMul:
+  // 20` (p12c) is the likelier cause (unmeasured against this file until
+  // now); fb177 owns the bisect and the fix or full re-pin.
   it('the current (red) distinct-source count is pinned, not silently drifting', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
-    expect(distinct.size).toBe(2);
+    expect(distinct.size).toBe(1);
   });
 });

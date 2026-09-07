@@ -93,7 +93,18 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
-  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
+  // p12e (QUESTIONS Q177/Q192): `baseHpMul: 20` applying to the final boss
+  // like every other enemy took it to 7.3M at T1, and its own pacing/
+  // escalation ramps (`src/sim/boss.ts`) were fitted to the pre-p12c
+  // magnitude — profiling the six censored T3 seeds showed the run-length
+  // tail was entirely the boss fight (381-1187s, a 3x spread) once that HP
+  // landed. Re-anchored `warden_eater` 365,000 -> 18,250 (exactly /20) so the
+  // boss's *effective* HP nets out the roster-wide multiplier and keeps only
+  // p12b's deliberate tier-rung buff: at T1 that restores the identical
+  // pre-p12c 36,500 fixture (the value this test pinned before p12c ever
+  // shipped), and at T3 the measured kill-time spread over 24 seeds tightens
+  // from 313-1153s to 190-226s. See BALANCE.md "Boss HP re-anchor (p12e)".
+  it('spawns at 3:01 with 18,250 HP scaled by tier', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
     // to read the rung it names rather than whichever tier the gates happen
@@ -104,14 +115,15 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
+    // p12e: the authored 18,250 times the roster-wide `baseHpMul` — the
     // Warden-Eater is an enemy and takes the roster multiplier like every
-    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
-    // pinned so a re-anchor moves the fixture with the game; the *authored*
-    // number is still asserted, just not the spawned one. The fight-length
-    // case below is what proves this is still a beatable fight rather than a
-    // wall, and it is measured, not assumed.
-    expect(e.maxHp).toBeCloseTo(scaled(365000) * w.content.enemies.baseHpMul, 0);
+    // other one, exactly as before p12e; only the authored anchor moved, to
+    // net the multiplier back out. Derived rather than pinned so a re-anchor
+    // moves the fixture with the game; the *authored* number is still
+    // asserted, just not the spawned one. The fight-length case below is what
+    // proves this is still a beatable fight rather than a wall, and it is
+    // measured, not assumed.
+    expect(e.maxHp).toBeCloseTo(scaled(18250) * w.content.enemies.baseHpMul, 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed
@@ -119,7 +131,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(scaled(365000) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(scaled(18250) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
   });
 

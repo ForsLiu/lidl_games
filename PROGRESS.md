@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12e done, `/data`-only.** Diagnosed
+  (already logged when this item was filed) as `baseHpMul: 20` applying to
+  the final boss like every ordinary enemy, taking `warden_eater` to 7.3M hp
+  at T1 and ballooning boss-fight length to a 3.7x spread (313-1153s) at T3,
+  which censored gate-test seeds against the 45-minute tick cap. Fix:
+  `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250 (exactly
+  /`baseHpMul`), so the boss's effective HP nets the roster-wide multiplier
+  back out and keeps only p12b's own deliberate tier-rung buff — at T1 this
+  is bit-identical to the boss's pre-p12c fixture, so every T1-pinned boss
+  test is unaffected by construction; at T3, measured over 24 seeds
+  (`runScripted`/`hybrid`/`GATE_TIER`, cap lifted to 120 min so nothing
+  censors either reading), boss-kill-time spread tightens to 190-226s
+  (1.19x), win rate moves by one seed (11/24 -> 10/24, still inside G1's
+  `[35%,70%]` band), and the tick-cap censoring is gone entirely (0/24
+  `'running'` at either the 45- or 120-minute cap). Full table: BALANCE.md
+  "Boss HP re-anchor (p12e)"; decision record: QUESTIONS Q192.
+  `tests/p10d-run-length.test.ts`'s tick-cap case and
+  `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak (both named re-enable
+  points) are un-skipped and green; `tests/boss.test.ts`'s T1 spawn/mechanism
+  case re-pinned to 18,250. `npm run test:fast` green apart from the
+  pre-existing, unrelated `q15`/`q45` `tools/fuzz-command-domain`
+  scratch-directory failures (confirmed present on unmodified HEAD).
+  code-reviewer: no Critical/Major (one Minor phrasing fix applied to
+  BALANCE.md/QUESTIONS.md). qa-playtester independently re-derived the T3
+  measurement table from scratch to two decimal places, confirmed all three
+  named test files green, swept for other consumers of the old 365,000/7.3M
+  magnitude (boss phase thresholds, escalation/pacing ramps, loot, the UI
+  boss-HP bar, the Codex authored-vs-effective HP display, the hash-collision
+  regression fixture) and found none broken, and confirmed the fb177 scoping
+  call below was not scope-avoidance (independently reproduced the wave-3
+  Act I collapse and confirmed it has no causal path to boss HP). qa-playtester's
+  one finding — this file's own "Known issues" section still listed both
+  fb152/p12b re-enable points above as open — is fixed in this update.
+  **Acceptance only partially executed, honestly**: closes the diagnosed
+  boss-fight-tail defect and confirms zero timeouts on G1/G14 plus a clean
+  G22/G23 (`tests/p-core-f-gates.test.ts`) run, but not the item's full
+  original text (all classes, all 5 Cores, T1/T3/T5, plus `npm run status`
+  regeneration) — beyond one item's scope per this project's own "a harness
+  change and a tuning pass are different kinds of work" precedent (p10s).
+  Running G8 (`tests/p6e-class-diversity.test.ts`) to check it surfaced the
+  file has been stale since 2026-09-03 (b080), predating this entire
+  p12a-p12e arc: `swordsman`'s win rate has collapsed to 2/12 with 10/12
+  seeds dying `defeat_warden` at wave 3 (Act I, TD-only, no causal path to
+  boss HP — most likely `baseHpMul: 20`/p12c, unmeasured against this file
+  until now). The file's one live diversity-pin assertion was re-pinned 2->1
+  with the honest current number (same pattern as b080's own prior re-pin);
+  the eleven `.skip`-ed per-class win-rate pins are untouched, deliberately
+  out of scope. Filed as **fb177** to bisect and fix/re-pin the whole file.
+
 - **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
   `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
   compounds on any `class_`-prefixed `damageEnemy` source, deliberately
@@ -12878,19 +12927,13 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
-- **fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
+- ~~**fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
   cycles 3 resolves instead of hanging forever" is `.skip`-ed, re-enable point
-  p12e.** The DoT cadence cap re-times every tick and so re-rolls this seed's
-  trajectory; the new one is **censored, not stranded**. Measured post-fix at a
-  120-minute cap: `running`, `act2`, cycle 3, 500 alive at the `aliveCap`,
-  `warden_eater` at **1,103,859 of 7,300,000 hp** — the run is progressing and
-  losing to the boss clock, which is p12e's diagnosed defect (QUESTIONS Q177:
-  `baseHpMul: 20` takes the final boss to 7.3M with no fight-length ceiling).
-  It resolved inside the 45-minute cap on the parent commit (controlled). The
-  file's other 18 tests cover `updateGroundUnreachable` and the gate/route
-  machinery directly and are green, so the stranding mechanism this case was
-  written for is still covered. Re-measure at p12e rather than inheriting this
-  note.
+  p12e.**~~ **RESOLVED by p12e (2026-09-07).** `warden_eater.hp` re-anchored
+  365,000 -> 18,250 (exactly /`baseHpMul`); re-measured on this exact
+  seed/config, the run now resolves `victory` well inside the 45-minute cap.
+  Un-skipped and green — see BACKLOG p12e, BALANCE.md "Boss HP re-anchor
+  (p12e)".
 - **fb152: DoT-only kills land up to one interval (0.25 s) late, by design of
   the owner's order — a directional balance effect, not a defect.** Measured
   kill frames (10 dps Bleeding): 1 hp 6 -> 14, 10 hp 60 -> 74, 20 hp 119 -> 134,
@@ -12906,9 +12949,17 @@ features whose counters read zero with no explanation.
   p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at
   the shipped `baseHpMul: 20`, 0/5 for all seven. The older half is **p12h**.
 - **p12c: G8 (`tests/p6e-class-diversity.test.ts`) and G23
-  (`tests/p-core-f-gates.test.ts`) are unverified at T3 after the re-anchor**
-  — ~1 h each and not run. p12c's acceptance names them; treat any figure in
-  their headers as pre-p12c until re-measured.
+  (`tests/p-core-f-gates.test.ts`) were unverified at T3 after the re-anchor —
+  now run once, at p12e.** `p-core-f-gates.test.ts` (G22/G23) is clean: no
+  failures, no timeouts. `p6e-class-diversity.test.ts` (G8) is not clean, but
+  not from p12c/p12e specifically — the file hadn't been run since **b080
+  (2026-09-03)**, predating this entire balance arc, and `swordsman`'s win
+  rate has collapsed to 2/12 with 10/12 seeds dying `defeat_warden` at wave 3
+  (Act I, TD-only — no causal path to boss HP). One live assertion (the
+  distinct-top-damage-source pin) was re-pinned 2->1 to stay honest; the
+  eleven `.skip`-ed per-class win-rate pins are untouched. Filed as
+  **fb177** to bisect and fix/re-pin the whole file — treat every figure in
+  this file's headers as pre-2026-09-03 until fb177 lands.
 - **p12b: G1's "mean victorious run 30-36 minutes"
   (`tests/p10d-run-length.test.ts`) is `.skip`-ed, re-enable point p12d.**
   BALANCE DIRECTION v2 §B moved the four reference gates from T1 to T3
@@ -12929,10 +12980,11 @@ features whose counters read zero with no explanation.
   mistuned — `T4 = T3 x p`, so a per-step putting T3 mid-band puts T4 past
   the cliff. See QUESTIONS Q176; p12g replaces the shape with a per-tier
   table.
-- **p12b: G1's T3 run has 2 tick-cap timeouts in 24 seeds (seeds 14 and 17),
+- ~~**p12b: G1's T3 run has 2 tick-cap timeouts in 24 seeds (seeds 14 and 17),
   asserted and `.skip`-ed in `tests/p10d-run-length.test.ts`, re-enable point
-  p12e.** Both are censored victories (47.4 and 46.6 min uncapped), so the
-  censored 37.5% / 37.46 min understate the honest 45.8% / 39.20 min.
+  p12e.**~~ **RESOLVED by p12e (2026-09-07).** Same `warden_eater.hp`
+  re-anchor; re-measured over the same 24 seeds, 0 stall at either the
+  original 45-minute cap or a lifted 120-minute one. Un-skipped and green.
 - **p2b's wielded VS attacks pushed four pre-existing gates without a §14
   letter red (Q84: A3, A9), all `.skip()`-ed with the mechanism named, per
   Q96.** Wielding roughly doubles a character's normal-damage output (soul

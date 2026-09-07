@@ -984,3 +984,49 @@ with the Core untouched — and it is the strongest argument against keeping the
 anchor at 20, which is an owner call, not a silent one. The final boss also takes the
 roster multiplier (365,000 → 7.3M at T1); its fight-length case still passes,
 measured rather than assumed.
+
+### Boss HP re-anchor (p12e)
+
+**The above "still passes, measured" reading was a single seed at T1; profiled
+across 24 seeds at T3 (the reference tier) the boss fight is a 3x-wide tail.**
+`baseHpMul: 20` applies to `warden_eater` the same as every other enemy, but
+the boss's own pacing/escalation ramps (`PACING_*`/`ESCALATION_*`,
+`src/sim/boss.ts`) were fitted against the pre-p12c magnitude. Profiling the
+six T3 seeds that were censoring at the 45-minute cap (QUESTIONS Q177) showed
+Act I holding near-constant at 24.6-25.7 min on every seed while
+`bossKillSeconds` ranged **381-1187s** — the entire run-length spread was the
+boss fight, not pacing elsewhere.
+
+Two candidate fixes were on the table: re-anchor `warden_eater.hp` in
+`/data`, or exempt the boss from `baseHpMul` in code. The two produce
+identical runtime numbers by construction (`18,250 x baseHpMul(20) =
+365,000`), so only the re-anchor needed an actual run — measured rather than
+assumed (T3, `runScripted`, `hybrid`, seeds 1-24, cap lifted to 120 min so
+nothing censors either side):
+
+| | win rate | boss-kill-time range | longest run (of 24) |
+|---|---|---|---|
+| HEAD (`baseHpMul` applied to boss) | 11/24 (45.8%) | 313-1153s (3.7x) | 51.15 min |
+| re-anchored (`warden_eater.hp` /20) | 10/24 (41.7%) | 190-226s (1.19x) | 36.3 min |
+
+Chose the re-anchor: `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250
+(exactly /20) so the boss's effective HP nets the roster multiplier back out
+and keeps only p12b's deliberate tier-rung buff — at T1 this is bit-identical
+to the boss's pre-p12c fixture (36,500), so every T1-pinned boss test
+(`tests/boss.test.ts`'s spawn/mechanism cases, the fb099 fight-length floor)
+is unaffected by construction, not by re-measurement. At T3 the win rate moves
+by one seed (11->10 of 24), still comfortably inside G1's `[35%,70%]` band,
+and the tick-cap censoring is gone entirely: 0 of 24 seeds sit at `'running'`
+even at the original 45-minute cap (longest run 36.3 min). The two other
+levers this item's text offered (exempting the boss from `baseHpMul` in code,
+or leaving `/data` alone) were not needed once the re-anchor alone closed the
+gate — a `/data`-only fix over an engine change per CLAUDE.md architecture
+rule 4.
+
+`tests/p10d-run-length.test.ts`'s "no seed reaches the tick cap" case and
+`tests/fb077-terrain-wiring.test.ts`'s seed-52 soak (previously `running` at
+120 min with the boss at 1.10M/7.30M hp) are both re-measured and un-skipped.
+`tests/boss.test.ts`'s T1 spawn/mechanism case now pins 18,250 instead of
+365,000 (same derivation, smaller authored anchor). Logged as **QUESTIONS
+Q192**; p12d (the gate-text/band rewrite this item was blocking) can now
+measure against a baseline with zero timeout censoring.

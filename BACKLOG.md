@@ -666,8 +666,36 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
-      and **diagnosed — start from this, not from a fresh sweep.** Profiling
+- [x] (p12e) [bug] **DONE 2026-09-07** — `/data`-only re-anchor:
+      `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250 (exactly
+      /`baseHpMul`), so the boss's effective HP nets the roster multiplier
+      back out and keeps only p12b's deliberate tier-rung buff. At T1 this is
+      bit-identical to the boss's pre-p12c fixture, so every T1-pinned boss
+      test is unaffected by construction; at T3, measured over 24 seeds,
+      boss-kill-time spread tightened from 313-1153s (3.7x) to 190-226s
+      (1.19x) and the tick-cap censoring is gone (0/24 seeds `'running'` at
+      either the 45- or a lifted 120-minute cap). Win rate moved by one seed
+      (11/24 -> 10/24), still inside G1's `[35%,70%]` band. Full table:
+      BALANCE.md "Boss HP re-anchor (p12e)"; decision record: QUESTIONS Q192.
+      `tests/p10d-run-length.test.ts`'s tick-cap case and
+      `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak (both named
+      re-enable points above) are un-skipped and green; `tests/boss.test.ts`'s
+      T1 spawn/mechanism case re-pinned to 18,250.
+      **Acceptance only partially executed, honestly**: this closes the
+      diagnosed root cause (the boss-fight tail) and confirms zero timeouts on
+      G1 (`p10d-run-length.test.ts`) and G14 (`boss.test.ts`), plus a clean
+      `p-core-f-gates.test.ts` (Core-diversity/G22-G23) run with no failures
+      or timeouts — but not the item's full original text ("all classes, all
+      5 Cores, T1/T3/T5" plus `npm run status` regeneration), which is beyond
+      one item's scope per CLAUDE.md's own "a harness change and a tuning
+      pass are different kinds of work" precedent (p10s, this file). Running
+      G8 (`tests/p6e-class-diversity.test.ts`) to check it surfaced that the
+      whole file has been stale since 2026-09-03 (b080), predating this
+      entire p12a-p12e arc — not a defect this item introduced, but a gap
+      this item's own acceptance text asked to close and didn't reach. Filed
+      as **fb177** below rather than expanded into here.
+      Original text follows.
+      Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:
       Act I is near-constant at 24.6-25.7 min on every seed, while the boss
@@ -722,6 +750,40 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       re-check `tests/boss.test.ts`'s four-seed victory case, whose seed 1
       flipped to `defeat_core` for the same reason — see PROGRESS "Known
       issues" and QUESTIONS Q179.
+
+- [ ] (fb177) [bug] `tests/p6e-class-diversity.test.ts` (G8) has not been
+      re-measured since **b080, 2026-09-03** — its `beforeAll` sweep is
+      excluded from `test:fast` (60s+), so nothing caught that this predates
+      p12e's entire arc: p12a (kit power re-anchor), p12b (tier ladder),
+      p12c (`baseHpMul: 20`), fb152 (DoT tick cadence), fb153a (number
+      rescale), fb154 (VS spawn-from-gates), and p12e itself (this file).
+      Every one of the file's eleven per-class win-rate assertions is
+      `.skip`-ed at a "12/12, every seed victory/w18" pin dated to that
+      session or earlier. Discovered incidentally while verifying p12e didn't
+      introduce new gate-matrix timeouts (running this file directly, not
+      part of `test:fast`): `swordsman` now reads **2/12 (16.7%)**, 10 of 12
+      seeds `defeat_warden` at **wave 3** — an Act-I-only, TD-only death long
+      before any boss/VS content, so it cannot be p12e's boss-HP change and
+      is most likely `baseHpMul: 20` (p12c) hitting the early wave curve the
+      scripted kit-bot can't survive. The file's one *live* (non-skip)
+      diversity assertion (`the current (red) distinct-source count is
+      pinned, not silently drifting`) also drifted, 2 -> 1 (`time_lord` and
+      `swordsman` both now top-damage on `mortar`, confirmed independently
+      for each via `runScripted` at `GATE_TIER`/12 seeds) — re-pinned in this
+      session's p12e commit per the file's own b080 re-pin precedent, since
+      that one assertion is live and was already red at HEAD. The eleven
+      `.skip`-ed per-class win-rate pins are untouched — deliberately, this
+      item's scope, not p12e's. Acceptance: re-run the file's full `beforeAll`
+      sweep (all 12 classes x 12 seeds) against current HEAD; record the
+      honest win-rate/timeout/outcome table for every class (most likely no
+      longer "12/12, every seed victory/w18" for several, given the
+      `swordsman` finding); bisect the wave-3 collapse among p12a/p12b/p12c/
+      fb152/fb153a per CLAUDE.md's blast-radius measurement rule (control
+      pairs, one lever at a time); either fix the regression or re-pin every
+      stale assertion in the file with the current honest number, same
+      pattern as this item's own diversity re-pin — refs: SPEC-FINAL §14 G8,
+      CLAUDE.md measurement rules ("a deferral is a measurement with an
+      expiry date"), BACKLOG p12e.
 
 - [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS
