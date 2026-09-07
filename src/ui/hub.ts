@@ -33,7 +33,7 @@ const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
-import { defaultSettings, sanitize, type Settings } from './settings';
+import { firstRunSettings, sanitize, type Settings } from './settings';
 import {
   ACTION_ORDER,
   defaultKeyBindings,
@@ -750,7 +750,12 @@ export class Hub {
         return;
       }
       this.settingsResetArmed = false;
-      this.settings = sanitize(defaultSettings());
+      // fb169: a reset produces the same settings a first run would, so an
+      // OS "prefers-reduced-motion" player who ever presses Reset keeps that
+      // preference honoured rather than a hard `reducedMotion: false`
+      // `defaultSettings()` alone would have written (a stored value always
+      // wins over the OS query from then on — `loadSettings`'s own rule).
+      this.settings = sanitize(firstRunSettings());
       this.cb.onSettingsChanged(this.settings);
       this.show();
     });

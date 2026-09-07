@@ -4222,7 +4222,7 @@ logs a blocker below rather than editing `/data` itself.
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
 
-- [ ] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
+- [x] (fb169) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
       "Reset settings to defaults" re-buries the OS reduced-motion preference.
       fb144 seeds `reducedMotion` from `matchMedia('(prefers-reduced-motion:
       reduce)')` on a first run only, but fb075's Settings reset
@@ -4239,7 +4239,42 @@ logs a blocker below rather than editing `/data` itself.
       "reduce" leaves `reducedMotion` true; `tests/ui-fb075-settings-reset
       .test.ts` keeps its existing confirm-step coverage and gains a case
       driving a real Hub reset with a `matchMedia` stub reporting "reduce",
-      plus its control with no preference — refs: fb144, fb075, QUALITY.md 1.0
+      plus its control with no preference. **DONE 2026-09-07** — took the
+      literal suggested fix: `firstRunSettings()` (`src/ui/settings.ts`)
+      exported (was module-private), and `hub.ts`'s reset handler now calls
+      `sanitize(firstRunSettings())` instead of `sanitize(defaultSettings())`
+      — a one-line change at the actual call site, since `firstRunSettings()`
+      already IS "the settings a first run would produce" by construction, no
+      new function needed. `hub.ts`'s now-unused `defaultSettings` import
+      removed (it had exactly one call site, this one). Extended
+      `tests/ui-fb075-settings-reset.test.ts` (its existing 5 tests
+      untouched, +3 new) with a new `fb169` describe block, reusing
+      `ui-fb144-prefers-reduced-motion.test.ts`'s own `matchMedia` stub
+      convention: (1) an OS "reduce" stub, with `reducedMotion` first flipped
+      off by hand so the reset (not an untouched default) is what turns it
+      back on, confirmed both in the callback payload and in the live
+      checkbox, plus every OTHER field still matching plain defaults (so this
+      is not a reset that silently changed anything else); (2) the control —
+      no OS preference, reset leaves `reducedMotion` false, `finalSettings`
+      equal to bare `defaultSettings()`; (3) jsdom's own no-`matchMedia`
+      default shape resets cleanly with no throw. Confirmed genuinely
+      regression-guarding: `git stash` on the two source files before writing
+      this note reproduced the exact filed bug (case 1 fails, `expected false
+      to be true`) with cases 2/3 and the pre-existing 5 unaffected — restored
+      and reconfirmed green. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (light tier — `[polish]`
+      — code-reviewer only, per the protocol's own tiering; ran a
+      qa-playtester-style adversarial pass anyway since no Task-dispatch tool
+      is available in this remote session and the extra scrutiny cost nothing
+      here): no Critical/Major found; checked `hub.ts` for any other
+      `defaultSettings` reference before deleting the import (none); checked
+      the other two settings-affecting controls this session touched
+      (fb090's fullscreen toggle, fb144 itself) for the same
+      re-derive-vs-hard-default class of bug — neither writes a settings
+      object wholesale the way a reset does, so neither is exposed. `npm run
+      test:fast`: 275 passed / 8 skipped files, 4114 passed tests (up from
+      4111 by exactly this item's 3), only the pre-existing `q15`/`q45`
+      flake class red — refs: fb144, fb075, QUALITY.md 1.0
       (Accessibility re-check).
 
 - [ ] (fb170) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
