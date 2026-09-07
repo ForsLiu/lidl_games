@@ -12,6 +12,7 @@ import {
   GRID_W,
   TILE,
   TileType,
+  type Grid,
 } from '../sim/grid';
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
@@ -27,7 +28,9 @@ import {
   effectiveTowerMinRange,
   effectiveTowerRange,
   towerCost,
+  type BuildRejection,
 } from '../sim/towers';
+import { loadTerrain, TerrainKind } from '../sim/terrain';
 import {
   ATTACK_KIND_COLORS,
   attackKindIconShape,
@@ -37,6 +40,7 @@ import {
   floatingNumberFontWeight,
   GATE_PATH_COLORS,
   PALETTE,
+  terrainTileFill,
   TERRAIN_COLORS,
   TOWER_COLORS,
   projectileStyle,
@@ -213,6 +217,40 @@ function dotTypeDps(e: Enemy, type: string): number {
 /** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
 function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
   return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
+}
+
+/**
+ * fb116: one line per `BuildRejection` (`src/sim/towers.ts`) for the build
+ * ghost's label — a `Record` over the full union rather than a partial map
+ * plus a fallback string, so a future 7th reason fails TypeScript compilation
+ * here instead of silently rendering nothing (the same exhaustiveness
+ * precedent `ACTIVE_KIND_SHAPE`/`AREA_SCALED_ACTIVE_KINDS` already set for a
+ * `ClassEffect.kind` union).
+ */
+const BUILD_REJECTION_LABELS: Record<BuildRejection, string> = {
+  phase: 'Not buildable now',
+  unknown_tower: 'Unknown tower',
+  occupied: 'Tile occupied',
+  terrain: 'Blocked by terrain',
+  out_of_range: 'Out of build range',
+  gold: 'Not enough gold',
+};
+
+/**
+ * fb116: whether `(x, y)` should read as "the same rock mass" as its
+ * `drawTerrainEdges` caller — either genuinely `TerrainKind.Rock`, or the
+ * permanent map border (also `TerrainKind.Rock` per `generateTerrain`/
+ * `flatTerrain`'s own border-sealing, but with its own solid, already-drawn
+ * fill; an edge line drawn one tile inside it would be a redundant seam right
+ * next to an existing hard wall). Off-grid counts as sealed too, so a rock
+ * tile at the very edge of the addressable interior never draws a line into
+ * nothing.
+ */
+function isInteriorRock(grid: Grid, x: number, y: number): boolean {
+  if (!grid.inBounds(x, y)) return true;
+  const idx = grid.idx(x, y);
+  if (grid.tile[idx] === TileType.Border) return true;
+  return grid.terrainKind[idx] === TerrainKind.Rock;
 }
 
 /** Builds the short-lived line an instant-hit attack leaves behind. */
@@ -787,17 +825,34 @@ export class Renderer {
 
   private drawTiles(w: World, night: boolean): void {
     const ctx = this.ctx;
+    // fb116 (BACKLOG-TERRAIN fb064e, the epic's UI half): `data/terrain.json`
+    // already carries a `color` per kind (architecture rule 4 — no literal
+    // terrain-kind colors belong in this file). `TileType.Border`/`Gate` win
+    // over it unconditionally: `generateTerrain`/`flatTerrain` both seal the
+    // permanent border as `TerrainKind.Rock` (so the pathing/build rules that
+    // read `terrainKind` see a consistent wall everywhere), but the BORDER'S
+    // OWN look predates terrain entirely and Training Grounds' flat arena
+    // must keep rendering exactly as it always has ("no change to the
+    // normal-only arena's frame") — only an Open/Core tile's terrain kind is
+    // ever painted.
+    const terrainCfg = loadTerrain();
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
-        const t = w.grid.tile[w.grid.idx(x, y)];
+        const idx = w.grid.idx(x, y);
+        const t = w.grid.tile[idx];
         let color = (x + y) % 2 === 0 ? (night ? PALETTE.tileNight : PALETTE.tileDay) : PALETTE.tileAlt;
         if (night && (x + y) % 2 !== 0) color = '#1a2029';
         if (t === TileType.Border) color = PALETTE.border;
         else if (t === TileType.Gate) color = PALETTE.gate;
+        else {
+          const kind = w.grid.terrainKind[idx];
+          if (kind !== TerrainKind.Normal) color = terrainTileFill(terrainCfg.tiles[kind]?.color ?? color, x, y);
+        }
         ctx.fillStyle = color;
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
+    this.drawTerrainEdges(w);
 
     // Core / Heartstone.
     const cx = CORE_X * TILE;
@@ -827,6 +882,60 @@ export class Renderer {
       ctx.fillStyle = frac > 0.4 ? '#5fe08a' : PALETTE.hpFront;
       ctx.fillRect(cx, cy - 8, cw * frac, 5);
     }
+  }
+
+  /**
+   * fb116: a dark outline on every side of a Rock tile that borders a
+   * non-Rock tile — a marching-squares-lite silhouette (4-neighbor edge
+   * detection, not the full diagonal case table) so a scattered rock cluster
+   * reads as a solid obstacle rather than a checkerboard of same-colored
+   * squares. Deliberately keyed on `terrainKind`, not `TileType`: the
+   * permanent arena border is ALSO `TerrainKind.Rock` (see `drawTiles`'
+   * comment), and painting ITS edge would draw a redundant line one tile
+   * inside the border's own already-solid fill on every normal-only arena —
+   * exactly the "no change to the normal-only arena's frame" acceptance line
+   * this item is pinned against — so a neighbor across the border, or the
+   * border tile itself, is never treated as an edge to draw.
+   */
+  private drawTerrainEdges(w: World): void {
+    const grid = w.grid;
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#00000099';
+    ctx.lineWidth = 2;
+    for (let y = 1; y < GRID_H - 1; y++) {
+      for (let x = 1; x < GRID_W - 1; x++) {
+        const idx = grid.idx(x, y);
+        if (grid.tile[idx] !== TileType.Open && grid.tile[idx] !== TileType.Core) continue;
+        if (grid.terrainKind[idx] !== TerrainKind.Rock) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        if (!isInteriorRock(grid, x, y - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + TILE, py);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x, y + 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py + TILE);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x - 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x + 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px + TILE, py);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.lineWidth = 1;
   }
 
   /** SPEC 5.5 phase 3: everything outside the ring is burning. */
@@ -1967,6 +2076,15 @@ export class Renderer {
       ctx.fillStyle = PALETTE.text;
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`${def.name}  ${towerCost(w, def)}g`, tx * TILE + TILE + 4, ty * TILE + 12);
+      // fb116: `checkBuild` has named a `'terrain'` rejection (distinct from a
+      // structure sitting on the tile, fb078) since main-lane's own item, but
+      // no UI surface said so — a red ghost on a rock/high tile and a red
+      // ghost on an already-built tile looked identical, with no way to tell
+      // "move the cursor" from "this exact spot can never be built on."
+      if (reason !== null) {
+        ctx.fillStyle = '#ffb3b3';
+        ctx.fillText(BUILD_REJECTION_LABELS[reason], tx * TILE + TILE + 4, ty * TILE + 26);
+      }
     }
   }
 

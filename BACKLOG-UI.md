@@ -4011,7 +4011,7 @@ logs a blocker below rather than editing `/data` itself.
       several of them exercise the same sentences/renderer code paths this
       change touched. code-reviewer and qa-playtester verdicts recorded in
       fb173's DONE note below (one review covered both items together).
-- [ ] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
+- [x] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
       epic's UI half): organic terrain (marching-squares edges, texture
       variation per kind) drawn from `Grid.terrainKind` over the square
       collision grid, path indicators drawn around terrain, and the build
@@ -4020,8 +4020,109 @@ logs a blocker below rather than editing `/data` itself.
       `render-terrain*` test can drive `applyTerrain` on a test grid before
       then. Acceptance: render test over 20 seeds asserts every non-normal
       tile is painted with its kind's colour and every rock edge is drawn;
-      no change to the normal-only arena's frame — refs: SPEC-FINAL §10.5
-      (fb079), §11.
+      no change to the normal-only arena's frame. **DONE 2026-09-07** — fb077
+      shipped 2026-09-04 (main-lane, `BACKLOG.md`), unblocking this item;
+      re-verified `new World(cfg({ seed }))` (no `practice: true`) really does
+      carry generated terrain before writing anything. `drawTiles`
+      (`src/render/canvas.ts`) now paints any Open/Core tile whose
+      `w.grid.terrainKind` is not `TerrainKind.Normal` with its kind's
+      authored `data/terrain.json` `color` (architecture rule 4 — no terrain
+      colors live in this file as literals) through a new
+      `terrainTileFill(baseHex, tx, ty)` (`src/render/theme.ts`): a
+      deterministic per-tile lightness jitter (±12%, hashed from the tile's
+      own coordinates, no `Math.random`) for the "texture variation" the item
+      names, stable across redraws rather than flickering. **`TileType.Border`/
+      `Gate` win over terrain unconditionally** — the one real subtlety this
+      item turned up: `generateTerrain`/`flatTerrain` both seal the permanent
+      arena border as `TerrainKind.Rock` too (so the pathing/build rules that
+      read `terrainKind` see one consistent wall), so a naive "paint every
+      non-Normal tile" would have repainted the ENTIRE border on Training
+      Grounds' flat arena — directly violating "no change to the normal-only
+      arena's frame," since that arena's *interior* is all Normal but its
+      *border* is still Rock by construction. A new `drawTerrainEdges`
+      (4-neighbor edge detection — a marching-squares-*lite*, not the full
+      diagonal case table, which the acceptance line's "every rock edge is
+      drawn" does not require) draws a dark outline on each side of an
+      interior Rock tile that borders a non-Rock tile, via the same
+      border-exclusion rule (`isInteriorRock`) so a rock cluster's edge
+      against the permanent border is never drawn as a redundant seam next to
+      an already-solid wall. The build ghost (`drawBuildGhost`) gains a label
+      from a new, exhaustive `BUILD_REJECTION_LABELS: Record<BuildRejection,
+      string>` whenever `checkBuild` rejects — covers all 6 reasons
+      (`fb078`'s `'terrain'` the one the item names, plus the 5 that had no
+      UI string either) so a future 7th reason fails compilation here rather
+      than rendering nothing. "Path indicators drawn around terrain," the
+      item's third clause, needed NO change: measured directly (seed 7, all 3
+      gates) that `drawPathIndicators`' `w.grid.gatePath(...)` already crosses
+      zero Rock tiles on a real generated map, since it reads the same live
+      `Grid.blocked`/`terrainBlock` state fb077 already wired terrain into —
+      verified rather than assumed, not silently skipped. New
+      `tests/render-fb116-terrain-rendering.test.ts` (45 tests): the literal
+      acceptance line over the real 20-seed spread this line names (every
+      non-Normal tile's paint matches its authored color within the jitter's
+      own byte budget, per seed), an independently-reimplemented (not
+      renderer-helper-imported) recount of the exact expected edge-segment set
+      against every rendered stroke (also per seed, so a single "just check
+      SOME edges exist" shortcut cannot pass), a border/gate-repaint negative
+      control (including the one subtlety above — a gate carved INTO the
+      border row stays `TerrainKind.Normal` by construction, so the row is
+      "mostly Rock, not all-gate" is asserted non-vacuously rather than
+      assumed), the flat/practice arena's frame proven byte-identical across
+      two independent practice `World`s (not just "some color"), and the
+      build-ghost label. Reverting only the `canvas.ts` half of this diff
+      before writing the DONE note dropped 42 of these 45 tests to red (the
+      3 survivors are the flat-arena negative controls, correctly still
+      green against unchanged code) — confirmed non-vacuous rather than
+      assumed. Self-reviewed as both code-reviewer and qa-playtester per
+      CLAUDE.md's Subagent protocol (full tier; no Task-dispatch tool
+      available in this remote session, see fb115/fb173's DONE note for the
+      same caveat). Code-review pass: no Critical/Major; one Minor caught and
+      fixed in the same commit — `isInteriorRock`'s doc comment had landed
+      above `BUILD_REJECTION_LABELS` instead of the function it documented,
+      an artifact of edit ordering, not of the logic itself. QA pass: reran
+      the full targeted suite plus `tests/fb016-vfx-registry.test.ts`,
+      `tests/fb036-path-indicators.test.ts`,
+      `tests/fb078-terrain-build-rejection.test.ts`,
+      `tests/render-fb065-stage-fill.test.ts`,
+      `tests/ui-fb082-overlay-geometry.test.ts`,
+      `tests/ui-fb106-extreme-aspect-geometry.test.ts` and
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts` (52 tests, all green — the
+      geometry suites specifically because a new per-frame draw pass is
+      exactly the kind of change that could regress an unrelated overlay
+      layout budget); checked a Core-footprint tile can never carry non-Normal
+      terrain by reading `Grid.syncTerrain`'s own force-to-Normal branch for
+      any tile that is neither Open nor Border (Core and Gate both land there)
+      rather than assuming it; confirmed `loadTerrain()` is cache-backed
+      (`config.ts`) so calling it once per frame in `drawTiles` is not a
+      per-frame JSON re-parse. A full (non-targeted) `npm run test:fast` pass
+      before commit is what actually caught the one real regression this item
+      shipped: `tests/render-fb055-basic-attack-vfx.test.ts`'s "reducedFlash
+      dims tracers too" case builds a real (non-`practice`) `World` and takes
+      the max alpha across every captured line, on the pre-fb116 assumption
+      ("a time_lord basic attack draws no lines except its tracers") that
+      `drawTerrainEdges`'s new, unconditional, reducedFlash-blind rock-edge
+      lines now breaks whenever that world's seed generates any interior rock
+      — measured: seed 1 does, so the suite failed every time, not
+      intermittently. Fixed at the actual blast radius (CLAUDE.md's own
+      measurement rule) rather than in `canvas.ts`: this file's basic-attack
+      VFX assertions were never about terrain, so it gained the identical
+      local `cfg()`-forces-`practice:true` wrapper
+      `tests/fb016-vfx-registry.test.ts` already carries for the same stated
+      reason, rather than teaching `drawTerrainEdges` a reducedFlash branch a
+      Rock silhouette has no motion/flash content to justify. Grepped every
+      other `tests/*.ts` combining a captured-`lines` array with a bare
+      (non-`practice`) `cfg()` for the same latent exposure (`class-
+      descriptions`/`fb022-info-surfacing`/`p2d-weapon-lineage` — all text
+      lines, unrelated; `render-fb086-reduced-motion` — compares two renders
+      of the SAME world, so a constant added to both sides of a `>`/`===` line
+      count cannot flip either) before concluding no second casualty existed,
+      then reran the full `npm run test:fast` a second time post-fix to
+      confirm: 274 passed / 8 skipped test files (only `q15`/`q45` still red,
+      the pre-existing `tools/fuzz-command-domain` flake class, unrelated),
+      4098 passed / 53 skipped tests (4152 total, up from the pre-fb116
+      baseline's 4053 passed by exactly this item's 45 new tests). No bugs
+      filed beyond the one caught and fixed above. `npx tsc --noEmit` clean
+      throughout — refs: SPEC-FINAL §10.5 (fb079), §11.
 
 - [ ] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
       when Dash Slash is cast during a Circle Slash charge, draw the merged
