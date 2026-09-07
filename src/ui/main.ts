@@ -21,7 +21,8 @@ import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice } from '../meta/meta';
 import { questCompletionToasts } from './quests';
 import { ensureActiveSlotMigrated, saveMetaToActiveSlot } from './saveslots';
-import { devProfileActive, startupProfile } from '../meta/devprofile';
+import { devProfileActive, isDevBuild, startupProfile } from '../meta/devprofile';
+import { wireBugReportHotkey, type BugReportSnapshot } from './bugreport';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
 import { Sfx } from '../render/sfx';
@@ -558,6 +559,14 @@ export class Game {
       if (e.key.toLowerCase() === this.keyBindings.dash && !this.paused && !e.repeat) this.dashQueued = true;
       onKeyDown(e);
     });
+    // fb139: F8 at any moment in a run, dev builds only — see bugreport.ts's
+    // own header for the dev-vs-prod branch this delegates to.
+    wireBugReportHotkey({
+      devMode: () => isDevBuild(),
+      getSnapshot: () => this.debugSnapshot(),
+      getCanvas: () => this.hud.canvas,
+      promptNote: () => window.prompt('Bug report — one-line note:'),
+    });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     // fb071: losing window/tab focus mid-run (alt-tab, switching apps) used to
     // only drop held keys, leaving the sim running unattended against a dead
@@ -770,6 +779,36 @@ export class Game {
       return;
     }
     this.lastWrittenSessionId = this.runSessionId;
+  }
+
+  /**
+   * fb139: the F8 bug-report hotkey's snapshot of "what run is this and how
+   * far into it are we" — the same `lastCfg`/`inputLog` pair `persistRun`
+   * above already reads for save/resume, plus the live `World` fields the
+   * item's acceptance names (wave, phase, tick) that a `RunConfig` alone
+   * doesn't carry. `null` when there is no run to report on (the Hub, or a
+   * finished run's Results screen) — `bugreport.ts`'s `canOpenBugReport`
+   * treats that as "nothing to do," not an error.
+   *
+   * `.slice()`, not the live array (qa-playtester, fb139): `handleBugReport
+   * Hotkey` awaits a screenshot capture between calling this and building
+   * the bundle it sends, and the game loop keeps pushing into `this.inputLog`
+   * during that gap — a reference here silently grew past what `tick` claims
+   * by the time it was serialized (confirmed live: the two ends of the same
+   * "instant" disagreeing by dozens of ticks, with different end-state
+   * hashes). Freezing the array at press-time is the whole point of a
+   * snapshot.
+   */
+  private debugSnapshot(): BugReportSnapshot | null {
+    if (!this.run || !this.lastCfg) return null;
+    const w = this.run.world;
+    return {
+      config: this.lastCfg,
+      wave: w.wavesCleared,
+      phase: w.phase,
+      tick: w.tick,
+      inputLog: this.inputLog.slice(),
+    };
   }
 
   /**

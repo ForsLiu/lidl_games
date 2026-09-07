@@ -45,5 +45,12 @@ describe('G15: production build has no Tuner write surface', () => {
     // Export/Import are allowed in every build (§11: "prod = read-only +
     // Export/Import"), so their marker is expected to survive.
     expect(bundle.includes('sw-tuner-export')).toBe(true);
+    // fb139: same guarantee, same reason — `inboxSave.ts` (`src/devserver/
+    // inboxSave.ts`) lives under the same never-bundled directory as
+    // `tunerSave.ts`; `src/ui/bugreport.ts` (the client half) only ever
+    // reaches it over the network (`fetch(INBOX_REPORT_PATH, ...)`), never
+    // by importing it, so this string — only ever written server-side by
+    // `saveBugReport`'s own `.md` template — cannot appear in client output.
+    expect(bundle.includes('# Bug report —')).toBe(false);
   }, 120_000);
 });

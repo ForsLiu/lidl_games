@@ -16,3 +16,7 @@ audit/report.json
 # QA subagent harness scratch (BACKLOG-CONTENT c019 Log)
 *.qabak
 tools/_qa_*
+
+# fb139: F8 bug-report replay bundles — runtime debug artifacts, not source.
+# The bug .md itself lands in feedback/ (tracked, per the loop's own convention).
+/replays/

@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG fb139 done (F8 in-run bug-report
+  hotkey, replay-attached).** New `src/devserver/inboxSave.ts`/
+  `inboxPlugin.ts` (a Vite `apply:'serve'` endpoint mirroring the Tuner's
+  save pattern) and `src/ui/bugreport.ts` (client-side capture/submit) let
+  F8, in a dev build, prompt for a one-line note, capture a canvas
+  screenshot, and write a `bug-<ts>-<uid>.md` + a real `RecordedRun`-shaped
+  `replay-<ts>-<uid>.json` (loadable by the existing `replayRecorded()`
+  with no translation) + `bug-<ts>-<uid>.png` into `feedback/` — the repo's
+  own existing feedback-intake directory, chosen over the owner's literal
+  `D:\lidl_inbox` Windows path (unreachable from this sandbox, referenced
+  nowhere else in the codebase) specifically so a filed report flows
+  straight into the loop's existing processing rather than a disconnected
+  new one. A production build downloads the same bundle as a file instead
+  (no dev server to POST to); `tests/p9c-tuner-prod-build.test.ts` gained
+  an assertion confirming the server-only `.md` template string can't
+  appear in a real production bundle, alongside the pre-existing Tuner
+  check. `tests/fb139-bug-report.test.ts` covers the save logic, the HTTP
+  middleware/plugin registration, and — the item's own literal acceptance
+  line — two cases proving a saved bundle replays to the exact recorded
+  tick with a matching end-state hash. code-reviewer (Major: an unenforced
+  documented body-size cap, fixed by giving `readJsonBody` a real `maxBytes`
+  parameter; Minor: a hardcoded default-Core string, now read live) and
+  qa-playtester (live Playwright pass against a real dev server, two real
+  bugs found and fixed with regression tests: a live-vs-snapshot `inputLog`
+  array reference that let async screenshot capture silently grow a
+  bundle's input log past what it claimed to record, and a `Date.now()`
+  filename collision between two reports saved in the same millisecond)
+  both signed off after fixes landed. CLAUDE.md's Full-tier subagent bullet
+  now names replay bundles as first-class repros, per the item's own text.
+
 - **2026-09-07 — main lane: BACKLOG p12e done (the p12 arc's blocker —
   boss HP double-counted `baseHpMul`).** QUESTIONS Q177 diagnosed that
   `data/enemies.json`'s `warden_eater` hp (365,000) was authored before the

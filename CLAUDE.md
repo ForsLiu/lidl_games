@@ -92,7 +92,12 @@ an item touches (owner feedback `feature-tiered-qa`, 2026-09-04):
   `/data` balance values, pathing, or damage rules: **code-reviewer** (address
   Critical/Major findings before commit) **and qa-playtester** (must confirm
   the item's acceptance criteria and file repro reports for what it breaks —
-  a QA-filed bug becomes a new backlog item with a regression test).
+  a QA-filed bug becomes a new backlog item with a regression test). A repro
+  report may cite a replay bundle (fb139: the F8 in-run hotkey, or any saved
+  `RecordedRun`-shaped `config`+`inputLog` pair) as a first-class repro,
+  exactly like a written repeat-these-steps description — `replayRecorded`
+  (`src/sim/run.ts`) replays it deterministically to the recorded tick, which
+  a prose repro on a live-content-dependent bug cannot promise.
 - Bugs always get a failing regression test before the fix, regardless of tier
   (working rule 3).
 - For tuning-only items: delegate to **balance-analyst**; it edits `/data` only

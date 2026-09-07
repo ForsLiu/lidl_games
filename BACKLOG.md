@@ -910,7 +910,45 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07.** F8 (dev builds, gated on
+      `isDevBuild()`) prompts for a one-line note (`window.prompt`, the
+      "small box"), captures a canvas screenshot, and POSTs a bundle
+      (`config`/wave/phase/tick/full `inputLog` so far) to a new dev-server
+      endpoint (`src/devserver/inboxPlugin.ts`, `POST /__inbox/report`,
+      `apply:'serve'` — same shape as the Tuner's save endpoint, verified
+      absent from a real production build), which writes `bug-<ts>-<uid>.md`
+      + `replay-<ts>-<uid>.json` + `bug-<ts>-<uid>.png` (`inboxSave.ts`).
+      One deliberate deviation from the literal text: the inbox directory
+      defaults to this repo's own `feedback/` (not the literal `D:\lidl_
+      inbox`, the owner's own Windows path this Linux sandbox can't write to
+      and no code anywhere else references) — a directory the loop already
+      knows to process, so a filed report flows straight into the existing
+      pipeline rather than a new, disconnected one; the replay file is a
+      real `RecordedRun` (`src/sim/run.ts`), loadable by the existing
+      `replayRecorded()` with zero translation. Both halves of the item's
+      literal acceptance line are live: `tests/fb139-bug-report.test.ts`'s
+      last describe block saves a bundle and replays it back to the exact
+      recorded tick with a matching end-state hash (two cases, full-run and
+      mid-run); CLAUDE.md's Full-tier subagent-protocol bullet now names
+      replay bundles as first-class repros. code-reviewer found one Major
+      (a documented-but-unenforced body-size cap — `readJsonBody` gained a
+      `maxBytes` parameter, now actually wired to the inbox's own larger
+      budget) and one Minor (a hardcoded default-Core display string, now
+      read live via `defaultCoreKey`), both fixed. qa-playtester drove a
+      real dev server + Playwright end to end and found two real bugs, both
+      fixed with regression tests: (1) `Game.debugSnapshot()`'s `inputLog`
+      was a live array reference, not a snapshot — the async screenshot
+      capture let the game loop keep appending before the bundle was
+      serialized, so a saved bundle's own `tick:` field could silently
+      disagree with what its replay file actually contained (fixed with
+      `.slice()`, in both `debugSnapshot()` and defensively again in
+      `bugreport.ts` itself); (2) two reports saved within the same
+      millisecond collided on `Date.now()`-only filenames with silent
+      last-write-wins data loss (fixed with a random suffix). `npx tsc
+      --noEmit` clean; `npm run test:fast` green except the two pre-existing,
+      already-confirmed-unrelated failures. No `/src/sim` changes. Original
+      text follows.
+      top priority: in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into

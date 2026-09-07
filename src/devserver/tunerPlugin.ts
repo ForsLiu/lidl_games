@@ -18,15 +18,23 @@ export const TUNER_SAVE_PATH = '/__tuner/save';
 /** No authored `/data` file is anywhere near this; a local dev tool still shouldn't buffer an unbounded body into memory. */
 export const MAX_TUNER_BODY_BYTES = 10 * 1024 * 1024;
 
-/** Reads and JSON-parses a request body. Rejects on a body that isn't valid JSON or exceeds `MAX_TUNER_BODY_BYTES`. */
-export function readJsonBody(req: IncomingMessage): Promise<unknown> {
+/**
+ * Reads and JSON-parses a request body. Rejects on a body that isn't valid
+ * JSON or exceeds `maxBytes` (default `MAX_TUNER_BODY_BYTES`, this
+ * function's original single caller — fb139's `inboxPlugin.ts` passes its
+ * own, larger `MAX_INBOX_BODY_BYTES` explicitly, since a screenshot PNG
+ * plus a run's input log routinely exceeds the Tuner's 10 MB budget; code
+ * review caught this defaulting silently to the wrong cap when the second
+ * caller was added without a parameter to override it).
+ */
+export function readJsonBody(req: IncomingMessage, maxBytes: number = MAX_TUNER_BODY_BYTES): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let body = '';
     let bytes = 0;
     req.on('data', (chunk: Buffer | string) => {
       bytes += Buffer.byteLength(chunk);
-      if (bytes > MAX_TUNER_BODY_BYTES) {
-        reject(new Error(`request body exceeds ${MAX_TUNER_BODY_BYTES} bytes`));
+      if (bytes > maxBytes) {
+        reject(new Error(`request body exceeds ${maxBytes} bytes`));
         req.removeAllListeners('data');
         req.removeAllListeners('end');
         return;
