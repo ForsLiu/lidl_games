@@ -299,19 +299,19 @@ describe('fb077 — real terrain never strands a ground horde in Act II (qa-play
   // stranded. It resolved inside the 45-minute cap on the parent commit
   // (controlled) and does not resolve inside 120 minutes here.
   //
-  // That is **p12e's censored-run defect verbatim** (QUESTIONS Q177: "the tail
-  // is entirely the boss fight", `baseHpMul: 20` taking `warden_eater` to 7.3M
-  // with no fight-length ceiling), not a terrain-stranding regression: this
-  // file's other 18 tests cover `updateGroundUnreachable` and the gate/route
-  // machinery directly and are all green. Re-enable at **p12e**, which owns
-  // "zero `'running'` outcomes tolerated in any gate matrix" — and re-measure
-  // this seed rather than inheriting this note (CLAUDE.md measurement rules).
-  // p12e (this session): un-skipped — `data/enemies.json`'s `warden_eater`
-  // hp re-anchored (365,000 -> 18,250, canceling the roster-wide
-  // `baseHpMul: 20` back out to the fb099-fitted fight length) closes this
-  // exact defect. Re-measured, not inherited: this seed now resolves well
-  // inside the 45-minute cap (see BACKLOG p12e for the class-wide probe that
-  // found the same fix eliminates the G1 harness's timeouts too).
+  // That was **p12e's censored-run defect verbatim** (QUESTIONS Q177: "the
+  // tail is entirely the boss fight", `baseHpMul: 20` taking `warden_eater`
+  // to 7.3M with no fight-length ceiling), not a terrain-stranding
+  // regression: this file's other 18 tests cover `updateGroundUnreachable`
+  // and the gate/route machinery directly and were all green throughout.
+  //
+  // p12e (2026-09-07): re-measured, not inherited (CLAUDE.md measurement
+  // rules — "a deferral is a measurement with an expiry date"). Landed fix:
+  // the final boss no longer takes the roster-wide `baseHpMul` (it already
+  // had its own fb099-fitted HP, restored to 365,000 unmultiplied), so the
+  // boss clock is back to a real fight length. This seed resolves at
+  // ~18.2 min, `victory`, `bossKilled: true` — well inside the 45-minute cap
+  // below. Un-skipped.
   it('seed 52 + Fourth Gate + cycles 3 resolves instead of hanging forever', () => {
     const content = loadContent();
     const cfg = {

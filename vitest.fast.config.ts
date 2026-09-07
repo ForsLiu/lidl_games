@@ -59,7 +59,9 @@ export default mergeConfig(
         'tests/a9-economy.test.ts',
         // Measured standalone 2026-08-29: a4 116 s, p1b 121 s, q2 122 s,
         // q9 184 s. (a1/a2/a7/a11/q13/q15/q18/q26 were measured under 60 s
-        // the same session and stay IN the fast tier.)
+        // the same session and stay IN the fast tier.) p12h added a4's own
+        // ~515 s case (35 full 18-wave sims verifying the terrain-fix
+        // mechanism in isolation) — re-measured 2026-09-07, still excluded.
         'tests/a4-single-type.test.ts',
         'tests/p1b-seal-winrate.test.ts',
         'tests/q2-input-fuzz.test.ts',

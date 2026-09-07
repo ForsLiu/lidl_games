@@ -173,30 +173,69 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // A single-tower build has none of the full bot's mix, and at x20 enemy HP
   // **every one of the seven clears 0/5**.
   //
-  // **The control matters, and it is not the table above.** The 5/5/5/5/4/5/4
-  // there is the figure this clause was *authored* against; measured at HEAD
-  // (`baseHpMul` at its 1.0 identity, p12b's ladder exactly 1.0 at T1, so
-  // nothing else in HEAD can move a T1 reading) it already reads
-  // **{arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk 0,
-  // tesla_coil 1, mortar 3, venom_spore 0} of 5** — the clause was largely
-  // red *before* p12c (qa-playtester ran that control; the first version of
-  // this comment attributed the whole regression to p12c, which was wrong).
-  // p12c takes it from {1,1,0,0,1,3,0} to all zeroes: it deepens a failure it
-  // did not cause, and the earlier part needs its own item — it predates this
-  // change and is not p12c's to fix.
-  //
-  // The deepening is still a real trade rather than a defect: a tower that
-  // soloed the entire wave curve was a statement about a difficulty the bot
-  // won 100% of the time with the Core untouched. `.skip`-ed with both
-  // numbers rather than quietly re-pinned to 0, which would have asserted the
-  // *opposite* claim (that no tower is viable) while looking green.
-  // Re-enable point: **p12d**, which owns rewriting the gate text against the
-  // re-anchored shape.
+  // **p12h: bisected in full, two additive causes, only one of which was
+  // this file's/this probe's to fix.** The 5/5/5/5/4/5/4 table is fb076's own
+  // authored result (reproduced exactly at the commit before fb077). Two
+  // separate commits each cut viability further, confirmed by checking out
+  // each one and re-running this exact probe:
+  // (1) **fb077** ("wire generated terrain into every non-practice World
+  // run") flipped `tools/a4probe.ts`'s probe from the flat fallback arena to
+  // real generated terrain, purely because its `RunConfig` never set
+  // `practice: true` — an accidental scope leak, not an intended difficulty
+  // change: this gate's own header says it isolates solo-tower TD viability
+  // from other systems (the same reason it sets `world.invulnerable`), and
+  // map geometry was never meant to be one of the things it measures. Real
+  // terrain alone dropped the table to **{1,1,0,0,1,3,0}**.
+  // (2) **p12c**'s `baseHpMul: 20` (not tier-scaled, so it hits T1 exactly as
+  // hard as every other tier) takes {1,1,0,0,1,3,0} to **{0,0,0,0,0,0,0}** —
+  // acknowledged in p12c's own commit message as a cost it did not cause but
+  // deepened, deferred here by name.
+  // **Fix applied: (1) only.** `runSingleType` now sets `practice: true`,
+  // restoring the flat arena this probe was always designed against (its
+  // only other effect, enabling dev commands, is inert here). Verified this
+  // actually restores viability, not just plausible: re-running the fixed
+  // probe with `baseHpMul` reverted to its identity (1) via a content
+  // override — *not* editing `/data` — reproduces
+  // **{5,5,5,5,4,4,5}** (`tests/a4-single-type.test.ts`'s own
+  // 'terrain fix in isolation' case below), matching/bettering fb076's
+  // original table. (2) is **not** this item's to fix or reverse — it is
+  // BALANCE DIRECTION v2 §C's own deliberate T1 anchor, already named and
+  // accepted in p12c's commit; deciding how G13's T1 clause should read
+  // against it is **p12d**'s gate-rewrite job, not a bisection outcome.
+  // **Net effect on this file's own assertions: unchanged (0/5 for all
+  // seven) at real HEAD content**, because cause (2) alone already saturates
+  // every tower to zero regardless of terrain — the fix is real and
+  // necessary (the probe now measures what it says it measures) but its
+  // effect is currently masked by the larger, separately-owned anchor.
+  // `.skip`-ed with the honest HEAD number rather than quietly re-pinned to
+  // 0, which would assert "no tower is viable" as if that were this clause's
+  // finding rather than baseHpMul's. Re-enable point: **p12d**, which owns
+  // rewriting the gate text against the re-anchored shape.
   for (const key of SOUL_TOWERS) {
     it.skip(`${key} alone clears the TD wave curve at T1`, () => {
       expect(clears(key, 1, [])).toBe(T1_EXPECTED_CLEARS[key]);
     });
   }
+
+  // p12h: proves the terrain-isolation fix in `runSingleType` (`practice:
+  // true`) actually restores viability, isolated from `baseHpMul` via a
+  // content override rather than a `/data` edit — pins the mechanism the
+  // comment above claims rather than leaving it as an unverified assertion.
+  it('p12h: with baseHpMul reverted to identity, the terrain fix alone restores fb076-era viability', () => {
+    const rawEnemies = loadContent().raw.enemies as Record<string, unknown>;
+    const identityContent = loadContent({ enemies: { ...rawEnemies, baseHpMul: 1 } });
+    const result: Record<string, number> = {};
+    for (const key of SOUL_TOWERS) {
+      let n = 0;
+      for (const seed of [1, 2, 3, 4, 5]) {
+        if (runSingleType(key, 1, seed, [], identityContent).waves >= 18) n++;
+      }
+      result[key] = n;
+    }
+    for (const key of SOUL_TOWERS) {
+      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(4);
+    }
+  }, 600_000); // measured ~515s: 35 full 18-wave sim runs (7 towers x 5 seeds)
 
   for (const key of SOUL_TOWERS) {
     it(`${key} alone fails the TD wave curve at T3`, () => {

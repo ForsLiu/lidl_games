@@ -89,9 +89,26 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   // is immaterial (both are scalars) but stated this way because they answer
   // different questions: `baseHpMul` sets how hard the game is at all, the
   // rung sets how much harder each tier is than the last.
-  hp *= w.content.enemies.baseHpMul;
-  hp *= tierEnemyHpMul(w.content, w.cfg.tier);
+  //
+  // p12e: the final boss is exempted from `baseHpMul`. Its HP (`fb099`) was
+  // already fitted to a real boss-fight length against the tier rung and
+  // `mods.bossHp` below; stacking the roster-wide x20 on top of that
+  // independently-fitted number (rather than on the pre-fit base every other
+  // enemy's HP starts from) took a 180-380s fight to 920-1187s on contested
+  // seeds, pushing G1/G8/G14/G23's scripted-bot seeds past the sim's tick cap
+  // (QUESTIONS Q177/Q184 — "censored", not harder). The tier rung still
+  // applies to the boss, unchanged since p12b.
+  //
+  // Gated on `TRAIT.finalBoss`, not the broader `TRAIT.boss` (same
+  // `gatebreaker`-carries-`boss`-too distinction `dotVaryingMul` above
+  // already documents, code-reviewer p12e finding): `gatebreaker` is a
+  // wave-18 miniboss, not the Warden-Eater, and has no fb099-style
+  // independent fit to protect — it must keep taking `baseHpMul` like every
+  // other non-final-boss enemy.
   const isBoss = (flags & TRAIT.boss) !== 0;
+  const isFinalBoss = (flags & TRAIT.finalBoss) !== 0;
+  if (!isFinalBoss) hp *= w.content.enemies.baseHpMul;
+  hp *= tierEnemyHpMul(w.content, w.cfg.tier);
   if (isBoss) hp *= 1 + w.mods.bossHp;
   // SPEC 5.5: "15,000 HP x tier multiplier". Until p12b the only tier
   // multiplier the spec defined was SPEC 8.3's *reward* scale
@@ -811,10 +828,21 @@ export interface DotOptions {
  */
 function dotPotency(w: World, type: string, source: string): number {
   if (type === 'burning') return w.derived.burnDamageMul * w.derived.ailmentMul;
-  if (type === 'poison' && !w.huntsWarden && w.content.towerByKey.has(source)) {
+  if (type === 'poison' && isTowerSource(w, source)) {
     return w.derived.towerPoisonDamageMul * w.derived.ailmentMul;
   }
   return w.derived.ailmentMul;
+}
+
+/**
+ * fb083: whether `source` is a real tower's own Act I attack, as opposed to a
+ * class Active, a Core attack, or a tower effect firing during VS (where
+ * `huntsWarden` makes every attack a *character* attack regardless of who
+ * fired it — see the poison-trail note above). Callers use this to pick
+ * `towerAreaMul`/`towerPoisonDamageMul` over the character-scoped equivalent.
+ */
+export function isTowerSource(w: World, source: string): boolean {
+  return !w.huntsWarden && w.content.towerByKey.has(source);
 }
 
 /**
@@ -1066,8 +1094,11 @@ interface SplashAccum {
  * re-applied itself to its neighbours would cascade across the horde.
  */
 function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum): void {
-  // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
-  const r = (acc.radius + w.derived.burnSpread) * w.derived.areaMul;
+  // `burnSpread` is a point bonus on the radius; `area`/`towerArea` scales
+  // every effect (§2) — fb083 splits the two, so a tower's own Burning
+  // splash (Ember Brazier) reads the tower-scoped multiplier.
+  const areaMul = isTowerSource(w, acc.source) ? w.derived.towerAreaMul : w.derived.areaMul;
+  const r = (acc.radius + w.derived.burnSpread) * areaMul;
   const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
   for (let i = 0; i < list.length; i++) {
     const n = list[i];

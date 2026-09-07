@@ -778,7 +778,129 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
-- **Q193. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+- **Q193. [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` (Windows)
+  or a repo-relative `inbox/` (any other host — the merge's own platform-check
+  fold-in, since a literal Windows path is a bogus folder name rather than a
+  meaningful path on POSIX) and a repo-relative `replays/` directory
+  respectively, so the owner's real `npm run dev` writes exactly where the
+  feedback text says while every test injects a temp directory
+  (`tests/fb139-bug-report-plugin.test.ts`, `tests/fb139-bug-report-
+  replay.test.ts`) and never touches either path. — Reason: CLAUDE.md's gap
+  rule (fill with the most spec-consistent default and log it) — the
+  alternative, silently substituting a different directory for the default,
+  would mean the owner's own dev server never actually writes where the
+  order says. — (owner verdict: pending)
+
+- **Q194. [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+  appended, written from `feedback/processed/20260903-121255-feature-terrain-
+  generation.md` verbatim plus the `lane/terrain` design decisions already
+  logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
+  and merged by `lane/terrain` before SPEC-FINAL's own §16 reconcile folded
+  Q162/Q171's decisions into QUESTIONS.md, but nobody had appended the
+  section SPEC-FINAL's own §14 G2/§13 references presuppose — §10 still read
+  the pre-terrain fixed 36×20/3-gate map. This item's whole content is the
+  owner's own feedback file plus decisions already owner-approved at Q162/
+  Q171; nothing new is chosen here beyond where the append lands (as §10.5,
+  the id the feedback file itself names) and folding G2's wording/§13's
+  totals to match, both explicitly asked for in the BACKLOG item's
+  acceptance text. — Reason: CLAUDE.md's gap rule and working rule 5 (never
+  stop to ask, choose and log) — the section is marked `[designer-fill]`
+  itself per its own owner-feature tag, so the owner may still veto or
+  reshape it via a later inbox verdict. — (owner verdict: pending)
+  **Merge note (2026-09-07):** this branch and master each wrote §10.5
+  independently from the same feedback file; master's landed version is kept,
+  with two fidelity fixes made at the merge — the quote was still missing its
+  title and `Priority: normal` lines (both present in the source memo), and
+  the character-passage bullet had drifted to claim the shipped default lets
+  the character fly over rock, when `data/terrain.json` and
+  `src/sim/terrain/character.ts`'s own doc comment both confirm the opposite
+  (the vetoed reading shipped, unresolved) — restored to match this branch's
+  own, verified text.
+
+- **Q199. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch).
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way.
+
+- **Q195. [fb083] A new tower-only Area stat key (`towerArea`) closes the
+  Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit
+  Actives — but `effectiveTowerAoe` (`towers.ts`) is shared by three callers,
+  not two, and two genuine design choices fall out of that.** (1)
+  `classes.ts`'s `towerSummonProfile` — the shape Engineer's Pop Turret and
+  the Animist's own Manifest spirit both clone their AoE from, since each is
+  a literal tower clone — calls `effectiveTowerAoe` too. Chosen default:
+  these stay on the `'tower'` route (the function's default), so Wide Grove/
+  Chronal Surge's "all towers" text keeps reaching a turret/spirit summon
+  exactly as it reaches a real tower, which is the more spec-consistent
+  reading of "towers" than carving summons out as a special case nothing
+  asked for. (2) `vswield.ts`'s wielded lob/poison blasts also call
+  `effectiveTowerAoe` (its only other caller) — these must NOT move, per
+  that file's own §6.1 header ("treated as character attacks," riding the
+  character's own Area/range, never the tower-side ones) — so
+  `effectiveTowerAoe` gained an explicit `route: 'tower' | 'character'`
+  parameter (default `'tower'`) rather than splitting into two functions,
+  and `vswield.ts`'s four call sites pass `'character'` explicitly. —
+  Reason: CLAUDE.md's gap rule (most spec-consistent default, logged rather
+  than asked) — a parameter keeps the one formula (`lob`/`poison` AoE
+  shape) in one place rather than forking it, and the tower-clone reading
+  for (1) is a straightforward extension of "these are towers" rather than
+  an invented exception. — (owner verdict: pending)
+
+- **Q196. [fb083] Two more shared reads of the old global `area` key —
+  Electric's inherent AoE (`damagetypes.ts`'s `applyDamageType`) and
+  Burning's splash (`enemies.ts`'s `tickDotSplash`) — can't take
+  `effectiveTowerAoe`'s `route` parameter, because neither function is
+  called with a caller-chosen route: both only ever receive a `source`
+  string (the attacking tower's or Active's key).** Left unfixed they would
+  have gone from over-applying (reading the global key on both routes) to
+  under-applying (reading neither, since Wide Grove/Chronal Surge/Normal
+  Bracelet's tower half moved off that key entirely) — a real Tesla Coil or
+  Ember Brazier would stop being widened by its own class's tower passive.
+  Chosen fix: a small shared helper, `enemies.ts`'s exported
+  `isTowerSource(w, source)`, reusing the exact idiom `dotPotency` already
+  uses for `towerPoisonDamageMul` (`!w.huntsWarden && w.content.towerByKey
+  .has(source)`) — true only for a real tower's own Act I attack, false
+  during VS (`huntsWarden`) even for a source that names a tower key, since
+  a hunting tower's attack is a character-route effect for every other
+  purpose in the sim. Both sites now pick `towerAreaMul`/`areaMul` by that
+  check instead of taking a parameter. — Reason: CLAUDE.md's gap rule
+  (most spec-consistent default) — reusing an existing, already-reviewed
+  idiom for "is this a tower's own hit" beats inventing a second one, and a
+  source check is the only option available to a function that has no
+  caller-chosen route to read. — (owner verdict: pending)
+
+- **Q197. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
   measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
   acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
   gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this
@@ -794,37 +916,3 @@ Q91 and Q102 corrections if not yet done.
   reading specifically (e.g. to check whether the tier ladder skews any one
   class's band differently from the rest), that is new work, not implied by
   this one.
-
-- **Q194. [p12e] Full G1/G8/G14/G23 all-classes/all-Cores/T1-T3-T5
-  re-verification and a `npm run status` regen were not completed against
-  this item's fix; a targeted re-check was, and both code-reviewer and
-  qa-playtester's own live re-runs are the record of what was and wasn't
-  covered.** p12e's acceptance text asks for a full sweep. What actually
-  landed: `data/enemies.json`'s `warden_eater.hp` re-anchor (365,000 ->
-  18,250) closes the diagnosed defect (boss HP double-counting
-  `baseHpMul`), confirmed by re-running `tests/boss.test.ts` (G14, full
-  file), `tests/p10d-run-length.test.ts` (G1, full file, including the
-  newly-live tick-cap assertion, twice), `tests/fb077-terrain-wiring.test.ts`
-  (the seed-52 hang repro), `tests/p-core-f-gates.test.ts` (G22 full, G23's
-  T1/T5 companion block full — one case, `time` T5, moved and was
-  re-skipped with its fresh number), and `tests/p6e-class-diversity.test.ts`
-  (G8)'s own T1/T5 companion block plus its two diversity-clause pins (one
-  clause moved, 16->20/66 failing fingerprint pairs, fixed; the other,
-  own-kit share, held at 0). What was **not** re-run: G8's twelve
-  individual per-class T3 win-rate `.skip`-ed cases (the file's own
-  ~30-minute `beforeAll`, already paid once for the companion/pin checks
-  above, was not re-run a second time to re-derive each of those twelve
-  numbers) and G23's T3 per-Core describe block (only G22, which shares the
-  same `beforeAll`-free per-test cost, was re-run). Both code-reviewer and
-  qa-playtester independently flagged this as the item's one real open gap
-  and both were satisfied once the G8 companion/pin re-check above landed —
-  neither found the remaining T3 per-class/per-Core numbers *likely* to have
-  moved (G8/G23's T3 win/loss shape is dominated by the TD wave-11-17
-  economy wall documented at length in `tests/p6e-class-diversity.test.ts`'s
-  own header, not boss-fight timing), but "likely fine" is a measurement
-  gap, not a closed one. Filed rather than chased further in this item: a
-  full re-derivation of every `.skip`-ed T3 per-class/per-Core number plus
-  the `npm run status` regen p12e's acceptance also names is real work,
-  reasonably scoped as its own item (or folded into the next `npm run
-  status` cadence point, CLAUDE.md's "every ~20 backlog items").
-
