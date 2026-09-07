@@ -985,7 +985,7 @@ Q91 and Q102 corrections if not yet done.
   | class | before | after | rounds | what moved it |
   |---|---|---|---|---|
   | swordsman | 2/12 | 2/12 | 3 | nothing — see below |
-  | plaguebringer | 3/12 | 6/12 | 2 (1 reverted) | Poison Barrel radius 3->5 (damage-only and cooldown-only tried first, both worse) |
+  | plaguebringer | 3/12 | 6/12 | 3 | Poison Barrel damage 24->40 + radius 3->5, *and* Poison Boost cooldownSeconds 14->8 — all three land together; damage+radius alone (cooldown left at 14) independently re-measures at 4/12, still under floor. Corrected in the second follow-up below — an earlier draft of this row named cooldown as a rejected lever, which was wrong. |
   | engineer | 3/12 | 5/12 | 3 (2 reverted/dialed back) | Pop Turret summonStatMul/cap/cooldown (a towerHp passive buff tried first made it worse, 3/12->2/12; the first Pop Turret buff got G8 to 7/12 but broke G14's boss test, dialed back — see below) |
   | pyromancer | 2/12 | 5/12 | 1 | Immolation Wave damage 135->200 |
   | archer | 5/12 | 5/12 | 0 | untouched (already in band per fb177) |
@@ -993,7 +993,7 @@ Q91 and Q102 corrections if not yet done.
   | cryomancer | 9/12 | 5/12 | 1 | Glaciate damage 60->40 (nerf) |
   | stormcaller | 4/12 | 5/12 | 2 | Chain Surge damage alone did nothing (4/12->4/12); cooldown 8->5 on top moved it |
   | bloodlord | 4/12 | 5/12 | 3 (2 reverted) | Blood Tithe titheDamageMul/titheHpFraction/cooldown/radius all buffed together, + Crimson Rush healPerEnemy 2->10 at cooldown 6 (cooldown 4 alone was worse; a towerHp passive fix tried first was also worse) |
-  | animist | 9/12 | 6/12 | 1 | Wide Grove area 10%->4% (nerf) |
+  | animist | 9/12 | 8/12 | 2 (1 abandoned) | Wide Grove area 10%->4% first (in band at 6/12, but broke `tests/class-wide-grove-reach.test.ts`'s RING probe placement — 9 failures); 10%->8% instead, which clears both the probe and G8, at the ceiling with no headroom. Corrected in the second follow-up below — an earlier draft of this row and this file's other documents still had the abandoned 4%/6-12 draft as final. |
   | paladin | 3/12 | 5/12 | 1 | Judgement wrathDamageMul 2.2->3.2 |
   | time_lord | 10/12 | 8/12 | 1 | Chronal Surge bonusRangeMul/bonusAoeMul 0.10->0.05 (nerf) |
 
@@ -1084,3 +1084,46 @@ Q91 and Q102 corrections if not yet done.
   CLAUDE.md's balance-analyst method (hypothesis first, one lever at a time
   where practical, keep every round's number even when it hurts); SPEC-FINAL
   §14 G8, BACKLOG p12j, fb177, Q195.
+
+  **Second follow-up (2026-09-07): a real independent code-reviewer agent,
+  dispatched by the lead session on the container-restart recovery commit,
+  found two Major discrepancies between this entry's table and what
+  `data/classes.json` actually ships.** Both re-verified directly (throwaway
+  `tools/`-script probe reusing `runClassScripted`, deleted after use).
+  **animist**: the table said Wide Grove `area` retuned 10%->4%
+  (9/12->6/12); the shipped value is 10%->8%. Re-measured: 4% independently
+  gives 6/12 but breaks `tests/class-wide-grove-reach.test.ts`'s live-derived
+  RING probe placement (9 failures, reproduced directly) — 8% clears both
+  and independently re-measures at 8/12, the G8 band ceiling with no
+  headroom. This was in fact the *later*, correct decision — it was already
+  recorded accurately in `tests/class-spec-numbers.test.ts`'s own ledger row
+  for this field (`kind: 'retuned'`, `actual: 0.08`, with the wide-grove-reach
+  rationale spelled out), it just never made it into this table,
+  `tests/p6e-class-diversity.test.ts`'s comment, PROGRESS.md, or BACKLOG.md —
+  a real instance of one document telling the truth while three others still
+  carried an abandoned draft. **plaguebringer**: the table (before this
+  follow-up's edit) credited only Poison Barrel's `active1` damage/radius,
+  naming Poison Boost's `active2.cooldownSeconds` cut (14->8) as a rejected,
+  reverted lever. False: reverting `cooldownSeconds` to 14 while keeping the
+  shipped `active1` damage/radius independently re-measures at 4/12, still
+  under floor — the cooldown cut is load-bearing, not a discarded
+  experiment. Fixed the table rows above in place, plus
+  `tests/p6e-class-diversity.test.ts`'s header table and both classes'
+  trailing `it` comments, plus BACKLOG.md's p12j entry and this file's
+  PROGRESS.md entry. Neither correction changes any class's in/out-of-band
+  verdict or the roster's 9-of-12 tally. A third, Minor finding from the
+  same review: BACKLOG.md's p12j entry said "3 genuine regressions" while
+  naming two root causes (the c018/c019 cadence bug, and the
+  class-descriptions ledger miss) — left as a cosmetic note, since "3
+  genuine regressions" is also a defensible read counting failing test
+  cases rather than root causes. **Lesson, sharpened from the one just above
+  it**: cross-document *consistency* (three documents agreeing with each
+  other) is not the same evidence as document-vs-data *correctness* — this
+  item's four documents were internally consistent with each other on
+  animist and still wrong, because the fourth (the spec-numbers ledger) held
+  the truth alone and nothing cross-checked the other three against it or
+  against the actual shipped file. — Reason: a real independent
+  code-reviewer pass, not self-review or a repeat of the same
+  cross-document check; CLAUDE.md's measurement rules ("check a `/data`
+  row's blast radius", "my change improved X needs the control run");
+  SPEC-FINAL §14 G8; BACKLOG p12j.

@@ -300,7 +300,7 @@
  * | cryomancer | 9/12 | 5/12 | in band |
  * | stormcaller | 4/12 | 5/12 | in band |
  * | bloodlord | 4/12 | 5/12 | in band |
- * | animist | 9/12 | 6/12 | in band |
+ * | animist | 9/12 | 8/12 | in band (at ceiling — see correction below) |
  * | paladin | 3/12 | 5/12 | in band |
  * | time_lord | 10/12 | 8/12 | in band |
  *
@@ -325,6 +325,31 @@
  * necromancer, this very item) is measured-then-honestly-re-pinned over
  * chased. Full independent-review verification, including a re-derivation
  * of the ownShare/win-count numbers from scratch: QUESTIONS Q196.
+ *
+ * **Second follow-up (2026-09-07, independent code-reviewer finding on the
+ * commit above, both re-verified directly by the lead session with a
+ * throwaway `tools/`-script probe against `runClassScripted`, deleted after
+ * use): two rows in this table's "after" column described an abandoned
+ * intermediate value, not what actually shipped.** `animist`'s Wide Grove
+ * `area` was first cut 10%->4% (independently re-measures at 6/12) but that
+ * broke `tests/class-wide-grove-reach.test.ts`'s live-derived RING probe
+ * placement — reproduced directly, 9 failures. The shipped value is
+ * 10%->**8%**, which clears both: **8/12**, not 6/12, and at the G8 ceiling
+ * with zero headroom (`tests/class-spec-numbers.test.ts`'s own ledger row
+ * for this field already carried the correct 8%/wide-grove-reach story;
+ * only this file and BACKLOG/PROGRESS/QUESTIONS still had the stale draft).
+ * `plaguebringer`'s Poison Boost (`active2.cooldownSeconds` 14->8) was
+ * described as a rejected lever ("cooldown-only... measured worse") with
+ * only Poison Barrel's damage/radius (`active1`) credited — false: reverting
+ * `cooldownSeconds` to 14 while keeping the shipped `active1` damage/radius
+ * independently re-measures at **4/12, still under floor**; only with the
+ * cooldown cut restored does it clear to the documented 6/12. The
+ * `active2` cut is load-bearing, not a discarded experiment. Neither
+ * correction changes the roster's overall in-band count (animist and
+ * plaguebringer were already counted in-band under the wrong numbers) or
+ * `tests/class-descriptions.test.ts`'s ledger token for animist, which
+ * already reads the correct shipped "+8%" (fixed in the container-restart
+ * recovery pass above, before this finding). Full write-up: QUESTIONS Q196.
  *
  * **9 of 12 in band — still clears SPEC-FINAL §14's own G8 ratio (>=9 of
  * 12), exactly at the boundary.**
@@ -638,7 +663,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // only `basicAttack`/`active1`/`active2` were legal to touch there, and a
   // ~35-40% cut on those alone also didn't move it. Data left unchanged.
   it.skip('swordsman', () => assertBand('swordsman')); // p12j (2026-09-07): still **2/12, under floor** — genuinely tried, not chased-and-gave-up: 3 rounds, each a materially different lever (Circle Slash damage 180->260 alone; then +cooldown 6->3/knockback 3->6; then a drastic damage 260->450/radius 4->6/minDamage 30->100 + Dash Slash damage 90->200/cooldown 4->2). Every round measured **exactly the same 10/12 first-VS-block `defeat_warden`@w3**, not even one seed's outcome flipped — kit damage is provably not the bottleneck for this class's Night-1 wipe. Settled on the smallest tested buff (damage 260, everything else stock) rather than leaving an untested extreme value in `/data` for zero measured gain. Read as Warden raw-survival (HP/mitigation), not kit-damage — outside a `classes.json`-only lever this item found. QUESTIONS Q196.
-  it('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): Poison Barrel (active1) damage 24->40, then radius 3->5 (wider cloud hits more of the Night-1 swarm) — cooldown-only and damage-only variants tried in between measured worse (2-4/12), radius was the lever that moved it. 3/12 -> **6/12, in band.** QUESTIONS Q196.
+  it('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): CORRECTED post-container-restart (independent code-reviewer finding, re-verified by the lead session directly): the shipped lever is not radius alone. Poison Barrel (active1) damage 24->40 + radius 3->5, *and* Poison Boost (active2) cooldownSeconds 14->8, land together — damage+radius alone (cooldown left at 14) independently re-measured at **4/12, still under floor**; only with the cooldown cut added does it clear to **6/12, in band**. Earlier drafts of this comment and of BACKLOG/PROGRESS/QUESTIONS described cooldown as a rejected lever — that was wrong; it is load-bearing. 3/12 -> **6/12, in band.** QUESTIONS Q196.
   // p12j re-tune (2026-09-07): a `towerHp` passive bump (10->18%) was tried
   // first and made it *worse* (3/12 -> 2/12) — reverted. Real lever: Pop
   // Turret (active2, a structure that keeps firing in VS unlike
@@ -698,7 +723,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   it('stormcaller', () => assertBand('stormcaller')); // p12j re-tune (2026-09-07): Chain Surge (active1) damage 54->75 alone left it unmoved (4/12->4/12); cooldown 8->5 on top was the lever that moved it. 4/12 -> **5/12, in band.** QUESTIONS Q196.
   // p10s closed this one on the pre-p12 baseline; re-opened by the p12a-p12c
   // arc, same as the rest of the table (header).
-  it('animist', () => assertBand('animist')); // p12j re-tune (2026-09-07): Wide Grove (towerPassive) area bonus 10%->4%, single lever — a straightforward towerPassive nerf, per the item's own suggestion for an over-ceiling class. 9/12 -> **6/12, in band.** QUESTIONS Q196.
+  it('animist', () => assertBand('animist')); // p12j re-tune (2026-09-07): CORRECTED post-container-restart (independent code-reviewer finding, re-verified by the lead session directly). Wide Grove (towerPassive) area bonus first cut 10%->4% — that value is NOT what shipped: it independently re-measures at 6/12 (in band) but breaks `tests/class-wide-grove-reach.test.ts`'s live-derived RING probe placement (9 failures, reproduced directly). The shipped value is 10%->**8%**, which clears both the wide-grove-reach probe and G8: independently re-measured at **8/12, in band** (at the ceiling, not mid-band — no headroom). Earlier drafts of this comment and of BACKLOG/PROGRESS/QUESTIONS still described the abandoned 4%/6-12 draft as final; `tests/class-spec-numbers.test.ts`'s own ledger row for this field already had the correct 8%/wide-grove-reach story. 9/12 -> **8/12, in band.** QUESTIONS Q196.
   // Tuned (header, corrected this session — Q123): Guardian
   // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
   // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:

@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12j second follow-up — a real independent
+  code-reviewer agent (dispatched by the lead session on the container-restart
+  recovery commit) found two Major documentation/data mismatches; both
+  re-verified directly and fixed, no class's in/out-of-band verdict changes.**
+  **animist**: the entry below and `tests/p6e-class-diversity.test.ts`
+  documented Wide Grove `area` as retuned 10%->4% (9/12->6/12), but
+  `data/classes.json` actually ships 10%->**8%**. Re-measured both directly
+  with a throwaway `tools/`-script probe (deleted after use) reusing
+  `runClassScripted`: the 4% draft independently re-measures at 6/12 but
+  breaks `tests/class-wide-grove-reach.test.ts`'s live-derived RING probe
+  placement (9 failures) — 8% was the actual, later decision (already
+  correctly recorded in `tests/class-spec-numbers.test.ts`'s own ledger row,
+  just never propagated to the other three documents) and independently
+  re-measures at **8/12**, sitting at the G8 band ceiling with no headroom.
+  **plaguebringer**: documented as a Poison Barrel (`active1`) damage/radius
+  retune alone, with Poison Boost's `active2.cooldownSeconds` (14->8) named
+  as a rejected lever — false. Reverting `cooldownSeconds` to 14 while
+  keeping the shipped `active1` damage/radius independently re-measures at
+  **4/12, still under floor**; the cooldown cut is load-bearing, not a
+  discarded experiment. Fixed in `tests/p6e-class-diversity.test.ts`'s header
+  table and both classes' trailing `it` comments, and in BACKLOG.md's p12j
+  entry. **Lesson**: a "re-verified, matches exactly" claim (the entry below,
+  for animist specifically) survived a mismatch between the shipped value and
+  three of four documents describing it — one ledger (`class-spec-numbers.
+  test.ts`) had the right story from an earlier bisection round the other
+  three never absorbed. Cross-document consistency is not the same as
+  data-vs-document correctness; both need independent checking. Full record:
+  QUESTIONS Q196.
+
 - **2026-09-07 — main lane: BACKLOG p12j follow-up — a container restart mid-item
   meant its own code-reviewer/qa-playtester passes were self-review; the lead
   session found and fixed 3 real regressions self-review missed, and the

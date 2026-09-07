@@ -1050,8 +1050,9 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       SPEC-FINAL §14's own ">=9 of 12" ratio exactly at the boundary.
       plaguebringer 3->6/12, engineer 3->5/12 (later 4/12, see follow-up),
       pyromancer 2->5/12, cryomancer 9->5/12, stormcaller 4->5/12, bloodlord
-      4->5/12, animist 9->6/12, paladin 3->5/12, time_lord 10->8/12; archer
-      untouched (already in band per fb177). **swordsman held at 2/12
+      4->5/12, animist 9->8/12 (see second follow-up below — 6/12 was an
+      abandoned intermediate value, not what shipped), paladin 3->5/12,
+      time_lord 10->8/12; archer untouched (already in band per fb177). **swordsman held at 2/12
       through 3 materially different lever rounds** (damage alone;
       +cooldown/knockback; a drastic damage/radius rework plus a Dash Slash
       rework) — every round reproduced the *identical* 10/12 first-VS-block
@@ -1126,8 +1127,39 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       alongside swordsman/necromancer, the other 9 live and green). Full
       before/after tables, per-class hypothesis log, the gate-coupling
       bisect and this follow-up: `tests/p6e-class-diversity.test.ts`'s p12j
-      header paragraph; decision record QUESTIONS Q196. Original text
-      follows.
+      header paragraph; decision record QUESTIONS Q196.
+      **Second follow-up (2026-09-07): a real independent code-reviewer
+      agent (dispatched by the lead session on the commit above) found two
+      Major discrepancies between this item's documented levers/numbers and
+      what `data/classes.json` actually shipped.** Both re-verified directly
+      by the lead session with a throwaway `tools/`-script probe reusing
+      `runClassScripted` (deleted after use, per project convention).
+      **animist**: the documented lever was Wide Grove `area` 10%->4%
+      (9/12->6/12), but the shipped value is 10%->**8%**. The 4% draft
+      independently re-measures at 6/12 but breaks
+      `tests/class-wide-grove-reach.test.ts`'s live-derived RING probe
+      placement (9 failures, reproduced directly) — 8% was the real, later
+      decision (already correctly recorded in
+      `tests/class-spec-numbers.test.ts`'s own ledger row for this field,
+      just never propagated to this item's other three documents) and
+      independently re-measures at **8/12**, at the G8 band ceiling with no
+      headroom. **plaguebringer**: documented as Poison Barrel
+      (`active1`) damage/radius alone, with Poison Boost's
+      `active2.cooldownSeconds` (14->8) named as a rejected, reverted
+      lever — false. Reverting `cooldownSeconds` to 14 while keeping the
+      shipped `active1` damage/radius independently re-measures at **4/12,
+      still under floor**; the cooldown cut is load-bearing and is part of
+      the real shipped state. Neither correction changes any class's
+      in/out-of-band verdict or the roster's 9-of-12 tally — only the
+      recorded win-counts and lever list for these two rows were wrong.
+      Fixed in `tests/p6e-class-diversity.test.ts`'s header table and both
+      classes' trailing `it` comments; this entry's numbers above corrected
+      to match. A third, Minor finding from the same review: this entry
+      said "3 genuine regressions" while listing two root causes (the
+      cadence bug behind both c018 and c019, and the class-descriptions
+      ledger miss) — cosmetic, three failing test cases from two root
+      causes, left as-is since both readings are defensible. Full record:
+      QUESTIONS Q196. Original text follows.
       Follow-up from fb177's bisection: G8
       (`tests/p6e-class-diversity.test.ts`) is no longer a roster mostly over
       the win-rate ceiling — after p12a-p12c's `baseHpMul: 20` + T3
