@@ -140,8 +140,35 @@ the merge — never edited from this lane.
       Until both are fixed, fb156 is generator-complete but not
       gameplay-complete: `tests/terrain-gates-dump.test.ts`'s
       `it.skip('describes a live Fourth Gate run correctly...')` stays
-      skipped for exactly this reason, and `tests/fb077-terrain-wiring.test.ts`
-      (outside this lane) is expected to be red until it lands.
+      skipped for exactly this reason.
+
+      **Full disclosure, per this lane's own fb166 precedent (code-reviewer
+      finding): a full `npm run test:fast`, not just the `tests/terrain*`
+      subset, turns 21 files outside this lane red** — up from 14 after
+      fb166 alone. All are traceable to `GATES` growing to 4 entries and
+      `west` moving from `(0,10)` to `(0,12)`, on top of the still-open
+      fb166 fallout (36x20-relative literals): `tests/act1.test.ts`,
+      `tests/class-board.test.ts`, `tests/class-passive-liveness.test.ts`,
+      `tests/content-complete.test.ts`, `tests/fb015-equipment.test.ts`,
+      `tests/fb027-selection-panels.test.ts`,
+      `tests/fb036-path-indicators.test.ts`,
+      `tests/fb077-terrain-wiring.test.ts`, `tests/grid.test.ts`,
+      `tests/p1a-sealing.test.ts`, `tests/p6b-swordsman.test.ts`,
+      `tests/p6c-plaguebringer.test.ts`, `tests/p6d-nine-classes.test.ts`,
+      `tests/p8d-boss-termination.test.ts`,
+      `tests/q15-command-domain-fuzz.test.ts`,
+      `tests/q45-cli-schema-violation.test.ts`, `tests/t2-selection.test.ts`,
+      `tests/ui-fb082-overlay-geometry.test.ts`,
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts`,
+      `tests/ui-fb106-extreme-aspect-geometry.test.ts`,
+      `tests/ui-input.test.ts`. Two of these — `tests/grid.test.ts`
+      (`expect(GATES.length).toBe(3)`, now 4) and `tests/act1.test.ts` (a
+      hand-built 3-wall seal fixture at the *old* west position `(0,10)`,
+      now missing the gate at its real `(0,12)`) — are literal-count/
+      literal-coordinate assumptions of exactly the shape this item's own
+      changes create, not pre-existing fb166 fallout; the other 19 overlap
+      with or extend the fb166 list. None are terrain-owned; none were
+      touched.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
