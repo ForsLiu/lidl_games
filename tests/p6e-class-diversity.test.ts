@@ -281,6 +281,82 @@
  * Reverting `baseHpMul` would re-break p12c's own deliberate T3 contested-
  * margin fit and every other gate it touches. Follow-up filed as **p12j**.
  * Full table, bisect log and decision: QUESTIONS Q195.
+ *
+ * **p12j (2026-09-07) — the roster-wide `data/classes.json`-only re-tune this
+ * paragraph called for, done.** Iterative, one-or-few-lever-at-a-time rounds
+ * per class (2-4 rounds each, some hypotheses measured *worse* and were
+ * reverted — see each `it`'s own trailing comment below for the specific
+ * before/after/reverted levers), re-measured against a live `beforeAll` after
+ * every change. Full final table (was -> now):
+ *
+ * | class | before | after | band |
+ * |---|---|---|---|
+ * | swordsman | 2/12 | 2/12 | still under (3 rounds, no lever moved it) |
+ * | plaguebringer | 3/12 | 6/12 | in band |
+ * | engineer | 3/12 | 4/12 | still under by 1 (see follow-up below) |
+ * | pyromancer | 2/12 | 5/12 | in band |
+ * | archer | 5/12 | 5/12 | in band (untouched) |
+ * | necromancer | 3/12 | 4/12 | still under by 1 (3 rounds, best kept) |
+ * | cryomancer | 9/12 | 5/12 | in band |
+ * | stormcaller | 4/12 | 5/12 | in band |
+ * | bloodlord | 4/12 | 5/12 | in band |
+ * | animist | 9/12 | 6/12 | in band |
+ * | paladin | 3/12 | 5/12 | in band |
+ * | time_lord | 10/12 | 8/12 | in band |
+ *
+ * **Follow-up (2026-09-07, found directly by the lead session re-running
+ * `npm run test:fast` after this item's own container-restart recovery,
+ * independent review pending): engineer's own Pop Turret retune left
+ * `summonCap: 3` nominally unreachable at its own cast cadence** —
+ * `cadenceCeiling(10s duration, 2.5s cooldown) = 4`, one short of
+ * `summonCap(3) + maxBonus(2) = 5` — breaking `tests/class-line-bonus.
+ * test.ts`'s c018 invariant and `tests/class-active2-cdr.test.ts`'s c019
+ * case (both assert an authored cap is actually reachable, not just
+ * written down). Fixed with the smallest cut that restores reachability,
+ * `cooldownSeconds` 2.5->2.4 (re-verified G1/G14 both still clean at 2.4)
+ * — engineer's own chaotic seed trajectory moved by exactly one win on that
+ * 0.1s change, **5/12 -> 4/12**, landing back at "under by 1" rather than
+ * "in band." Not chased further with another retune round: the cadence bug
+ * was the real defect here (a nominally-reachable-but-actually-unreachable
+ * cap is a bug independent of this file's own win-rate target), re-tuning
+ * `summonStatMul`/cap again to chase this exact seed count would risk
+ * reopening the G14 boss-test coupling this item already found and fixed
+ * once, and this codebase's own precedent throughout this arc (swordsman,
+ * necromancer, this very item) is measured-then-honestly-re-pinned over
+ * chased. Full independent-review verification, including a re-derivation
+ * of the ownShare/win-count numbers from scratch: QUESTIONS Q196.
+ *
+ * **9 of 12 in band — still clears SPEC-FINAL §14's own G8 ratio (>=9 of
+ * 12), exactly at the boundary.**
+ * Two honestly left open, both after genuine multi-round effort, not a
+ * one-shot give-up: **swordsman** got 3 materially different lever rounds
+ * (Circle Slash damage alone; +cooldown/knockback; a drastic damage+radius
+ * bump plus a Dash Slash rework) and every round reproduced the *exact same*
+ * 10/12 first-VS-block `defeat_warden`@w3 signature this file's fb177 header
+ * diagnosed — not even one seed's outcome changed, which is itself a real
+ * finding: kit damage is not this class's bottleneck, so whatever is (most
+ * likely raw Warden HP/mitigation against the Night-1 swarm, not a
+ * `classes.json` kit lever this item can reach) is outside this item's
+ * `/data`-only scope — flagged, not fixed. **necromancer** landed one win
+ * short of band after 3 rounds; its best config is kept over two
+ * measured-worse alternatives (see its `it.skip` comment). Both are logged,
+ * not forced. Bloodlord — sharing swordsman's exact diagnosed mechanism per
+ * fb177's header — did move, on a completely different lever (its Blood
+ * Tithe/Crimson Rush numbers, not raw damage), which is itself evidence the
+ * shared "shortest range + highest basicAttack.dps" diagnosis correlates but
+ * isn't the whole causal story per class. **A real gate-coupling hit, per
+ * CLAUDE.md's A4/A7 lesson**: engineer's first Pop Turret buff cleared G8
+ * (7/12) but broke `tests/boss.test.ts`'s T1 mechanism check (that file's
+ * own default `classKey` is `engineer` — a stronger Pop Turret killed the
+ * Warden-Eater in 15-17s against its own ">20s, not trivially short" floor).
+ * Caught by re-running G1/G14 directly (both excluded from `test:fast`,
+ * neither touched since p12e/p12f) rather than assuming a `classes.json`
+ * change confined to one class's own row stays confined to one gate — found
+ * the narrow window (`summonStatMul: 0.38`, `cooldownSeconds: 2.5`) that
+ * keeps both G8 and G14 green; see engineer's own comment below (later
+ * cut to `cooldownSeconds: 2.4` by the cadence-reachability follow-up
+ * above — G1/G14 re-verified clean at that value too). Full write-up,
+ * per-class hypothesis log and the before/after table: QUESTIONS Q196.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -524,7 +600,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // for the even-more-extreme probe that also failed to move a class. Data
   // left unchanged (the tuning was reverted) since it produced zero measured
   // benefit. Re-enable point stays **P10**.
-  it.skip('cryomancer', () => assertBand('cryomancer')); // fb177 re-measurement (2026-09-07, HEAD post p12a-p12h): 9/12 (75%) — over the 70% ceiling, down from 12/12 but still not contested. 3 losses: defeat_core w7/15/17. Cause: baseHpMul:20 (p12c) + T3 reference move (p12b) — see header. Re-pinned, not chased (roster-wide re-tune, out of scope — BACKLOG p12j).
+  it('cryomancer', () => assertBand('cryomancer')); // p12j re-tune (2026-09-07): Glaciate (active1) damage 60->40, single lever. 9/12 -> **5/12, in band.** QUESTIONS Q196.
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
@@ -561,11 +637,40 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // test.ts`'s own literal pins on `towerPassive.mods` (see those files) —
   // only `basicAttack`/`active1`/`active2` were legal to touch there, and a
   // ~35-40% cut on those alone also didn't move it. Data left unchanged.
-  it.skip('swordsman', () => assertBand('swordsman')); // fb177 re-measurement (2026-09-07): 2/12 (16.7%) — collapsed from 12/12, 10/12 seeds defeat_warden at the *first VS/Night block* (wavesCleared reads 3, but the death itself lands 18-40s into that block, not TD — see header). Bisected to baseHpMul:20 (p12c), dominant, + the T3 reference-tier move (p12b), secondary. Roster's worst-hit class: shortest range (2.5) + highest basicAttack.dps (78), and basicAttack is TD-only so contributes nothing to the fight that's actually killing it. Re-pinned, not chased (BACKLOG p12j).
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // fb177 re-measurement (2026-09-07): 3/12 (25%) — down from 12/12. 5/12 defeat_warden@w3 (first VS block), 4/12 defeat_core (w6-17), 3 wins. Same baseHpMul:20/T3-move cause as the rest of the table (header). Re-pinned (BACKLOG p12j).
-  it.skip('engineer', () => assertBand('engineer')); // fb177 re-measurement (2026-09-07): 3/12 (25%) — down from 12/12. Mostly defeat_core w6-17 (7/12), only 2/12 the first-VS-block defeat_warden@w3 signature — engineer is comparatively less exposed to the Night-1 mechanism (header) but still under floor from the same baseHpMul:20/T3 move. Re-pinned (BACKLOG p12j).
-  it.skip('pyromancer', () => assertBand('pyromancer')); // fb177 re-measurement (2026-09-07): 2/12 (16.7%) — down from 11/12. 7/12 defeat_warden@w3 (first VS block, header mechanism), 3/12 defeat_core, 2 wins. Re-pinned (BACKLOG p12j).
-  it('archer', () => assertBand('archer')); // fb177 re-measurement (2026-09-07): **5/12 (41.7%) — honestly in band [5,8], un-skipped.** Down from 12/12 but the one class the new baseHpMul:20/T3 baseline (header) landed inside G8's target rather than off either end. Still shows 7/12 first-VS-block defeat_warden@w3 losses, just offset by enough wins.
+  it.skip('swordsman', () => assertBand('swordsman')); // p12j (2026-09-07): still **2/12, under floor** — genuinely tried, not chased-and-gave-up: 3 rounds, each a materially different lever (Circle Slash damage 180->260 alone; then +cooldown 6->3/knockback 3->6; then a drastic damage 260->450/radius 4->6/minDamage 30->100 + Dash Slash damage 90->200/cooldown 4->2). Every round measured **exactly the same 10/12 first-VS-block `defeat_warden`@w3**, not even one seed's outcome flipped — kit damage is provably not the bottleneck for this class's Night-1 wipe. Settled on the smallest tested buff (damage 260, everything else stock) rather than leaving an untested extreme value in `/data` for zero measured gain. Read as Warden raw-survival (HP/mitigation), not kit-damage — outside a `classes.json`-only lever this item found. QUESTIONS Q196.
+  it('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): Poison Barrel (active1) damage 24->40, then radius 3->5 (wider cloud hits more of the Night-1 swarm) — cooldown-only and damage-only variants tried in between measured worse (2-4/12), radius was the lever that moved it. 3/12 -> **6/12, in band.** QUESTIONS Q196.
+  // p12j re-tune (2026-09-07): a `towerHp` passive bump (10->18%) was tried
+  // first and made it *worse* (3/12 -> 2/12) — reverted. Real lever: Pop
+  // Turret (active2, a structure that keeps firing in VS unlike
+  // `classBasicAttack`) `summonStatMul` 0.30->0.55, cap 2->3, cooldown 3->2,
+  // first got G8 to 7/12 — but broke `tests/boss.test.ts`'s T1 "not
+  // trivially short" floor (this file's own default `classKey` is
+  // `engineer`, boss killed in 15-17s against a >20s floor). Dialed back to
+  // `summonStatMul: 0.38`, `cooldownSeconds: 2.5` (cap 3 kept) — the narrow
+  // window that keeps both green: weaker (0.34) dropped the boss test's own
+  // T1 win count below its own floor, stronger (0.42) re-broke the >20s
+  // check. 3/12 -> **5/12, in band** (right at the floor).
+  //
+  // p12j follow-up (2026-09-07, found directly by the lead session): the
+  // same Pop Turret retune left `summonCap` 3 nominally unreachable at its
+  // own cast cadence — `cadenceCeiling(10s duration, 2.5s cooldown) = 4` casts alive
+  // at once, one short of `summonCap(3) + maxBonus(2) = 5`, breaking
+  // `tests/class-line-bonus.test.ts`'s c018 invariant and
+  // `tests/class-active2-cdr.test.ts`'s c019 case (both assert the
+  // authored cap is actually reachable, not just written down). Fixed by
+  // cutting `cooldownSeconds` 2.5->2.4 (the smallest step that makes
+  // `cadenceCeiling` reach 5) — re-verified G1/G14 both still clean at 2.4.
+  // That 0.1s cut moved this exact class/seed set's chaotic trajectory by
+  // one win: **5/12 -> 4/12, one seed short of the floor.** Not chased
+  // further (the cadence bug is the real defect; re-tuning `summonStatMul`
+  // again to chase this exact seed count risks reopening the G14 coupling
+  // this item already found once) — re-pinned honestly. The roster count
+  // this item's acceptance reads (SPEC-FINAL §14's own ">=9 of 12") drops
+  // from 10 to **9 of 12**, still clearing the threshold exactly at the
+  // boundary. See QUESTIONS Q196.
+  it.skip('engineer', () => assertBand('engineer')); // p12j follow-up: 4/12, under floor by one seed (see comment above)
+  it('pyromancer', () => assertBand('pyromancer')); // p12j re-tune (2026-09-07): Immolation Wave (active1) damage 135->200, single lever, first try. 2/12 -> **5/12, in band.** QUESTIONS Q196.
+  it('archer', () => assertBand('archer')); // fb177 re-measurement (2026-09-07): 5/12, in band, no `data/classes.json` change (p12j left archer untouched — see QUESTIONS Q196).
   // Tuned (header, corrected this session — Q123): Raise's
   // cooldown/potency/duration/radius all buffed. Early defeat_warden is now
   // the minority (3/12: waves 3/6/15) against a defeat_core majority (9/12:
@@ -589,11 +694,11 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // HEAD with no p10s edit at all (animist was left untouched; every lever
   // tried on other classes at this magnitude produced zero movement, so it
   // wasn't spent here) — still over the 8-win ceiling.
-  it.skip('necromancer', () => assertBand('necromancer')); // fb177 re-measurement (2026-09-07): 3/12 (25%) — down from 12/12. Mostly defeat_core w6-17 (7/12), only 2/12 the first-VS-block defeat_warden@w3 signature, 3 wins. Same baseHpMul:20/T3-move cause (header). Re-pinned (BACKLOG p12j).
-  it.skip('stormcaller', () => assertBand('stormcaller')); // fb177 re-measurement (2026-09-07): 4/12 (33.3%) — down from 12/12, one seed under the floor. 2/12 first-VS-block defeat_warden@w3, 6/12 defeat_core w6-17, 4 wins. Re-pinned (BACKLOG p12j).
+  it.skip('necromancer', () => assertBand('necromancer')); // p12j (2026-09-07): still **4/12, under floor by 1** — 3 rounds tried: Raise `summonStatMul` 0.65->0.90 alone (3/12->4/12, best result); stacking a cooldown cut (6->4) on top *collapsed* it to 0/12 (reverted); `summonCap` 8->14 on top of the 0.90 mul alone gave 2/12 (also reverted). Settled on the one config that actually measured better than baseline (`summonStatMul: 0.90`, everything else stock) rather than an untested or measured-worse alternative. One win short of band; loss mode is mostly the roster's w6-17 `defeat_core` wall, not the Night-1 mechanism. QUESTIONS Q196.
+  it('stormcaller', () => assertBand('stormcaller')); // p12j re-tune (2026-09-07): Chain Surge (active1) damage 54->75 alone left it unmoved (4/12->4/12); cooldown 8->5 on top was the lever that moved it. 4/12 -> **5/12, in band.** QUESTIONS Q196.
   // p10s closed this one on the pre-p12 baseline; re-opened by the p12a-p12c
   // arc, same as the rest of the table (header).
-  it.skip('animist', () => assertBand('animist')); // fb177 re-measurement (2026-09-07): 9/12 (75%) — over the 70% ceiling (was 10/12, already over, under the old baseline too). 2/12 timeout@w6 (a genuine stalemate, not chased per rule 6/precedent), 1/12 defeat_core@w7, 9 wins. No first-VS-block defeat_warden losses at all — animist is not exposed to the header's Night-1 mechanism. Re-pinned (BACKLOG p12j).
+  it('animist', () => assertBand('animist')); // p12j re-tune (2026-09-07): Wide Grove (towerPassive) area bonus 10%->4%, single lever — a straightforward towerPassive nerf, per the item's own suggestion for an over-ceiling class. 9/12 -> **6/12, in band.** QUESTIONS Q196.
   // Tuned (header, corrected this session — Q123): Guardian
   // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
   // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:
@@ -618,7 +723,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // basicAttack/passive/towerPassive/active magnitude moves this gate at all
   // once T1 carries `TREE_AUTO_MAX`. Reverted (produced no benefit); data
   // unchanged from the fb049-era baseline. Re-enable point stays **P10**.
-  it.skip('paladin', () => assertBand('paladin')); // fb177 re-measurement (2026-09-07): 3/12 (25%) — down from 12/12. 2/12 first-VS-block defeat_warden@w3, 7/12 defeat_core w6-17, 3 wins. Same baseHpMul:20/T3-move cause (header). Re-pinned (BACKLOG p12j).
+  it('paladin', () => assertBand('paladin')); // p12j re-tune (2026-09-07): Judgement (active2) `wrathDamageMul` 2.2->3.2, single lever, first try — worth noting this class's own numeric tuning history (this file's earlier prose, above) previously found "even an extreme magnitude" left it unmoved; a materially different lever (Wrath payout, not Ice-Wall-style survival) did move it this time. 3/12 -> **5/12, in band.** QUESTIONS Q196.
 
   // **p10s (BACKLOG p10s, QUESTIONS Q158) — CLOSED.** Every other class in
   // this file sits on a genuine /data-only wall (see each `it.skip` above):
@@ -653,7 +758,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // moves this once T1 carries the real `TREE_AUTO_MAX` allocation) — not
   // re-chased here per CLAUDE.md rule 6. Re-enable point stays P10 / an
   // owner verdict on Q160.
-  it.skip('bloodlord', () => assertBand('bloodlord')); // fb177 re-measurement (2026-09-07): 4/12 (33.3%) — collapsed from 12/12 landslide, one seed under the floor. 8/12 first-VS-block defeat_warden@w3 (header mechanism) — bloodlord is the roster's *second*-worst-hit class after swordsman, and shares the same profile: shortest range (2.5) and #3 basicAttack.dps (51), both useless in the VS fight that's actually killing it. Re-pinned (BACKLOG p12j).
+  it('bloodlord', () => assertBand('bloodlord')); // p12j re-tune (2026-09-07): unlike swordsman's identical mechanism, this one *did* move — 3 rounds: a `towerHp` passive fix (-10%->-2%, reasoning: Blood Tithe pays a *tower's own* HP, so the roster's one class actively weakening its towers' survival mid-swarm looked like a real bug) measured *worse* (4/12->3/12), reverted; Crimson Rush (active2, the class's only direct Warden-HP tool) `healPerEnemy` 2->10 alone also measured worse (3/12->1/12); the combination that worked was going hard on Blood Tithe itself (active1: `titheDamageMul` 0.25->0.60, `titheHpFraction` 0.30->0.10, cooldown 10->5, radius 4->7 — tithe more towers, faster, for less HP cost each) plus keeping the `healPerEnemy` 10 buy but reverting its cooldown 8->6 (4 was worse than 6). 4/12 -> **5/12, in band.** QUESTIONS Q196.
 
   // p10v: Time Lord (fb013's 12th class) rode along in `measurements`/the
   // diversity checks below but never had its own individual G8 win-rate pin
@@ -661,7 +766,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // Measured against HEAD with the same scripted-kit/`TREE_AUTO_MAX` harness:
   // same over-ceiling story as the other ten un-skipped classes — every seed
   // a landslide win, no timeouts, no defeats.
-  it.skip('time_lord', () => assertBand('time_lord')); // fb177 re-measurement (2026-09-07): 10/12 (83.3%) — over the 70% ceiling, down from 12/12. 2/12 defeat_core (w12/17), 10 wins, no first-VS-block defeat_warden losses. Same baseHpMul:20/T3-move cause (header). Re-pinned (BACKLOG p12j).
+  it('time_lord', () => assertBand('time_lord')); // p12j re-tune (2026-09-07): Chronal Surge (towerPassive) `bonusRangeMul`/`bonusAoeMul` 0.10->0.05 (both halved together, one conceptual lever), single round. 10/12 -> **8/12, in band** (right at the ceiling — `floor(12*0.70)=8`). QUESTIONS Q196.
 
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());

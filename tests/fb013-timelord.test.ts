@@ -506,7 +506,10 @@ describe('fb013: Passive *Time Flow* — damage taken becomes a 4 s DoT after on
   });
 });
 
-describe('fb013: tower passive *Chronal Surge* — a free +10% range/AoE bump every 2 TD waves', () => {
+// p12j (2026-09-07): bonusRangeMul/bonusAoeMul 0.10 -> 0.05, G8 nerf pass
+// (time_lord was over the win-rate ceiling, 10/12 -> 8/12) — see
+// tests/p6e-class-diversity.test.ts's p12j header and QUESTIONS Q196.
+describe('fb013: tower passive *Chronal Surge* — a free +5% range/AoE bump every 2 TD waves', () => {
   it('does nothing after 1 wave, and folds in both bonuses after 2', () => {
     const run = makeRun();
     const w = run.world;
@@ -533,8 +536,8 @@ describe('fb013: tower passive *Chronal Surge* — a free +10% range/AoE bump ev
     w.enemies = [];
     run.step(emptyInput());
     expect(w.wavesCleared).toBe(2);
-    expect(w.derived.towerRangeMul).toBeCloseTo(rangeBefore * 1.1, 5);
-    expect(w.derived.areaMul).toBeCloseTo(areaBefore * 1.1, 5);
+    expect(w.derived.towerRangeMul).toBeCloseTo(rangeBefore * 1.05, 5);
+    expect(w.derived.areaMul).toBeCloseTo(areaBefore * 1.05, 5);
   });
 
   it('does not fire for a class other than Time Lord', () => {

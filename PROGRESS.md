@@ -5,6 +5,97 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12j follow-up — a container restart mid-item
+  meant its own code-reviewer/qa-playtester passes were self-review; the lead
+  session found and fixed 3 real regressions self-review missed, and the
+  final honest tally is 9 of 12 classes in band, not 10.** The p12j
+  implementing session had no Agent/Task subagent-dispatch access (confirmed
+  via `ToolSearch`) and flagged its self-review explicitly rather than
+  claiming it was independent — but the container restarted before the lead
+  session picked this up, so the uncommitted retune sat unverified. Re-running
+  `npm run test:fast` directly (not via a delegated reviewer this round)
+  turned up two real bugs: (1) engineer's retuned Pop Turret `summonCap: 3`
+  was nominally unreachable at its own 2.5s cast cadence
+  (`cadenceCeiling(10s, 2.5s) = 4`, one short of `summonCap(3) + maxBonus(2)
+  = 5`), breaking `tests/class-line-bonus.test.ts`'s c018 case and
+  `tests/class-active2-cdr.test.ts`'s c019 case — both exist specifically to
+  catch an authored cap that looks reachable on paper but isn't at the real
+  cadence. (2) `tests/class-descriptions.test.ts`'s animist/time_lord
+  `towerPassive` ledger entries still quoted the pre-nerf 10% tokens after
+  `data/classes.json` had already been correctly updated to 8%/5% — the item's
+  own text claimed this was "also fixed" but only the data side was. Fixed
+  both directly: `cooldownSeconds` 2.5->2.4 for the cadence bug (smallest cut
+  that restores reachability — re-verified G1/G14 both still clean at that
+  value), ledger tokens corrected to match the live descriptions. Re-running
+  the full G8 sweep after the cooldown fix surfaced a further, honest
+  consequence rather than a bug: that same 0.1s cut moved engineer's own
+  chaotic seed trajectory by exactly one win, **5/12 -> 4/12**, dropping it
+  back out of band. Not chased with a further retune round — the cadence bug
+  was the real defect to fix, and re-tuning `summonStatMul`/cap again to
+  chase this exact seed count risked reopening the G14 boss-test coupling
+  this item already found and fixed once; re-pinned honestly instead (same
+  `it.skip` treatment as swordsman/necromancer). **Net: 9 of 12 classes in
+  band** (not 10) — still clears SPEC-FINAL §14's own ">=9 of 12" ratio,
+  exactly at the boundary. Verification after all fixes: `npx tsc --noEmit`
+  clean; `npm run test:fast` clean (same pre-existing q15/q45 failures as
+  HEAD); direct G1 (`tests/p10d-run-length.test.ts`)/G14
+  (`tests/boss.test.ts`) re-runs both green at `cooldownSeconds: 2.4`; the
+  real G8 file's own full `beforeAll` sweep re-run twice more (once
+  confirming the class-line-bonus/class-active2-cdr/class-descriptions fixes
+  with engineer still temporarily live, once more as the final state with
+  engineer correctly re-`.skip`-ed) — the final run's shape matches the
+  claimed 9/12 exactly. Full write-up:
+  `tests/p6e-class-diversity.test.ts`'s p12j header paragraph (updated in
+  place); QUESTIONS Q196. **Lesson repeated from the p12f entry above**: a
+  delegated session's "self-reviewed, no independent pass" flag means
+  literally no review happened yet, regardless of how thorough the
+  self-review reads — always get a real pass before trusting it, especially
+  after a container restart interrupts the normal verification sequence.
+
+- **2026-09-07 — main lane: BACKLOG p12j re-tuned G8's roster-wide rescramble
+  (fb177/Q195) — 10 of 12 classes now in band, clearing SPEC-FINAL §14's own
+  ">=9/12" ratio.** `data/classes.json`-only, balance-analyst method
+  (hypothesis, one lever or a small named group at a time, re-measure, keep
+  every round including the ones that hurt): plaguebringer 3->6/12, engineer
+  3->5/12, pyromancer 2->5/12, necromancer 3->4/12 (still 1 short),
+  cryomancer 9->5/12, stormcaller 4->5/12, bloodlord 4->5/12, animist
+  9->6/12, paladin 3->5/12, time_lord 10->8/12 — all now in `[5,8]`-of-12.
+  **swordsman held at 2/12 through 3 materially different lever rounds**
+  (damage alone; +cooldown/knockback; a drastic damage/radius/Dash-Slash
+  rework) — every round reproduced the *identical* 10/12 first-VS-block
+  `defeat_warden`@w3 result fb177 diagnosed, not one seed's outcome moved,
+  which is itself a real finding: kit-Active damage is not this class's
+  bottleneck, so the fix (likely raw Warden HP/mitigation) sits outside a
+  `classes.json`-only lever — flagged, not fixed, per this item's own
+  guardrail against reaching into `/src`. **necromancer** landed one win
+  short of band (4/12) after 3 rounds, best config kept over two
+  measured-worse alternatives. Sharpest finding: bloodlord shares
+  swordsman's exact diagnosed mechanism (fb177 header) but *did* respond to
+  retuning (4->5/12, via its own Blood Tithe/Crimson Rush numbers, not raw
+  damage) — the shared "shortest range + highest basicAttack.dps" trait
+  correlates with the roster collapse but doesn't predict which classes a
+  kit-numbers retune alone can rescue. `tests/p6e-class-diversity.test.ts`'s
+  9 newly-in-band classes un-skipped with fresh numbers; swordsman/
+  necromancer re-pinned with honest post-retune counts and the rounds tried.
+  Verified against the real test file's own full `beforeAll` sweep (~45 min,
+  not just the scratch probe used for iteration), plus `npm run test:fast`
+  and a direct re-run of G1 (`tests/p10d-run-length.test.ts`) and G14
+  (`tests/boss.test.ts`) to check for gate coupling per CLAUDE.md's A4/A7
+  lesson — and it found a real one: engineer's first Pop Turret buff (which
+  reached 7/12 on G8) killed the Warden-Eater too fast (15-17s against G14's
+  own >20s "not trivially short" floor), because `tests/boss.test.ts`'s T1
+  mechanism check defaults its own `runScripted` calls to `classKey:
+  'engineer'`. Dialed back to the narrow window (`summonStatMul: 0.38`,
+  `cooldownSeconds: 2.5`) that keeps both gates green — engineer settles at
+  5/12, still in band. `npm run test:fast` neither runs nor would have caught
+  this (both G1 and G14 are excluded from it). No independent
+  code-reviewer/qa-playtester pass — this session had
+  Bash/Read/Edit/Write/Glob/Grep/Artifact tools only, no Agent/Task subagent
+  dispatch (confirmed via ToolSearch), so self-verified rather than
+  independently reviewed. Full before/after table, per-class hypothesis log,
+  and the reverted attempts: `tests/p6e-class-diversity.test.ts`'s new p12j
+  header paragraph; decision record QUESTIONS Q196.
+
 - **2026-09-07 — main lane: BACKLOG fb177 re-measured G8 in full after the
   p12a-p12h balance arc — a roster-wide rescramble, not just swordsman, and
   a bigger cause than the item's own lead.** `tests/p6e-class-diversity.

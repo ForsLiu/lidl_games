@@ -1041,7 +1041,94 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       clause's `.skip` numbers re-measured against whichever is chosen — refs:
       SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, QUESTIONS Q194.
 
-- [ ] (p12j) [balance] Follow-up from fb177's bisection: G8
+- [x] (p12j) [balance] **DONE 2026-09-07** — `data/classes.json`-only
+      re-tune, balance-analyst method (hypothesis, one lever or a small named
+      group at a time, re-measure over a live `beforeAll`-equivalent, keep
+      every round whether it helped, did nothing, or hurt): **9 of 12
+      classes land in G8's `[5,8]`-of-12 band** (engineer moved to 4/12 in a
+      same-day follow-up below — originally read 10 of 12), clearing
+      SPEC-FINAL §14's own ">=9 of 12" ratio exactly at the boundary.
+      plaguebringer 3->6/12, engineer 3->5/12 (later 4/12, see follow-up),
+      pyromancer 2->5/12, cryomancer 9->5/12, stormcaller 4->5/12, bloodlord
+      4->5/12, animist 9->6/12, paladin 3->5/12, time_lord 10->8/12; archer
+      untouched (already in band per fb177). **swordsman held at 2/12
+      through 3 materially different lever rounds** (damage alone;
+      +cooldown/knockback; a drastic damage/radius rework plus a Dash Slash
+      rework) — every round reproduced the *identical* 10/12 first-VS-block
+      `defeat_warden`@w3 result fb177 diagnosed, not one seed's outcome ever
+      moved. That's a real finding, not a shrug: kit-Active damage is
+      provably not this class's bottleneck, so the actual fix (most likely
+      raw Warden HP/mitigation against the Night-1 swarm) sits outside a
+      `classes.json`-only lever — flagged for a `/src`-scoped follow-up per
+      this item's own guardrail, not chased further here. **necromancer**
+      landed one win short of band (4/12) after 3 rounds, best-measured
+      config kept over two later attempts that both measured worse. Sharpest
+      disconfirmation of a clean causal story: **bloodlord shares
+      swordsman's exact diagnosed mechanism (fb177 header) but *did*
+      respond** to retuning (4->5/12, via Blood Tithe/Crimson Rush numbers,
+      not raw damage) — the shared "shortest range + highest
+      basicAttack.dps" trait correlates with the roster collapse but doesn't
+      predict which classes a kit-numbers retune alone can rescue. **Real
+      gate coupling found and fixed** (CLAUDE.md's A4/A7 lesson): engineer's
+      first Pop Turret buff cleared G8 (7/12) but broke `tests/boss.test.ts`
+      (G14) — that file's own T1 mechanism check defaults `classKey` to
+      `'engineer'`, and the stronger turret killed the Warden-Eater in
+      15-17s against G14's own ">20s, not trivially short" floor. Caught
+      only because this item's guardrail said to re-run G1
+      (`tests/p10d-run-length.test.ts`) and G14 directly (both excluded from
+      `test:fast`, so `test:fast` alone would have shipped this broken);
+      bisected by hand to `summonStatMul: 0.38`/`cooldownSeconds: 2.5`, the
+      narrow window keeping both gates green (engineer settles at 5/12, not
+      7/12). `tests/p6e-class-diversity.test.ts`'s 9 newly-in-band classes
+      un-skipped with fresh numbers; swordsman/necromancer re-pinned with
+      honest post-retune counts and the specific rounds tried, not the
+      pre-retune fb177 numbers. Two stray towerPassive description strings
+      (animist, time_lord) still quoting pre-nerf percentages were also
+      fixed. p12d (T1/T3 gate-text rewrite) can now proceed — real numbers on
+      both reference tiers exist again — but rewriting gate text is p12d's
+      own item, not done here.
+      **This item was implemented by a session with no Agent/Task subagent
+      dispatch access, so its own code-reviewer/qa-playtester passes were
+      self-review, not real independent review** — flagged explicitly by
+      that session per this session's own standing instruction not to
+      self-grade. The lead session then found a real bug directly (not via
+      a delegated reviewer this round): re-running `npm run test:fast` after
+      recovering this item's work from a mid-session container restart
+      turned up 3 genuine regressions the self-review missed —
+      `tests/class-line-bonus.test.ts`'s c018 case and
+      `tests/class-active2-cdr.test.ts`'s c019 case (both broken by
+      engineer's retuned Pop Turret `summonCap: 3` being nominally
+      unreachable at its own 2.5s cast cadence — `cadenceCeiling = 4`, one
+      short of the `summonCap + maxBonus = 5` the cap implies), and 5
+      `tests/class-descriptions.test.ts` cases (the animist/time_lord
+      towerPassive ledger entries this item's own ">two stray description
+      strings...fixed" line above refers to were fixed in `data/classes.json`
+      but the corresponding test-file ledger tokens were never updated to
+      match). All fixed by the lead session directly: `cooldownSeconds`
+      2.5->2.4 for the cadence bug (smallest cut that restores
+      reachability), and the ledger tokens corrected to `+8%`/`+5%`/`+5%`
+      to match the already-fixed descriptions. Re-ran the full G8 sweep
+      after the cooldown fix and found a further consequence — engineer's
+      own chaotic seed trajectory moved by exactly one win on that 0.1s
+      cooldown change, **5/12 -> 4/12**, dropping out of band again; not
+      chased with another retune round (see `tests/p6e-class-diversity.
+      test.ts`'s own updated comment for the full reasoning), re-pinned
+      honestly instead. **Net result: 9 of 12 classes in band, not 10**,
+      still clearing SPEC-FINAL's own ">=9 of 12" threshold exactly at the
+      boundary. Verification after all follow-up fixes: `npx tsc --noEmit`
+      clean; `npm run test:fast` clean (same pre-existing q15/q45 failures
+      as HEAD, zero new); a direct re-run of G1
+      (`tests/p10d-run-length.test.ts`) and G14 (`tests/boss.test.ts`), both
+      green at `cooldownSeconds: 2.4`; the real test file's own full
+      `beforeAll` sweep re-run twice more (once confirming the cadence-bug
+      fixes, once more as the final post-all-fixes state) — the final run
+      shows exactly the claimed 9/12 shape (engineer correctly `.skip`-ed
+      alongside swordsman/necromancer, the other 9 live and green). Full
+      before/after tables, per-class hypothesis log, the gate-coupling
+      bisect and this follow-up: `tests/p6e-class-diversity.test.ts`'s p12j
+      header paragraph; decision record QUESTIONS Q196. Original text
+      follows.
+      Follow-up from fb177's bisection: G8
       (`tests/p6e-class-diversity.test.ts`) is no longer a roster mostly over
       the win-rate ceiling — after p12a-p12c's `baseHpMul: 20` + T3
       reference-tier move, the 12-class table reads 8 of 12 under the 35%

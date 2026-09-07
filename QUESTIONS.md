@@ -970,3 +970,117 @@ Q91 and Q102 corrections if not yet done.
   before calling it narrow" — `baseHpMul` looked TD-only-relevant and isn't);
   SPEC-FINAL §14 G8, BACKLOG fb177, p12b, p12c, p12j, p12h (bisect method
   precedent).
+
+- **Q196. [p12j] The roster-wide G8 re-tune Q195 called for — 10 of 12
+  classes now in band, `data/classes.json` only, two honestly left open.**
+  Balance-analyst method throughout: state a hypothesis, change one lever (or
+  a small, named conceptual group of levers) at a time, re-measure over the
+  real 12-seed `beforeAll`-equivalent harness (a scratch probe,
+  `tools/p12j-probe.ts`, reusing `tests/helpers.ts`'s exact `runScripted`/
+  `scriptClassKit`/`GATE_TIER`/`cfg` — deleted before this item's commit,
+  final numbers reconfirmed by the real test file's own full `beforeAll`),
+  keep every round's number whether it helped, did nothing, or hurt. Full
+  before -> after table:
+
+  | class | before | after | rounds | what moved it |
+  |---|---|---|---|---|
+  | swordsman | 2/12 | 2/12 | 3 | nothing — see below |
+  | plaguebringer | 3/12 | 6/12 | 2 (1 reverted) | Poison Barrel radius 3->5 (damage-only and cooldown-only tried first, both worse) |
+  | engineer | 3/12 | 5/12 | 3 (2 reverted/dialed back) | Pop Turret summonStatMul/cap/cooldown (a towerHp passive buff tried first made it worse, 3/12->2/12; the first Pop Turret buff got G8 to 7/12 but broke G14's boss test, dialed back — see below) |
+  | pyromancer | 2/12 | 5/12 | 1 | Immolation Wave damage 135->200 |
+  | archer | 5/12 | 5/12 | 0 | untouched (already in band per fb177) |
+  | necromancer | 3/12 | 4/12 | 3 (2 reverted) | Raise summonStatMul 0.65->0.90 alone; stacking a cooldown cut collapsed it to 0/12, stacking a cap raise gave 2/12 — both reverted, best-of-3 kept |
+  | cryomancer | 9/12 | 5/12 | 1 | Glaciate damage 60->40 (nerf) |
+  | stormcaller | 4/12 | 5/12 | 2 | Chain Surge damage alone did nothing (4/12->4/12); cooldown 8->5 on top moved it |
+  | bloodlord | 4/12 | 5/12 | 3 (2 reverted) | Blood Tithe titheDamageMul/titheHpFraction/cooldown/radius all buffed together, + Crimson Rush healPerEnemy 2->10 at cooldown 6 (cooldown 4 alone was worse; a towerHp passive fix tried first was also worse) |
+  | animist | 9/12 | 6/12 | 1 | Wide Grove area 10%->4% (nerf) |
+  | paladin | 3/12 | 5/12 | 1 | Judgement wrathDamageMul 2.2->3.2 |
+  | time_lord | 10/12 | 8/12 | 1 | Chronal Surge bonusRangeMul/bonusAoeMul 0.10->0.05 (nerf) |
+
+  **10/12 in band at this point in the item, clears SPEC-FINAL §14's own G8
+  ratio (>=9/12, fb013) — see the follow-up at the end of this entry for why
+  the final number is 9/12, not 10.**
+  Both remaining classes got genuine multi-round attempts, not a one-shot
+  give-up, and both are the two classes fb177's header names sharing the
+  *identical* diagnosed mechanism (shortest range, #1/#3 basicAttack.dps,
+  first-VS-block wipe): **swordsman** got 3 materially different lever
+  rounds — Circle Slash damage alone (180->260); +cooldown 6->3/knockback
+  3->6; a drastic damage->450/radius->6/minDamage->100 plus a Dash Slash
+  rework (damage->200/cooldown->2) — and every single round reproduced
+  *exactly* the same 10/12 first-VS-block `defeat_warden`@w3 result, not one
+  seed's outcome ever changed. That is itself a real finding, not a null
+  result to shrug off: kit-Active damage is provably not this class's
+  bottleneck, so whatever is (most likely raw Warden HP/mitigation against
+  the Night-1 HP swarm, given damage this large couldn't dent the outcome)
+  sits outside a `classes.json`-only lever this item can reach — flagged for
+  a follow-up with `/src` in scope, not fixed here per this item's own
+  guardrail. Left at the smallest tested buff (damage 260 only) rather than
+  an untested/extreme value sitting in `/data` for zero measured gain.
+  **necromancer** landed one win short of band (4/12, needs 5) after 3
+  rounds each trying a different lever on top of its one improvement; kept
+  the best-measured config over two later attempts that both measured worse.
+  The sharpest disconfirmation of a clean "shortest range +
+  highest-basicAttack-dps" causal story: **bloodlord shares swordsman's
+  exact diagnosed mechanism per fb177 and *did* move** (4/12->5/12) on a
+  completely different lever (Blood Tithe/Crimson Rush numbers, not raw
+  damage) — so the shared trait correlates with the roster-wide collapse but
+  isn't sufficient on its own to predict which classes a kit-numbers retune
+  can rescue. `tests/p6e-class-diversity.test.ts`'s 9 newly-in-band classes
+  un-skipped with their fresh numbers; swordsman/necromancer re-pinned with
+  the honest post-retune count and the specific rounds tried, not the
+  pre-retune fb177 numbers. Two stray towerPassive description strings
+  (animist "Wide Grove", time_lord "Chronal Surge") still quoting the old
+  percentage after a numeric nerf were also corrected — a small but real
+  content/data drift caught along the way, not this item's main finding.
+  **A real gate-coupling hit** (CLAUDE.md's A4/A7 lesson, and the same class
+  of bug p12h found in this file's own neighborhood): engineer's first Pop
+  Turret buff (`summonStatMul` 0.30->0.55, cap 2->3, cooldown 3->2) cleared
+  G8 (7/12) but broke `tests/boss.test.ts`'s T1 mechanism check — that file's
+  own `runScripted(cfg(...))` calls default `classKey` to `'engineer'`
+  (`tests/helpers.ts`'s `cfg()`), and the stronger Pop Turret killed the
+  Warden-Eater in 15-17s against the test's own ">20s, not trivially short"
+  floor (seed 4 then seed 3, as the tuning moved). Caught only because this
+  item's guardrail said to re-run G1 (`tests/p10d-run-length.test.ts`) and
+  G14 (`tests/boss.test.ts`) directly — both excluded from `test:fast`,
+  neither touched since p12e/p12f, so `npm run test:fast` alone would have
+  shipped this broken. Bisected the window by hand: `summonStatMul: 0.42`
+  still broke the >20s floor (17.2s); `0.34` fixed that but dropped the boss
+  test's own T1 win-count below its `>=2 of 4 seeds` floor (only 1 seed
+  reached/killed the boss); `0.38` (cooldown 2.5, cap 3) is the value that
+  keeps both G8 (5/12, right at the floor) and G14's boss mechanism check
+  green — engineer's final number in the table above already reflects this
+  *at the time this item's own session wrote it*; see the follow-up below.
+
+  **Follow-up (2026-09-07, found directly by the lead session, not a
+  delegated reviewer): this item's own "no independent review" flag was
+  accurate — a real pass, run after a mid-session container restart,
+  found two genuine regressions self-review missed.** Re-running `npm run
+  test:fast` turned up: (1) engineer's retuned `summonCap: 3` was nominally
+  unreachable at its own 2.5s Pop Turret cast cadence
+  (`cadenceCeiling(10s, 2.5s) = 4`, one short of `summonCap(3) +
+  maxBonus(2) = 5`), breaking `tests/class-line-bonus.test.ts`'s c018 case
+  and `tests/class-active2-cdr.test.ts`'s c019 case — both exist
+  specifically to catch a cap that reads reachable on paper but isn't at
+  the real cadence; (2) the "two stray description strings...corrected"
+  claim above was half-true — `data/classes.json` was fixed but
+  `tests/class-descriptions.test.ts`'s own ledger tokens for those two rows
+  were never updated to match, so the file's own c015 checks broke.
+  Fixed both: `cooldownSeconds` 2.5->2.4 for the cadence bug (smallest cut
+  that restores reachability; G1/G14 re-verified clean at that value too),
+  ledger tokens corrected to `+8%`/`+5%`/`+5%`. Re-running the full G8
+  sweep after the cooldown fix surfaced a further, *honest* consequence,
+  not a bug: engineer's own chaotic seed trajectory moved by exactly one
+  win on that 0.1s change, **5/12 -> 4/12**, dropping back out of band.
+  Not chased with another retune round — the cadence bug was the real
+  defect, and re-tuning `summonStatMul`/cap again to chase this exact seed
+  count risks reopening the G14 coupling this item already spent 3 rounds
+  closing once; re-pinned honestly (`it.skip`, same as swordsman/
+  necromancer). **The item's real final number is 9/12, not 10/12** — one
+  seed short of the earlier claim, still clearing SPEC-FINAL's own ">=9 of
+  12" exactly at the boundary. `tests/p6e-class-diversity.test.ts`'s header
+  paragraph updated in place with the full account. — Reason: measured, not
+  guessed, per this item's own
+  "iterate: measure, adjust, re-measure, at least 2-3 rounds" instruction and
+  CLAUDE.md's balance-analyst method (hypothesis first, one lever at a time
+  where practical, keep every round's number even when it hurts); SPEC-FINAL
+  §14 G8, BACKLOG p12j, fb177, Q195.
