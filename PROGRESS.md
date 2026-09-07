@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c039 done, negative result, no
+  `/data` change.** Delegated to balance-analyst per this item's own
+  acceptance: find a `data/classes.json`-only tune that raises Bloodlord's
+  pairwise fingerprint distance from necromancer/animist (0.0355/0.0720,
+  both far under the 0.15 floor) without moving win rate. Mechanism
+  analysis found Bloodlord's two Actives deal zero engine-attributed damage
+  by design (Blood Tithe becomes *tower* damage via a multiplier, Crimson
+  Rush only heals), leaving `basicAttack.dps` as the only lever into the
+  vector at all — measured at a baseline 0.04-0.05% share, ~100x short of
+  what the floor needs, since ~98% of the L1 distance is shared *tower*
+  usage under the common `hybrid` bot, not kit-mix. One candidate
+  (`basicAttack.dps` +37%) was tried and measured anyway: win rate roughly
+  halved (8-seed control pair, 3/8 -> 1/8) with the fingerprint gap still
+  two orders of magnitude short even in that degenerate arm. Reverted;
+  `data/classes.json` confirmed byte-identical to HEAD. Five other fields
+  rejected on mechanism alone. Same structural wall Q175/p12f/c033 already
+  documented for clause (i), read here for clause (ii) on Bloodlord — closing
+  it needs a `/src` change, out of this lane's Scope.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c041 done, re-measurement
   only, no regression.** c018/c019's summon-cooldown headroom numbers
   (Engineer Pop Turret, Animist Manifest) were a measurement with an expiry

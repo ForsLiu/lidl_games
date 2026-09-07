@@ -41,6 +41,9 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
 Run again 2026-09-07 (`c036` was the last actionable one left, all of
 `c032`-`c036` now Done — see the Log), appending `c037`-`c041` below the
 owner items.
+**Every one of `c037`-`c041` is now Done (see the Log) — c001-c041 are all
+Done/Skipped/Blocked. The next session should run the generation rule again
+before executing further.**
 
 ### Actionable in this lane
 
@@ -1085,7 +1088,7 @@ owner items.
       edits to the same file, below): 4046 passed, same two pre-existing
       unrelated `q15`/`q45` failures.
 
-- [ ] (c039) [balance] `c033`'s pairwise fingerprint measurement (2026-09-07,
+- [x] (c039) [balance] **DONE 2026-09-07, negative result, no `/data` change.** `c033`'s pairwise fingerprint measurement (2026-09-07,
       2 seeds) found 50/66 pairs already clear BALANCE DIRECTION v2 §D's 0.15
       floor, but two of the three closest pairs share a class:
       `necromancer`/`bloodlord` (0.0355) and `bloodlord`/`animist` (0.0720).
@@ -1104,6 +1107,40 @@ owner items.
       the fields considered rather than force one — either outcome closes
       the item. In-lane (`data/classes.json` only if a tune is taken) - refs:
       SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D, c033, CLAUDE.md rule 6.
+      **Negative result, mechanism-argued and then measured.** Bloodlord's two
+      Actives (`fireBloodTithe`, `fireCrimsonRush`, `classes.ts`) deal **zero
+      engine-attributed damage by design** — Blood Tithe only sets a
+      permanent tower-damage multiplier consumed in `towers.ts` (so it counts
+      as *tower* damage, not `class_active`), Crimson Rush only heals, and the
+      passive (`leech`) is lifesteal, not a `damageByWeapon` bucket at all.
+      The only field that maps into the vector clause (ii) reads is
+      `basicAttack.dps` -> `class_basic`, measured at a baseline share of
+      **0.04-0.05%** across all three classes (necromancer/bloodlord/animist)
+      — roughly two orders of magnitude short of the several-percentage-point
+      move the 0.15 floor would need. Six-seed measurement (seeds 1-6, T1
+      hybrid, same harness as `class-kit-fingerprint`/`class-kit-damage-share`):
+      necromancer/bloodlord L1 distance ~0.099, **~98% of which is tower-share
+      overlap** (`mortar`/`frost_obelisk`/`ballista`/`arrow_spire`/
+      `venom_spore` — none Bloodlord-authored), only ~0.5 points attributable
+      to the `class_basic`/`class_summon` gap. One candidate was tried anyway
+      (`basicAttack.dps` 51 -> 70, +37%, the same order of magnitude as a
+      prior main-lane p10s probe on this field): win rate roughly **halved**
+      (8-seed control pair, bloodlord: 3/8 -> 1/8), outside any reasonable
+      band reading, and even in that degenerate arm `class_basic`'s share
+      only reached 0.27% — a ~6.75x jump still two orders of magnitude short.
+      Reverted; `data/classes.json` confirmed byte-identical to HEAD via
+      `git diff`. Five other fields considered and rejected on mechanism
+      alone (no damage attribution exists in code for Blood Tithe/Crimson
+      Rush's tuning fields; `towerPassive.towerDamage`/`towerHp` are uniform
+      across every tower and cancel or shrink kit share; `leech` isn't a
+      damage-vector field; `moveSpeedBonus` is this exact harness's most
+      win-rate-sensitive stat roster-wide per `p6e-class-diversity.test.ts`'s
+      own history, wrong lever for a mix-only goal). Conclusion: this is the
+      same structural wall Q175/p12f/c033 already found for clause (i) — kit
+      damage is dwarfed by the full-tree tower economy — read here as the
+      clause (ii) symptom for Bloodlord specifically. Closing it needs a
+      `/src` change (giving Blood Tithe or Crimson Rush their own
+      damage-dealing behaviour), out of this item's and this lane's Scope.**
 
 - [x] (c040) [balance] **DONE 2026-09-07.** `c033` measured only the **damage-source** half of
       BALANCE DIRECTION v2 §D clause (ii)'s "damage-source/damage-type
