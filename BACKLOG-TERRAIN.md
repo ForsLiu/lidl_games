@@ -93,7 +93,7 @@ the merge — never edited from this lane.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
-- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+- [x] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
       edges, jittered along the edge) instead of 3, and tier modifiers that add
       a gate now go to **5**. Every existing gate rule still applies unchanged:
       gates are never sealed, connectivity >= 80% of walkable, Core legality
@@ -105,6 +105,43 @@ the merge — never edited from this lane.
       property tests pass at 4 gates across **1000 seeds**; nothing in
       `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
       SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+      **Done 2026-09-07.** `GATES` (`src/sim/grid.ts`) grew from 3 (west,
+      north, east) to 4 — one per edge, each nudged off its edge's exact
+      midpoint ("jittered", an authored design choice, not per-seed
+      randomness): `west (0,12)`, `north (24,0)`, `east (55,20)`,
+      `south (33,31)`. `MODIFIER_GATES`'s one gate — the tier-modifier
+      addition, "the Fourth Gate" in lore — is now the fifth: renamed
+      `south` -> `south2` (the base list now owns the key `south`) and moved
+      to `(45,31)`, a second point on the south edge. Doing so **also fixed**
+      the fb166-logged bug where that gate sat off the resized border,
+      re-enabling `tests/terrain-gates-dump.test.ts`'s previously-skipped
+      round-trip test. `data/terrain.json` needed no changes — nothing in it
+      hard-coded a gate count, and 1000 seeds at the shipped config hold
+      every band with the new layout (0 fallbacks, 0 retries, 0 band
+      failures — better than either prior layout). All 24 `tests/terrain*`
+      files pass under `npm run test:fast` (410 passing, 2 `.skip`ped — one
+      pre-existing mathematical-impossibility skip from fb166, one new skip
+      below tied to the `world.ts` finding).
+
+      **Critical finding for the main lane, found independently by two
+      separate re-measurement passes: `src/sim/world.ts` does not pick up the
+      fourth gate, so no live run plays it yet.** Two distinct defects, both
+      in `world.ts`, both outside this lane's Scope:
+      1. `this.gates = GATES.slice(0, 3)` — a literal 3, now stale — keeps
+         every ordinary run (no modifier active) on the *old* 3-gate list,
+         silently dropping the new `south` gate from actual gameplay.
+      2. The `gate` modifier's own literal, `{ key: 'south', tx: 12, ty: 19 }`
+         (already logged as off-border in the 2026-09-05 fb166 entry below),
+         is now *also* a key collision waiting to happen — `south` is a base
+         key now — on top of still being the wrong coordinate. It should
+         become `MODIFIER_GATES[0]` (key `south2`, `(45,31)`), not a hand-typed
+         literal, which is exactly the "three hand-copies of a coordinate"
+         drift `MODIFIER_GATES` was introduced to stop.
+      Until both are fixed, fb156 is generator-complete but not
+      gameplay-complete: `tests/terrain-gates-dump.test.ts`'s
+      `it.skip('describes a live Fourth Gate run correctly...')` stays
+      skipped for exactly this reason, and `tests/fb077-terrain-wiring.test.ts`
+      (outside this lane) is expected to be red until it lands.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
@@ -1355,6 +1392,13 @@ highest-impact item here by a wide margin** and sits third only for that reason.
   fb153b is already touching for the resize — do it in the same change rather
   than two edits to the same two lines. Filed before the band re-fit below so
   it cannot be read as this lane having missed it.
+  **Partially resolved by fb156 (2026-09-07):** the base `east` gate moved to
+  `(55,20)`, genuinely on the border, and the modifier gate (renamed
+  `south` -> `south2`) moved to `(45,31)`, also genuinely on the border — both
+  as a side effect of fb156's own gate-layout work, not a dedicated fix. What
+  is now known to remain broken is `world.ts` itself not reading any of this
+  (see fb156's own Done note above); `CORE_X`/`CORE_Y` is untouched and still
+  fb064c's.
 - (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
   terrain-four-gates.md`) has three consumers outside this lane's Scope, filed
   here for the merge: (1) wave composition must split across 4 gates
