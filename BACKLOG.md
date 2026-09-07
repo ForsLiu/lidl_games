@@ -666,6 +666,12 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
+      **Skipped this session (2026-09-07), logged reason**: doubly blocked —
+      clause (2)(i) needs p12f's own-kit-share target actually closed first
+      (p12f is still open), and G8's test file itself is stale/red for
+      unrelated reasons as of this session (**fb177**), so there is no stable
+      T3 measurement to write the rewritten band text against yet. Re-attempt
+      once both land.
 - [x] (p12e) [bug] **DONE 2026-09-07** — `/data`-only re-anchor:
       `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250 (exactly
       /`baseHpMul`), so the boss's effective HP nets the roster multiplier
