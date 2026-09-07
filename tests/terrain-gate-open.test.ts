@@ -19,7 +19,18 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, Grid, GRID_H, GRID_W, TileType } from '../src/sim/grid';
+import {
+  CORE_H,
+  CORE_W,
+  CORE_X,
+  CORE_Y,
+  GATES,
+  Grid,
+  GRID_H,
+  GRID_W,
+  MODIFIER_GATES,
+  TileType,
+} from '../src/sim/grid';
 import {
   generateTerrain,
   gridTerrain,
@@ -31,8 +42,14 @@ import { applyRunTerrain } from '../src/sim/world';
 
 const cfg = loadTerrain();
 
-/** The south wall tile `world.ts` opens as the Fourth Gate. */
-const SOUTH = { tx: 12, ty: 19 };
+/**
+ * The south wall tile `world.ts` opens as the Fourth Gate. Read from
+ * `MODIFIER_GATES` rather than hand-copied, so a future border move cannot
+ * silently drift this test off the actual modifier position the way it did at
+ * fb166 — this file's own `SOUTH` literal (`{ tx: 12, ty: 19 }`, the 36x20
+ * border) was the reason several of its cases went red at the grid resize.
+ */
+const SOUTH = MODIFIER_GATES[0];
 
 /** Every border tile that is not already a gate, in a fixed order. */
 function borderTiles(): Array<readonly [number, number]> {
@@ -87,8 +104,10 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // `placeCore` refuses non-normal terrain), so it is a defect in the
     // *record* rather than a new hole; recorded here so the accepted case is
     // stated as wide as it is.
+    // fb166: (2,5), not (6,1) — re-picked at 56x32 as an interior Rock tile on
+    // seed 7's map (the old tile no longer lands on rock at this grid size).
     const g = applied(7);
-    const i = g.idx(6, 1);
+    const i = g.idx(2, 5);
     expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
       TileType.Open,
       TerrainKind.Rock,
@@ -104,8 +123,8 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     ]);
     // The border framing was not wrong about the border, though: every border
     // tile that is not one of the three gates is `Rock` on every generated map
-    // (5400 border tiles over seeds 1..50; the 150 exceptions are exactly the
-    // 3 gates x 50 seeds).
+    // (8600 border tiles over seeds 1..50 at 56x32, was 5400 at 36x20; the 150
+    // exceptions are exactly the 3 gates x 50 seeds, unchanged).
     for (const seed of [1, 7, 40]) {
       const map = generateTerrain(seed, cfg);
       for (let x = 0; x < GRID_W; x++) {
@@ -119,8 +138,9 @@ describe('fb065e — opening a gate after terrain is applied', () => {
 
   it('re-derives the whole board, not the one tile — which is what a patch cannot fake', () => {
     // QA's second finding, turned into the assertion the private-mask
-    // comparison was standing in for. `syncTerrain` rebuilds all 720 tiles from
-    // the raw overlay and the *current* structural tiles, so `openGate` also
+    // comparison was standing in for. `syncTerrain` rebuilds all 1792 tiles
+    // (fb166; was 720 at 36x20) from the raw overlay and the *current*
+    // structural tiles, so `openGate` also
     // repairs drift anywhere else on the board. That is desirable and it was
     // documented nowhere — and it is the one behaviour a patch-style
     // implementation cannot imitate through the public surface.
@@ -168,8 +188,10 @@ describe('fb065e — opening a gate after terrain is applied', () => {
   it('does not check that the gate it opened is reachable, and that is a decision', () => {
     // `openGate` refuses what cannot *be* a gate (a non-border tile, a corner)
     // but not what no map can *reach*. Measured over seeds 1, 7, 40, 52, 99 and
-    // every legal single opening: **131 of 505 (25.9%)** leave some gate
-    // unreachable, because the border tile chosen may sit behind a rock shelf.
+    // every legal single opening: **162 of 825 (19.6%)** leave some gate
+    // unreachable (fb166: 56x32, was 131 of 505 = 25.9% at 36x20 — a bigger
+    // perimeter means more legal openings and a lower share sit behind a rock
+    // shelf), because the border tile chosen may sit behind a rock shelf.
     //
     // Left to the caller on purpose: the reachable set depends on the whole
     // board, `applyRunTerrain` already re-checks `allGatesReachable()` and
@@ -192,7 +214,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         if (!g.allGatesReachable()) stranded++;
       }
     }
-    expect({ opened, stranded }).toEqual({ opened: 505, stranded: 131 });
+    expect({ opened, stranded }).toEqual({ opened: 825, stranded: 162 });
   });
 
   it('openGate writes the tile and re-derives the terrain in one step', () => {
@@ -280,12 +302,13 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // sealed pocket.
     //
     // A 40-seed window of the 300-seed reading recorded in BACKLOG-TERRAIN.md
-    // (77/300 = 25.7% sealed when opened late, 0/300 under world's ordering).
-    // This window reads 7/40 = 17.5%, which is the sampling noise a 40-seed
-    // window has and not a disagreement — it is pinned as the window's own
-    // exact count, because a golden that moves is the point. The claim the
-    // case exists to hold is the *contrast*: late opening seals gates, world's
-    // ordering never does.
+    // (77/300 = 25.7% sealed when opened late, 0/300 under world's ordering,
+    // both measured at 36x20 and not re-run for fb166). This window reads
+    // 8/40 = 20% at 56x32 — the window's own exact count at this grid size,
+    // pinned because a golden that moves is the point, and consistent with
+    // the general size of the old 300-seed reading rather than a re-derivation
+    // of it. The claim the case exists to hold is the *contrast*: late opening
+    // seals gates, world's ordering never does.
     let sealedLate = 0;
     let sealedReal = 0;
     const warn = console.warn;
@@ -302,14 +325,14 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         // generator is told about it.
         const real = new Grid();
         real.openGate(SOUTH.tx, SOUTH.ty);
-        applyRunTerrain(real, [...GATES, { key: 'south', ...SOUTH }], seed, cfg);
+        applyRunTerrain(real, [...GATES, SOUTH], seed, cfg);
         real.refresh();
         if (real.distAt(SOUTH.tx, SOUTH.ty) === -1) sealedReal++;
       }
     } finally {
       console.warn = warn;
     }
-    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 7, sealedReal: 0 });
+    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 8, sealedReal: 0 });
   });
 
   it('refuses what it cannot honestly open', () => {
