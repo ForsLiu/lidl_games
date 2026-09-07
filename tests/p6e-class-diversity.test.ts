@@ -689,15 +689,6 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   // exactly. Re-enable point: same wall as clause (i) (own-kit share never
   // clears MATERIALITY_SHARE, so every class's fingerprint is dominated by
   // shared tower usage) — P10 / an owner verdict on Q160.
-  //
-  // **p12e re-measurement (this session, code-reviewer): 16 -> 20/66.**
-  // `data/enemies.json`'s `warden_eater` hp re-anchor (365,000 -> 18,250,
-  // BACKLOG p12e — the boss no longer double-counts `baseHpMul`) shortens
-  // and reshapes every class's boss-phase damage window enough to move four
-  // more pairs' whole-run damage-share vectors across the 0.15 L1-distance
-  // floor. A real, expected side effect of a fight-length change (the same
-  // family of drift `tests/p-core-f-gates.test.ts`'s `time: T5` companion
-  // saw from this fix), not a regression in this clause's own logic.
   it.skip('every one of the 66 class-pairs has fingerprint distance >=0.15 (clause ii)', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     const pairs: { a: string; b: string; distance: number }[] = [];
@@ -712,9 +703,9 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
       .map((p) => `${p.a}/${p.b} ${p.distance.toFixed(4)}`)
       .join(', ');
     expect(failing.length, `${failing.length}/${pairs.length} pairs below 0.15 — ${breakdown}`).toBe(0);
-  }); // p12e re-measurement: 20/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07)
+  }); // measured: 16/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07)
 
-  // Pins the honest T3 measurement (20/66, see the skip above) so a future
+  // Pins the honest T3 measurement (16/66, see the skip above) so a future
   // change is forced to re-examine this rather than silently drifting —
   // same exact-pin shape as clause (i)'s own pin three cases above.
   it('the current (red) fingerprint-distance failure count is pinned, not silently drifting', () => {
@@ -725,7 +716,7 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
         if (l1Distance(vectors[i].vector, vectors[j].vector) < FINGERPRINT_FLOOR) failing++;
       }
     }
-    expect(failing).toBe(20);
+    expect(failing).toBe(16);
   });
 });
 

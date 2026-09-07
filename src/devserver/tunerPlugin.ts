@@ -20,12 +20,10 @@ export const MAX_TUNER_BODY_BYTES = 10 * 1024 * 1024;
 
 /**
  * Reads and JSON-parses a request body. Rejects on a body that isn't valid
- * JSON or exceeds `maxBytes` (default `MAX_TUNER_BODY_BYTES`, this
- * function's original single caller — fb139's `inboxPlugin.ts` passes its
- * own, larger `MAX_INBOX_BODY_BYTES` explicitly, since a screenshot PNG
- * plus a run's input log routinely exceeds the Tuner's 10 MB budget; code
- * review caught this defaulting silently to the wrong cap when the second
- * caller was added without a parameter to override it).
+ * JSON or exceeds `maxBytes` (default `MAX_TUNER_BODY_BYTES`). fb139:
+ * parameterized so `bugReportPlugin.ts` — whose bodies carry a full replay
+ * input log plus a screenshot PNG, routinely much larger than a `/data`
+ * file — can pass its own cap instead of inheriting the Tuner's.
  */
 export function readJsonBody(req: IncomingMessage, maxBytes: number = MAX_TUNER_BODY_BYTES): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -74,6 +72,15 @@ export function tunerSaveMiddleware(dataDir: string) {
       parsedBody = await readJsonBody(req);
     } catch (err) {
       sendJson(res, 400, { ok: false, errors: [{ path: '', message: `invalid JSON body: ${(err as Error).message}` }] });
+      return;
+    }
+    // qa-playtester (fb139 session): a literal top-level JSON `null` (valid
+    // JSON, so `readJsonBody`'s try/catch never sees it) reached `body.key`
+    // below and threw "Cannot read properties of null," an unhandled
+    // rejection in the `async` middleware that crashes the dev server
+    // outright rather than answering 400 like every other malformed body.
+    if (typeof parsedBody !== 'object' || parsedBody === null) {
+      sendJson(res, 400, { ok: false, errors: [{ path: '', message: 'body must be a JSON object' }] });
       return;
     }
     const body = parsedBody as { key?: unknown; data?: unknown };

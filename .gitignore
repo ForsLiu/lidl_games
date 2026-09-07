@@ -17,6 +17,13 @@ audit/report.json
 *.qabak
 tools/_qa_*
 
-# fb139: F8 bug-report replay bundles — runtime debug artifacts, not source.
-# The bug .md itself lands in feedback/ (tracked, per the loop's own convention).
+# fb139 F8 bug-report hotkey: replay bundles + screenshots the dev server
+# writes locally, never committed (the .md report itself goes to the
+# owner's own D:\lidl_inbox, outside this repo entirely).
 /replays/
+# code-reviewer Minor (same session): DEFAULT_INBOX_DIR's literal
+# "D:\lidl_inbox" is a single, oddly-named repo-root directory (backslash is
+# not a path separator on POSIX) if anyone ever runs `npm run dev` on a
+# non-Windows host without overriding it — ignored defensively so it can
+# never land in a commit.
+/D:\\lidl_inbox/

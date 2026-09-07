@@ -9,7 +9,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadContent, type TowerDef } from '../src/sim/content';
-import { applyBurn, damageEnemy, damageStructure, spawnEnemy } from '../src/sim/enemies';
+import { applyBurn, damageEnemy, damageStructure, dotStacks, spawnEnemy } from '../src/sim/enemies';
+import { updateAreas } from '../src/sim/combat';
 import { linkSpires } from '../src/sim/sundering';
 import { buildTower } from '../src/sim/towers';
 import type { Enemy } from '../src/sim/types';
@@ -145,7 +146,42 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
     const wielded = wieldedAttacks(w).find((a) => a.towerKey === 'venom_spore')!;
     expect(trail.dps).toBeCloseTo(wielded.damage * 0.1, 6);
+    // fb082 (qa-playtester finding): this blob's own `remaining` is
+    // `special.interval`, and `updateAreas`' poison cadence gate never
+    // fires before an area's `remaining` runs out — so without an explicit
+    // `tickSeconds` matching the blob's own lifetime exactly, a future
+    // `interval` retune to <= the engine's `?? 1` default would go silently
+    // inert (see the dedicated damage-delivery case below).
+    expect(trail.tickSeconds).toBe(VENOM.vsSpecial.kind === 'poisonTrail' ? VENOM.vsSpecial.interval : undefined);
   });
+
+  it.each([1.4286, 1, 0.5])(
+    'poison trail: still deals its one authored tick over a %s s blob lifetime, whatever interval is tuned to',
+    (interval) => {
+      // fb082 (qa-playtester finding): before `tickSeconds` was matched to
+      // the blob's own `remaining`, this went completely silent at any
+      // interval <= the engine's `?? 1` default (1.4286 s, the shipped
+      // value, survived only by luck). Driving the real `updateAreas` over
+      // the blob's whole life is the only way to prove damage is actually
+      // delivered, not just that the area's own fields look right.
+      const w = new World(cfg(), content);
+      const [t1] = tiles(w, 1);
+      build(w, VENOM, t1.tx, t1.ty);
+      w.phase = 'act2';
+      w.warden.x = 10.5;
+      w.warden.y = 10.5;
+      updateVsSpecials(w, interval);
+      const trail = w.areas[w.areas.length - 1];
+      trail.remaining = interval;
+      trail.tickSeconds = interval;
+
+      const victim = dummy(w, w.warden.x, w.warden.y);
+      w.rebuildBuckets();
+      const ticks = Math.round(interval / DT);
+      for (let i = 0; i < ticks; i++) updateAreas(w, DT);
+      expect(dotStacks(victim, 'poison')).toBe(1);
+    },
+  );
 
   it('brazier death-explosion: a Burning enemy dying deals 5 normal, r1, to nearby enemies', () => {
     const w = new World(cfg(), content);

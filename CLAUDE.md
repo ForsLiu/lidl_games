@@ -19,6 +19,12 @@
 5. **SPEC-V3.md**, **SPEC-V2.md**, **SPEC.md** — superseded. Consult them only to
    understand why existing code looks the way it does, never as authority.
 
+Older content moved out of PROGRESS.md, BACKLOG.md/BACKLOG-*.md and QUESTIONS.md
+lives in `docs/PROGRESS-ARCHIVE.md`, `docs/BACKLOG-DONE.md` and
+`docs/QUESTIONS-ARCHIVE.md` (fb178, append-only). Read only the live files day
+to day; open an archive only when an item explicitly references old history
+that moved there.
+
 Do not redesign what these define. SPEC-FINAL marks its own open ends: **⚖** =
 tune against §14's gates, **[designer-fill]** = a section the owner may veto via
 an inbox verdict. Fill any genuine remaining gap with the most spec-consistent
@@ -69,6 +75,12 @@ list (with a comment naming why) rather than silently fattening the fast tier.
 6. Stuck ~5 distinct attempts on one failure: `.skip` + TODO + Known-issues
    entry, move on. Never delete a test to go green.
 7. Touch nothing outside this repository.
+8. Never run `tools/sweep.ts`, `tools/handoff-metrics.ts`, or a full gate
+   matrix unless the item is `[balance]` or a gate re-measurement is its own
+   acceptance criterion — they cost real wall-clock and most items don't
+   move a gate (fb178).
+9. Default to light-tier verification (Subagent protocol) for `[polish]`,
+   `[ui]`, `[docs]`, and any data-only change that isn't a balance value.
 
 ## Measurement rules (earned the hard way — Q74, Q78, Q80, and MIGRATION §8.4.1)
 - **A deferral is a measurement with an expiry date.** Re-measure a deferred
@@ -92,16 +104,21 @@ an item touches (owner feedback `feature-tiered-qa`, 2026-09-04):
   `/data` balance values, pathing, or damage rules: **code-reviewer** (address
   Critical/Major findings before commit) **and qa-playtester** (must confirm
   the item's acceptance criteria and file repro reports for what it breaks —
-  a QA-filed bug becomes a new backlog item with a regression test). A repro
-  report may cite a replay bundle (fb139: the F8 in-run hotkey, or any saved
-  `RecordedRun`-shaped `config`+`inputLog` pair) as a first-class repro,
-  exactly like a written repeat-these-steps description — `replayRecorded`
-  (`src/sim/run.ts`) replays it deterministically to the recorded tick, which
-  a prose repro on a live-content-dependent bug cannot promise.
+  a QA-filed bug becomes a new backlog item with a regression test). A saved
+  F8 bug-report bundle (fb139: `RecordedRun` + the end-state hash captured at
+  report time, replayable via `replayRecorded`, `src/sim/run.ts`) is a
+  first-class repro in place of or alongside a written description — file the
+  bundle's paths the same way a written repro is filed today.
 - Bugs always get a failing regression test before the fix, regardless of tier
   (working rule 3).
 - For tuning-only items: delegate to **balance-analyst**; it edits `/data` only
   and must report gate deltas.
+- **fb139:** an in-run F8 bug report (a note + a `{ config, inputLog }` replay
+  bundle under `/replays`, the same `RecordedRun` shape architecture rule 2's
+  replay/hash machinery uses, plus a screenshot) is a first-class repro,
+  equal in standing to a QA-filed report — replay it to the recorded tick
+  (`src/sim/run.ts`) to reproduce the bug exactly rather than re-deriving a
+  seed/policy from the note alone.
 
 ## BACKLOG protocol (self-directed refinement)
 BACKLOG.md is an ordered list. Item format:

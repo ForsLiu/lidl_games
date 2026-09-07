@@ -8,9 +8,10 @@
  * unrelated routes, only one of which any other test watches:
  *
  *   1. `towerPassive.mods` folded into `Stats` (`stats.ts:194`) and read as a
- *      `derived` multiplier — seven of the twelve rows
+ *      `derived` multiplier — eight of the twelve rows
  *      (`towerAttackSpeed`, `towerPoisonDamage`, `towerHp`, `towerRange`,
- *      `towerDamage`, `towerDefenseBonus`, and Animist's `area`),
+ *      `towerDamage`, `towerDefenseBonus`, and, since fb083, Animist's own
+ *      `towerArea`),
  *   2. the **target-conditional** trio resolved once per volley into a
  *      `TowerClassBonus` and carried on the hit (`classTowerBonus`,
  *      `towers.ts:278` -> `dealHit`, `combat.ts:72`) — Pyro's
@@ -22,15 +23,20 @@
  *      Necromancer's `towerLowHpDamageBonus`,
  *   4. `towerPassive.kind` dispatched from a wave clear (`applyChronalSurge`,
  *      `run.ts:810`) — Time Lord, the only `kind`-driven row,
- *   5. **the wrong key entirely** — Animist's *Wide Grove* is "all towers
- *      +10% area" authored on the *global* `area` stat for want of a
- *      `towerArea`, so it also widens every class Active and every enemy
- *      effect that reads `areaMul`.
+ *   5. **the wrong key, until fb083** — Animist's *Wide Grove* was "all
+ *      towers +10% area" authored on the *global* `area` stat for want of a
+ *      `towerArea`, so it also widened every class Active and every enemy
+ *      effect that read `areaMul`. `src/sim/statkeys.ts` now carries that key
+ *      and Wide Grove is authored on it, folding route 5 back into route 1 —
+ *      kept as its own numbered route below because the fix, and the twelve
+ *      non-tower footprints it closed, are worth a named history rather than
+ *      a silently tidied-away bullet.
  *
  * Route 1 is stat plumbing that would fail loudly; routes 2-4 are bespoke code
- * paths that would not. Route 5 is not a defect this file may fix
- * (`statkeys.ts` is out of the lane's Scope) but it is a fact this file
- * refuses to leave unwritten.
+ * paths that would not. Route 5 **was** a defect this lane could not fix
+ * (`statkeys.ts` was out of the lane's Scope); the main lane closed it as
+ * `fb083`, and this file now pins that it stays closed rather than narrating
+ * it as an open fact.
  *
  * **What "live" means here, per c009's acceptance.** Every row builds a real
  * tower in a real `World` and measures that tower's *behaviour* — damage,
@@ -756,20 +762,24 @@ describe('c009: the four conditional rows apply only under their condition', () 
   });
 });
 
-/* ---------------------------------------------------- route 5: the wrong key */
+/* ------------------------------------------- route 5: the wrong key, fb083 */
 
-describe('c009: Animist *Wide Grove* is authored on the global `area` stat, not a tower-only one', () => {
-  it('widens `areaMul` itself — so it also reaches every non-tower effect', () => {
-    // Not a defect this lane may fix (`statkeys.ts` has no `towerArea` and is
-    // out of Scope), and not one this file will leave unwritten either: the row
-    // says "all towers +10% area" and the sim gives the whole run +10% area.
-    // Pinned here so a later `towerArea` lands deliberately, not by accident.
+describe('c009: Animist *Wide Grove* is authored on the tower-only `towerArea` stat (fb083)', () => {
+  it('widens `towerAreaMul` and leaves the global `areaMul` alone — the twelve non-tower footprints are closed', () => {
+    // Pre-fb083 this pinned the opposite: Wide Grove authored the *global*
+    // `area` stat for want of a tower-only one, so the row also widened every
+    // class Active and every enemy effect that read `areaMul`
+    // (`tests/class-wide-grove-reach.test.ts`'s own twelve `LEAKING_TODAY`
+    // rows). fb083 added `towerArea` to `src/sim/statkeys.ts` and moved the
+    // row onto it, so the two claims below are now the live facts rather
+    // than the bug: the tower-only factor moves, the global one does not.
     const w = towerWorld('animist');
     const ctl = towerWorld(CONTROL);
-    expect(w.derived.areaMul).toBeGreaterThan(ctl.derived.areaMul);
+    expect(w.derived.towerAreaMul).toBeGreaterThan(ctl.derived.towerAreaMul);
+    expect(w.derived.areaMul).toBe(ctl.derived.areaMul);
     const mods = w.content.classByKey.get('animist')!.towerPassive.mods;
-    expect(mods.area).toBeGreaterThan(0);
-    expect(mods.towerArea).toBeUndefined();
+    expect(mods.towerArea).toBeGreaterThan(0);
+    expect(mods.area).toBeUndefined();
   });
 });
 
@@ -880,7 +890,7 @@ const KILLS: readonly Kill[] = [
     name: 'Wide Grove',
     classKey: 'animist',
     measure: signal.wideGrove,
-    mutate: (r) => void delete r.towerPassive.mods.area,
+    mutate: (r) => void delete r.towerPassive.mods.towerArea,
   },
   {
     name: 'Consecrated Stone (HP)',
@@ -961,4 +971,84 @@ describe('c009: the negative control — each signal dies with its own binding',
       expect(k.measure(broken, k.classKey), `${k.name} survived losing its binding`).toBe(0);
     });
   }
+});
+
+/**
+ * c036 (BACKLOG-CONTENT, lane `content`) — equipment-sourced and
+ * class-tower-passive-sourced bonuses on the same stat key, jointly measured
+ * for the first time. §2's stacking rule: different sources multiply.
+ * `sniper_bracelet` (+10% `towerRange`) and Archer *Ranger's Eye* (+10%
+ * `towerRange`) write the same key today, and stack to x1.21 below.
+ *
+ * **`normal_bracelet`/Wide Grove do too, once more — fb083 closed the gap
+ * this item first found.** Before fb083 both wrote the global `area` key and
+ * this row measured the same x1.21 stacking as the range pair. fb083's first
+ * pass moved Wide Grove to the new tower-only `towerArea` (correctly — it is
+ * a "towers" passive) without yet touching `data/equipment.json`'s Normal
+ * Bracelet row, which for one commit authored only `area` even though its
+ * own `desc` promises *"Character and tower area +10%"* — silently killing
+ * its tower half, exactly the finding this comment used to file. fb083's
+ * follow-up added the missing `towerArea: 0.1` mod alongside Normal
+ * Bracelet's existing `area: 0.1`, mirroring Sniper Bracelet's own
+ * `towerRange`/`charRange` split (`tests/fb015-equipment.test.ts`), so the
+ * row below is back to measuring the same x1.21 joint case as the range pair
+ * above it — proven directly rather than assumed.
+ */
+function towerWorldWithEquipment(classKey: string, equipment: readonly string[], c: Content = content): World {
+  const w = new World(cfg({ classKey, equipment: [...equipment] }), c);
+  w.gold = 1e6;
+  w.warden.attackCooldown = 1e9;
+  w.warden.x = WX;
+  w.warden.y = WY;
+  return w;
+}
+
+describe('c036: equipment and class-tower-passive bonuses on the same stat key multiply, not add', () => {
+  it("Archer *Ranger's Eye* (+10% towerRange) stacks with Sniper Bracelet (+10% towerRange) to x1.21, not x1.20", () => {
+    const spireDef = content.towerByKey.get(SPIRE)!;
+    const base = effectiveTowerRange(towerWorld(CONTROL), spireDef);
+    const passiveOnly = effectiveTowerRange(towerWorld('archer'), spireDef);
+    const equipOnly = effectiveTowerRange(towerWorldWithEquipment(CONTROL, ['sniper_bracelet']), spireDef);
+    const both = effectiveTowerRange(towerWorldWithEquipment('archer', ['sniper_bracelet']), spireDef);
+
+    // Each source alone reads close to the expected single factor — read via
+    // the real `effectiveTowerRange` path the rest of this file uses, not a
+    // hand-rolled formula, so a change to how range composes moves this test
+    // along with every other row here.
+    expect(passiveOnly / base, "Ranger's Eye alone").toBeCloseTo(1.1, 6);
+    expect(equipOnly / base, 'Sniper Bracelet alone').toBeCloseTo(1.1, 6);
+    // The joint case is the one no existing test can see: two independent
+    // §2 sources on the same key multiply.
+    expect(both / base, 'both sources together').toBeCloseTo(1.21, 6);
+    expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
+  });
+
+  it("Wide Grove (+10% towerArea) stacks with Normal Bracelet (+10% towerArea) to x1.21, not x1.20", () => {
+    const sporeDef = content.towerByKey.get(SPORE)!;
+    const base = effectiveTowerAoe(towerWorld(CONTROL), sporeDef);
+    const passiveOnly = effectiveTowerAoe(towerWorld('animist'), sporeDef);
+    const equipOnly = effectiveTowerAoe(towerWorldWithEquipment(CONTROL, ['normal_bracelet']), sporeDef);
+    const both = effectiveTowerAoe(towerWorldWithEquipment('animist', ['normal_bracelet']), sporeDef);
+
+    // Each source alone reads close to the expected single factor, same
+    // shape as the range pair above.
+    expect(passiveOnly / base, 'Wide Grove alone').toBeCloseTo(1.1, 6);
+    expect(equipOnly / base, 'Normal Bracelet alone').toBeCloseTo(1.1, 6);
+    // The joint case: two independent §2 sources on the same key multiply.
+    expect(both / base, 'both sources together').toBeCloseTo(1.21, 6);
+    expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
+  });
+
+  it('proven live, not vacuous — collapsing the two sources into one additive pool reddens both rows above', () => {
+    // Simulates the regression the item names: one pool where the two
+    // sources' *percentages* sum before the `1 + ...` factor is taken,
+    // instead of each source contributing its own `(1 + pct)` multiplicative
+    // term. `0.1 + 0.1 = 0.2` -> factor `1.2`, not the real `1.1 * 1.1 =
+    // 1.21`.
+    const additivePool = (...pcts: number[]): number => 1 + pcts.reduce((s, p) => s + p, 0);
+    const multiplicativePool = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1);
+    expect(additivePool(0.1, 0.1)).toBeCloseTo(1.2, 10);
+    expect(multiplicativePool(0.1, 0.1)).toBeCloseTo(1.21, 10);
+    expect(additivePool(0.1, 0.1)).not.toBeCloseTo(multiplicativePool(0.1, 0.1), 6);
+  });
 });

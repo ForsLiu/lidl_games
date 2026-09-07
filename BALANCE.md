@@ -981,11 +981,43 @@ regression is filed as **p12h** with its bisect candidates named.
 The deepening is still a real trade rather than a defect — a tower that soloed
 the whole curve was a statement about a difficulty the bot won 100% of the time
 with the Core untouched — and it is the strongest argument against keeping the
-anchor at 20, which is an owner call, not a silent one. The final boss also took the
-roster multiplier at the time this was written (365,000 → 7.3M at T1); its
-fight-length case still passed, measured rather than assumed. **Superseded by
-p12e**: that compounding (the boss's already fitted HP taking `baseHpMul` a
-second time) was diagnosed as the cause of the tick-cap censoring in
-G1/G8/G14/G23's win-rate measurements and fixed by pre-dividing the authored
-`warden_eater.hp` by `baseHpMul` (365,000 → 18,250), so the boss no longer
-carries the roster multiplier's *effect* twice — see BACKLOG p12e.
+anchor at 20, which is an owner call, not a silent one. The final boss also takes the
+roster multiplier — historically 365,000 → 7.3M at T1, until its fight-length
+case blew past the gate cap on the slow seeds (p12e, 2026-09-07): `warden_eater`'s
+*authored* HP was re-anchored 365,000 → 18,250 to cancel the multiplier back to
+the original 365,000 effective, restoring the fight length fb099 fit. Its
+fight-length case still passes, measured rather than assumed.
+
+## Chronal Surge's uncapped `towerAreaMul` — a pin, not a cap (fb083)
+
+fb083 gave the sim a towers-only Area stat key (`towerArea` -> `w.derived.
+towerAreaMul`), separate from the character's own `area`/`areaMul`, and moved
+two class passives that were authored on the global key onto it: Animist's
+Wide Grove ("all towers +10% area," a flat, one-time `+0.10`) and Time Lord's
+Chronal Surge (`applyChronalSurge`, `src/sim/run.ts`: `+bonusAoeMul` — shipped
+at `0.10` — every `waveInterval` TD waves cleared, **uncapped**, for the whole
+run). Neither passive's own magnitude changed; only which stat they feed did
+— see PROGRESS.md's fb083 entry for the full before/after.
+
+**Chronal Surge was already measured, by an earlier lane pass, at `areaMul
+3.203` by the end of a long run** (`tests/class-wide-grove-reach.test.ts`'s
+own header cites this: "+90% from Chronal Surge alone, up to nine times the
+Animist's [+10%]"). fb083 does not change that magnitude or its growth curve
+— `bonusAoeMul`/`waveInterval` are untouched in `data/classes.json`, and
+`applyChronalSurge`'s accumulation logic (`w.stats.add`, summed per source)
+is untouched — only the stat key the accumulation lands in moved from `area`
+to `towerArea`. So the same run that used to reach `areaMul 3.203` (leaking
++220% into the Time Lord's own kit Actives, on top of towers) now reaches
+`towerAreaMul 3.203` and `areaMul 1` (nothing left for the kit to leak into):
+correctly confined to towers, at the same magnitude as before.
+
+**Chosen default: pin, not cap.** fb083's acceptance text names either as
+acceptable. A cap was not added because nothing in SPEC-FINAL §4.2's own
+Chronal Surge wording ("no milestone triggers" — i.e. explicitly unbounded)
+asks for one, and inventing a ceiling not asked for is exactly the kind of
+scope creep CLAUDE.md's working rules warn against for a bug-fix item; §17's
+owner review list already covers "may be vetoed by an inbox verdict" for
+exactly this kind of tuning call. The pin is this section: if a future
+balance pass wants a cap, `3.203` at whatever run length the lane's original
+measurement used is the number to compare against, and `towerAreaMul` is now
+the correct, isolated place to read it from.

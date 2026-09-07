@@ -35,7 +35,7 @@
 import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassDef, ClassEffect, TowerDef } from './content';
 import { applyHealingToWarden, coreMoveSpeedMul } from './cores';
-import { applyDamageType } from './damagetypes';
+import { applyDamageType, dotDpsFor } from './damagetypes';
 import {
   applyAtkSlow,
   applyDot,
@@ -473,17 +473,31 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   const radius = classArea(w, eff.radius);
+  const seed = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
+  // fb062 (SPEC-FINAL §3: Poison "totals 120% of the triggering damage over
+  // 3 s"): `updateAreas`' poison branch (combat.ts) feeds this `dps` straight
+  // into a fresh 3s `applyPoison` stack every tick with no further scaling,
+  // so seeding it with the raw `seed` delivered `seed x 3` per application
+  // (2.5x too much) instead of `seed x 1.2`. `dotDpsFor` (damagetypes.ts) is
+  // the exact conversion `applyDamageType`'s own dot branch and `cores.ts`'s
+  // Corpse-poison call site already apply — the ground-zone path just never
+  // reached it.
+  const poisonDef = w.content.damageTypeByKey.get('poison');
   w.areas.push({
     id: w.newId(),
     x: wd.x,
     y: wd.y,
     radius,
-    dps: characterDamage(w, cls, eff.damage) * active1PotencyMul(w),
+    dps: poisonDef ? dotDpsFor(poisonDef, seed) : seed,
     remaining: eff.groundDurationSeconds ?? 5,
     type: 'poison',
     source: 'class_active',
     acc: 0,
     dead: false,
+    // fb082 (§4.1: "applying poison damage every second"): authored, not
+    // left to `updateAreas`'s own `?? 1` fallback, per the item's own
+    // acceptance text.
+    tickSeconds: eff.groundTickSeconds ?? 1,
   });
   w.emit('class_active', wd.x, wd.y, radius, 0);
 }

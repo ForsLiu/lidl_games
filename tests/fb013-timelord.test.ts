@@ -514,7 +514,10 @@ describe('fb013: tower passive *Chronal Surge* — a free +10% range/AoE bump ev
     w.invulnerable = true;
     w.godMode = true;
     const rangeBefore = w.derived.towerRangeMul;
-    const areaBefore = w.derived.areaMul;
+    // fb083: Chronal Surge's area half now lands on the tower-only
+    // `towerArea` key, not the global `area` every class Active also reads —
+    // see `run.ts`'s `applyChronalSurge`.
+    const areaBefore = w.derived.towerAreaMul;
 
     applyCommand(w, { k: 'call' });
     run.step(emptyInput());
@@ -534,7 +537,10 @@ describe('fb013: tower passive *Chronal Surge* — a free +10% range/AoE bump ev
     run.step(emptyInput());
     expect(w.wavesCleared).toBe(2);
     expect(w.derived.towerRangeMul).toBeCloseTo(rangeBefore * 1.1, 5);
-    expect(w.derived.areaMul).toBeCloseTo(areaBefore * 1.1, 5);
+    expect(w.derived.towerAreaMul).toBeCloseTo(areaBefore * 1.1, 5);
+    // The other half of fb083: the global `areaMul` — every class Active's
+    // own key — must not move at all.
+    expect(w.derived.areaMul).toBe(1);
   });
 
   it('does not fire for a class other than Time Lord', () => {

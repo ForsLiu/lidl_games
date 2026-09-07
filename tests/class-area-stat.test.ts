@@ -4,13 +4,17 @@
  *
  * `towers.ts` (`effectiveTowerRange`/`effectiveTowerAoe`), `vswield.ts`,
  * `damagetypes.ts` (Electric's inherent AoE) and `enemies.ts` (Burning's
- * splash) all scale their radii by `w.derived.areaMul`. `src/sim/classes.ts`
- * did not read it once, so every class Active landed at exactly its authored
- * radius no matter how much Area the run had bought — Normal Bracelet's
- * +10%, the Animist's own Wide Grove and every `area` tree/boon source were
- * dead for all 24 Actives. Found by the lane-scoped generation rule; a
- * code-contradicts-SPEC-FINAL bug, so per CLAUDE.md rule 3 it outranks the
- * queue and gets its failing test first.
+ * splash) all scaled their radii by `w.derived.areaMul` at the time this bug
+ * was found. `src/sim/classes.ts` did not read it once, so every class Active
+ * landed at exactly its authored radius no matter how much Area the run had
+ * bought — Normal Bracelet's +10%, the Animist's own Wide Grove and every
+ * `area` tree/boon source were dead for all 24 Actives. Found by the
+ * lane-scoped generation rule; a code-contradicts-SPEC-FINAL bug, so per
+ * CLAUDE.md rule 3 it outranks the queue and gets its failing test first.
+ * (fb083 later split the tower-only half of that reach into its own
+ * `towerArea`/`towerAreaMul` key — see `tests/class-wide-grove-reach.test.ts`
+ * — but that split left this file's own claim, "every class Active reads
+ * `areaMul`", untouched: `classArea` never carried a tower-only bonus.)
  *
  * **The line this file pins**, and the one `classArea` (classes.ts) is
  * written to: §2's Area is an *effect footprint from a center*, so it scales
@@ -179,14 +183,18 @@ describe('c001: the Area stat reaches every self-centered class Active radius', 
   ];
 
   for (const c of CASES) {
-    // `areaMul` is not 1 for every kit even with no test source: the Animist's
-    // own Wide Grove tower passive authors the *global* `area` stat (there is
-    // no tower-only Area stat key today), so an Animist run already carries
-    // +10%. The claim is always "authored x whatever areaMul the run has",
-    // never "authored" — asserting the latter would only re-pin
-    // `data/classes.json`'s own numbers.
+    // fb083: `areaMul` is exactly 1 at baseline for every kit now — the
+    // Animist's own Wide Grove tower passive used to author the *global*
+    // `area` stat (there was no tower-only Area key), so an Animist run
+    // carried +10% `areaMul` even with no test source at all; Wide Grove now
+    // authors `towerArea` instead, which `classArea`/this harness's Actives
+    // never read. Kept as "authored x areaMul" (not a bare `authored`
+    // equality) anyway: the claim under test is the multiplication, not
+    // `data/classes.json`'s own numbers, and it reads identically once
+    // `areaMul` is confirmed 1 by the case just above this loop.
     it(`${c.name}: the radius that lands is the authored value x areaMul`, () => {
       const w = areaWorld(c.classKey, 0);
+      expect(w.derived.areaMul).toBe(1);
       c.fire(w);
       expect(c.observe(w)).toBeCloseTo(c.authored(w) * w.derived.areaMul, 10);
     });
