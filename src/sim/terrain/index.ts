@@ -32,6 +32,7 @@ export {
   walkableFlood,
 } from './analyze';
 export { describeTerrain, parseTerrainDump, type TerrainDump } from './describe';
+export { BASE_GATE_KEYS, GATE_JITTER_MARGIN, jitterGates, type BaseGateKey } from './gates';
 export {
   suggestCoreAnchor,
   validateCorePlacement,

@@ -837,8 +837,13 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(HEADER_KEYS.gates.slice(base.length)).toEqual(MODIFIER_GATES.map((g) => g.key));
     // ...and it really is refused out of order, not merely declared last.
     const four = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
+    // fb156: `south2`, not `south` — `MODIFIER_GATES`' fb156 rename means
+    // `south` is no longer a key this format declares at all (a *base*
+    // jittered gate answers to that name now; see `grid.ts`), so the
+    // malformed-order fixture has to spell the declared key or the parser
+    // reports "unknown key" instead of the order violation this test targets.
     expect(() =>
-      parseTerrainDump(four.replace('gates west=0,10', 'gates south=12,19 west=0,10')),
+      parseTerrainDump(four.replace('gates west=0,10', 'gates south2=3,31 west=0,10')),
     ).toThrow(/fields are in a fixed order/);
   });
 

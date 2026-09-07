@@ -47,8 +47,40 @@ export const GATES: readonly GateDef[] = [
  * a coordinate is the drift shape this lane has already consolidated twice.
  * `world.ts` still writes its own literal; folding that in touches a file
  * outside the terrain lane and is logged for the merge.
+ *
+ * **fb156 renamed this from `'south'` to `'south2'` and moved it off a dead
+ * tile.** The seed-jittered 4-gate default `src/sim/terrain/gates.ts` ships
+ * (`jitterGates`, the fb156 owner order: "4 spawn gates by default... tier
+ * modifiers that add a gate now go to 5") legitimately keys its own 4th base
+ * gate `'south'`, so this export — a fifth, *fifth-tier-modifier* gate that
+ * used to share that name — had to move aside or the two would collide the
+ * moment a run carries both, which "tier modifiers now go to 5" means every
+ * run eventually will. `'south2'` says what it is: a second gate on (or near)
+ * the south wall, distinct from the base one.
+ *
+ * The position also moved, off the coordinate fb166 already logged as broken:
+ * `{ tx: 12, ty: 19 }` was `GRID_H - 1` on the 36x20 grid and is an ordinary
+ * *interior* tile at 56x32 (the border row is now `y: 31`) — `openGate` and
+ * `parseTerrainDump`'s border check both correctly refuse it, which is why
+ * `tests/terrain-gates-dump.test.ts` and others already built their own
+ * corrected stand-in rather than import this constant. `{ tx: 3, ty: 31 }` is
+ * a real border tile, not a corner, and — the property this export exists to
+ * hold now that a run may carry it *beside* `jitterGates`' own south gate —
+ * structurally clear of that gate's jitter zone: `jitterGates`' south/north
+ * range is `[GATE_JITTER_MARGIN, GRID_W - 1 - GATE_JITTER_MARGIN]` =
+ * `[8, 47]`, so `tx: 3` is never a position `jitterGates` can draw, on any
+ * seed, for any of the four base gates. Verified, not just argued, by
+ * `tests/terrain-four-gates.test.ts`: a 5000-seed sweep confirms no jittered
+ * gate ever lands on this exact tile, and a 300-seed sweep over a live 5-gate
+ * run (`[...jitterGates(seed), ...MODIFIER_GATES]`) confirms no two of the 5
+ * gates ever share a tile end to end.
+ *
+ * `world.ts` still writes its own independent `{ key: 'south', tx: 12, ty: 19
+ * }` literal (not this export) and needs the same two fixes — logged in
+ * BACKLOG-TERRAIN.md's fb156 Log entry for the main lane, since `world.ts` is
+ * outside this lane's Scope.
  */
-export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 12, ty: 19 }];
+export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 3, ty: GRID_H - 1 }];
 
 export const CORE_X = 25;
 export const CORE_Y = 9;

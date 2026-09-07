@@ -128,7 +128,7 @@ the merge — never edited from this lane.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
-- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+- [x] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
       edges, jittered along the edge) instead of 3, and tier modifiers that add
       a gate now go to **5**. Every existing gate rule still applies unchanged:
       gates are never sealed, connectivity >= 80% of walkable, Core legality
@@ -140,6 +140,109 @@ the merge — never edited from this lane.
       property tests pass at 4 gates across **1000 seeds**; nothing in
       `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
       SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+      **Shipped as a generator-level tool, `jitterGates(seed)`
+      (`src/sim/terrain/gates.ts`, re-exported from `src/sim/terrain`), not as a
+      change to `generateTerrain`'s own default.** Investigated first, per this
+      item's own instruction: every generation-pipeline function already
+      defaults `gates: readonly GateDef[] = GATES` rather than hardcoding a
+      count (`analyze.ts`, `config.ts`, `core-placement.ts`, `path.ts`,
+      `describe.ts`, `generate.ts` all confirmed by reading, not assumed) — so
+      the pipeline needed no change to *accept* 4 (or 5) gates, only a function
+      to *produce* a seed-jittered 4-gate list. Flipping `generateTerrain`'s own
+      default from `GATES` to that list was considered and rejected: nothing in
+      `src/` calls `generateTerrain` without an explicit gate list today
+      (`world.ts:145` always passes `this.gates`), so a live run never reads
+      that default at all, while ~150 existing `tests/terrain*` call sites do —
+      flipping it would have forced a from-scratch honest re-recording of every
+      hash golden and exact-tile assertion in the suite for zero gameplay
+      benefit. This is the implementation-shape decision CLAUDE.md's
+      designer-fill clause calls for; a human should sanity-check it, and the
+      concrete alternative (flip the default) is recorded here in case the
+      owner disagrees.
+      **Design.** `jitterGates(seed)` draws a dedicated RNG stream,
+      `` `${TERRAIN_STREAM}:gates` `` — the same named-substream pattern
+      `tiers.ts` already uses (`` `${DRAFT_STREAM}:${tier}` ``) rather than
+      adding a new top-level entry to `rng.ts`'s `ONE_SHOT_STREAM_NAMES` (that
+      file is outside this lane's Scope). It is independent of `attempt()`'s own
+      per-attempt `rng`, so a degenerate retry within one `generateTerrain` call
+      still protects and measures against the *same* gate list it started with.
+      Each of the 4 gates (`west, north, east, south`, `BASE_GATE_KEYS`) is
+      drawn, in that fixed order, uniformly along its edge within
+      `[GATE_JITTER_MARGIN, span - 1 - GATE_JITTER_MARGIN]`,
+      `GATE_JITTER_MARGIN = 8` — sized so no jittered position can ever be a
+      corner (`openGate`'s own refusal) and, checked over the 1000-seed sweep in
+      `tests/terrain-four-gates.test.ts` rather than argued from the arithmetic
+      alone, so no jittered gate ever crowds `data/terrain.json`'s
+      `gateClearRadius: 2` / `coreGateClearance: 3` into a corner pocket.
+      **The `MODIFIER_GATES`/`'south'` naming collision is real and is fixed in
+      `grid.ts`.** `jitterGates`' 4th gate legitimately answers to `'south'`
+      now, which is the same key `MODIFIER_GATES` (the fb065f Fourth Gate
+      export) used, so a run carrying both — exactly what "tier modifiers now
+      go to 5" means every run eventually will — would collide the moment
+      `describeTerrain` tried to declare both keys. Renamed `MODIFIER_GATES`'
+      key to `'south2'` and, since its coordinate was already a logged bug
+      (`{ tx: 12, ty: 19 }` was `GRID_H - 1` on the 36x20 grid and is a dead
+      *interior* tile at 56x32 — fb166's Log entry below), repositioned it to a
+      real border tile: `{ tx: 3, ty: GRID_H - 1 }` (= `{3, 31}`). `tx: 3` sits
+      inside `jitterGates`' own margin band (`< GATE_JITTER_MARGIN`), so it can
+      never coincide with a jittered south gate on any seed — verified, not
+      just argued, by `tests/terrain-four-gates.test.ts`'s 300-seed 5-gate
+      sweep (`[...jitterGates(seed), ...MODIFIER_GATES]`), which also confirms
+      the resulting 5-gate maps stay legal under every owner band.
+      **`data/terrain.json`: byte-for-byte unchanged, confirmed rather than
+      assumed.** Nothing in it names a gate count — every constraint is a
+      fraction or a radius, independent of how many gates fed the generator
+      that produced the measured map, which the 1000-seed 4-gate sweep and the
+      300-seed 5-gate sweep both hold as the empirical proof.
+      **`tests/terrain*` files touched**, and how: `tests/terrain-four-gates.ts`
+      is new (15 tests: `jitterGates` determinism/structure/variety, the
+      mandatory 1000-seed 4-gate property sweep, a 300-seed 5-gate sweep for
+      "tier modifiers now go to 5"); `tests/terrain-gates-dump.test.ts` dropped
+      its own hand-rolled `SOUTH` stand-in (the staleness bug it existed to work
+      around is now fixed in `grid.ts` itself) in favour of importing
+      `MODIFIER_GATES` directly, and every `'south'`/`12,31` literal in it
+      became `'south2'`/`3,31`; `tests/terrain-describe.test.ts` got one literal
+      fix (a malformed-order fixture that used to spell an arbitrary `south`
+      key now spells the still-declared `south2`); `tests/terrain-run-provenance.test.ts`
+      needed a real re-measurement, not a text substitution, because
+      `MODIFIER_GATES`' reposition changes the RNG-consuming corridor walk for
+      every seed generated against `[...GATES, ...MODIFIER_GATES]` — re-ran its
+      exact `strandedIn` sweep over the same 12,000-seed sample
+      (`tests/terrain-sample.ts`) and found **7** stranded seeds on the new
+      four-gate population (`1936312035, 2503247019, 3617073831, 3693667320,
+      -646, 2147483030, 2147483637`), up from the old 2, all disjoint from the
+      base-arena set (unaffected: `GATES` did not move) and all — checked, not
+      assumed — rescued by the Warden-clearing path with zero retries, matching
+      the file's own finding. A seed-40 hash comparison quoted in the file's own
+      prose (`GATES` vs the Fourth-Gate list) was re-measured too:
+      `367083cd`/605 tiles apart, was `72845dda`/766.
+      **The flat arena / Training Grounds path deliberately stayed at 3.**
+      `flatTerrain()`/`flatKinds()` still default to the static `GATES`
+      (unchanged) — a flat non-generated arena is fb064f's separate,
+      already-scoped Tuner/Training-Grounds concern, and this item's acceptance
+      is about the *generator*, not that path; if fb064f wants 4 (or a
+      configurable count) for Training Grounds, it can pass `jitterGates(seed)`
+      or its own list, exactly like every other caller.
+      **Exact final numbers**: `tests/terrain*` glob — 26 files, 426 passed + 1
+      skipped (427 total; was 411 + 1 skip before this item, plus this item's
+      new 15-test file: 411 + 15 = 426, matches).
+      `npm run test:fast` full run, measured twice — fresh **before** this item
+      touched anything: **15 failed files / 36 failed tests, 249 passed files /
+      3873 passed tests, 8 skipped files**, exactly matching the fb166
+      shipped-note above; and again **after**, on the finished tree: **14
+      failed files / 35 failed tests, 251 passed files / 3889 passed tests, 8
+      skipped files**. The one-file difference is not this item's doing —
+      `fb027-selection-panels` is the intermittent (~20% of runs) failure
+      fb166's own Log entry above already disclaims as pre-existing and
+      unrelated to any grid/gate work (`freeTileNear()` checks `passable`
+      instead of `buildable`); it happened to fail in the fresh-before run and
+      pass in the after run, confirmed by grepping both runs' full logs rather
+      than assumed from the summary counts. Every other file in the known
+      13-main/UI-lane-plus-2-q15/q45 list is unchanged, and **no new file
+      joined it** — checked by diffing both runs' full `FAIL` listings
+      file-by-file, not just their totals. **No `tests/terrain*` file appears
+      in either run's failing set.**
+      `npx tsc --noEmit`: clean.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
@@ -1347,6 +1450,71 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
 
 ## Log
+
+- (2026-09-07, fb156 shipped) The generator half of the owner's four-gate order
+  is done (`jitterGates`, `src/sim/terrain/gates.ts`, re-exported from
+  `src/sim/terrain`); this restates the three consumer needs the 2026-09-05
+  filing below already named, now that a concrete tool exists for each, plus
+  what this item's own implementation surfaced along the way.
+  **(1) Wave composition / spawn wiring.** Narrower than first filed: both
+  live spawn sites already read `World.gates` generically —
+  `src/sim/run.ts:461` (`gateSpawnPoint`) and `:835` (`updateAct1Wave`) both
+  index `w.gates[i % w.gates.length]` / `w.gates[gateIdx]`, with no hardcoded
+  count. **The one line that actually needs to change is `world.ts:588`**,
+  `this.gates = GATES.slice(0, 3);` — replace with `jitterGates(cfg.seed)` (or
+  whatever gate list the run's real config selects) and the wave/spawn side
+  should follow with no further edit, since it was already written against
+  `w.gates.length` rather than a literal 3 or 4. Verify this claim before
+  relying on it — this lane did not trace `w.spawnQueue`'s own gate-index
+  assignment upstream of `updateAct1Wave` to confirm it, too, is gate-count-
+  generic, since that file is outside Scope.
+  **(2) Leak coupling / VS gate spawns (main-lane `fb154`).** Unchanged advice:
+  write it against `w.gates.length` / a count read from terrain, not a
+  literal, for the same reason as (1).
+  **(3) Path-indicator colors (UI lane).** More precise than first filed:
+  `src/render/theme.ts`'s `GATE_PATH_COLORS` already has **4** entries — it was
+  sized for today's "3 base + 1 Fourth Gate" case, and 4 is exactly enough for
+  the new 4-gate *base* with no modifier active. It is **not** enough once a
+  tier modifier stacks a 5th gate on the new base (the owner's "tier modifiers
+  now go to 5"): the 5th gate wraps via `% GATE_PATH_COLORS.length` onto index
+  0's color, `#7ecbff`, reading on screen as indistinguishable from the west
+  gate's own path. Add a 5th color when wiring the 5-gate case.
+  **(4) New: `Grid`'s constructor bakes gate tiles in at construction, with no
+  seed input at all** — `for (const g of GATES) this.tile[...] = TileType.Gate;`
+  runs once, unconditionally, off the static list, before any generator ever
+  sees a seed. `openGate()` (fb065e) is the existing mechanism for adding a
+  gate *after* construction — it is how the current Fourth Gate opens its one
+  extra tile — so the same route (open the jittered 4th, or all 4 if the base
+  itself moves to `jitterGates`, via `openGate` before `applyRunTerrain`, per
+  its own ordering rule) is the likely fit, but this lane did not attempt it:
+  it is real `Grid`/`World` wiring, not a generator concern, and belongs to
+  whichever item does (1). Flagged here so it is not rediscovered as a
+  surprise mid-implementation.
+  **(5) `world.ts:591`'s Fourth Gate literal needs the same two fixes this item
+  made to `MODIFIER_GATES` in `grid.ts`, and they are now two, not one:**
+  - **Key:** rename `'south'` -> `'south2'`. `jitterGates`' own 4th gate now
+    legitimately answers to `'south'` (`src/sim/terrain/gates.ts`), so once
+    `world.ts:588` is wired per (1), a run carrying both the jittered base and
+    the Fourth Gate modifier would have two gates keyed `'south'` — the exact
+    collision this item's `MODIFIER_GATES` rename exists to prevent, one layer
+    away from where it was actually fixed.
+  - **Coordinate:** `{ tx: 12, ty: 19 }` is `GRID_H - 1` on the pre-fb166 36x20
+    grid and is a dead *interior* tile at 56x32 (fb166's own Log entry below,
+    unresolved). `grid.ts`'s `MODIFIER_GATES` is now the corrected value,
+    `{ tx: 3, ty: GRID_H - 1 }` = `{ 3, 31 }`.
+  - **Recommended fix, not required:** import and spread `MODIFIER_GATES`
+    (`grid.ts`) at `world.ts:591` instead of hand-copying a third literal — the
+    two-call-site-drift shape (`grid.ts`'s own export and `world.ts`'s
+    independent copy) is exactly what this Log has now recorded twice (fb166's
+    entry below, and this one), and a single source of truth closes it for
+    good rather than needing a fourth fix later.
+  - Re-enabling `tests/terrain-gates-dump.test.ts`'s `.skip`ped "describes a
+    live Fourth Gate run correctly" test (blocked on this exact fix, per its
+    own Known-issue comment) is a natural verification step once (5) lands.
+  Nothing else surfaced beyond these five: `data/terrain.json` needed no
+  change (confirmed, not assumed — see the shipped-note above), and every
+  generation-pipeline function in `src/sim/terrain/**` already accepted an
+  arbitrary gate list before this item touched anything.
 
 - (2026-09-06, fb166 filing; severity corrected 2026-09-06 post-QA — qa-playtester
   pass on this item) Two out-of-scope defects surfaced by the 36x20 -> 56x32

@@ -20,14 +20,23 @@
  * so stranding got rarer on both gate lists, not just proportionally rarer —
  * matching `tests/terrain-grid.test.ts`'s own re-measurement.
  *
+ * **fb156 re-measured the four-gate numbers again**, because `MODIFIER_GATES`
+ * — the modifier's gate `FOUR` below extends the base three with — moved and
+ * was renamed (`{ tx: 12, ty: 19 }` key `'south'` -> `{ tx: 3, ty: 31 }` key
+ * `'south2'`; see `grid.ts`'s own doc comment). That is a different generator
+ * input, so it is a different population, exactly as the base-vs-four-gate
+ * split already was one layer up. The base-arena numbers are untouched
+ * (`GATES` did not move).
+ *
  * The measurement is in two layers, because only one of them is cheap:
  *
  *  1. **The upper bound**, over all 12,000 seeds of `tests/terrain-sample.ts`,
  *     on both gate lists: how many seeds' generated maps leave the Core
  *     unreachable *before* the Warden clearing. Two on the base arena
- *     (`244812834`, `709384557`, 0.0167%) and two on the four-gate one
- *     (`2888361945`, `-739`), disjoint sets — different generator input,
- *     different population.
+ *     (`244812834`, `709384557`, 0.0167%) and **seven** on the four-gate one
+ *     (`1936312035`, `2503247019`, `3617073831`, `3693667320`, `-646`,
+ *     `2147483030`, `2147483637`, 0.0583%), disjoint sets — different
+ *     generator input, different population.
  *     This is a genuine bound and not an estimate, and the argument is narrower
  *     than "the clearing only opens tiles": `allGatesReachable` dijkstras
  *     `blocked`, which comes from `staticBlocked`, which reads `terrainBlock`
@@ -36,7 +45,7 @@
  *     set can only grow and reachability can only improve. (Its other writes,
  *     `high = 0` and `charBlock = 0`, are *not* monotone-safe for other
  *     predicates; they simply do not enter this one.)
- *  2. **The exact answer for those four**, which costs four more applies:
+ *  2. **The exact answer for those nine**, which costs nine more applies:
  *     every one is *rescued* by the Warden clearing, so the retry count over
  *     the sample is **0 of 12,000 on either gate list** and the bound above is
  *     not tight. That the 3x3
@@ -57,7 +66,8 @@
  * of this paragraph: **regenerate the map from the seed alone.** The gate list
  * is a generator input, so `generateTerrain(40, cfg, GATES)` and the same seed
  * under fb077's Fourth Gate are different maps — hashes `5cecaef9` and
- * `72845dda`, **766 tiles apart**. A reader following "just regenerate from the
+ * `367083cd` (fb156 re-measured: was `72845dda` before `MODIFIER_GATES` moved),
+ * **605 tiles apart** (was 766). A reader following "just regenerate from the
  * seed" on a `modifiers: ['gate']` bug report gets the wrong map, which is a
  * bigger hole than the retry this file studies and is the *same* blind spot the
  * immediately preceding item (fb065f) closed for the dump's bands. The map is a
@@ -162,11 +172,15 @@ describe('fb065h — a run plays its own seed’s map', () => {
     // `gate` modifier plays maps this sweep never sees. Recorded rather than
     // re-swept here, on fb064r's two-layer pattern: the full four-gate sweep
     // over the same 12,000 seeds reads **checked 12000, fallbacks 0, stranded
-    // 2** — `2888361945`, `-739` — and running it in-test doubled the file's
-    // cost, which is the wrong side of the fast tier. The two witnesses are
-    // re-measured (milliseconds each), which is what catches a generator
-    // change; the *distribution* is the recorded string.
-    const FOUR_GATE_STRANDED = [2888361945, -739];
+    // 7** — fb156 re-measured this after `MODIFIER_GATES` moved (was 2,
+    // `2888361945`/`-739`, disjoint from the new set below, which is exactly
+    // what "different generator input" predicts) — and running it in-test
+    // doubled the file's cost, which is the wrong side of the fast tier. The
+    // seven witnesses are re-measured (milliseconds each), which is what
+    // catches a generator change; the *distribution* is the recorded string.
+    const FOUR_GATE_STRANDED = [
+      1936312035, 2503247019, 3617073831, 3693667320, -646, 2147483030, 2147483637,
+    ];
     expect(strandedIn(FOUR_GATE_STRANDED, FOUR).stranded).toEqual(FOUR_GATE_STRANDED);
     // ...and they are fine on the base arena, which is the point: these are not
     // "the same bad seeds plus two", they are a different population.
@@ -190,7 +204,7 @@ describe('fb065h — a run plays its own seed’s map', () => {
     try {
       for (const [gates, seeds] of [
         [GATES, [244812834, 709384557]],
-        [FOUR, [2888361945, -739]],
+        [FOUR, [1936312035, 2503247019, 3617073831, 3693667320, -646, 2147483030, 2147483637]],
       ] as ReadonlyArray<readonly [readonly GateDef[], readonly number[]]>) {
         for (const seed of seeds) {
           const raw = rawGrid(seed, gates);
