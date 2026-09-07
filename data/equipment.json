@@ -92,7 +92,7 @@
       "key": "normal_bracelet",
       "slot": "bracelet",
       "name": "Normal Bracelet",
-      "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "area": 0.1 },
+      "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "area": 0.1, "towerArea": 0.1 },
       "effectKey": "none",
       "desc": "HP 0.1 / Atk 0.1 / Def 1. Character and tower area +10%."
     },

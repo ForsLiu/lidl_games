@@ -823,7 +823,7 @@ Q91 and Q102 corrections if not yet done.
   (the vetoed reading shipped, unresolved) — restored to match this branch's
   own, verified text.
 
-- **Q195. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+- **Q199. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
   with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
   `pierce`) the lone unscaled outlier — and the two kinds are not actually
   the same shape of problem.** Chosen default: `single`'s `lineHit` call
@@ -853,7 +853,54 @@ Q91 and Q102 corrections if not yet done.
   on (BACKLOG.md fb081b, closed moot by this same alignment). Still
   owner-vetoable either way.
 
-- **Q196. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+- **Q195. [fb083] A new tower-only Area stat key (`towerArea`) closes the
+  Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit
+  Actives — but `effectiveTowerAoe` (`towers.ts`) is shared by three callers,
+  not two, and two genuine design choices fall out of that.** (1)
+  `classes.ts`'s `towerSummonProfile` — the shape Engineer's Pop Turret and
+  the Animist's own Manifest spirit both clone their AoE from, since each is
+  a literal tower clone — calls `effectiveTowerAoe` too. Chosen default:
+  these stay on the `'tower'` route (the function's default), so Wide Grove/
+  Chronal Surge's "all towers" text keeps reaching a turret/spirit summon
+  exactly as it reaches a real tower, which is the more spec-consistent
+  reading of "towers" than carving summons out as a special case nothing
+  asked for. (2) `vswield.ts`'s wielded lob/poison blasts also call
+  `effectiveTowerAoe` (its only other caller) — these must NOT move, per
+  that file's own §6.1 header ("treated as character attacks," riding the
+  character's own Area/range, never the tower-side ones) — so
+  `effectiveTowerAoe` gained an explicit `route: 'tower' | 'character'`
+  parameter (default `'tower'`) rather than splitting into two functions,
+  and `vswield.ts`'s four call sites pass `'character'` explicitly. —
+  Reason: CLAUDE.md's gap rule (most spec-consistent default, logged rather
+  than asked) — a parameter keeps the one formula (`lob`/`poison` AoE
+  shape) in one place rather than forking it, and the tower-clone reading
+  for (1) is a straightforward extension of "these are towers" rather than
+  an invented exception. — (owner verdict: pending)
+
+- **Q196. [fb083] Two more shared reads of the old global `area` key —
+  Electric's inherent AoE (`damagetypes.ts`'s `applyDamageType`) and
+  Burning's splash (`enemies.ts`'s `tickDotSplash`) — can't take
+  `effectiveTowerAoe`'s `route` parameter, because neither function is
+  called with a caller-chosen route: both only ever receive a `source`
+  string (the attacking tower's or Active's key).** Left unfixed they would
+  have gone from over-applying (reading the global key on both routes) to
+  under-applying (reading neither, since Wide Grove/Chronal Surge/Normal
+  Bracelet's tower half moved off that key entirely) — a real Tesla Coil or
+  Ember Brazier would stop being widened by its own class's tower passive.
+  Chosen fix: a small shared helper, `enemies.ts`'s exported
+  `isTowerSource(w, source)`, reusing the exact idiom `dotPotency` already
+  uses for `towerPoisonDamageMul` (`!w.huntsWarden && w.content.towerByKey
+  .has(source)`) — true only for a real tower's own Act I attack, false
+  during VS (`huntsWarden`) even for a source that names a tower key, since
+  a hunting tower's attack is a character-route effect for every other
+  purpose in the sim. Both sites now pick `towerAreaMul`/`areaMul` by that
+  check instead of taking a parameter. — Reason: CLAUDE.md's gap rule
+  (most spec-consistent default) — reusing an existing, already-reviewed
+  idiom for "is this a tower's own hit" beats inventing a second one, and a
+  source check is the only option available to a function that has no
+  caller-chosen route to read. — (owner verdict: pending)
+
+- **Q197. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
   measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
   acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
   gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this

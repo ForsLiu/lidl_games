@@ -681,7 +681,7 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       G8's T1/T5 companions are measured once on the shared harness rather
       than per-class (would have tripled an already ~100-minute file's
       cost for a question the shared harness already answers) — logged as
-      QUESTIONS Q196. `npx tsc --noEmit` clean; `npm run test:fast` green
+      QUESTIONS Q197. `npx tsc --noEmit` clean; `npm run test:fast` green
       except two pre-existing failures (`tests/q15-command-domain-fuzz
       .test.ts`, `tests/q45-cli-schema-violation.test.ts`) confirmed via
       `git stash` to fail identically on unmodified HEAD (a scratch-
@@ -4372,20 +4372,52 @@ generation-rule boundary.
       authored in `/data` (per-area `tickSeconds`), 1 s for the barrel; TTK
       re-measured so the barrel's DPS is unchanged at the new cadence —
       refs: SPEC-FINAL §4.1, §8 statuses.
-- [ ] (fb083) [feat] there is no tower-only Area stat key, so two tower
-      passives are authored with the *global* `area` key and — since c001
-      routed Area into the kits — widen the caster's own Actives: the
-      Animist's "All towers +10% area" (so the Animist has no `areaMul === 1`
-      baseline at all) and Time Lord's Chronal Surge (+10% every 2 TD waves,
-      **uncapped**: areaMul 3.203 at the end of a seed-2 `cycles: 6` run, of
-      which +90% is Chronal Surge — Time's r7 mark becomes a 22-tile pulse on
-      a 36x20 board). Acceptance: `towerArea` in `statkeys.ts`/`stats.ts`
-      read by `towers.ts`'s aura/lob/poison radii; both passives re-authored
-      onto it in `data/classes.json`; `tests/class-area-stat.test.ts`'s
-      Animist exception retired; a cap or a pin for Chronal Surge's total
-      recorded in BALANCE.md. Owner-vetoable (a "towers" passive that also
-      buffs the kit may be intended) — refs: SPEC-FINAL §2, §4.2, QUESTIONS
-      Q163.
+- [x] (fb083) [feat] **DONE 2026-09-07** — a new tower-only Area stat key,
+      `towerArea`/`derived.towerAreaMul` (`statkeys.ts`/`stats.ts`), closes the
+      global-`area` leak c013/c024 measured: the Animist's Wide Grove ("all
+      towers +10% area") and Time Lord's Chronal Surge (+10% every
+      `waveInterval` TD waves, uncapped — areaMul 3.203 at a seed-2 `cycles: 6`
+      run's end) both re-authored onto it (`data/classes.json`,
+      `applyChronalSurge` in `run.ts`), and no longer widen the caster's own
+      class Actives or VS-wielded attacks. `towers.ts`'s
+      `effectiveTowerRange`/`effectiveTowerAoe` gained a caller-chosen
+      `route: 'tower' | 'character'` parameter (default `'tower'`;
+      `vswield.ts`'s four wielded-attack call sites pass `'character'`
+      explicitly, per §6.1's "treated as character attacks"; tower-cloned
+      summons — Engineer's Pop Turret, the Animist's own Manifest spirit via
+      `towerSummonProfile` — stay on the default, QUESTIONS Q195).
+      **Two more shared reads couldn't take that parameter** — Electric's
+      inherent AoE (`damagetypes.ts`'s `applyDamageType`) and Burning's splash
+      (`enemies.ts`'s `tickDotSplash`) only ever receive a `source: string`,
+      not a caller-chosen route — so a first pass left them starved (neither
+      route reached them once Wide Grove moved off the global key). Fixed
+      with a new exported `isTowerSource(w, source)` helper next to the
+      existing `dotPotency`, reusing its exact `!w.huntsWarden &&
+      w.content.towerByKey.has(source)` idiom (QUESTIONS Q196) so a real
+      tower's own Electric/Burning hit reads `towerAreaMul` again while a
+      class Active's/Core's does not, and a tower's attack during VS
+      (`huntsWarden`) correctly stays on the character route. Also closed:
+      `data/equipment.json`'s Normal Bracelet authored only `area: 0.1`
+      despite its own "character and tower area +10%" desc, silently killing
+      its tower half the moment Wide Grove moved off that key — given
+      `towerArea: 0.1` alongside, mirroring Sniper Bracelet's existing
+      `towerRange`/`charRange` split.
+      **code-reviewer**: APPROVE, no findings (traced every caller of
+      `effectiveTowerAoe`/`isTowerSource`, confirmed no VS-phase tower attack
+      can reach `isTowerSource`'s guard incorrectly, confirmed the split is
+      complete via the wide-grove-reach file's own regex completeness
+      guards). **qa-playtester**: PASS on all six acceptance criteria,
+      independently probing the engine rather than trusting the shipped
+      tests (Wide Grove/Chronal Surge tower-only widening, the Electric/
+      Burning route fix, the VS carve-out both directions, Normal Bracelet's
+      multiplicative x1.21 stack with Wide Grove) — one pre-existing,
+      fb083-unrelated `q15`/`q45` CLI-fuzz environment failure noted (repros
+      identically on the pre-fb083 commit) and one doc-only nit
+      (`content.ts`'s Chronal Surge comment, fixed here). Verification:
+      `npx tsc --noEmit` clean; the 12-file targeted suite this item touches
+      634/634; full `q7-data-fuzz` regenerated and green (new
+      `equipment.items[].mods.towerArea` census row) — refs: SPEC-FINAL §2,
+      §4.2, QUESTIONS Q163/Q195/Q196, BACKLOG-CONTENT.md c013/c024/c036.
 - [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
       (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
       rather than a class-key check") cannot be built from the content lane.
@@ -4536,6 +4568,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       fb087), then either restore a <60 s standalone run or move q15 to the
       exclude list with the measured time; the config comment matches the
       measurement — refs: CLAUDE.md test tiers, fb087.
+      **2026-09-07 re-measurement: the symptom has changed and the old
+      "hangs" diagnosis is stale.** On this host q15 no longer times out —
+      it fails in ~1.3s, standalone and under `npm run test:fast` alike,
+      with `Error: Cannot find module '.../tools/fuzz-command-domain'
+      imported from .../tools/fuzz-command-domain-worker.ts`. `q45` (which
+      exercises the same `probeInWorker` machinery via a scratch-copied
+      tree) fails the same way. Root-caused with a Vitest-free repro (a
+      bare `node` script spawning the same `new Worker(WORKER_PATH,
+      {execArgv: ['--import', 'tsx/esm']})` call `fuzz-command-domain.ts`
+      itself uses): the extensionless relative import
+      (`fuzz-command-domain-worker.ts`'s `from './fuzz-command-domain'`)
+      resolves fine when the exact same `--import tsx/esm` flag runs on the
+      **main thread**, but fails to resolve inside a spawned
+      **`Worker`** thread on this host's `tsx@4.23.12` (`package.json` only
+      pins `^4.19.2`) under Node `22.22.2` — tsx's ESM resolve hook does not
+      appear to intercept bare specifiers inside a worker's own execArgv
+      registration here, and the failure is not specific to one import: a
+      manual `.ts`/`.js`-suffixed rewrite of the worker's own import moves
+      the identical error one level deeper, to the next extensionless
+      import inside `fuzz-command-domain.ts` itself
+      (`.../src/sim/run`) — a real fix would mean adding explicit
+      extensions to every transitively-imported specifier reachable from
+      the worker entry point, or pinning/patching the `tsx` dependency
+      itself, either of which is a materially different, larger, and
+      environment-sensitive change than this item's own acceptance text
+      anticipated ("find why the probe hangs"). Left open rather than
+      attempted blind, since a "fix" that only silences this exact
+      `tsx@4.23.12` patch could read as broken or unnecessary on a
+      differently-resolved `^4.19.2` install (CI, another contributor's
+      machine) and cannot be verified here either way — a floating-version
+      dependency bug is a judgment call for the owner (pin `tsx` to a known
+      version and verify across environments, or find whichever tsx patch
+      regressed worker resolution and report upstream) rather than a
+      same-session code fix. `q45`'s failure is the identical root cause,
+      not a second bug — refs: CLAUDE.md test tiers, fb087.
 - [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
       tier cannot see, both expired measurements: `tests/a3-movement-
       mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`

@@ -46,12 +46,49 @@
   companions are measured once on the shared harness rather than per-class
   (a literal per-class x per-tier sweep would have tripled an already
   ~100-minute file's cost for a question the shared harness already
-  answers) — logged as QUESTIONS Q196. `npx tsc --noEmit` clean;
+  answers) — logged as QUESTIONS Q197. `npx tsc --noEmit` clean;
   `npm run test:fast` green except two pre-existing failures
   (`tests/q15-command-domain-fuzz.test.ts`, `tests/q45-cli-schema-violation
   .test.ts`) confirmed via `git stash` to fail identically on unmodified
   HEAD — a scratch-directory module-resolution issue in this sandbox,
   unrelated to this item. No `/src/sim` or `/data` changes.
+
+- **2026-09-07 — BACKLOG fb083 done.** A new tower-only Area stat key,
+  `towerArea`/`derived.towerAreaMul` (`statkeys.ts`/`stats.ts`), closes the
+  global-`area` leak c013/c024 measured: the Animist's Wide Grove ("all
+  towers +10% area") and Time Lord's Chronal Surge (+10% every
+  `waveInterval` TD waves, uncapped — areaMul 3.203 at a seed-2 `cycles: 6`
+  run's end) both re-authored onto it, and no longer widen the caster's own
+  class Actives or VS-wielded attacks. `towers.ts`'s
+  `effectiveTowerRange`/`effectiveTowerAoe` gained a caller-chosen
+  `route: 'tower' | 'character'` parameter (default `'tower'`; `vswield.ts`'s
+  four wielded-attack call sites pass `'character'` explicitly per §6.1;
+  tower-cloned summons — Pop Turret, Manifest Spirit via
+  `towerSummonProfile` — stay on the default, QUESTIONS Q195). Two more
+  shared reads couldn't take that parameter — Electric's inherent AoE
+  (`damagetypes.ts`) and Burning's splash (`enemies.ts`'s `tickDotSplash`)
+  only ever receive a `source: string` — so a first pass left them starved
+  (neither route reached them). Fixed with a new exported
+  `isTowerSource(w, source)` helper beside the existing `dotPotency`,
+  reusing its exact `!w.huntsWarden && w.content.towerByKey.has(source)`
+  idiom (QUESTIONS Q196), so a real tower's Electric/Burning hit reads
+  `towerAreaMul` again, a class Active's/Core's does not, and a tower's
+  attack during VS correctly stays on the character route. Also closed:
+  `data/equipment.json`'s Normal Bracelet authored only `area: 0.1` despite
+  promising "character and tower area +10%", silently dead on its tower half
+  the moment Wide Grove moved off that key — given `towerArea: 0.1`
+  alongside, mirroring Sniper Bracelet's `towerRange`/`charRange` split.
+  code-reviewer **APPROVE**, no findings (traced every `effectiveTowerAoe`
+  caller and `isTowerSource`'s VS-phase guard, confirmed the split complete
+  via the wide-grove-reach file's regex completeness guards); qa-playtester
+  **PASS** on all six acceptance criteria, independently probing the engine
+  rather than trusting the shipped tests — one pre-existing,
+  fb083-unrelated `q15`/`q45` CLI-fuzz environment failure noted (repros on
+  the pre-fb083 commit) and one doc nit fixed inline (`content.ts`'s Chronal
+  Surge comment). `npx tsc --noEmit` clean; the 12-file targeted suite this
+  item touches 634/634; `q7-data-fuzz` regenerated and green (new
+  `equipment.items[].mods.towerArea` census row) — refs: SPEC-FINAL §2,
+  §4.2, QUESTIONS Q163/Q195/Q196, BACKLOG-CONTENT.md c013/c024/c036.
 
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c039 done, negative result, no
   `/data` change.** Delegated to balance-analyst per this item's own
@@ -328,6 +365,7 @@
   scratch-dir resolution), reproduced identically on a clean `git stash` of
   this entire diff — 4152 passed / 1 failed (pre-existing) / 53 skipped both
   times. `npx tsc --noEmit` clean throughout.
+
 - **2026-09-07 — BACKLOG p12e done: the final boss no longer double-counts
   `baseHpMul`, closing the p12 arc's censored-run blocker (QUESTIONS Q177/
   Q184).** Diagnosis (already logged in p12e's own text): `data/enemies.json`'s

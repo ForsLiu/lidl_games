@@ -849,13 +849,14 @@ const LEDGER: readonly Figure[] = [
   {
     item: 'normal_bracelet',
     col: 'effect',
-    figure: 'character and tower area +10%',
+    figure: 'area +10% — the character half',
     behaviour: {
       coveredBy: 'tests/fb015-equipment.test.ts',
-      anchor: /Normal Bracelet raises areaMul, which already covers both character and tower area/,
+      anchor: /Normal Bracelet raises areaMul and towerAreaMul independently/,
       why:
-        '`areaMul` is `area`\'s own derived factor, read by name. The *reach* of that factor is c013\'s ' +
-        'measurement, not this pointer\'s.',
+        '`areaMul` is `area`\'s own derived factor, read by every class Active and the ' +
+        'character-route VS-wielded attack. fb083 split the global `area` key `towerArea` used to ' +
+        'ride into a character-only key, closing c013.',
     },
     quote: 'character and tower **area** +10%',
     fromQuote: { pattern: /\*\*area\*\* \+([\d.]+)%/, as: PCT },
@@ -863,10 +864,29 @@ const LEDGER: readonly Figure[] = [
     stat: 'area',
     status: { kind: 'match' },
     note:
-      'The **figure** is right; its **reach** is `c013`’s open item. There is no ' +
-      '`charArea`/`towerArea` split in `statkeys.ts`, so this is authored on the global `area`, ' +
-      'which since `c001` also widens every class Active. This ledger pins the 0.1 and nothing ' +
-      'more — the reach is c013’s measurement, not a second competing one here.',
+      'fb083 closed `c013`: `area`/`towerArea` are now the same split `statkeys.ts` already gave ' +
+      '`charRange`/`towerRange`, so this row is the character half and the row below is the tower ' +
+      'half, mirroring the Sniper Bracelet pair below it.',
+  },
+  {
+    item: 'normal_bracelet',
+    col: 'effect',
+    figure: 'area +10% — the tower half',
+    behaviour: {
+      coveredBy: 'tests/fb015-equipment.test.ts',
+      anchor: /Normal Bracelet raises areaMul and towerAreaMul independently/,
+      why:
+        'The tower half of the same block; `areaMul` and `towerAreaMul` are asserted on adjacent ' +
+        'lines, so a row that lost its half would still be red here.',
+    },
+    quote: 'character and tower **area** +10%',
+    fromQuote: { pattern: /\*\*area\*\* \+([\d.]+)%/, as: PCT },
+    spec: 0.1,
+    stat: 'towerArea',
+    status: { kind: 'match' },
+    note:
+      'The tower half: real towers, tower-cloned summons, and the tower-route Electric/Burning ' +
+      'inherent AoE all read `towerAreaMul` (fb083); the VS-wielded route stays on `areaMul` above.',
   },
 
   /* ------------------------------------------------------- sniper bracelet */
@@ -1693,9 +1713,11 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
       LEDGER.filter((f) => f.col !== 'effect' && f.behaviour !== undefined).map(id),
       'a numeric row with a behavioural pointer - NUMERIC_STAT already pins its key',
     ).toEqual([]);
-    // The roster is 13 rows across 9 items; a 14th Effect row (fb056) has to
-    // land here deliberately rather than inherit somebody else's cover.
-    expect(EFFECT_ROWS).toHaveLength(13);
+    // The roster is 14 rows across 9 items — Normal Bracelet split into a
+    // character/tower pair (fb083, mirroring Sniper Bracelet's own range
+    // split) is the 14th; a 15th Effect row (fb056) has to land here
+    // deliberately rather than inherit somebody else's cover.
+    expect(EFFECT_ROWS).toHaveLength(14);
   });
 
   it("each Effect row's pointer names exactly one live block, and that block reads the row's own stat", () => {
@@ -1898,15 +1920,16 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
     expect(unread, 'an authored equipment stat that no §7 ledger row audits').toEqual([]);
   });
 
-  it('census: 72 match · 0 retuned · 1 in code', () => {
+  it('census: 73 match · 0 retuned · 1 in code', () => {
     // The census is the barrier c012 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing the one rule-4 literal has
-    // to be recorded here rather than passing unnoticed. The 15 items `fb056`
-    // adds will move these counts, deliberately.
+    // to be recorded here rather than passing unnoticed. fb083's Normal
+    // Bracelet split (see EFFECT_ROWS above) added one `match` row. The 15
+    // items `fb056` adds will move these counts again, deliberately.
     const census: Record<Status['kind'], number> = { match: 0, retuned: 0, in_code: 0 };
     for (const f of LEDGER) census[f.status.kind] += 1;
-    expect(census).toEqual({ match: 72, retuned: 0, in_code: 1 });
-    expect(LEDGER).toHaveLength(73);
+    expect(census).toEqual({ match: 73, retuned: 0, in_code: 1 });
+    expect(LEDGER).toHaveLength(74);
     // 12 items x 5 numeric columns, every one of them a row.
     expect(LEDGER.filter((f) => f.col !== 'effect')).toHaveLength(60);
     // c012's own wording: "the three `classFallback` compensation lines are

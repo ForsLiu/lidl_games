@@ -164,7 +164,11 @@ describe('fb081: towers.ts single-kind beams now scale with Area, matching vswie
   it('a side enemy only within the Area-scaled half-width is pierced, at high Area', () => {
     const w = new World(cfg(), content);
     const { x, y } = buildPiercingArrow(w, ARROW);
-    w.stats.addAll('test:area', { area: 7 }); // areaMul 8
+    // fb083 split tower-side Area onto its own `towerArea` stat key
+    // (`w.derived.towerAreaMul`) so a generic `area` stat no longer widens a
+    // tower's own attacks — `fireTower`'s local `area` alias reads
+    // `towerAreaMul` now, so this fixture must feed that key instead.
+    w.stats.addAll('test:area', { towerArea: 7 }); // towerAreaMul 8
     w.recomputeDerived();
 
     const primary = spawnAt(w, x + 1, y);
