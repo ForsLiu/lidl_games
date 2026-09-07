@@ -1433,7 +1433,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
       halved from a first version that called `generateTerrain` twice per seed);
       26 suites green (446); `npx tsc --noEmit` clean.
-- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+- [x] (fb065i) [polish] a terrain dump is only meaningful beside the config it
       was taken under, and it carries no trace of one. `describe.ts`'s own
       header says so — "a dump is only meaningful next to the config it was
       taken under" — and `parseTerrainDump` deliberately never re-measures, so a
@@ -1450,6 +1450,135 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
 
 ## Log
+
+- (2026-09-07, fb065i shipped) A dump now carries a trace of the config it was
+  measured under, closing the gap `describe.ts`'s own header names ("a dump is
+  only meaningful next to the config it was taken under") and the item's own
+  title states outright.
+  **The design.** `configFingerprint(cfg: TerrainConfig): string`
+  (`describe.ts`, exported from the barrel) folds every field that feeds
+  generation or measurement through a `Hasher` in the exact style
+  `terrainHash` (`generate.ts`) already established — explicit `.int()`/
+  `.num()`/`.bool()`/`.str()` calls per field, never `JSON.stringify(cfg)` —
+  and returns 8 lowercase hex digits via `Hasher.hex()`. `Hasher` already
+  exposed everything needed (`int`, `num`, `bool`, `str`, `hex`), so nothing
+  outside this lane's Scope was touched to get it; `src/sim/hash.ts` is only
+  imported, not edited. The two array-shaped fields (`tiles`, one entry per
+  `TerrainKind`; `highGround.families`, one per family plus its `traits`
+  sub-array) fold their length first, then each element's fields in the
+  schema's own declared order — `Hasher` has no array primitive, so the
+  explicit length is what stops two different-length arrays sharing a prefix
+  from folding through a common state. `tiles[].key` and `.color` are folded
+  even though neither feeds a generator decision (position and the three
+  structural flags do the real work) — deliberate, so that a designer who only
+  retitles a tile or repaints it has still fingerprinted a changed file, not an
+  unchanged one.
+  **Where it lives, and why.** Appended to the **`bands`** line, not `seed`:
+  bands are the measurements a config actually determines, so that is where a
+  reader looking at a stale-looking number would look for the fingerprint that
+  explains it. It is `HEADER_KEYS.bands`'s new **last** entry, but — unlike
+  `gates`'s one existing optional key (fb065f's modifier gate, the only prior
+  precedent for a trailing key) — it is `req`'d like every other field on that
+  line, not optional: every dump the writer emits carries a `cfg`, generated
+  map or hand-built grid alike, so there is no shape of dump that legitimately
+  omits it the way a three-gate dump legitimately omits a fourth gate. The
+  `HEADER_KEYS` doc comment (~line 358) now says so explicitly, so the next
+  reader does not mistake this for a second instance of the optional-trailing-
+  key exception.
+  **Refuse malformed, report mismatch — the actual split.** A new function,
+  `fingerprintField`, mirrors `hashField`'s shape check
+  (`/^[0-9a-f]{8}$/`, same message shape: `"bands" line has non-hex
+  cfgFingerprint="..."`) for the "this text is not a fingerprint at all" case —
+  refused exactly like every other header field, per fb064w's own rule. A
+  **missing** field (a dump written before this item, which will have every
+  other `bands` field and not this one) gets its own message in fb064s's exact
+  style — names the item (fb065i), says the dump predates the field, and gives
+  the honest remedy: re-describe the map under the config it was measured
+  against, because unlike `source`'s two-shape remedy there is no value for a
+  human to write in by hand for a whole-config hash. Neither of those is the
+  *mismatch* case, which is the one the acceptance criteria says must not
+  throw: `parseTerrainDump` takes a second parameter, `cfg: TerrainConfig =
+  loadTerrain()` (defaulted exactly the way `describeTerrain`'s own `cfg`
+  parameter is, so every existing one-argument call site — four of them, in
+  `tests/terrain-approach.test.ts`, `tests/terrain-flat.test.ts`,
+  `tests/terrain-gates-dump.test.ts` and `tests/terrain-grid-view.test.ts`,
+  plus every call in this file — keeps working unchanged), computes
+  `configFingerprint(cfg)` after every throwing check has already run, and
+  compares it against the dump's own (already-shape-validated) fingerprint.
+  A mismatch never fails the parse; it sets two new `TerrainDump` fields
+  instead — `configFingerprint: string` (the value as dumped) and
+  `configStale: boolean` (true iff it disagrees with `configFingerprint(cfg)`)
+  — leaving `measure`, `provenance`, `gates` and `tileCounts` exactly what a
+  parse of the same text always returned. This is the same "report, don't
+  re-measure" discipline `TerrainDump.measure`'s own doc comment already
+  states for the bands themselves, extended to the one new fact this item
+  adds.
+  **Round trip.** Falls out for free rather than needing separate wiring:
+  `cfgFingerprint` is a pure function of `cfg` alone, never of the tiles or of
+  what a previous dump said, so `describeTerrain(reflate(text), cfg)` already
+  reproduces it byte-for-byte the same way every other band does — pinned
+  explicitly in its own test rather than only inherited from the file's
+  existing generic round-trip coverage.
+  **Test files touched.** Only `tests/terrain-describe.test.ts` — grepped
+  every `tests/terrain*` file for a hand-written `bands `/`` `bands` `` literal
+  or a hardcoded multi-line dump, per the item's own instruction; the other
+  four files that call `describeTerrain`/`parseTerrainDump`
+  (`terrain-approach`, `terrain-flat`, `terrain-gates-dump`,
+  `terrain-grid-view`) build every dump they check through real calls, so
+  they picked up the new field automatically and needed no edit — confirmed
+  green, not merely assumed. `GOLDEN_SEED_1` gained `cfgFingerprint=08d7d0c0`
+  (the shipped `/data/terrain.json`'s own fingerprint today, regenerated by
+  actually running `describeTerrain` — never hand-typed — and cross-checked by
+  the new "two configs differing in one field fingerprint differently" test
+  re-deriving it from `configFingerprint(loadTerrain())` rather than from the
+  golden itself); a doc-comment paragraph in the same style as the existing
+  "moved a second time, at fb064s" note records the move. Five new cases in a
+  new `describe('fb065i — ...')` block cover the acceptance's own five
+  clauses: malformed shape refused (four variants: wrong length short and
+  long, wrong charset, uppercase hex — `toUpperCase` is a real shape a human
+  typo produces and is refused, not silently accepted); missing field refused
+  with the exact fb065i message, pinned verbatim; a mismatch parses clean and
+  reports `configStale: true` with every other field equal to an honest parse
+  (checked against a `roomier` config too, showing the same text reads stale
+  or fresh depending only on what it is compared against, and that the
+  one-argument default reads fresh against the shipped config); the
+  same-config round trip, isolated from the generic seed-domain round-trip
+  test already in the file; and two configs differing in exactly one field
+  (a scalar, a nested object's field, an array element's non-structural
+  string, and a family-table key) fingerprint differently, while a config
+  rebuilt through a no-op `JSON.parse(JSON.stringify(...))` edit fingerprints
+  identically to the original — proving the fold is a function of values, not
+  of object identity or of "was this ever touched".
+  **Verification.** `tests/terrain-describe.test.ts`: 35 tests (30 existing +
+  5 new), all green. Full `tests/terrain*.test.ts` glob: 26 suites, 431 passed
+  + 1 pre-existing skip (fb166's known `world.ts:591` issue, untouched and not
+  this item's to fix) — no new failures, no loosened assertions.
+  `tests/fb077-terrain-wiring.test.ts` (outside the `terrain*` glob but in
+  this lane's test surface) has 2 pre-existing failures, confirmed unrelated
+  by `git stash`ing this change and re-running: identical 2 failures either
+  way, and neither test touches `describeTerrain`/`parseTerrainDump`. `npx tsc
+  --noEmit`: clean. `npm run test:fast`, run in full (not sampled): **14 failed
+  files / 35 failed tests, 251 passed files / 3894 passed tests, 8 skipped
+  files (53 skipped tests)**. The 14 failing files are, by name, exactly:
+  `q15-command-domain-fuzz`, `q45-cli-schema-violation` (both pre-existing,
+  a missing `tools/fuzz-command-domain` module, unchanged by this item);
+  `b007-tile-bounds`, `class-board`, `content-complete`, `fb077-terrain-
+  wiring`, `grid`, `p1a-sealing`, `p8d-boss-termination`, `t2-selection`
+  (main-lane); `ui-fb082-overlay-geometry`, `ui-fb102-bossbar-rail-overlap`,
+  `ui-fb106-extreme-aspect-geometry`, `ui-input` (UI-lane) — this is, file for
+  file, the exact 14-of-15 set fb166's own Log entry above already measured
+  and disclaimed as pre-existing 56x32-resize fallout (one of fb166's 15,
+  presumably the other of the two fuzz-module files, has since been fixed by
+  an intervening item; not re-investigated, as it is not this item's file to
+  touch either way). No file outside that named set is red. This item's own
+  three touched files (`src/sim/terrain/describe.ts`,
+  `src/sim/terrain/index.ts`, `tests/terrain-describe.test.ts`) confirmed by
+  `git status --short` before writing this note; `data/terrain.json` and
+  `src/sim/grid.ts` were not touched, matching the item's own scope
+  prediction.
+  **Left red, if anything:** nothing found. The fb166/fb156-logged pre-existing
+  failures outside this lane's files are exactly the ones named in those
+  entries and are not this item's to fix.
 
 - (2026-09-07, fb156 shipped) The generator half of the owner's four-gate order
   is done (`jitterGates`, `src/sim/terrain/gates.ts`, re-exported from

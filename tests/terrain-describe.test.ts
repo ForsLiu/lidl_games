@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
+  configFingerprint,
   describeTerrain,
   flatTerrain,
   generateTerrain,
@@ -118,6 +119,15 @@ function field(text: string, head: string, key: string): string {
  * counts and all twenty rows are byte-identical; only the one header line grew
  * the mark that tells a reader whether `requested` is a seed they can paste.
  *
+ * **Moved a third time, at fb065i**, which appends `cfgFingerprint` to the
+ * `bands` line — an 8-hex-digit fold of the shipped `TerrainConfig`
+ * (`configFingerprint(loadTerrain())`), regenerated honestly by running the
+ * real `describeTerrain` rather than typed by hand. Nothing about the map or
+ * any other field moved; `08d7d0c0` is `/data/terrain.json`'s own fingerprint
+ * today; a `/data/terrain.json` tune that changes any folded field changes it
+ * and this golden goes red until re-recorded, which is the fingerprint field
+ * doing its job on its own test.
+ *
  * **Moved once, at fb064m**, which demotes a `high` tile with no walkable tile
  * inside `highContestRadius` to rock — seed 1 carries four, all in the
  * bottom-left massif. Only the hash, the `tiles` counts and those four glyphs
@@ -131,7 +141,7 @@ const GOLDEN_SEED_1 = [
   'terrain 56x32',
   'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=164edd68',
   'gates west=0,10 north=18,0 east=35,17',
-  'bands walkable=0.736607 buildableNormal=0.553571 gateReach=1.000000 coreLegal=0.526210 gateDetour=1.050847 corridors=true gatesOpen=true gatesConnected=true',
+  'bands walkable=0.736607 buildableNormal=0.553571 gateReach=1.000000 coreLegal=0.526210 gateDetour=1.050847 corridors=true gatesOpen=true gatesConnected=true cfgFingerprint=08d7d0c0',
   'counts walkable=1320 normal=992 coreAnchors=522',
   'tiles normal=992 rough=328 rock=354 high=118',
   'legend normal=. rough=, rock=# high=^',
@@ -926,6 +936,144 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(() => parseTerrainDump(good.replace(/^(seed .*)$/m, '$1 bogus=1 bogus=2'))).toThrow(
       /unknown "bogus" on the "seed" line/,
     );
+  });
+});
+
+/**
+ * fb065i — a dump carries a fingerprint of the `TerrainConfig` it was written
+ * under, and `parseTerrainDump` reports (never throws on) a mismatch against
+ * whatever config it is read next to.
+ */
+describe('fb065i — the dump carries a fingerprint of the config it was measured under', () => {
+  const good = GOLDEN_SEED_1;
+
+  it('refuses a malformed cfgFingerprint the way every other header field is refused', () => {
+    expect(() => parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=lots'))).toThrow(
+      /"bands" line has non-hex cfgFingerprint="lots"/,
+    );
+    expect(() =>
+      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08D7D0C0')),
+    ).toThrow(/non-hex cfgFingerprint="08D7D0C0"/);
+    expect(() =>
+      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08d7d0c')),
+    ).toThrow(/non-hex cfgFingerprint="08d7d0c"/);
+    expect(() =>
+      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08d7d0c00')),
+    ).toThrow(/non-hex cfgFingerprint="08d7d0c00"/);
+    // Every fingerprint the writer emits satisfies the shape it refuses on.
+    expect(configFingerprint(cfg)).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('refuses a dump that predates the field, naming fb065i and the fix', () => {
+    // Simulates a dump written before this item: the trailing field is simply
+    // absent, same as every other missing-field case in this file.
+    const legacy = good.replace(' cfgFingerprint=08d7d0c0', '');
+    expect(legacy).not.toBe(good);
+    expect(() => parseTerrainDump(legacy)).toThrow(
+      'parseTerrainDump: "bands" line has no "cfgFingerprint"; a dump written before fb065i ' +
+        'predates the field — re-describe the map (under the config it was measured against) ' +
+        'with a version of describeTerrain that emits it; there is no value to add by hand',
+    );
+  });
+
+  it('reports rather than throws on a mismatch, leaving the rest of the dump readable', () => {
+    // `good` is seed 1 dumped under the shipped config, so mangling the digits
+    // to a value that is shaped right but simply wrong is exactly "stale" —
+    // the fingerprint no longer matches `configFingerprint(loadTerrain())`.
+    const stale = good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=deadbeef');
+    let parsed: ReturnType<typeof parseTerrainDump> | undefined;
+    expect(() => {
+      parsed = parseTerrainDump(stale);
+    }).not.toThrow();
+    expect(parsed!.configFingerprint).toBe('deadbeef');
+    expect(parsed!.configStale).toBe(true);
+    // The rest of the dump is unaffected — same tiles, same bands, same
+    // provenance as a parse of the honest dump. Only the staleness verdict
+    // differs, exactly the split the item asks for: report, don't re-measure.
+    const honest = parseTerrainDump(good);
+    expect(Array.from(parsed!.kind)).toEqual(Array.from(honest.kind));
+    expect(parsed!.measure).toEqual(honest.measure);
+    expect(parsed!.provenance).toEqual(honest.provenance);
+    expect(parsed!.gates).toEqual(honest.gates);
+    expect(honest.configStale).toBe(false);
+    expect(honest.configFingerprint).toBe(configFingerprint(cfg));
+
+    // And a `cfg` argument controls what "current" means: the same dump reads
+    // as stale or fresh depending only on what it is compared against.
+    const roomier = withConfig((raw) => {
+      (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 3;
+    });
+    expect(parseTerrainDump(good, roomier).configStale).toBe(true);
+    expect(parseTerrainDump(good, cfg).configStale).toBe(false);
+    // The default argument is `loadTerrain()`, so the one-argument call every
+    // existing call site makes is unchanged.
+    expect(parseTerrainDump(good).configStale).toBe(false);
+  });
+
+  it('round trip: byte-identical for a same-config dump/parse/describe cycle', () => {
+    // The fingerprint is a pure function of `cfg` alone, so re-describing a
+    // parsed dump under the same `cfg` must reproduce it exactly — this is the
+    // acceptance criterion's own round-trip clause, isolated to the new field
+    // rather than inherited from the generic round-trip test above.
+    const map = generateTerrain(4242, cfg);
+    const text = describeTerrain(map, cfg);
+    const parsed = parseTerrainDump(text);
+    const reflated: TerrainGrid =
+      parsed.provenance === null
+        ? { w: parsed.w, h: parsed.h, kind: parsed.kind }
+        : { ...parsed.provenance, ...parsed };
+    expect(describeTerrain(reflated, cfg)).toBe(text);
+    expect(describeTerrain(reflated, cfg)).toContain(`cfgFingerprint=${configFingerprint(cfg)}`);
+  });
+
+  it('two configs differing in one field fingerprint differently; the same config fingerprints the same twice', () => {
+    expect(configFingerprint(cfg)).toBe(configFingerprint(cfg));
+    expect(configFingerprint(parseTerrain(JSON.parse(JSON.stringify(cfg))))).toBe(
+      configFingerprint(cfg),
+    );
+
+    // One field changed at a time, spanning a scalar, a nested object's field,
+    // an array-of-objects field (`tiles[].color`), and the high-ground family
+    // table — the two array-shaped fields the fold has to walk explicitly.
+    const variants: ReadonlyArray<[string, TerrainConfig]> = [
+      [
+        'coreGateClearance',
+        withConfig((raw) => {
+          (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 1;
+        }),
+      ],
+      [
+        'density.jitter',
+        withConfig((raw) => {
+          (raw.density as Record<string, number>).jitter =
+            cfg.density.jitter > 0 ? cfg.density.jitter / 2 : 0.01;
+        }),
+      ],
+      [
+        'tiles[0].color',
+        withConfig((raw) => {
+          const tiles = raw.tiles as Array<Record<string, unknown>>;
+          tiles[0].color = tiles[0].color === '#zzz' ? '#yyy' : '#zzz';
+        }),
+      ],
+      [
+        'highGround.families last family key',
+        withConfig((raw) => {
+          const hg = raw.highGround as { families: Array<Record<string, unknown>> };
+          const last = hg.families[hg.families.length - 1];
+          last.key = `${last.key as string}-x`;
+        }),
+      ],
+    ];
+    for (const [name, variant] of variants) {
+      expect(configFingerprint(variant), name).not.toBe(configFingerprint(cfg));
+    }
+
+    // A no-op edit that restores the original value round-trips the
+    // fingerprint back too — this is a fold of values, not a "has this object
+    // ever been touched" flag.
+    const untouched = withConfig(() => {});
+    expect(configFingerprint(untouched)).toBe(configFingerprint(cfg));
   });
 });
 
