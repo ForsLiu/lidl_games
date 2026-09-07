@@ -1192,6 +1192,19 @@ owner items.
 
 ## Log
 
+### fb082 landed on main (2026-09-07)
+
+- **BACKLOG.md fb082 (Poison Barrel's sim-side cadence bug, fb062's sim
+  half) is done on the main lane** (`src/sim/combat.ts`'s `updateAreas`
+  poison branch, gated on a new authored `groundTickSeconds` — 1 s for the
+  barrel — instead of re-applying every 60 Hz frame). `tests/class-spec-
+  numbers.test.ts`'s c008 ledger row for "applying poison damage every
+  second" moved `defect` -> `match`. fb062 itself is **not** closed by
+  this — the cadence bug was only the blocker fb082's own filing named;
+  fb062's own remaining acceptance (the barrel's zero-direct-damage/no-
+  lifesteal behavior, the tooltip text test, and its own unit tests) is
+  still this lane's to do, now unblocked.
+
 ### c036, and a same-branch collision on c033-c035 (2026-09-07)
 
 - **Two independent sessions worked BACKLOG-CONTENT.md's queue on the same
