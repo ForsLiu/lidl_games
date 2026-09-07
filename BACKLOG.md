@@ -4028,7 +4028,30 @@ generation-rule boundary.
       overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
       `'terrain'` falls into the same drop-the-plan branch `'occupied'`
       did. Renderer string stays UI-lane fb116 (was fb091).
-- [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
+- [x] (fb079) [docs] **DONE 2026-09-07** — appended §10.5 (SPEC-FINAL.md)
+      verbatim from the feedback file plus the Q162/Q171 lane decisions,
+      folded G2's wording (a terrain-determinism clause) and §13's content
+      totals (the terrain file), noted the addition in a new MIGRATION.md
+      §8.6, and logged the append itself as Q194
+      (`[designer-fill]`, owner verdict pending). Docs-only — no `/src` or
+      `/data` touched. `npm run test:fast`'s SPEC-FINAL-parsing suites
+      (`tests/q10-gate-audit.test.ts`, `tests/fb038-status.test.ts`,
+      `tests/class-spec-numbers.test.ts`, `tests/equip-spec-numbers.test.ts`)
+      re-run green — the new G2 table row stays one line (no `|` introduced)
+      so `tools/gate-audit.ts`'s row parser is unaffected. code-reviewer
+      (light tier, docs-only) found two Major fidelity gaps on the first
+      pass, both fixed before this was marked done: the "verbatim" quote had
+      silently dropped two source clauses (the Core-legal-positions
+      rationale, "Tuner page (density/ratios editable)") and reflowed the
+      tile-types bullets into prose, losing the rock-passthrough
+      `[designer note]` and the `(Spitter)` example — now quoted as an
+      actual verbatim bullet list matching the source file; and a lane-
+      decisions bullet claimed the run's live gate list is threaded through
+      "every" gate-reading function, contradicting Q171(9)/open BACKLOG
+      fb134 (`describeTerrain` still reads the base `GATES` constant) — now
+      states that exception explicitly. Re-reviewed after the fixes: no
+      further findings.
+      Original text follows. SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
       `feedback/processed/20260903-121255-feature-terrain-generation.md`
