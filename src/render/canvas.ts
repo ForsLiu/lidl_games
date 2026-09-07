@@ -597,20 +597,52 @@ export class Renderer {
           this.sweep = { life: SWEEP_DURATION, dir: -1 };
           break;
         case 'shot':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
-          }
+          // fb098 (qa-playtester finding): `'shot'` fires only for a
+          // `single`-kind attack (`towers.ts`/`vswield.ts`'s `case 'single'`)
+          // — Arrow Spire is the only tower with that kind in either phase —
+          // so, like the `cone` fix below, this always reads its own
+          // registered style rather than a `w.huntsWarden`-keyed
+          // `'arrow_volley'` that `theme.ts`'s `STYLES` never registered
+          // (silently falling back to the generic default dart look for
+          // every VS-wielded Arrow Spire shot).
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'arrow_spire', false));
           break;
         case 'manual':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'wardens_arrow', false));
           break;
         case 'arc':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
-          }
+          // fb098 (qa-playtester finding): the same missing-style-key bug as
+          // `shot` above, for Tesla Coil's `chain`-kind attack — `'chain_
+          // lightning'` (actually Stormcaller's Active1 `ClassEffect.kind`,
+          // not a registered `STYLES` key) never existed in `theme.ts`,
+          // so a VS-wielded Tesla Coil silently fell back to the generic
+          // default. Always reads `tesla_coil`'s own style now.
+          //
+          // Residual, pre-existing gap this fix does not resolve (out of
+          // fb098's own scope — Stormcaller's VFX is fb016's domain): this
+          // `arc` fx event is genuinely shared by three emitters
+          // (`towers.ts`'s TD Tesla Coil fire, `vswield.ts`'s wielded Tesla
+          // Coil, and `classes.ts`'s Stormcaller Chain Surge Active1, all via
+          // `combat.ts`'s `chainHit`) and carries no source field, so the
+          // renderer cannot tell a Stormcaller cast from a Tesla Coil shot.
+          // Before this fix neither case matched a real `STYLES` key; now
+          // both read `tesla_coil`'s. Distinguishing them for real needs a
+          // source-tagged `arc` (or a dedicated event) emitted from
+          // `/src/sim` — outside this lane's Scope, logged below.
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'tesla_coil', true));
           break;
         case 'spit':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'spitter', false));
+          break;
+        // fb098 (qa-playtester finding): Venom Spore's `poison`-kind attack
+        // resolves as an instant hit (no real `Projectile`, unlike Ballista/
+        // Mortar) and only ever emitted `'spore'` — a fire+travel event this
+        // switch had no case for at all, so the tower's shot was completely
+        // invisible in either phase (only the eventual `hit:` flash and the
+        // enemy's own Poison DoT marker showed anything). A tracer, the same
+        // shape `shot`/`spit` already use.
+        case 'spore':
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'venom_spore', false));
           break;
         case 'cone':
           if (this.cones.length < MAX_CONES) {

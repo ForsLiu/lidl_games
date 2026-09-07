@@ -44,13 +44,15 @@ function nearBuildTile(w: World): { tx: number; ty: number } {
 const content = loadContent();
 const realTowerKeys = content.towers.towers.map((t) => t.key);
 
-/** Records `arc` calls (with the live `globalAlpha`) and every `addColorStop(0, color)` on a radial gradient — enough for this file's pulse-ring and cone-color assertions. */
+/** Records `arc` calls (with the live `globalAlpha`), every `moveTo`/`lineTo` (with the live `strokeStyle`, the same convention `fb016-vfx-registry.test.ts`'s `lines` uses), and every `addColorStop(0, color)` on a radial gradient — enough for this file's pulse-ring, tracer-color and cone-color assertions. */
 function recordingCanvas(): {
   canvas: HTMLCanvasElement;
   arcs: { x: number; y: number; r: number; alpha: number }[];
+  lines: { x: number; y: number; color: string }[];
   gradientStop0Colors: string[];
 } {
   const arcs: { x: number; y: number; r: number; alpha: number }[] = [];
+  const lines: { x: number; y: number; color: string }[] = [];
   const gradientStop0Colors: string[] = [];
   const state = { globalAlpha: 1, strokeStyle: '' };
   const ctx = new Proxy(
@@ -58,8 +60,12 @@ function recordingCanvas(): {
       arc(x: number, y: number, r: number) {
         arcs.push({ x, y, r, alpha: state.globalAlpha });
       },
-      moveTo() {},
-      lineTo() {},
+      moveTo(x: number, y: number) {
+        lines.push({ x, y, color: state.strokeStyle });
+      },
+      lineTo(x: number, y: number) {
+        lines.push({ x, y, color: state.strokeStyle });
+      },
       fillRect() {},
       strokeRect() {},
       fillText() {},
@@ -95,7 +101,7 @@ function recordingCanvas(): {
   );
   const canvas = document.createElement('canvas');
   canvas.getContext = (() => ctx) as never;
-  return { canvas, arcs, gradientStop0Colors };
+  return { canvas, arcs, lines, gradientStop0Colors };
 }
 
 function view(over: Partial<ViewState> = {}): ViewState {
@@ -144,6 +150,57 @@ describe('fb098: Frost Obelisk\'s aura tick now draws a pulse ring (previously i
     expect(
       arcs.some((c) => Math.abs(c.x - 5 * TILE) < 0.01 && Math.abs(c.y - 6 * TILE) < TILE && Math.abs(c.r - 3 * TILE) < TILE * 0.3),
     ).toBe(true);
+  });
+});
+
+describe('fb098: a VS-wielded Arrow Spire shot reuses the same registered style TD uses', () => {
+  it('draws with STYLES.arrow_spire\'s own color regardless of huntsWarden, not the missing "arrow_volley" fallback', () => {
+    const w = new World(cfg());
+    w.phase = 'act2'; // huntsWarden === true
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'shot', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    expect(lines.some((l) => l.color === projectileStyle('arrow_spire').color)).toBe(true);
+    expect(lines.some((l) => l.color === '#ffe9a8')).toBe(false); // DEFAULT_STYLE's color — the pre-fix fallback
+  });
+});
+
+describe('fb098: a VS-wielded Tesla Coil chain reuses the same registered style TD uses', () => {
+  it('draws with STYLES.tesla_coil\'s own color regardless of huntsWarden, not the missing "chain_lightning" fallback', () => {
+    const w = new World(cfg());
+    w.phase = 'act2'; // huntsWarden === true
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'arc', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    expect(lines.some((l) => l.color === projectileStyle('tesla_coil').color)).toBe(true);
+    expect(lines.some((l) => l.color === '#ffe9a8')).toBe(false); // DEFAULT_STYLE's color — the pre-fix fallback
+  });
+});
+
+describe('fb098: Venom Spore\'s shot is now visible (previously an unhandled fx event, invisible in both phases)', () => {
+  it('a `spore` fx event draws a tracer in STYLES.venom_spore\'s own color', () => {
+    const w = new World(cfg());
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'spore', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    expect(lines.some((l) => l.color === projectileStyle('venom_spore').color)).toBe(true);
+  });
+
+  it('the same visual fires in VS (huntsWarden true)', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'spore', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    expect(lines.some((l) => l.color === projectileStyle('venom_spore').color)).toBe(true);
   });
 });
 

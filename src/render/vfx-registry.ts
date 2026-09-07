@@ -294,7 +294,7 @@ export const TOWER_VFX: Record<string, TowerVfxEntry> = {
   },
   tesla_coil: {
     fire: 'an instant jagged arc from the tower to the first target',
-    travel: 'chained jagged arcs, one per jump (drawTracers\' kinked-segment draw, shared with `chain_lightning`)',
+    travel: 'chained jagged arcs, one per jump (drawTracers\' kinked-segment draw). The underlying `arc` fx event is also shared by Stormcaller\'s Chain Surge Active1 (both funnel through combat.ts\'s chainHit) with no source field to tell them apart, so a Stormcaller cast currently reads as this same tesla_coil style rather than its own — a known gap, not this registry\'s to close (needs a source-tagged sim event, outside src/render)',
     impact: 'the shared per-damage-type hit flash on every enemy in the chain',
   },
   mortar: {
@@ -303,8 +303,8 @@ export const TOWER_VFX: Record<string, TowerVfxEntry> = {
     impact: 'a screen-shake pulse (the `boom` fx case) plus the shell\'s own AoE splash, each struck enemy getting the shared per-damage-type hit flash — no dedicated crater/flash draw of its own yet',
   },
   venom_spore: {
-    fire: 'a spore glob leaves the tower the instant it fires',
-    travel: 'a real `Projectile` (`w.projectiles`) trailing a drip, travelling at the tower\'s authored `projectileSpeed`',
+    fire: 'the spore fires the instant its hit lands (kind `poison` resolves synchronously — an instant hit, not a real physics `Projectile` the way Ballista/Mortar are — no travel delay to the damage itself)',
+    travel: 'a glob tracer trailing a drip along the shot line (drawTracers, `STYLES.venom_spore`)',
     impact: 'the shared per-damage-type hit flash plus the glob\'s own AoE splash and each struck enemy\'s Poison DoT marker',
   },
   beacon_totem: {
