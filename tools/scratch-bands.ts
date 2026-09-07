@@ -10,7 +10,6 @@ const stats: Record<Band, { min: number; max: number; sum: number }> = Object.fr
 ) as any;
 let fallbacks = 0;
 let attemptsTotal = 0;
-let corridorFails = 0;
 const t0 = performance.now();
 for (let s = 0; s < N; s++) {
   const m = generateTerrain(s, cfg);
