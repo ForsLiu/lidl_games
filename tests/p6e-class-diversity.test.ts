@@ -255,18 +255,20 @@
  * "wave 3" is not an Act-I death at all, it's the **first VS/Night block**,
  * confirmed directly (`run.world.act2Time` 18-40s into that block's 75s
  * budget, `phase` already `'results'`). `baseHpMul` applies at the single
- * `makeEnemy` choke point (`src/sim/enemies.ts`), before the VS-only
- * `hpOverlay`/`actIICarry` multipliers, so it inflates Night-1 mob HP by the
- * same x20 as every TD wave's — landing on the block with the least built
- * economy of the whole run. `classBasicAttack` is TD-only (`run.ts:550`,
- * `if (!w.huntsWarden) classBasicAttack(w, cls)`), so a class's own kit
- * Actives are the *entire* VS damage contribution regardless of how strong
- * its basic attack is. The table's two worst-hit classes, swordsman (10/12)
- * and bloodlord (8/12), are the roster's two shortest-range classes
- * (`basicAttack.range: 2.5`, tied for lowest) and rank #1/#3 by
- * `basicAttack.dps` (78, 51) — exactly the stat Night 1 cannot use. Not
- * proven exhaustively per-class, but a coherent, corroborated mechanism, not
- * a guess.
+ * `makeEnemy` choke point (`src/sim/enemies.ts`) regardless of the VS-only
+ * `hpOverlay`/`actIICarry` multipliers (both are scalar factors on the same
+ * `hp` value, so order doesn't change the result), so it inflates Night-1
+ * mob HP by the same x20 as every TD wave's — landing on the block with the
+ * least built economy of the whole run. `classBasicAttack` is TD-only
+ * (`run.ts:550`, `if (!w.huntsWarden) classBasicAttack(w, cls)`), so a
+ * class's own kit Actives are the *entire* VS damage contribution regardless
+ * of how strong its basic attack is. The table's worst-hit classes,
+ * swordsman (10/12) and bloodlord (8/12), are two of the roster's three
+ * shortest-range classes (`basicAttack.range: 2.5`, tied for lowest along
+ * with `paladin`, which isn't hit nearly as hard — so range alone doesn't
+ * explain it) and rank #1/#3 by `basicAttack.dps` (78, 51) — exactly the
+ * stat Night 1 cannot use. Not proven exhaustively per-class, but a
+ * coherent, corroborated mechanism, not a guess.
  *
  * **Chose re-pin over fix.** A single-class data tune (in the Cryomancer/
  * Paladin/Necromancer style already in this file) was considered but not
