@@ -970,6 +970,31 @@ owner items.
       x1.21 — both read the real `derived`/`effectiveTowerRange` path the file
       already uses, not a hand-rolled formula. In-lane only - refs: SPEC-FINAL
       §2 (stacking), §14 G5, c013.
+      **No bug found — the mechanism holds, now proven jointly.** New `c036`
+      describe block in `tests/class-tower-passive-liveness.test.ts`, reusing
+      the file's own `towerWorld` shape with an equipment-carrying twin.
+      Archer + Sniper Bracelet on an Arrow Spire and Animist + Normal
+      Bracelet on a Mortar each measured four ways (base, class-only,
+      item-only, combined) through the real `effectiveTowerRange`/
+      `effectiveTowerAoe` (`src/sim/towers.ts`), with the expected 1.1/1.1
+      factors read live off `content.classByKey`/`content.equipment.items`
+      rather than retyped: both compose to x1.21, not x1.20. Verified by
+      mutation: a deliberate additive-collapse rewrite of `Stats.factor()`
+      (`return 1 + sum` instead of the per-source product), reverted,
+      reddens both new rows exactly at 1.20 vs 1.21. code-reviewer approved
+      with no findings (independently confirmed `effectiveTowerRange`/
+      `effectiveTowerAoe` don't cross-contaminate `towerRangeMul`/`areaMul`
+      for a `single`/`lob`-kind tower, and that a target-in-range firing case
+      would be duplicative of this file's existing behavioral coverage).
+      qa-playtester ran two further mutations of its own (item mod value,
+      deleted class mod) plus an independent cross-contamination check — no
+      bugs filed. Full `tests/class-*.test.ts` glob (21 files, 794 passed)
+      and `npx tsc --noEmit` green.
+
+      **Every actionable item in this queue (c001-c036) is now Done, Skipped,
+      or Blocked out of Scope.** The next session should run the generation
+      rule again per CLAUDE.md's "fewer than 3 actionable items remain" clause
+      before executing further.
 
 - [ ] (c037) [bug] `c036`'s same-stat-key stacking check has a twin gap on the
       **character-passive** slot, not just `towerPassive`. An exhaustive

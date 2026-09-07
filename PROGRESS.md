@@ -5,6 +5,23 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
+  closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
+  session should run the generation rule again before executing further).
+  `sniper_bracelet` (`towerRange +10%`) and Archer's *Ranger's Eye* write the
+  same stat key; so do `normal_bracelet` (`area +10%`) and Animist's *Wide
+  Grove*. Proven individually, never together — a plausible additive-collapse
+  bug would pass both single-source tests and silently read +20% instead of
+  the correct x1.21. New `c036` describe block in
+  `tests/class-tower-passive-liveness.test.ts` measures both combos four ways
+  (base/class-only/item-only/combined) through the real `effectiveTowerRange`/
+  `effectiveTowerAoe`, confirming x1.21 for both. Verified by mutation (a
+  deliberate additive-collapse rewrite of `Stats.factor()`, reverted, reddens
+  both rows at exactly 1.20 vs 1.21). code-reviewer approved with no findings;
+  qa-playtester ran two further mutations and a cross-contamination check —
+  no bugs filed. Full `tests/class-*.test.ts` glob (21 files, 794 passed) and
+  `npx tsc --noEmit` green.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c035 done, no bug found.**
   Three Swordsman-locked equipment items (`sleeve_sword`, `swordsman_armor`,
   `swordsman_shoes`) each carry an off-class `classFallback`, and SPEC-FINAL
