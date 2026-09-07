@@ -334,8 +334,12 @@ TD scaling: `hp × 1.30^(wave−1)` ⚖; composition curve in `data/waves.json`
 Owner request (`feedback/processed/20260903-121255-feature-terrain-generation.md`,
 verbatim below) is authoritative; the lane decisions after it (QUESTIONS Q162,
 Q171) are the most spec-consistent defaults under §12 rule 4 and are logged
-there for an owner veto, not picked silently.
+there for an owner veto, not picked silently. Reproduced in full against the
+source file at merge time (2026-09-07): the title and `Priority` lines are
+part of the memo too and belong in a "verbatim" quote.
 
+> [feature] Random terrain generation each run + player-chosen Core position
+>
 > What: each run generates a terrain layout from the run seed. This is an
 > epic - split into sub-items as needed.
 >
@@ -377,6 +381,7 @@ there for an owner veto, not picked silently.
 > Core placement flow works; high-ground protection rules tested; a
 > degenerate-seed fallback regenerates deterministically (seed+1) rather
 > than shipping an illegal map.
+> Priority: normal
 
 Lane decisions (Q162, folded at the 2026-09-03 merge; Q171, folded at the
 2026-09-04 merge), owner-approved:
@@ -409,8 +414,14 @@ Lane decisions (Q162, folded at the 2026-09-03 merge; Q171, folded at the
   (no tower on them could ever be threatened) are repaired to rock at
   generation time rather than rejected as illegal seeds.
 - Character passage is a per-kind `blocksCharacter` flag in
-  `data/terrain.json` — the shipped default lets the character fly over rock
-  per fb002 (owner veto flips this with a one-line data edit).
+  `data/terrain.json`. **Open, not resolved:** the owner's own default is
+  "character flies over" rock, vetoed only if rocks should block the
+  character (fb002) — but the shipped file sets `rock` and `high` to
+  `blocksCharacter: true`, i.e. the vetoed reading, with no recorded veto
+  (`src/sim/terrain/character.ts`'s own doc comment names this gap). Left as
+  shipped rather than silently changed by a docs-only item; tracked as the
+  open item Q171 already named ("the owner's open veto is 'character flies
+  over rock'; one-line data edit if so").
 - Seed domain is `[-2^31, 2^32-1]`, not int32 — run seeds are drawn `>>> 0`,
   so the retry-on-degenerate-seed walk wraps modulo 2^32 (`-0` normalised)
   rather than truncating with `seed | 0`.

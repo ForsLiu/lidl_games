@@ -101,6 +101,12 @@ an item touches (owner feedback `feature-tiered-qa`, 2026-09-04):
   (working rule 3).
 - For tuning-only items: delegate to **balance-analyst**; it edits `/data` only
   and must report gate deltas.
+- **fb139:** an in-run F8 bug report (a note + a `{ config, inputLog }` replay
+  bundle under `/replays`, the same `RecordedRun` shape architecture rule 2's
+  replay/hash machinery uses, plus a screenshot) is a first-class repro,
+  equal in standing to a QA-filed report — replay it to the recorded tick
+  (`src/sim/run.ts`) to reproduce the bug exactly rather than re-deriving a
+  seed/policy from the note alone.
 
 ## BACKLOG protocol (self-directed refinement)
 BACKLOG.md is an ordered list. Item format:

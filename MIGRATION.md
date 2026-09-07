@@ -434,7 +434,7 @@ the loop. This section is that audit's ledger. BACKLOG.md is rewritten to match.
 
 SPEC-FINAL is mostly V3 made complete and self-contained rather than V3 revised,
 so §§1–13 of this file survive as written — the systems V3 marked for removal are
-the same ones SPEC-FINAL removes. Four things are genuinely new:
+the same ones SPEC-FINAL removes. Five things are genuinely new:
 
 1. **The gate list is consolidated.** §14's **G1–G20** replaces every A-, B- and
    C-gate list. This is a renaming for most surviving gates and a real change for
@@ -451,6 +451,15 @@ the same ones SPEC-FINAL removes. Four things are genuinely new:
    nine classes and the pool are **p6d** and **p7a — both done**.
 4. **§16 names the balance work explicitly**: flip Burning, re-price against G13,
    re-baseline perf as G17. These are **p10a**, **p10c**, **p10e**.
+5. **§10.5 (terrain generation) is new**, added after this reconcile's original
+   pass — SPEC-FINAL as first reconciled had no terrain section at all, even
+   though `lane/terrain` had already built the generator to the owner's own
+   feature feedback (`feedback/processed/20260903-121255-feature-terrain-
+   generation.md`) and logged its design decisions (QUESTIONS Q162, Q171,
+   both owner-approved). **fb079** appends §10.5 verbatim-plus-decisions,
+   extends G2's wording to name generation determinism explicitly, and adds
+   the terrain file to §13's content totals — a docs-only item; no code
+   changed.
 
 ### 8.2 Old id → new id
 
