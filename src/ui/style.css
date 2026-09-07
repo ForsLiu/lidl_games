@@ -385,6 +385,8 @@ html, body {
   text-align: center;
 }
 .sw-card h2 { margin: 0 0 6px; font-size: 20px; }
+/* fb139: F8's note box, sharing the pause card's frame. */
+.sw-bugreport-note { width: 100%; box-sizing: border-box; font: inherit; resize: vertical; background: #0d1016; color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 8px; margin-bottom: 10px; }
 .sw-card p { margin: 0 0 14px; color: var(--dim); }
 
 /* -------------------------------------------------------- character panel */

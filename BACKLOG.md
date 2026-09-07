@@ -844,7 +844,40 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07** — F8 pauses and opens a small note
+      box (`Hud.showBugReportBox`) in both dev and prod builds; Confirm
+      gathers `{ config: w.cfg, inputLog: inputLog.slice(0, w.tick) }` — the
+      same `RecordedRun` shape the sim's own replay/hash machinery uses —
+      plus class/core/tier/phase/wavesCleared/tick/seed/contentHash and a
+      canvas screenshot (base64 PNG, capped at a 2s timeout so an
+      unresponsive canvas can't hang the report). A dev build POSTs to a new
+      Vite dev-server endpoint (`src/devserver/bugReportPlugin.ts` +
+      `bugReportSave.ts`, mirroring the existing `tunerPlugin.ts`/
+      `tunerSave.ts` split exactly) that writes the `.md` index, the replay
+      bundle under `/replays`, and the screenshot PNG; a prod build downloads
+      the same bundle as one JSON file instead (no dev server to write to).
+      The inbox default is platform-aware (`D:\lidl_inbox` only on win32,
+      `<cwd>/inbox` elsewhere) — code-reviewer's Major finding: the literal
+      Windows path as a blind cross-platform default silently wrote a bogus
+      directory on this repo's own Linux host. `tests/fb139-bugreport-
+      replay-hash.test.ts` proves the actual point: a bundle captured
+      mid-run, saved, and read back replays through a fresh `Run` to a world
+      that hashes identically to the live one (plus a negative case — a
+      tampered/truncated bundle does NOT reproduce the same hash). 27 tests
+      total across 5 files; `npx tsc --noEmit` and `npm run build` both
+      clean, with the client bundle grepped to confirm zero devserver/Node
+      code leaked in. code-reviewer's other two findings (a `saveBugReport`
+      throw becoming an unhandled rejection; no screenshot timeout) fixed
+      with regression tests. qa-playtester booted a real Vite dev server
+      (not mocks) and confirmed the endpoint writes all three files
+      correctly end-to-end, then found a real bug: an empty/whitespace note
+      posted and closed the box exactly like a real success, since the
+      server's 400 was never surfaced — fixed by disabling Send until the
+      note is non-empty client-side, plus a toast (`hud.say`) if a save is
+      ever rejected server-side anyway, both with regression tests. CLAUDE.md
+      gained a bullet under "Subagent protocol" naming an F8 bundle a
+      first-class repro alongside a QA-filed report. Original text follows.
+      in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into

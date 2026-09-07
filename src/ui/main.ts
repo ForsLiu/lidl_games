@@ -21,7 +21,14 @@ import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice } from '../meta/meta';
 import { questCompletionToasts } from './quests';
 import { ensureActiveSlotMigrated, saveMetaToActiveSlot } from './saveslots';
-import { devProfileActive, startupProfile } from '../meta/devprofile';
+import { devProfileActive, isDevBuild, startupProfile } from '../meta/devprofile';
+import {
+  buildBugReportMeta,
+  captureScreenshotBase64,
+  downloadBugReportBundle,
+  postBugReport,
+  type BugReportPayload,
+} from './bugreport';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
 import { Sfx } from '../render/sfx';
@@ -556,6 +563,13 @@ export class Game {
       // released (including one held through an Esc/blur pause) re-arms
       // `dashQueued` with no fresh physical press behind it.
       if (e.key.toLowerCase() === this.keyBindings.dash && !this.paused && !e.repeat) this.dashQueued = true;
+      // fb139: F8 at any moment in a live run — not while paused or another
+      // modal (level-up, results) is already showing, `hud.modalOpen` covers
+      // all three the same way `showPause` itself does.
+      if (e.key === 'F8' && !e.repeat && this.run.world.outcome === 'running' && !this.hud.modalOpen) {
+        e.preventDefault();
+        this.hotkeyBugReport();
+      }
       onKeyDown(e);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -718,6 +732,68 @@ export class Game {
     if (!w || !sel || sel.kind !== 'tower') return;
     const s = selectedStructure(w, sel);
     if (s) this.pending.push({ k: 'sell', tx: s.tx, ty: s.ty });
+  }
+
+  /**
+   * fb139: F8's hotkey handler. Pauses (`setPaused` shows the plain Pause
+   * card first; `Hud.showBugReportBox` immediately overwrites it, the same
+   * two-step render `showPause` itself does flipping into its own Options
+   * sub-screen) so the tick/hash the report captures cannot move underneath
+   * the player while they type — `syncModal` no-ops entirely while paused,
+   * which is what keeps the note box from being wiped by the next frame's
+   * phase-driven modal sync.
+   */
+  private hotkeyBugReport(): void {
+    if (!this.run) return;
+    this.setPaused(true);
+    this.hud.showBugReportBox(
+      (note) => {
+        void this.submitBugReport(note);
+        this.setPaused(false);
+      },
+      () => this.setPaused(false),
+    );
+  }
+
+  /**
+   * Gathers the reproducible half of the report — `{ config, inputLog }`,
+   * the same `RecordedRun` shape architecture rule 2's replay/hash machinery
+   * uses, truncated to the exact tick the report was taken at — plus a
+   * screenshot, and sends it: a dev build posts to the dev-server endpoint
+   * (`bugReportPlugin.ts`, which writes the `.md`/replay/screenshot files);
+   * a prod build has no dev server to write to, so the same bundle
+   * downloads as one file instead (owner feedback `feature-bug-report-
+   * hotkey`'s own "prod builds: F8 downloads the same bundle" clause).
+   */
+  private async submitBugReport(note: string): Promise<void> {
+    if (!this.run) return;
+    const w = this.run.world;
+    const payload: BugReportPayload = {
+      note,
+      meta: buildBugReportMeta(w),
+      config: w.cfg,
+      inputLog: this.inputLog.slice(0, w.tick),
+      screenshotBase64: await captureScreenshotBase64(this.hud.canvas),
+    };
+    if (isDevBuild()) {
+      try {
+        const result = await postBugReport(payload);
+        // qa-playtester finding: the note box itself now refuses to send an
+        // empty note, but a rejected save can still happen for a reason the
+        // client can't see in advance (e.g. a body the server considers
+        // malformed) — surfacing it here, rather than only in the client-
+        // side guard, is what keeps a rejected save from looking identical
+        // to a real one.
+        if (!result.ok) this.hud.say('Bug report not saved — see dev-server console.');
+      } catch {
+        // Dev server unreachable (not running, or this build was opened
+        // some other way) — nothing else this handler can do about it; the
+        // player already has the note in hand to file by another route.
+        this.hud.say('Bug report not saved — dev server unreachable.');
+      }
+    } else {
+      downloadBugReportBundle(payload);
+    }
   }
 
   private bindCanvasInput(): void {

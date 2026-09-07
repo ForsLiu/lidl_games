@@ -5,6 +5,78 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb139 done: the F8 in-run bug-report hotkey.**
+  Pressing F8 during a live run (dev or prod build) pauses the sim
+  (`setPaused(true)` shows the plain Pause card first; `Hud.showBugReportBox`
+  immediately overwrites it with a small note textarea — `syncModal` no-ops
+  entirely while paused, which is what keeps the box from being wiped by the
+  next frame) and, on Confirm, gathers a reproducible bundle: `{ config:
+  w.cfg, inputLog: this.inputLog.slice(0, w.tick) }` — the exact
+  `RecordedRun` shape architecture rule 2's replay/hash machinery already
+  uses (`src/sim/run.ts`) — plus class/core/tier/phase/wavesCleared/tick/
+  seed/contentHash and a canvas screenshot (base64 PNG via `canvas.toBlob`
+  -> `arrayBuffer` -> chunked base64, capped at a 2s `Promise.race` timeout).
+  A dev build (`isDevBuild()`) POSTs the bundle to a new Vite dev-server
+  endpoint; a prod build has no dev server to write to, so the same bundle
+  downloads as one JSON file instead (Blob + anchor-click, the same idiom
+  the existing dev screenshot export already uses).
+  New `src/devserver/bugReportSave.ts` (pure Node file-writing/validation —
+  validate every field before writing anything, atomic temp-file+rename
+  writes) and `src/devserver/bugReportPlugin.ts` (the Vite `apply: 'serve'`
+  plugin/middleware) mirror the existing `tunerSave.ts`/`tunerPlugin.ts`
+  split exactly, down to reusing `tunerPlugin.ts`'s own `readJsonBody` body-
+  size cap. New `src/ui/bugreport.ts` holds the client-side halves
+  (`postBugReport`, `downloadBugReportBundle`, `captureScreenshotBase64`),
+  hardcoding the `/__bugreport/save` literal rather than importing from
+  `src/devserver/**`, the same isolation `tuner.ts` already maintains for
+  `/__tuner/save` (nothing under `src/ui` may import the Node-only devserver
+  module graph). `Hud` gained `showBugReportBox`; `main.ts` gained the F8
+  keydown handler (guarded on an active running world and
+  `!this.hud.modalOpen`, which correctly excludes pause/level-up/results —
+  all three share the one modal slot) plus `hotkeyBugReport`/
+  `submitBugReport`.
+  `tests/fb139-bugreport-replay-hash.test.ts` is the item's actual proof:
+  builds a real sim run, captures a hash mid-run, saves a bundle through
+  `saveBugReport`, reads it back off disk, replays it through a fresh `Run`,
+  and confirms the hash matches — plus a negative case (the last recorded
+  input dropped) that does NOT reproduce the same hash, so the check has
+  teeth. 27 tests total across 5 files (`fb139-bugreport-save`,
+  `fb139-bugreport-plugin`, `fb139-bugreport-replay-hash`,
+  `ui-fb139-bugreport-hotkey` dev-build, `ui-fb139-bugreport-hotkey-prod`
+  simulated prod build via the same `vi.mock('../src/meta/devprofile', ...)`
+  idiom `ui-fb094-screenshot-export-prod.test.ts` uses). `npx tsc --noEmit`
+  and `npm run build` both clean; the built client bundle was grepped to
+  confirm zero devserver/Node code (`mkdirSync`, `node:fs`) leaked in.
+  code-reviewer's first pass (REQUEST-CHANGES) found: (1) **Major** —
+  `bugReportPlugin`'s default inbox directory was the literal
+  `'D:\\lidl_inbox'` on every platform; on this repo's own Linux host that
+  silently created a bogus directory literally named `D:\lidl_inbox` under
+  the cwd instead of failing or writing somewhere sane (POSIX treats a
+  backslash as an ordinary filename character) — fixed with a
+  `os.platform() === 'win32'` check, `<cwd>/inbox` everywhere else, and a
+  regression test pinning the non-Windows default never contains the
+  literal path; (2) a `saveBugReport` throw (e.g. a value `JSON.stringify`
+  refuses) becoming an unhandled rejection rather than a clean 400 — fixed
+  with a try/catch and a mock-based regression test; (3) no timeout on
+  screenshot capture — fixed with the `Promise.race` mentioned above. All
+  three re-verified, re-approved. qa-playtester booted a *real* Vite dev
+  server (`vite.createServer` in middleware mode, not mocks) and POSTed a
+  bundle built from an actual `Run`/`World`: got a 200, and the `.md`,
+  replay `.json` (parses, `inputLog.length` and `config.seed` both match the
+  request), and `.png` were all written correctly end-to-end through the
+  real plugin pipeline — then found a real bug: an empty/whitespace note
+  posted and closed the box exactly like a real success, because the
+  server's 400 was never inspected client-side (only network failure was
+  caught). Fixed two ways: the Send button now starts disabled and only
+  enables once the textarea holds non-whitespace text (closes the common
+  case at the source), and `submitBugReport` now surfaces a toast
+  (`hud.say`) if a save is ever rejected anyway (defense in depth for a
+  rejection the client couldn't have predicted) — both with regression
+  tests, re-verified green. CLAUDE.md gained one bullet under "Subagent
+  protocol" naming an F8 bundle a first-class repro, per the item's own
+  acceptance clause. `npm run test:fast` green throughout (the one known
+  pre-existing, unrelated fb119 failure aside).
+
 - **2026-09-07 — BACKLOG p12h done: bisected G13's solo-viability regression
   to two additive causes, fixed the one that was a bug.** `tests/a4-single-
   type.test.ts` probes whether one tower type alone can solo all 18 TD waves
