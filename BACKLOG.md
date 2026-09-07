@@ -757,7 +757,64 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       flipped to `defeat_core` for the same reason — see PROGRESS "Known
       issues" and QUESTIONS Q179.
 
-- [ ] (fb177) [bug] `tests/p6e-class-diversity.test.ts` (G8) has not been
+- [x] (fb177) [bug] **DONE 2026-09-07** — re-ran `tests/p6e-class-diversity.
+      test.ts`'s full `beforeAll` sweep (12 classes x 12 seeds, ~42 min,
+      confirmed twice) against HEAD and recorded the honest table: **only
+      `archer` (5/12) is actually in G8's `[5,8]`-of-12 band** — 8 of the
+      other 11 are under the 35% floor, 3 (cryomancer/animist/time_lord) are
+      over the 70% ceiling. A much bigger finding than the item's own
+      swordsman-only lead: this is a full roster rescramble, not one class's
+      regression. Bisected swordsman's collapse (12/12 -> 2/12) by name with
+      real control runs (git worktree, `data/*.json` byte-identical, same
+      method as p12h): still 12/12 after fb077 alone and p12a alone (both
+      exonerated for this gate) — p12b alone (its own shipped-then-
+      immediately-superseded `tierEnemyHpPerStep: 4.0`) drops it to 0/12;
+      p12c's *final* state (fitted ladder + `baseHpMul: 20`, real
+      `GATE_TIER`) measures 3/12, matching HEAD's 2/12 within one seed;
+      fb152/fb153a's checkpoint reproduces HEAD's exact 2/12 bit-for-bit.
+      **Verdict: `baseHpMul: 20` (p12c) is the dominant, persisting cause;
+      p12b's undocumented reference-tier move (T1 -> T3, `tier: 1` ->
+      `tier: GATE_TIER`) is a real secondary compounding factor** — p12b
+      changed p6e's own `runClassScripted` to measure T3 but never updated
+      the file's "T1, concretely: `tier: 1`" header sentence or any of the
+      eleven per-class `.skip` comments, an undocumented drift this item also
+      corrected (see the file's own new fb177 header paragraph).
+      **A mechanism correction to the item's own hypothesis**: `defeat_warden`
+      can only fire while `w.huntsWarden` (VS phase) is true — never during
+      TD — so "10/12 seeds dying `defeat_warden` at wave 3" is not an
+      "Act I, TD-only" death as originally guessed, it's the *first VS/Night
+      block* (`cycleWaveEnd`: 18 TD waves / 6 cycles = 3 TD waves per block),
+      confirmed directly (`act2Time` 18-40s into that block's 75s budget).
+      `baseHpMul` inflates VS-enemy HP by the same x20 as TD's, at the same
+      `makeEnemy` choke point, and `classBasicAttack` is TD-only
+      (`run.ts:550`) — so a class's kit Actives alone carry the *entire*
+      fight that's actually killing it. The table's two worst-hit classes,
+      swordsman (10/12 Night-1 losses) and bloodlord (8/12), are the
+      roster's two shortest-range classes (2.5) and rank #1/#3 by
+      `basicAttack.dps` (78/51) — exactly the stat that fight can't use.
+      **Chose re-pin over fix, for all eleven remaining classes**: a
+      swordsman-only data tune was considered but not attempted once the
+      full table showed this is roster-wide and bidirectional (some classes
+      need buffs, some need nerfs) — squarely a balance-analyst re-tune pass,
+      not this bisect item's blast radius, and reverting `baseHpMul` would
+      re-break p12c's own deliberate T3 fit. `archer` is un-skipped (real,
+      green, in-band); the other eleven are re-pinned in place with their
+      fresh numbers and a one-line cause note each. Follow-up filed as
+      **p12j**. Full table, worktree bisect log, and the mechanism write-up:
+      `tests/p6e-class-diversity.test.ts`'s new fb177 header paragraph;
+      decision record QUESTIONS Q195.
+      **No independent code-reviewer/qa-playtester pass** — this session had
+      Bash/Read/Edit/Write/Glob/Grep/Artifact tools only, no Agent/Task
+      subagent dispatch, so this is self-verified (targeted test + full
+      `npm run test:fast`) rather than independently reviewed; flagged
+      explicitly per this session's own instructions rather than
+      self-grading against the code-reviewer/qa-playtester criteria files.
+      Verification: `npx vitest run tests/p6e-class-diversity.test.ts` (12
+      classes' worth of `beforeAll`, all twelve `it`s green — 11 `.skip`,
+      `archer` live and passing) plus `npm run test:fast` at the same
+      pre-existing q15/q45 failure set as HEAD, zero new failures.
+      Original text follows.
+      `tests/p6e-class-diversity.test.ts` (G8) has not been
       re-measured since **b080, 2026-09-03** — its `beforeAll` sweep is
       excluded from `test:fast` (60s+), so nothing caught that this predates
       p12e's entire arc: p12a (kit power re-anchor), p12b (tier ladder),
@@ -983,6 +1040,34 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       three wave-3-death towers, then (a) or (b) chosen and logged, then the
       clause's `.skip` numbers re-measured against whichever is chosen — refs:
       SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, QUESTIONS Q194.
+
+- [ ] (p12j) [balance] Follow-up from fb177's bisection: G8
+      (`tests/p6e-class-diversity.test.ts`) is no longer a roster mostly over
+      the win-rate ceiling — after p12a-p12c's `baseHpMul: 20` + T3
+      reference-tier move, the 12-class table reads 8 of 12 under the 35%
+      floor, 3 over the 70% ceiling, and only `archer` (5/12) actually in
+      band, pulling in opposite directions (some classes need a buff, some a
+      nerf). fb177 also found a specific, previously-undocumented mechanism
+      worth designing around: `baseHpMul` inflates VS-phase enemy HP by the
+      same factor as TD, and `classBasicAttack` is TD-only, so the roster's
+      two shortest-range/highest-basicAttack-dps classes (swordsman,
+      bloodlord) take the worst hit from the very first VS/Night block
+      (reached after just 3 of 18 TD waves, minimal build) — their best
+      damage stat is worth nothing in the fight actually killing them. Two
+      things to close, in order: (1) a `data/classes.json`-only re-tune pass,
+      class by class, against the fresh table in `tests/p6e-class-diversity.
+      test.ts`'s fb177 header paragraph — likely needs both nerfs
+      (cryomancer/animist/time_lord, all over-ceiling) and buffs (the eight
+      under-floor classes), with swordsman/bloodlord's kit Actives (their
+      only VS damage source) the most likely buff target given the mechanism
+      above; (2) once T1/T3 both have real numbers again, this item and
+      p12d's own gate-text rewrite are sequenced together — p12d is blocked
+      on exactly this. Acceptance: re-run this file's full `beforeAll` sweep
+      (~42 min, excluded from `test:fast`) after the retune; at least 9 of 12
+      classes land inside G8's `[5,8]`-of-12 win-rate band (SPEC-FINAL §14's
+      own ">=9 of 12" ratio, fb013), each un-skipped with its real number;
+      classes still out of band get a recorded reason, not a forced pass —
+      refs: SPEC-FINAL §14 G8, BACKLOG fb177/p12b/p12c/p12d, QUESTIONS Q195.
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

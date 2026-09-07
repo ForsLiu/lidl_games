@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG fb177 re-measured G8 in full after the
+  p12a-p12h balance arc — a roster-wide rescramble, not just swordsman, and
+  a bigger cause than the item's own lead.** `tests/p6e-class-diversity.
+  test.ts`'s `beforeAll` sweep (12 classes x 12 seeds, ~42 min, excluded from
+  `test:fast`) hadn't run since b080 (2026-09-03). Fresh table: **only
+  `archer` (5/12) is honestly inside G8's `[5,8]`-of-12 win-rate band** — 8
+  of the other 11 classes are under the 35% floor, 3
+  (cryomancer/animist/time_lord) are over the 70% ceiling. Bisected
+  swordsman's own 12/12 -> 2/12 collapse (git worktree control runs,
+  `data/*.json` byte-identical, p12h's method): unchanged through fb077 and
+  p12a alone (both exonerated for this gate); p12b alone (its own
+  shipped-then-superseded `tierEnemyHpPerStep: 4.0`) drops it to 0/12;
+  p12c's settled state (fitted ladder + `baseHpMul: 20`) reads 3/12, within
+  one seed of HEAD; fb152/fb153a's checkpoint reproduces HEAD's 2/12
+  bit-for-bit. **`baseHpMul: 20` (p12c) is the dominant, persisting cause.**
+  Also found: p12b silently moved p6e's own reference tier from T1 to T3
+  (`tier: GATE_TIER`) without updating the file's header prose or any
+  per-class comment — corrected here, and a real secondary contributor to
+  the swordsman number. **Corrected the item's own hypothesis**: the
+  "wave 3" deaths read as "Act I, TD-only," but `defeat_warden` can only
+  fire during VS (`w.huntsWarden`), and `cycleWaveEnd` puts the *first
+  VS/Night block* right after TD wave 3 (18 waves / 6 cycles) — confirmed
+  directly via `act2Time`. `baseHpMul` inflates VS-enemy HP by the same x20
+  as TD's, and `classBasicAttack` is TD-only, so a class's kit Actives alone
+  carry that fight — explaining why swordsman (10/12 Night-1 losses) and
+  bloodlord (8/12), the roster's two shortest-range/highest-basicAttack-dps
+  classes, are hit worst. **Chose re-pin over fix for all eleven remaining
+  classes**: the table shows this pulls in opposite directions (buffs and
+  nerfs both needed), out of one bisect item's blast radius; reverting
+  `baseHpMul` would re-break p12c's own deliberate T3 fit. `archer`
+  un-skipped (real, green, in-band); the other eleven re-pinned with fresh
+  numbers and cause notes. Follow-up filed as BACKLOG p12j. Full table,
+  bisect log, mechanism write-up: `tests/p6e-class-diversity.test.ts`'s new
+  fb177 header paragraph; decision record QUESTIONS Q195. No `/data` or
+  `/src` files changed — only the test file's comments plus BACKLOG/
+  QUESTIONS/PROGRESS docs. Verification: `npx vitest run tests/
+  p6e-class-diversity.test.ts` green (11 `.skip`, `archer` live and
+  passing) plus `npm run test:fast` at the same pre-existing q15/q45
+  failure set as HEAD, zero new failures. **No independent review** — this
+  session had no Agent/Task subagent access (Bash/Read/Edit/Write/Glob/Grep/
+  Artifact only); flagged explicitly rather than self-graded, per this
+  session's own instructions.
+
 - **2026-09-07 — main lane: BACKLOG p12h bisected the pre-p12c G13
   solo-viability regression to fb077, not the three named-by-date
   candidates; re-banded, not fixed.** `tests/a4-single-type.test.ts`'s T1

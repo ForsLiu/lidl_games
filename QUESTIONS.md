@@ -907,3 +907,66 @@ Q91 and Q102 corrections if not yet done.
   radius before calling it narrow," "grep readers, not just writers" — here
   extended to "grep the commit log, not just the candidate list handed to
   you"); SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, p12i.
+
+- **Q195. [fb177] G8's post-p12a-p12h re-measurement: a roster-wide
+  rescramble, not a swordsman-only regression — bisected to `baseHpMul: 20`
+  (p12c) plus an undocumented reference-tier move (p12b), re-pinned rather
+  than fixed.** `tests/p6e-class-diversity.test.ts`'s 12-class `beforeAll`
+  sweep hadn't run since b080 (2026-09-03); fb177 flagged one incidental
+  finding (swordsman 2/12) as the lead to chase. The full re-run (fresh table
+  in the test file's own fb177 header paragraph) found something bigger:
+  **only `archer` (5/12) is honestly inside G8's `[5,8]`-of-12 win-rate
+  band** — 8 of the other 11 classes are under the 35% floor, 3
+  (cryomancer/animist/time_lord) are over the 70% ceiling. Bisected
+  swordsman's own collapse by name (git worktree control runs, `data/*.json`
+  byte-identical, p12h's method): 12/12 unchanged through fb077 alone and
+  p12a alone (both exonerated for this gate specifically); p12b alone —
+  running its own shipped-then-immediately-superseded `tierEnemyHpPerStep:
+  4.0` (16x HP at T3, replaced by 1.07/1.05/1.03 one commit later in p12c) —
+  drops it to 0/12; p12c's *settled* state (the fitted ladder plus
+  `baseHpMul: 20`) reads 3/12, within one seed of HEAD's 2/12; the
+  fb152/fb153a checkpoint reproduces HEAD's 2/12 bit-for-bit (same two
+  winning seeds). **`baseHpMul: 20` is the dominant, persisting cause.**
+  Also found and corrected along the way: **p12b silently moved this file's
+  own reference tier from T1 to T3** (`tier: 1` -> `tier: GATE_TIER`,
+  `GATE_TIER=3`) without updating the file's "T1, concretely: `tier: 1`"
+  header sentence or any of the eleven per-class `.skip` comments below it —
+  a real doc/code drift, now corrected in the header, and a secondary
+  compounding contributor to the swordsman number (p12b's ladder rung stacks
+  on top of `baseHpMul`). This directly connects to the still-blocked p12d
+  (formalizing T1/T3/T5 companion bands for G1/G8/G14/G23) — p6e had
+  quietly already made the T3 move p12d is supposed to formalize.
+  **A correction to fb177's own hypothesis, not just a confirmation**: the
+  item's text read "wave 3, Act I, TD-only, no causal path to any VS
+  mechanic" and used that to argue *against* `baseHpMul`. That's backwards —
+  `defeat_warden` can only fire while `w.huntsWarden` is true
+  (`src/sim/world.ts`: `phase==='act2'||'levelup'`), never during TD, and
+  `cycleWaveEnd` splits 18 TD waves across 6 VS blocks (3 TD waves/block), so
+  "wave 3" is the *first VS/Night block*, not an Act-I death — confirmed
+  directly (`run.world.act2Time` reads 18-40s into that block's 75s budget
+  at the moment of defeat). `baseHpMul` applies at the single `makeEnemy`
+  choke point *before* VS's own overlay multipliers, so it inflates Night-1
+  enemy HP by the same x20 as every TD wave gets — landing hardest on the
+  block with the least built economy of the whole run. `classBasicAttack` is
+  TD-only (`run.ts:550`), so a class's kit Actives alone carry 100% of that
+  fight's output regardless of basic-attack strength. The table's two
+  worst-hit classes — swordsman (10/12 Night-1 losses) and bloodlord (8/12)
+  — are the roster's two shortest-range classes (`basicAttack.range: 2.5`)
+  and rank #1/#3 by `basicAttack.dps` (78, 51): exactly the stat that fight
+  cannot use. Corroborated by the data pattern across all 12 classes, not
+  exhaustively proven per class. **Chose re-pin over fix, for all eleven
+  remaining classes.** A swordsman-only data tune (the Cryomancer/Paladin/
+  Necromancer style already in this file) was considered but not attempted
+  once the full table showed the problem is roster-wide and pulls in
+  opposite directions (some classes need buffs, some need nerfs) — a
+  balance-analyst re-tune pass, not this bisect item's blast radius, and
+  reverting `baseHpMul` would re-break p12c's own deliberate T3
+  contested-margin fit and every other gate riding it. `archer` un-skipped
+  (real, green, in-band); the other eleven re-pinned with fresh numbers.
+  Follow-up filed as BACKLOG p12j (full roster re-tune against the new T3 +
+  `baseHpMul: 20` baseline, informed by the Night-1/basicAttack-TD-only
+  mechanism above). — Reason: measured, not guessed (CLAUDE.md: "a deferral
+  is a measurement with an expiry date," "check a `/data` row's blast radius
+  before calling it narrow" — `baseHpMul` looked TD-only-relevant and isn't);
+  SPEC-FINAL §14 G8, BACKLOG fb177, p12b, p12c, p12j, p12h (bisect method
+  precedent).
