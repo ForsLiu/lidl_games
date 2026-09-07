@@ -80,6 +80,44 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — main lane: BACKLOG fb084 done.** Unblocked BACKLOG-CONTENT
+  c004 (Animist's §4.2 "summon cap +1"): added `summonCap` to `STAT_KEYS`
+  with `STAT_KIND`/`STAT_DISPLAY`/`STAT_SCALED` rows (flat/point, not
+  fb153a-rescaled) and `Derived.summonCapBonus` (`stats.ts`), folded into
+  all three `classes.ts` summon sites (Pop Turret, Raise Skeletons,
+  Manifest Spirit) alongside the pre-existing `classLineBonus(w)` skill-card
+  bonus. No `/data/classes.json` change — Kinship's `mods` stay `{}`, so
+  every class's live summon cap is unchanged and c004's own clause stays
+  genuinely `unimplemented` (its pinned `class-spec-numbers.test.ts` row
+  re-pinned to the new source lines, not to a new outcome); c004 can now
+  close in its own lane by authoring `summonCap: 1` on Kinship. skipped
+  `fb153b` (blocked — its own text says it lands after `fb166`/`fb167`,
+  both still open in their lanes) and `p12f` (BALANCE DIRECTION v2 §A's
+  own-kit-share target — its own QUESTIONS Q175 write-up already flags it
+  as "outside a single [balance] item's blast radius" and its measurement
+  method costs ~140 min wall-clock for the 12x12 sweep, incompatible with
+  this routine's per-item budget; left open, unqueued, for a session with
+  the wall-clock to spend on it) to reach this item, both logged with a
+  reason per the loop contract's "skip only with a logged reason."
+  qa-playtester's hostile pass on fb084 found a real latent bug the new
+  arbitrarily-signed lever exposed: `spawnClassSummon` reads a `cap <= 0`
+  argument as its own "uncapped" sentinel (Bone Pylons' deliberate
+  literal-0 call in `updatePactedTowers`), not "no room" — before fb084
+  the two player-cast summon sites could never pass a non-positive total
+  (their only inputs were a positive `/data` constant and a non-negative
+  skill-card bonus), so a large-enough negative `summonCapBonus` would
+  have made Pop Turret/Manifest spawn unboundedly instead of refusing to
+  summon. Fixed with an explicit `cap <= 0` guard at both sites (mirroring
+  Raise Skeletons' pre-existing `room <= 0` guard) plus a red-first
+  regression test (confirmed red against the pre-fix code via `git
+  stash`, green after) reproducing qa-playtester's exact repro.
+  code-reviewer APPROVE (one Minor — stale prose in the c008 pin's `why`
+  text, fixed). `npx tsc --noEmit` clean throughout; `npm run test:fast`
+  green apart from the two pre-existing unrelated `q15`/`q45` tsx-worker
+  environment failures (fb119, confirmed via `git stash` to fail
+  identically on unmodified HEAD) — refs: SPEC-FINAL §2, §4.2,
+  BACKLOG-CONTENT.md c004.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c002 closed, superseded.**
   c002 ("SKIPPED 2026-09-03, blocked on the Q161 owner verdict") measured
   the pre-BALANCE-DIRECTION-v2 G8 diversity clause ("top damage source

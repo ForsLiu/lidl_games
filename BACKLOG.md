@@ -360,14 +360,33 @@ open follow-up qa-playtester filed on it, p12i.
       QUESTIONS Q175, BALANCE.md "Kit relevance target".
 
 
-- [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
-      (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
-      rather than a class-key check") cannot be built from the content lane.
-      Acceptance: `summonCap` added to `STAT_KEYS` with its `STAT_KIND`/
-      `Derived` rows (`statkeys.ts`, `stats.ts`) and read at the three
-      `summonCap` sites in `classes.ts`; c004 then closes in its own lane
-      with the number in `data/classes.json` — refs: SPEC-FINAL §2, §4.2,
-      BACKLOG-CONTENT.md c004.
+### Feedback — owner-filed items (2026-09-03), processed from `feedback/`
+
+- [x] (fb084) [feat] **DONE 2026-09-07** (`dcf14b7`, `05631dd`, `9073c0a`).
+      Added `summonCap` to `STAT_KEYS` with `STAT_KIND`/`STAT_DISPLAY`/
+      `STAT_SCALED` rows (flat/point, not fb153a-rescaled) and
+      `Derived.summonCapBonus` (`stats.ts`), folded into all three
+      `classes.ts` summon sites (Pop Turret, Raise Skeletons, Manifest
+      Spirit) alongside the pre-existing `classLineBonus(w)` skill-card
+      bonus. No `/data/classes.json` change — Kinship's `mods` stay `{}`,
+      so today's live caps are unchanged and c004's own clause (`class-
+      spec-numbers.test.ts`'s pinned row) stays genuinely
+      `unimplemented`, just re-pinned to the new source lines; c004 can
+      now close in its own lane by authoring `summonCap: 1` on Kinship.
+      qa-playtester (hostile pass) found a real latent bug the new
+      arbitrarily-signed lever exposed: `spawnClassSummon` reads a
+      `cap <= 0` argument as its own "uncapped" sentinel (Bone Pylons'
+      deliberate literal-0 call), so a large-enough negative
+      `summonCapBonus` would have made Pop Turret/Manifest spawn
+      unboundedly instead of refusing to summon — fixed with an explicit
+      `cap <= 0` guard at both sites (mirroring Raise Skeletons'
+      pre-existing `room <= 0` guard) and a red-first regression test
+      reproducing the exact repro qa-playtester found. code-reviewer
+      APPROVE (one Minor, stale prose in the c008 pin's `why` text, fixed).
+      `npx tsc --noEmit` clean; `npm run test:fast` green apart from the
+      two pre-existing unrelated `q15`/`q45` tsx-worker environment
+      failures (fb119) — refs: SPEC-FINAL §2, §4.2, BACKLOG-CONTENT.md
+      c004.
 - [ ] (fb085) [feat] unblock the five owner items the content lane could
       not reach (BACKLOG-CONTENT.md session-1 Log: fb056/fb057/fb059/fb061/
       fb062 all need `src/sim/content.ts` or other shared files). Acceptance,
