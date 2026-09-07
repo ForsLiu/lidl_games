@@ -1060,6 +1060,20 @@ describe('fb065i — a dump carries a fingerprint of the config it was measured 
     expect(lines[7].startsWith('config ')).toBe(true);
     expect(lines[8]).toBe('map');
   });
+
+  it('tells a pre-fb065i dump how to be fixed, the same way fb064s\'s missing "source" does', () => {
+    // The field is new, so a dump written before it lacks the whole line —
+    // `lines[7]` is straight-to-`map` — and the generic `fields()` refusal
+    // ("expected \"config\" line, got \"map\"") would send a human retyping a
+    // pasted pre-fb065i dump hunting for a corrupted paste. Named and given a
+    // remedy instead, mirroring `tests/terrain-flat.test.ts`'s
+    // "tells a pre-fb064s dump how to be fixed" case for the `source` field.
+    const preFb065i = good.replace(/\nconfig fingerprint=[0-9a-f]{8}\n/, '\n');
+    expect(preFb065i).not.toContain('config fingerprint=');
+    expect(() => parseTerrainDump(preFb065i)).toThrow(
+      /"config" line is missing; a dump written before fb065i predates the field/,
+    );
+  });
 });
 
 /** Type-level: a `TerrainMap` is describable without a cast. */

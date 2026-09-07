@@ -1548,6 +1548,26 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       fb166 already logged as pre-existing and unrelated — every
       `tests/terrain*` file (25 files) shows 0 failures; `npx tsc --noEmit`
       clean.
+      **A real `code-reviewer` pass ran afterward (2026-09-07)** — this lane's
+      established follow-up for an item that could only self-review — and
+      returned an `APPROVE` with one Minor finding: a dump written before this
+      item (no `config` line at all) hit `fields()`'s generic
+      `expected "config" line, got "map"` refusal rather than a dedicated,
+      build-lockstep message naming the remedy, the standard every other new
+      header field in this file has met since fb064s's `source` check. Fixed
+      before this note: `parseTerrainDump` now names the case
+      (`"config" line is missing; a dump written before fb065i predates the
+      field — add "config fingerprint=<8 lowercase hex digits>" before the
+      "map" line, or regenerate the dump`), with a regression test mirroring
+      `tests/terrain-flat.test.ts`'s "tells a pre-fb064s dump how to be fixed".
+      Everything else the review checked — the zod key-ordering claim
+      (empirically confirmed against the real `zod` version this repo pins),
+      `TerrainConfig`'s schema shape (no hazard for `JSON.stringify` stability),
+      the header-index arithmetic, the report-vs-throw contract, and every
+      existing refusal message — held up with no further findings.
+      **Verification (re-run after the fix):** `tests/terrain-describe.test.ts`
+      36/36 (one test added); every `tests/terrain*` file (26 files) still
+      green, 437 passed / 9 skipped / 0 failed; `npx tsc --noEmit` clean.
 
 ## Log
 
