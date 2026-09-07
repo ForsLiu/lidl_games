@@ -11,10 +11,15 @@
  * What this file pins, in the order the item asks for it:
  *
  *   1. **The gap is real and its shape is recorded.** Over `applyRunTerrain` on
- *      seeds 1..100 the live grid is identical to its own generated map on 84
- *      seeds, differs by a mean of 0.66 tiles, and by 13 on seed 40. The 84 is
- *      as important as the 13: a repro taken from the generator is *usually*
+ *      seeds 1..100 the live grid is identical to its own generated map on 28
+ *      seeds, differs by a mean of 3.20 tiles, and by 10 on seed 91. The 28 is
+ *      as important as the 10: a repro taken from the generator is *usually*
  *      right, which is exactly why the times it is wrong were invisible.
+ *      (fb166: re-measured at 56x32 — the Warden's 3x3 spawn clearing is a
+ *      constant-size drift wherever it lands, but it is a bigger *share* of a
+ *      map whose Core anchor also moves less predictably relative to it on the
+ *      wider board, which is why both the mean and the identical-seed count
+ *      moved more than the grid's area did.)
  *   2. **The round trip survives the worst grid we can build** — terrain
  *      applied, the Core moved off `CORE_X/CORE_Y`, and a raw `tile[]` write
  *      after both, which is `world.ts`'s Fourth Gate shape.
@@ -36,6 +41,7 @@ import {
   CORE_X,
   CORE_Y,
   GATES,
+  GRID_H,
   GRID_W,
   Grid,
   TileType,
@@ -120,14 +126,17 @@ describe('gridTerrain (fb065c)', () => {
       unexplained,
     }).toEqual({
       fellBack: 0,
-      identical: '84/100',
-      mean: '0.66',
-      worst: '13 @40',
-      // 66 tiles across the sample, every one of them inside a spawn gate, the
-      // Core footprint or the Warden's 3x3 clearing. Seed 40's worst-case 13 is
-      // 9 Warden-block tiles and 4 Core tiles, and no gate tile drifts at all
-      // (the generator already writes the three gates as normal).
-      driftedTiles: 66,
+      identical: '28/100',
+      mean: '3.20',
+      worst: '10 @91',
+      // 320 tiles across the sample, every one of them inside a spawn gate,
+      // the Core footprint or the Warden's 3x3 clearing. Seed 91's worst-case
+      // 10 is 6 Warden-block tiles and 4 Core tiles, and no gate tile drifts
+      // at all (the generator already writes the gates as normal — though see
+      // BACKLOG-TERRAIN.md's Log: `GATES`' `east` entry is not actually on the
+      // 56x32 border, so "no gate tile drifts" is not yet evidence the gate
+      // punch-out is doing anything there).
+      driftedTiles: 320,
       unexplained: 0,
     });
   });
@@ -137,7 +146,7 @@ describe('gridTerrain (fb065c)', () => {
     // so this is the difference between a snapshot and a live window. The old
     // hand-rolled `gridView` aliased the buffer; nothing depended on that, and
     // a dump is exactly the caller that would have been bitten.
-    const g = applied(4426);
+    const g = applied(7120);
     const before = gridTerrain(g);
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
     const target = suggestCoreAnchor(gridTerrain(g), cfg, anchors);
@@ -150,7 +159,7 @@ describe('gridTerrain (fb065c)', () => {
     const after = gridTerrain(g);
     expect(Array.from(after.kind)).not.toEqual(Array.from(before.kind));
     // ...and the snapshot did not move with it.
-    const reference = applied(4426);
+    const reference = applied(7120);
     expect(Array.from(before.kind)).toEqual(Array.from(gridTerrain(reference).kind));
 
     // The buffer is not shared with the Grid in the other direction either.
@@ -168,13 +177,13 @@ describe('gridTerrain (fb065c)', () => {
     // resulting dump was byte-identical to one taken from a plain
     // `applied(7)`. Every one of the four adapter mutants passed that case.
     //
-    // So: seed 4426, where the generator strands the authored Core behind rock
+    // So: seed 7120, where the generator strands the authored Core behind rock
     // (`tests/terrain-grid.test.ts` names it for the same reason), and an
     // anchor deliberately *not* (25,9). Moving there hands 4 tiles back their
     // real terrain, which is the "no phantom corridor" behaviour fb064h built
     // `terrainRawKind` for, and it is what makes the dump differ from the
     // unmoved grid's.
-    const seed = 4426;
+    const seed = 7120;
     const g = applied(seed);
     const authored = CORE_Y * GRID_W + CORE_X;
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
@@ -189,7 +198,15 @@ describe('gridTerrain (fb065c)', () => {
     // normal there. Writing it afterwards is the hostile case — a state
     // `world.ts` never produces today and nothing prevents — and it is the one
     // that shows what `gridTerrain` can and cannot promise.
-    const south = { tx: 12, ty: 19 };
+    //
+    // fb166: NOT `MODIFIER_GATES`' `south` (12, 19) — that coordinate was the
+    // 36x20 grid's bottom border (`ty: 19` was `GRID_H - 1`) and is an
+    // ordinary interior tile at 56x32 (border row is now `y: 31`), so it is no
+    // longer guaranteed to be rock/blocked the way this fixture needs. That is
+    // the same gate-coordinate breakage flagged for `GATES`' `east` entry —
+    // logged in BACKLOG-TERRAIN.md for the main lane. A real border tile is
+    // hand-picked here instead, to keep testing the same *shape* of write.
+    const south = { tx: 12, ty: GRID_H - 1 };
     const south_i = g.idx(south.tx, south.ty);
     // Load-bearing: the write really changes the Grid. Border tiles are blocked
     // and Gate tiles never are, so this flips `blocked` 1 -> 0 — the sim starts
@@ -233,7 +250,7 @@ describe('gridTerrain (fb065c)', () => {
     // load-bearing inside the round trip rather than only in the sibling case.
     // A *third* anchor, not back to (25,9) — on this seed the authored spot is
     // stranded behind rock and `placeCore` rightly refuses it, which is the
-    // property that made seed 4426 the fixture in the first place.
+    // property that made seed 7120 the fixture in the first place.
     const third = anchors.find((a) => a !== authored && a !== target);
     expect(third).toBeDefined();
     g.placeCore((third as number) % GRID_W, ((third as number) / GRID_W) | 0);
@@ -252,21 +269,23 @@ describe('gridTerrain (fb065c)', () => {
     // is about the drift the *ledger* measured, and that ledger is of the real
     // run path — `applied` skips the Warden-spawn clearing.
     const g = new Grid();
-    expect(applyRunTerrain(g, GATES, 40, cfg)).toBe(false);
+    // fb166: seed 91, not 40 — re-measured at 56x32, seed 91 is the ledger's
+    // new worst drift (seed 40 is now drift-free at this size).
+    expect(applyRunTerrain(g, GATES, 91, cfg)).toBe(false);
     const dump = describeTerrain(gridTerrain(g), cfg);
     const seedLine = dump.split('\n').find((l) => l.startsWith('seed '));
     expect(seedLine).toBe('seed source=- requested=- effective=- attempts=- fallback=- hash=-');
     expect(parseTerrainDump(dump).provenance).toBeNull();
 
     // And the tiles really are not the generated map's, on this seed: the dash
-    // is load-bearing rather than conservative. Seed 40 is the worst drift in
+    // is load-bearing rather than conservative. Seed 91 is the worst drift in
     // the ledger above.
-    const map = generateTerrain(40, cfg, GATES);
+    const map = generateTerrain(91, cfg, GATES);
     let drift = 0;
     for (let i = 0; i < map.kind.length; i++) {
       if (gridTerrain(g).kind[i] !== map.kind[i]) drift++;
     }
-    expect(drift).toBe(13);
+    expect(drift).toBe(10);
     // The generated map's own dump, by contrast, still names a seed a reader
     // can paste — so the two artefacts stay distinguishable at a glance.
     expect(describeTerrain(map, cfg).split('\n')[1]).toContain('source=generator');
@@ -319,7 +338,7 @@ describe('gridTerrain (fb065c)', () => {
     // `undefined`, which is neither a kind nor an error.
     const g = applied(1);
     const broken = { ...g, w: g.w, h: g.h, terrainKind: new Uint8Array(4) } as unknown as Grid;
-    expect(() => gridTerrain(broken)).toThrow(/terrainKind length 4, expected 36x20/);
+    expect(() => gridTerrain(broken)).toThrow(/terrainKind length 4, expected 56x32/);
   });
 
   it('agrees tile for tile with reading the Grid directly', () => {
@@ -328,7 +347,7 @@ describe('gridTerrain (fb065c)', () => {
     // *which* of the Grid's two terrain buffers a caller gets. It is the
     // effective one (`terrainKind`, gate and Core footprints punched to normal)
     // — the raw pre-override copy is private and is not what a bug was seen on.
-    for (const seed of [1, 9, 137, 4426]) {
+    for (const seed of [1, 9, 137, 7120]) {
       const g = applied(seed);
       const view = gridTerrain(g);
       expect(view.w).toBe(g.w);
