@@ -87,16 +87,13 @@ async function visibleRects(page: Page, selectors: readonly string[]): Promise<R
 describe.skipIf(!hasChromium)('fb093: ui-audit-equivalent hud-overlap/offscreen-interactive checks at ultrawide/narrow viewports', () => {
   let server: ViteDevServer;
   let browser: Browser;
+  let devServerUrl: string;
 
   beforeAll(async () => {
     const started = await startDevServer(ROOT);
     server = started.server;
+    devServerUrl = started.url;
     browser = await launchChromium();
-    // beforeAll's `started`/`browser` are shared; each `it` opens its own
-    // page at its own viewport (a real resize mid-scene is not what this
-    // item is measuring — a fresh page per viewport matches how a player
-    // actually launches at a given screen size).
-    (globalThis as unknown as { __fb093Started: { url: string } }).__fb093Started = started;
   }, 30000);
 
   afterAll(async () => {
@@ -104,9 +101,12 @@ describe.skipIf(!hasChromium)('fb093: ui-audit-equivalent hud-overlap/offscreen-
   });
 
   async function sceneAt(viewport: { width: number; height: number }): Promise<Page> {
-    const started = (globalThis as unknown as { __fb093Started: { url: string } }).__fb093Started;
+    // beforeAll's `browser`/`devServerUrl` are shared; each `it` opens its
+    // own page at its own viewport (a real resize mid-scene is not what
+    // this item is measuring — a fresh page per viewport matches how a
+    // player actually launches at a given screen size).
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
-    await page.goto(started.url, { waitUntil: 'load' });
+    await page.goto(devServerUrl, { waitUntil: 'load' });
     await page.waitForFunction(
       () => (window as unknown as { __stonewakeAudit?: { ready?: boolean } }).__stonewakeAudit?.ready === true,
       undefined,
@@ -140,9 +140,13 @@ describe.skipIf(!hasChromium)('fb093: ui-audit-equivalent hud-overlap/offscreen-
       try {
         const rects = await visibleRects(page, CHROME_SELECTORS);
         const present = CHROME_SELECTORS.filter((sel) => rects[sel] !== null);
-        // Sanity: the scene actually mounted more than a token one or two
-        // pieces of chrome, or this test would trivially "pass" on an empty set.
-        expect(present.length).toBeGreaterThanOrEqual(5);
+        // Sanity: the scene mounts exactly the chrome this setup is known to
+        // populate (measured live) — #sw-toast/#sw-dpsdock/#sw-vsdock stay
+        // absent (transient toast, DPS dock deliberately not opened, see
+        // sceneAt's own comment). An exact-set check, not just a count floor,
+        // so a single piece of chrome silently failing to mount is caught
+        // even if the total count would otherwise still clear a looser floor.
+        expect(present).toEqual(['#sw-bar', '#sw-stats', '#sw-progress', '#sw-controls', '#sw-practice', '#sw-towerinfo']);
         const failures: string[] = [];
         for (let i = 0; i < present.length; i++) {
           for (let j = i + 1; j < present.length; j++) {
