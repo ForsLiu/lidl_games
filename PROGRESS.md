@@ -124,6 +124,22 @@
   cosmetic alignment nit in `modifiers.json`, fixed). Full `npm run test:fast`
   green after both fixes.
 
+- **2026-09-06 — Integrator merge: fb162 landed twice in parallel, master's
+  shape kept.** `claude/admiring-cray-lj5pov` independently fixed the same
+  fb162 overkill-ledger bug with a narrower `bankedTick` opt (clamping only
+  fb152's own bank-flush sites, leaving Time Lord's/Corpse's designed-overkill
+  executes booking their full raw amount) — a real semantic conflict with
+  the `dmgBooked` shape already merged from master (which clamps every hit
+  unconditionally), not just a textual one. Per the merge's own "master wins
+  on shared sim core" rule, kept master's unconditional clamp, removed the
+  now-dead `bankedTick` opt and its two call sites (`tickDot`/
+  `tickDotSplash`), and dropped that branch's `tests/fb162-dot-overkill
+  .test.ts` (6 cases), which pinned the discarded narrower behavior and would
+  otherwise regress against master's already-shipped, already-tested
+  (`tests/fb162-dot-kill-overkill.test.ts`) semantics. No further code change;
+  `npm run test:fast` re-run clean apart from the pre-existing container-only
+  q15/q45 failures.
+
 - **2026-09-06 — BACKLOG-UI fb114: found already fixed, not re-implemented.**
   qa-playtester's real-Chromium fold test (`tests/b036-help-fold.test.ts`)
   was filed as deterministically red on master, reported independently by

@@ -759,3 +759,22 @@ Q91 and Q102 corrections if not yet done.
   control pair" is (b)'s own verification burden and does not apply once (b)
   is not the chosen option; fb163 is closed on that basis.
 
+- **Q192. [fb162, integrator merge] Two independent fixes for the same
+  overkill-ledger bug collided at merge; master's unconditional clamp was
+  kept over the branch's narrower `bankedTick`-scoped one.** `claude/admiring-
+  cray-lj5pov` fixed fb162 by clamping only the two real fb152 bank-flush
+  sites, deliberately leaving Time Lord's/the Corpse Core's designed-overkill
+  executes booking their full raw amount past a target's hp. Master had
+  already merged a simpler, unconditional `Math.min(dmg, hpBeforeHit)` clamp
+  at the same choke point, with its own `tests/fb162-dot-kill-overkill
+  .test.ts` explicitly pinning a **direct** overkill as clamped too — the
+  opposite of what the branch's `bankedTick` scoping intended to preserve.
+  A real semantic conflict on shared sim core, not a textual one. Resolved by
+  the merge's own standing rule (master wins on shared sim core): kept
+  master's shape, removed the now-dead `bankedTick` opt and its two call
+  sites, and dropped the branch's `tests/fb162-dot-overkill.test.ts`, which
+  pinned the discarded behavior. Neither `p12a-kit-power.test.ts` nor
+  `fb013-timelord.test.ts` depend on an execute overkilling a near-dead
+  target, so master's stricter clamp does not regress either. See PROGRESS.md
+  for the full reconciliation note.
+
