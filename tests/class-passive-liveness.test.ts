@@ -974,3 +974,92 @@ describe('c006 — every class is on trial', () => {
     expect([...new Set(KILLS.map((k) => k.classKey))].sort()).toEqual([...covered].sort());
   });
 });
+
+/* --------------------------------------------------------- c037 stacking */
+
+/** `passiveWorld` plus equipment — `class-tower-passive-liveness.test.ts`'s `towerWorldWithEquipment`, this file's twin. */
+function passiveWorldWithEquipment(classKey: string, equipment: readonly string[], c: Content = content): World {
+  const w = new World(cfg({ classKey, equipment: [...equipment] }), c);
+  w.gold = 1e6;
+  w.warden.attackCooldown = 1e9;
+  w.warden.x = WX;
+  w.warden.y = WY;
+  return w;
+}
+
+/**
+ * c037 (BACKLOG-CONTENT, lane `content`) — `c036`'s same-stat-key stacking
+ * check covered `towerRange`/`area` on the *tower*-passive slot; this is its
+ * twin on the *character*-passive slot, the other overlap the exhaustive
+ * diff found: Engineer *Efficient Engineering* (`towerCost -0.10`) against
+ * Normal Necklace (`towerCost -0.20`), and Bloodlord *Blood Frenzy*
+ * (`leech 0.03`) against Bleeding Ring (`leech 0.0001`).
+ *
+ * `towerCost` is `STAT_KIND.mul` (`statkeys.ts`), so §2's "different sources
+ * multiply" applies exactly as `c036` measured: `derived.towerCostMul` reads
+ * `Stats.factor('towerCost')`, a product over sources, and the combined case
+ * is 0.9 × 0.8 = 0.72, not the naively-summed 1 − 0.30 = 0.70.
+ *
+ * `leech` is not: `statkeys.ts` classifies it `STAT_KIND.flat` on purpose
+ * ("rates and flags, not boosts: leech and luck are read raw" — the same
+ * clause that keeps `cdr` out of the `mul` bucket, flagged in Q62).
+ * `derived.leech` reads `Stats.total('leech')`, a *sum*, so the combined case
+ * is measured at 0.0301, not the `(1.03)(1.0001) − 1 = 0.030103` a
+ * multiplicative reading of §2 would predict. That is this item's premise
+ * corrected against the codebase's own documented design, the way c017/c018
+ * corrected theirs: `leech` was never meant to multiply, so there is no bug
+ * here for the Bloodlord row to catch — the row instead pins the *additive*
+ * reading. `derive()` hardcodes `s.total('leech')`/`s.factor('towerCost')`
+ * per field rather than branching on `STAT_KIND` at runtime, so a bare
+ * `STAT_KIND.leech` edit with no matching `derive()` change is
+ * `tests/c4-stacking.test.ts`'s catch, not this one (code review); what this
+ * row catches on its own is the two changed *together* — `leech` turned
+ * `mul` end-to-end while staying internally consistent — which would change
+ * real stacking behaviour without `c4-stacking` noticing.
+ */
+describe('c037: character-passive and equipped-item bonuses on the same stat key', () => {
+  it('Engineer Efficient Engineering (-10% towerCost) stacks with Normal Necklace (-20% towerCost) to x0.72, not x0.70', () => {
+    const base = passiveWorld('swordsman').derived.towerCostMul;
+    const passiveOnly = passiveWorld('engineer').derived.towerCostMul;
+    const equipOnly = passiveWorldWithEquipment('swordsman', ['normal_necklace']).derived.towerCostMul;
+    const both = passiveWorldWithEquipment('engineer', ['normal_necklace']).derived.towerCostMul;
+
+    expect(base, 'no source, no discount').toBeCloseTo(1, 10);
+    expect(passiveOnly, 'Efficient Engineering alone').toBeCloseTo(0.9, 10);
+    expect(equipOnly, 'Normal Necklace alone').toBeCloseTo(0.8, 10);
+    // The joint case is the one no existing test can see: two independent
+    // §2 `mul` sources on the same key multiply.
+    expect(both, 'both sources together').toBeCloseTo(0.72, 10);
+    expect(both, 'not silently additive (would read 0.70)').not.toBeCloseTo(0.7, 6);
+  });
+
+  it('Bloodlord Blood Frenzy (3% leech) and Bleeding Ring (0.01% leech) add to 3.01%, not multiply to 3.0103%', () => {
+    const base = passiveWorld('swordsman').derived.leech;
+    const passiveOnly = passiveWorld('bloodlord').derived.leech;
+    const equipOnly = passiveWorldWithEquipment('swordsman', ['bleeding_ring']).derived.leech;
+    const both = passiveWorldWithEquipment('bloodlord', ['bleeding_ring']).derived.leech;
+
+    expect(base, 'no source, no lifesteal').toBeCloseTo(0, 10);
+    expect(passiveOnly, 'Blood Frenzy alone').toBeCloseTo(0.03, 10);
+    expect(equipOnly, 'Bleeding Ring alone').toBeCloseTo(0.0001, 10);
+    // `leech` is deliberately `flat`, not `mul` (statkeys.ts) — the two
+    // sources sum, they do not compound.
+    expect(both, 'both sources together, summed').toBeCloseTo(0.0301, 10);
+    expect(both, 'not silently multiplicative (would read 0.030103)').not.toBeCloseTo(1.03 * 1.0001 - 1, 6);
+  });
+
+  it('proven live, not vacuous — swapping which formula backs each stat reddens the row it no longer matches', () => {
+    // Same device as `c036`'s closing case: simulate the regression each row
+    // exists to catch by computing both formulas directly and showing they
+    // diverge at the precision each assertion above pins to.
+    const additivePool = (...pcts: number[]): number => pcts.reduce((s, p) => s + p, 0);
+    const multiplicativePoolMinusOne = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1) - 1;
+    // towerCost's own case reads a *factor*, not a delta-from-1, so compare on that footing.
+    const multiplicativePool = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1);
+    expect(multiplicativePool(-0.1, -0.2)).toBeCloseTo(0.72, 10);
+    expect(1 + additivePool(-0.1, -0.2)).not.toBeCloseTo(0.72, 6);
+
+    expect(additivePool(0.03, 0.0001)).toBeCloseTo(0.0301, 10);
+    expect(multiplicativePoolMinusOne(0.03, 0.0001)).not.toBeCloseTo(0.0301, 6);
+  });
+});

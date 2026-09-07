@@ -5,6 +5,112 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c039 done, negative result, no
+  `/data` change.** Delegated to balance-analyst per this item's own
+  acceptance: find a `data/classes.json`-only tune that raises Bloodlord's
+  pairwise fingerprint distance from necromancer/animist (0.0355/0.0720,
+  both far under the 0.15 floor) without moving win rate. Mechanism
+  analysis found Bloodlord's two Actives deal zero engine-attributed damage
+  by design (Blood Tithe becomes *tower* damage via a multiplier, Crimson
+  Rush only heals), leaving `basicAttack.dps` as the only lever into the
+  vector at all — measured at a baseline 0.04-0.05% share, ~100x short of
+  what the floor needs, since ~98% of the L1 distance is shared *tower*
+  usage under the common `hybrid` bot, not kit-mix. One candidate
+  (`basicAttack.dps` +37%) was tried and measured anyway: win rate roughly
+  halved (8-seed control pair, 3/8 -> 1/8) with the fingerprint gap still
+  two orders of magnitude short even in that degenerate arm. Reverted;
+  `data/classes.json` confirmed byte-identical to HEAD. Five other fields
+  rejected on mechanism alone. Same structural wall Q175/p12f/c033 already
+  documented for clause (i), read here for clause (ii) on Bloodlord — closing
+  it needs a `/src` change, out of this lane's Scope.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c041 done, re-measurement
+  only, no regression.** c018/c019's summon-cooldown headroom numbers
+  (Engineer Pop Turret, Animist Manifest) were a measurement with an expiry
+  date per CLAUDE.md's rules; re-derived against current `/data` (unchanged
+  since c018) via a binary search built on the file's own already-validated
+  `lapsPerLife` formula. Engineer: cliff ≈3.328s vs shipped 3s, ~9.8-10.9%
+  headroom (c018: "~3.35s, ~11%"). Animist: cliff ≈4.996s vs shipped 4s,
+  ~19.9% headroom (c018: "~5.00s, ~20%", an almost exact match). Both
+  comfortably positive, nothing to flag for `p10r`. New
+  `describe('c041: ...')` in `tests/class-active2-cdr.test.ts`, made live
+  (not `.skip`-ed) since the derivation is cheap pure arithmetic. code-reviewer
+  approved (no Critical/Major; two Minor notes fixed — an unsafe type cast
+  replaced with a real `ClassEffect` spread, and descriptive failure messages
+  added to the four key assertions). `npx tsc --noEmit` clean; full file
+  92/92 passed.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c040 done, measurement only,
+  no `/data` tune.** `c033` measured G8's diversity clause (ii) using only
+  the damage-*source* half of "damage-source/damage-type vector method"
+  (BALANCE DIRECTION v2 §D); this item tried the damage-*type* half
+  (`RunReport.damageByType`) instead, off the identical runs (extended
+  `c033`'s own `beforeAll` sweep to accumulate both, no second sweep).
+  Result: **11/66 pairs clear the 0.15 floor, against `damageByWeapon`'s
+  50/66 on the same runs** — a sharp regression, not an improvement. Damage
+  *type* is a far coarser bucket than damage *source*: nearly every class
+  reads as `physical`-dominant regardless of kit, so most pairs cluster near
+  zero; only Stormcaller (electric) and, more weakly, Time Lord separate
+  cleanly. Logged for `p12d`/owner sign-off per this item's acceptance — this
+  is evidence *against* swapping clause (ii)'s metric to `damageByType`, not
+  for it. code-reviewer approved (no Critical/Major; confirmed
+  `damageByWeapon`/`damageByType` share the same `enemies.ts` choke point and
+  normalizing total, and the new sanity check is correctly index-aligned).
+  qa-playtester independently re-ran the full sweep pinned to commit
+  `e132fc7`, reproduced the exact 11/66 and unchanged 50/66 readings, and
+  confirmed `damageByWeapon`/`damageByType` are genuinely different
+  accumulators (Stormcaller's 10.5% electric share, Time Lord's 4.5%
+  bleeding, both outliers every other class lacks). No bugs filed.
+  `npx tsc --noEmit` clean.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c038 done, one premise
+  correction, no bug found.** The item's own premise named three files with a
+  hardcoded roster-size assumption ("12 classes"); checked against the code,
+  only `tests/class-kit-fingerprint.test.ts` actually pinned a live literal
+  (`toBe(12)`/`toBe(66)`) — `class-kit-damage-share.test.ts` already derives
+  its counts from `content.classes.classes` live, and
+  `class-time-lord-band.test.ts` has its own comment disclaiming a
+  roster-count pin (naming three *other*, out-of-lane files that carry one).
+  New `tests/class-roster-size.ts` (mirrors `class-board.ts`'s shared-module
+  precedent, c014) exports `rosterSize()`/`pairCount()`/`ROSTER_SIZE`/
+  `PAIR_COUNT`, read live off `content.classes.classes.length`; the
+  fingerprint file's invariant now reads those instead of the literals. New
+  `tests/class-roster-size.test.ts` re-derives both independently and clones a
+  class row plus its required `vsupgrades.json` skillCards entry into a
+  synthetic 13th class, proving `pairCount`'s formula itself moves (66 -> 78)
+  rather than just the count field. code-reviewer approved (no
+  Critical/Major; one Nit noting the fingerprint file's own updated assertion
+  is now tautological against the shared cached `Content`, which is correct
+  since the live-formula proof lives in the new file's independently-loaded
+  case instead). `npx tsc --noEmit` clean; `npm run test:fast` 4046 passed,
+  same two pre-existing unrelated `q15`/`q45` failures.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c037 done, one measurement,
+  one premise correction, no bug found.** `c036`'s same-stat-key stacking
+  check had a twin gap on the *character*-passive slot: Engineer's *Efficient
+  Engineering* (`towerCost -10%`) vs the Normal Necklace (`towerCost -20%`),
+  and Bloodlord's *Blood Frenzy* (`leech +3%`) vs the Bleeding Ring
+  (`leech +0.01%`). New `c037` describe block in
+  `tests/class-passive-liveness.test.ts` proves the `towerCost` pair
+  multiplies to the real `0.72` (not `0.70`) through `w.derived.towerCostMul`
+  — the same device `c036` used for `towerRange`/`area`. The item's own
+  `leech` premise (predicting a multiplicative `(1.03)(1.0001)` reading) was
+  wrong: `src/sim/statkeys.ts` classifies `leech` `STAT_KIND.flat`, not
+  `mul`, by deliberate design ("rates and flags, not boosts: leech and luck
+  are read raw", flagged under Q62), and `derive()` reads it via
+  `Stats.total()` (a sum), not `Stats.factor()` (a product) — measured at
+  `0.0301`, not `0.030103`. Shipped test pins the real additive reading, with
+  the correction documented inline (same shape as c008/c017/c018).
+  code-reviewer approved (no Critical/Major; two Minor/Nit comment-precision
+  notes, folded into the final wording) and qa-playtester independently
+  re-derived `STAT_KIND`/`derive()`'s behaviour from source, mutated all four
+  `/data` fields plus both `Stats` read paths (six mutations, each reverted),
+  and independently re-ran the exhaustive class-passive/equipment key diff,
+  confirming these are the only two overlaps left after c036. `npm run
+  test:fast`: 4043 passed (three new), same two pre-existing unrelated
+  `q15`/`q45` fuzz-command-domain failures c029 already logged as present on
+  HEAD; `npx tsc --noEmit` clean.
+
 - **2026-09-07 — BACKLOG fb082 done.** `updateAreas`'s poison branch
   (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
   (the pre-existing `GroundArea.acc` field, declared since the type was

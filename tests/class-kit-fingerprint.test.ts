@@ -134,6 +134,7 @@ import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
+import { PAIR_COUNT, ROSTER_SIZE, pairCount } from './class-roster-size';
 import { cfg, runScripted } from './helpers';
 
 const content = loadContent();
@@ -218,12 +219,27 @@ interface PairDistance {
 }
 const pairs: PairDistance[] = [];
 
+/**
+ * c040 (BACKLOG-CONTENT, lane `content`) — clause (ii)'s own text is "damage-
+ * source/damage-type vector method", and `c033` only ever tried the source
+ * (`damageByWeapon`) half. Built from the *same* runs as `pairs` above (no
+ * second sweep — `RunReport.damageByType` is read off the identical
+ * `runClassScripted` calls in the loop below), keyed by damage type
+ * (physical/electric/poison/...) instead of weapon/kit-bucket key.
+ * Measurement only, per this item's acceptance: a metric *change* to clause
+ * (ii) is a definition decision for `p12d`/owner sign-off, not something this
+ * lane's own measurement item gets to decide by picking one.
+ */
+const vectorsByType: ClassVector[] = [];
+const pairsByType: PairDistance[] = [];
+
 beforeAll(() => {
   if (!MEASURE) return;
   for (const key of KEYS) {
     const cls = content.classByKey.get(key);
     if (!cls) throw new Error(`${key}: expected a §4 class`);
     const byWeapon: Record<string, number> = {};
+    const byType: Record<string, number> = {};
     let total = 0;
     for (const seed of SEEDS) {
       const report = runClassScripted(key, seed);
@@ -234,14 +250,20 @@ beforeAll(() => {
       for (const [k, v] of Object.entries(report.damageByWeapon)) {
         byWeapon[k] = (byWeapon[k] ?? 0) + v;
       }
+      for (const [k, v] of Object.entries(report.damageByType)) {
+        byType[k] = (byType[k] ?? 0) + v;
+      }
     }
     vectors.push({ key, vector: shareVector(byWeapon, total) });
+    vectorsByType.push({ key, vector: shareVector(byType, total) });
   }
 
   for (let i = 0; i < vectors.length; i++) {
     for (let j = i + 1; j < vectors.length; j++) {
       const distance = l1Distance(vectors[i].vector, vectors[j].vector);
       pairs.push({ a: vectors[i].key, b: vectors[j].key, distance });
+      const distanceByType = l1Distance(vectorsByType[i].vector, vectorsByType[j].vector);
+      pairsByType.push({ a: vectorsByType[i].key, b: vectorsByType[j].key, distance: distanceByType });
     }
   }
 
@@ -259,7 +281,34 @@ beforeAll(() => {
         .map((p) => `${p.a}/${p.b} (${describeSource(content.classByKey.get(p.a)!, 'class_active')} vs ${describeSource(content.classByKey.get(p.b)!, 'class_active')}) ${p.distance.toFixed(4)}`)
         .join('; ')}\n`,
   );
+
+  const passingByType = pairsByType.filter((p) => p.distance >= FINGERPRINT_FLOOR).length;
+  const closestByType = [...pairsByType].sort((x, y) => x.distance - y.distance).slice(0, 3);
+  const linesByType = pairsByType
+    .slice()
+    .sort((x, y) => x.distance - y.distance)
+    .map((p) => `  ${p.a} / ${p.b}  ${p.distance.toFixed(4)}`);
+  console.log(
+    `\n[c040] class-kit fingerprint distance BY damageByType, ${KEYS.length} classes x ${SEEDS.length} seeds` +
+      ` (${pairsByType.length} pairs)\n${linesByType.join('\n')}\n` +
+      `  pairs meeting the >=${FINGERPRINT_FLOOR} floor: ${passingByType}/${pairsByType.length}\n` +
+      `  (damageByWeapon reading, same runs: ${passing}/${pairs.length})\n` +
+      `  3 closest pairs: ${closestByType.map((p) => `${p.a}/${p.b} ${p.distance.toFixed(4)}`).join('; ')}\n`,
+  );
 }, 6_000_000);
+
+describe.skipIf(!MEASURE)('c040: class-kit fingerprint distance by damageByType (opt-in)', () => {
+  it('records all pairwise distances on the damage-type vector, off the same runs as c033', () => {
+    expect(pairsByType).toHaveLength((KEYS.length * (KEYS.length - 1)) / 2);
+    for (const p of pairsByType) expect(p.distance).toBeGreaterThanOrEqual(0);
+    // Sanity that the two vectors are actually different inputs, not the same
+    // numbers relabelled: a class whose kit spans one damage type across many
+    // weapon keys (or vice versa) should read a different L1 distance under
+    // the two keyings for at least one pair.
+    const anyDiffers = pairsByType.some((p, i) => Math.abs(p.distance - pairs[i].distance) > 1e-9);
+    expect(anyDiffers, 'damageByType vector produced byte-identical distances to damageByWeapon').toBe(true);
+  });
+});
 
 describe.skipIf(!MEASURE)('c033: class-kit fingerprint measurement (opt-in)', () => {
   it('records all 66 pairwise distances', () => {
@@ -268,9 +317,16 @@ describe.skipIf(!MEASURE)('c033: class-kit fingerprint measurement (opt-in)', ()
   });
 });
 
-describe('c033: invariants the tune must not break (fast tier)', () => {
-  it('every class has exactly 12 distinct keys to pair (66 combinations)', () => {
-    expect(KEYS.length).toBe(12);
-    expect((KEYS.length * (KEYS.length - 1)) / 2).toBe(66);
+describe('c033/c038: invariants the tune must not break (fast tier)', () => {
+  it('every class has exactly ROSTER_SIZE distinct keys to pair (PAIR_COUNT combinations)', () => {
+    // `c038`: was a literal `toBe(12)`/`toBe(66)`, which `fb057`/`fb059`
+    // (roster #13, #14) would have silently outrun — a stale pin
+    // indistinguishable from a real regression to whoever hit it next.
+    // `ROSTER_SIZE`/`PAIR_COUNT` (`class-roster-size.ts`) read
+    // `content.classes.classes.length` live, so this line moves with the
+    // roster instead of needing a manual bump.
+    expect(KEYS.length).toBe(ROSTER_SIZE);
+    expect((KEYS.length * (KEYS.length - 1)) / 2).toBe(PAIR_COUNT);
+    expect(pairCount(KEYS.length)).toBe(PAIR_COUNT);
   });
 });
