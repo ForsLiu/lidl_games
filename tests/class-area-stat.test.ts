@@ -35,7 +35,8 @@ import {
   useClassActive2,
 } from '../src/sim/classes';
 import { loadContent } from '../src/sim/content';
-import { LINE_HALF_WIDTH } from '../src/sim/towers';
+import { buildTower, LINE_HALF_WIDTH, updateTowers } from '../src/sim/towers';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 import { applyDot, spawnEnemy } from '../src/sim/enemies';
 import type { Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
@@ -336,6 +337,94 @@ describe('c001: the two line kinds whose half-width is the footprint', () => {
     useClassActive2(w, w.warden.x + range, w.warden.y);
     expect(e.id).toBeGreaterThan(0);
     expect(w.warden.hp).toBeGreaterThan(before);
+  });
+
+  /**
+   * fb081 (BACKLOG.md): the same broadphase gap as Crimson Rush above, but
+   * in `combat.ts`'s shared `lineHit` itself (`fireDashSlash`/`dash_line`
+   * calls that, not a hand-rolled copy) — the half this file's own comment
+   * on the Crimson Rush case above named as "outside this lane's Scope and
+   * logged." Measured first-miss threshold for this kind: areaMul 4.
+   */
+  it("Dash Slash still hits an enemy at the edge of a very wide line (combat.ts broadphase margin, fb081)", () => {
+    const cls = content.classByKey.get('swordsman')!;
+    const half = cls.active2.dashWidth ?? 0;
+    expect(half).toBeGreaterThan(0);
+    const bigArea = 7; // areaMul 8, well past the ~4 where the old margin clipped
+
+    const w = areaWorld('swordsman', bigArea);
+    const scaledHalf = half * w.derived.areaMul;
+    // Close to the Warden along the dash direction (well inside whatever the
+    // dash's own resolved travel distance works out to — this test doesn't
+    // need that exact number, only that the enemy sits near the line's start
+    // and far to the side) — the old bug's saturated broadphase circle was
+    // centered on the line's *midpoint*, so a point this close to one end at
+    // a wide perpendicular offset is exactly the shape it used to miss.
+    const e = spawnAt(w, w.warden.x + 0.5, w.warden.y + scaledHalf * 0.9);
+    const before = e.hp;
+    useClassActive2(w, w.warden.x + 1, w.warden.y);
+    expect(e.id).toBeGreaterThan(0);
+    expect(e.hp).toBeLessThan(before);
+  });
+});
+
+describe('c001/fb081: TD tower fire single/pierce shots scale their line half-width by Area too', () => {
+  /**
+   * code-reviewer (fb081): `fireTower`'s `cone`/`aura`/`lob`/`poison` cases
+   * already scaled their geometry by `w.derived.areaMul` — only `single` and
+   * `pierce` (both `LINE_HALF_WIDTH`-based) didn't, an inconsistency rather
+   * than the deliberate exception a first draft of this item assumed. Fixed
+   * by scaling both the same way `vswield.ts`'s identical calls already did.
+   * `single` is the load-bearing one (`LINE_HALF_WIDTH` there is `lineHit`'s
+   * real hit-width, not just a direction-pick heuristic like `pierce`'s own
+   * `bestLineDirection` call) — this pins that one behaviourally: with two
+   * candidate targets, one on the tower's row and one 3 tiles off it, the
+   * one `targetFirst` anchors the shot on (path-distance-to-Core, not raw
+   * proximity, decides which) is always hit, and the other only once Area
+   * widens the line enough to reach it via the pierce.
+   */
+  it("a maxed Arrow Spire's pierced second target is only hit once Area widens the line enough to reach it", () => {
+    const tower = content.towerByKey.get('arrow_spire')!;
+    const buildAt = (area: number) => {
+      const w = areaWorld('engineer', area);
+      w.gold = 1e6;
+      w.warden.x = WX;
+      w.warden.y = WY;
+      expect(buildTower(w, tower.id, BUILD_TX, BUILD_TY).ok).toBe(true);
+      const s = w.structureAt(BUILD_TX, BUILD_TY)!;
+      s.tier = 5; // every special active, incl. the "+1 pierce" at step 3
+      s.cooldown = 0;
+      const x = BUILD_TX + 0.5;
+      const y = BUILD_TY + 0.5;
+      // Two candidate targets: one directly alongside the tower's row, one
+      // 3 tiles off it. Which one `targetFirst` (path-distance-to-Core, not
+      // raw proximity) actually fires the line at is not this test's to
+      // predict — only that exactly one of them anchors the shot (perp=0)
+      // and the other sits far enough off that line to depend on Area to
+      // be reached by the pierce.
+      const onRow = spawnAt(w, x + 1, y);
+      const offRow = spawnAt(w, x + 1, y + 3);
+      // Arrow Spire's attack interval is ~0.71s (43 ticks); 120 ticks (2s) is
+      // comfortable headroom for at least one real shot to land.
+      for (let i = 0; i < 120 && !s.damageDealt; i++) {
+        w.rebuildBuckets();
+        updateTowers(w, 1 / 60);
+      }
+      return { onRowHit: onRow.hp < onRow.maxHp, offRowHit: offRow.hp < offRow.maxHp };
+    };
+
+    const base = buildAt(0);
+    // Whichever of the two `targetFirst` actually anchored the shot on
+    // (perp=0) always gets hit — exactly one of them, regardless of which.
+    expect(
+      [base.onRowHit, base.offRowHit].filter(Boolean).length,
+      `sanity: exactly one target should anchor the unscaled shot — onRow=${base.onRowHit} offRow=${base.offRowHit}`,
+    ).toBe(1);
+
+    const wide = buildAt(7); // areaMul 8
+    // Same anchor is still hit (Area doesn't change *which* enemy is
+    // targeted), and now the previously-missed one is too.
+    expect(wide.onRowHit && wide.offRowHit, `at areaMul=8 both targets should be hit — onRow=${wide.onRowHit} offRow=${wide.offRowHit}`).toBe(true);
   });
 });
 

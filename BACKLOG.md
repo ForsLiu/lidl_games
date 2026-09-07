@@ -4175,7 +4175,37 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [ ] (fb081) [bug] `src/sim/combat.ts`'s `lineHit` broadphase uses a
+- [x] (fb081) [bug] **DONE 2026-09-07.** `src/sim/combat.ts`'s shared
+      `lineHit` broadphase margin changed from the constant `range * 0.5 + 2`
+      to `range * 0.5 + halfWidth + 2` (a safe bound on the true rectangle's
+      farthest corner, by the triangle inequality) — the exact formula
+      `fireCrimsonRush`'s own hand-rolled copy already used, ported into the
+      shared function every other `lineHit` caller shares. Pinned with a
+      failing-first regression test (Swordsman Dash Slash at areaMul 8,
+      `tests/class-area-stat.test.ts`), confirmed red without the fix.
+      **Sibling inconsistency resolved as align, not pin**: a first pass
+      reasoned `towers.ts`'s TD-phase `single`/`pierce` cases deliberately
+      don't scale `LINE_HALF_WIDTH` by the character's Area stat (unlike
+      `vswield.ts`/`classes.ts`) — code-reviewer disproved that on the same
+      function's own `cone`/`aura`/`lob`/`poison` cases, which already scale
+      their geometry by the identical `w.derived.areaMul`, matching
+      SPEC-FINAL §2's "Area... applies to every attack, active, and effect."
+      Aligned instead: both cases now take `LINE_HALF_WIDTH * area`, closing
+      the last two of `fireTower`'s seven kinds that weren't reading Area,
+      with its own failing-first regression test (a maxed Arrow Spire's
+      pierced second target, `tests/class-area-stat.test.ts`) built on the
+      shared `./class-board` coordinates `tests/class-board.test.ts`'s own
+      static-source scan requires. code-reviewer (two passes: REQUEST-CHANGES
+      on the first draft's disproven "pin" comment, APPROVE once aligned) and
+      a live qa-playtester pass (scripted play at areaMul up to 16, the
+      towers.ts/vswield.ts asymmetry confirmed live before the align
+      correction) both signed off. `npx tsc --noEmit` clean; `npm run
+      test:fast` green except the two pre-existing, already-tracked,
+      unrelated failures (fb119/q45). No blast radius: `w.derived.areaMul`
+      defaults to 1 (no Area investment), so this is inert for any build that
+      doesn't buy Area, matching cone/aura/lob/poison's existing precedent.
+      Original text follows.
+      `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
       stop being hit (BACKLOG-CONTENT.md c001 Log; measured first-miss

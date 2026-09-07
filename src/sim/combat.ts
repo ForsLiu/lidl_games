@@ -374,7 +374,21 @@ export function lineHit(
   // second — has nothing to spend them on.
   if (n >= maxHits) return total;
 
-  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + 2);
+  // fb081: the broadphase query circle, centered on the line's midpoint,
+  // must cover the whole rectangle the exact along/perp test below accepts —
+  // its farthest point is a corner at distance `hypot(range/2, halfWidth)`
+  // from that center, and `range * 0.5 + halfWidth` is always >= that
+  // hypotenuse (triangle inequality), so this margin is a safe, generous
+  // bound rather than a tight one. The old constant `range * 0.5 + 2` was
+  // fine while every caller's `halfWidth` was itself a small constant, but
+  // once Area scaling (§2) can widen it well past ~2 (`classArea`/`* area` at
+  // several call sites), the query circle stopped covering the rectangle's
+  // corners and the outermost enemies silently stopped being hit — the same
+  // gap `fireCrimsonRush`'s own hand-rolled copy of this broadphase
+  // (`classes.ts`) was already fixed for; this ports the identical formula
+  // into the shared function instead of leaving every other `lineHit` caller
+  // exposed.
+  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + halfWidth + 2);
   const hits: { e: Enemy; along: number }[] = [];
   for (const e of list) {
     const rx = e.x - x;

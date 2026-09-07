@@ -440,7 +440,23 @@ export function updateTowers(w: World, dt: number): void {
   }
 }
 
-/** SPEC-V3 §4: how wide a line an Arrow's shot sweeps as it carries through. */
+/**
+ * SPEC-V3 §4: how wide a line an Arrow's shot sweeps as it carries through.
+ *
+ * fb081 (BACKLOG-CONTENT c001 Log, code-reviewer correction): TD-phase tower
+ * fire's `single`/`pierce` cases below (`fireTower`) used to pass this raw,
+ * unscaled by the character's Area stat, on a first-draft theory that an
+ * autonomous TD tower shouldn't read any character stat into its shot
+ * geometry. That theory does not hold: the same function's `cone`, `aura`,
+ * `lob` and `poison` cases already scale their own geometry by
+ * `w.derived.areaMul` (`area`, below) — SPEC-FINAL §2's "Area... applies to
+ * every attack, active, and effect" is a blanket rule TD tower fire already
+ * mostly followed, not an exception. Aligned rather than pinned: `single`'s
+ * `lineHit` call and `pierce`'s `bestLineDirection` direction-pick both now
+ * take `LINE_HALF_WIDTH * area`, matching `vswield.ts`'s identical calls for
+ * the same two kinds (which were already correct) and closing the last two
+ * of `fireTower`'s seven kinds that weren't reading Area.
+ */
 export const LINE_HALF_WIDTH = 0.4;
 
 function fireTower(w: World, s: Structure, def: TowerDef): void {
@@ -478,7 +494,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       // nothing rather than everything.
       const hits = dir.x === 0 && dir.y === 0 ? 1 : 1 + prof.pierce;
       for (let i = 0; i < prof.projectiles; i++) {
-        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH, dmg, source, hits, fx, {
+        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH * area, dmg, source, hits, fx, {
           primary: t,
         });
         w.emit('shot', x, y, t.x, t.y);
@@ -486,7 +502,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'pierce': {
-      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH);
+      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH * area);
       if (!dir) {
         s.cooldown = 0;
         return;

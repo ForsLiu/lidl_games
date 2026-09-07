@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG fb081 done (`lineHit`'s Area-scaled
+  broadphase margin, and the towers.ts/vswield.ts Area asymmetry resolved
+  as align, not pin).** `src/sim/combat.ts`'s shared `lineHit` broadphase
+  query radius was a constant `range * 0.5 + 2`, independent of the line's
+  `halfWidth` — once Area scaling (§2) widened `halfWidth` past ~2-5 on
+  some abilities, the query circle stopped reaching the true rectangle's
+  corners and outermost enemies were silently missed. Fixed to
+  `range * 0.5 + halfWidth + 2` (safe by the triangle inequality),
+  porting the exact formula an already-shipped hand-rolled duplicate
+  (`fireCrimsonRush`, Bloodlord's dash_heal) already used. A first draft
+  also added a comment pinning `towers.ts`'s TD-phase `single`/`pierce`
+  cases as deliberately unscaled by Area (unlike `vswield.ts`/`classes.ts`'s
+  identical-looking calls) — code-reviewer disproved that reasoning against
+  the same function's own `cone`/`aura`/`lob`/`poison` cases, which already
+  scale by the same `w.derived.areaMul`, matching SPEC-FINAL §2's "Area...
+  applies to every attack" text. Corrected to align instead: both cases now
+  take `LINE_HALF_WIDTH * area`. Both fixes carry failing-first regression
+  tests in `tests/class-area-stat.test.ts` (Swordsman Dash Slash for the
+  broadphase margin; a maxed Arrow Spire's pierced second target for the
+  align fix, built on the shared `./class-board` coordinates that file's
+  own static-source scan requires — a first draft's hand-rolled tile-finding
+  violated that convention and was corrected). Two code-reviewer passes
+  (REQUEST-CHANGES on the disproven "pin" comment, APPROVE once aligned)
+  and a live qa-playtester pass (scripted play at areaMul up to 16,
+  confirming both the fix and the pre-correction asymmetry live) both
+  signed off. `npx tsc --noEmit` clean; `npm run test:fast` green except
+  the two pre-existing, already-tracked, unrelated failures (fb119/q45).
+  Inert for any build without Area investment (`areaMul` defaults to 1).
+
 - **2026-09-07 — main lane: BACKLOG fb139 done (F8 in-run bug-report
   hotkey, replay-attached).** New `src/devserver/inboxSave.ts`/
   `inboxPlugin.ts` (a Vite `apply:'serve'` endpoint mirroring the Tuner's
