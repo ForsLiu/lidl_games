@@ -154,6 +154,10 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/** fb098: Beacon Totem/Harvest Sprout's ambient aura pulse — a 2s cadence (`FIXED_DT` * 120 ticks), visible for 0.5s of expanding ring. */
+const AURA_PULSE_PERIOD_TICKS = 120;
+const AURA_PULSE_VISIBLE_TICKS = 30;
+
 /**
  * fb096 (owner feedback `feature-combo-area-indicator`): the merged Dash
  * Slash + mid-charge Circle Slash hit region, as a centerline (`x1,y1` the
@@ -616,9 +620,29 @@ export class Renderer {
               dx: e.a,
               dy: e.b,
               life: 0.1,
-              style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
+              // fb098: Ember Brazier is the only `cone`-kind attack (TD tower
+              // fire and a VS-wielded cone both funnel through this one
+              // event), so this always reads its style — the prior
+              // `w.huntsWarden ? 'flame_cone' : 'ember_brazier'` ternary
+              // looked up a style key that was never registered in `theme.ts`'s
+              // `STYLES`, silently falling back to the generic default dart
+              // look for every wielded cone attack instead of reusing Ember
+              // Brazier's own registered fire+travel+impact visual.
+              style: projectileStyle('ember_brazier'),
             });
           }
+          break;
+        // fb098: `pulse` fires for every inherent-radius AoE splash
+        // (Frost Obelisk's TD aura tick, a VS-wielded aura, and any
+        // `damagetypes.json` row with its own splash `radius`, e.g.
+        // Electric) — previously unhandled here (fell to `default: break`),
+        // so Frost Obelisk's periodic tick had no visual at all. A generic
+        // expanding ring (the same `nova` CastFx shape Core explode/Circle
+        // Slash already use) at the emitted radius; a neutral white rather
+        // than a damage-type color since the event itself carries no type —
+        // each struck enemy's own `hit:<type>` flash still carries that.
+        case 'pulse':
+          this.pushCast('nova', e.x, e.y, e.a, 0, '#ffffff');
           break;
         case 'bosstelegraph':
           if (this.telegraphs.length < MAX_TELEGRAPHS) this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
@@ -933,7 +957,7 @@ export class Renderer {
     this.drawCoreStatus(w);
     this.drawAreas(w);
     this.drawTelegraphs();
-    this.drawStructures(w);
+    this.drawStructures(w, view);
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
@@ -1128,7 +1152,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  private drawStructures(w: World): void {
+  private drawStructures(w: World, view: ViewState): void {
     const ctx = this.ctx;
     for (const s of w.structures) {
       if (s.dead) continue;
@@ -1142,6 +1166,31 @@ export class Renderer {
       ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
       ctx.strokeStyle = '#00000066';
       ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
+
+      // fb098: Beacon Totem/Harvest Sprout have `attack: null` — `updateTowers`
+      // (towers.ts) skips them entirely, so neither fires a sim event this
+      // renderer could hang a cue on. Their "aura pulse tick" is a purely
+      // presentational, render-side cadence off `w.tick` (deterministic sim
+      // state, not wall-clock time — architecture rule 1 still holds since
+      // this file is `/src/render`, not `/src/sim`) rather than a claim about
+      // when the aura's own math actually re-applies. TD-only (their support
+      // effect does nothing while the Warden is off wielding in VS) and
+      // suppressed under `reducedMotion`, same as this file's other ambient,
+      // repeating cues (fb086).
+      if (!s.petrified && !w.huntsWarden && !view.settings.reducedMotion && (def.buffAura || def.economy)) {
+        const phase = w.tick % AURA_PULSE_PERIOD_TICKS;
+        if (phase < AURA_PULSE_VISIBLE_TICKS) {
+          const t = phase / AURA_PULSE_VISIBLE_TICKS;
+          ctx.globalAlpha = 1 - t;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + TILE / 2, y + TILE / 2, (TILE / 2) * (1 + t), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 1;
+        }
+      }
 
       if (!s.petrified && s.tier > 1) {
         // SPEC-V3 §4 tracks run to eleven levels; a single row of pips at 5px
