@@ -18212,9 +18212,40 @@ logs a blocker below rather than editing `/data` itself.
       `DECAYS`/`FLAT` describe block (and its two tests) deleted entirely,
       not moved — everything else in that file (the per-mechanism
       measurements, the specific line/blast/patch clause-wording checks,
-      the clause-text pins) is a distinct concern and is untouched. Two
-      full-tier review rounds (code-reviewer, qa-playtester) — see this
-      item's own follow-up log entries for anything either found. `npx tsc
+      the clause-text pins) is a distinct concern and is untouched.
+
+      **Two full-tier review rounds.** code-reviewer: APPROVE, two Minor
+      (both fixed) — a stale "six" vs. seven `FIRE_RECIPES` entries in two
+      comments/a test title (`chain_lightning` was added after they were
+      first drafted); `wideLine`'s anti-splash spacing was a bare `2.5`
+      literal rather than derived from `content.damageTypeByKey`'s real
+      electric radius, now `radius * 4` so a future balance retune of that
+      radius can't silently erode the margin. qa-playtester: PASS, with one
+      **confirmed, real bug** found and fixed — `FIRE_RECIPES.charge_pierce`/
+      `.charge_nova`'s own `fire` closures hardcoded
+      `content.classByKey.get('archer'/'swordsman')` instead of reading
+      `w.content.classByKey.get(w.cfg.classKey)` (the class
+      `probeAllKinds()`'s outer loop actually built the World for) —
+      harmless only because each kind is 1:1 with one class on the current
+      roster, but a future class reusing either kind (`fireEffect`'s own
+      doc comment in `classes.ts` treats kind-sharing as an anticipated
+      pattern; `burst_damage` already is shared) would have silently
+      measured the WRONG class's real numbers under the NEW class's own
+      label — exactly the "reads clean for the wrong reason" failure this
+      whole file exists to prevent. Fixed by reading the class off `w`;
+      added two new regression tests: one pins every `FIRE_RECIPES` kind's
+      declared `classKey`/`which` against its real, live-computed unique
+      owner in `data/classes.json` (turning the previously-dead `Probe`
+      fields into an active guard against a future kind collision), the
+      other directly reproduces qa-playtester's exact repro (fire
+      `charge_pierce`/`charge_nova` against a World built for an unrelated
+      class, assert nothing measures) — both confirmed red against the
+      pre-fix closures (reverted the fix, reran, watched the second test
+      fail with the exact "measured Archer's real numbers under
+      plaguebringer's label" symptom qa-playtester described, restored the
+      fix) before being accepted. `tests/ui-fb174-measured-falloff-
+      guard.test.ts` is now 8 tests (26 total with
+      `ui-fb149-falloff-wording.test.ts`'s 18) — all green; `npx tsc
       --noEmit` clean; `npm run test:fast`: only the pre-existing `q15`/
       `q45` flake class red. No `/data` change.
 

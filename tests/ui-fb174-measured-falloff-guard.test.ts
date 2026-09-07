@@ -157,7 +157,17 @@ const FIRE_RECIPES: Record<string, Probe> = {
     which: 'active1',
     place: alongLine,
     fire: (w) => {
-      const cls = content.classByKey.get('archer')!;
+      // qa-playtester (fb174 independent QA pass): reads the class off `w`
+      // (the World the outer `probeAllKinds()` loop actually built), not a
+      // hardcoded 'archer' — a future class reusing this kind on its own
+      // Active1 (`fireEffect`'s own doc comment in classes.ts treats kind-
+      // sharing as an anticipated pattern) would otherwise have this recipe
+      // silently measure Archer's real numbers under the NEW class's
+      // classKey/kind label, exactly the "reads clean for the wrong reason"
+      // failure fb174 itself exists to prevent. See the "FIRE_RECIPES
+      // entries fire the kind's real, current owner" test below, which pins
+      // this against every kind's actual unique owner in `data/classes.json`.
+      const cls = w.content.classByKey.get(w.cfg.classKey)!;
       const aim = { aimX: w.warden.x + 20, aimY: w.warden.y };
       const cap = cls.active1.chargeCapSeconds ?? 3;
       tickClassCharge(w, cls, idle({ ...aim, active1Held: true }), cap * 2);
@@ -169,7 +179,8 @@ const FIRE_RECIPES: Record<string, Probe> = {
     which: 'active1',
     place: cluster,
     fire: (w) => {
-      const cls = content.classByKey.get('swordsman')!;
+      // Same fix, same reason as charge_pierce above.
+      const cls = w.content.classByKey.get(w.cfg.classKey)!;
       tickClassCharge(w, cls, idle({ active1Held: true }), 1 / 60);
       tickClassCharge(w, cls, idle({ active1Held: false }), 1 / 60);
     },
@@ -275,6 +286,66 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     expect(probes.length).toBe(content.classes.classes.length * 2);
     const kinds = new Set(probes.map((p) => p.kind));
     expect(kinds.size).toBeGreaterThan(0);
+  });
+
+  it("FIRE_RECIPES entries fire the kind's real, current owner — not a hardcoded stand-in", () => {
+    // qa-playtester (fb174 independent QA pass): `charge_pierce`/`charge_nova`
+    // used to hardcode `content.classByKey.get('archer'/'swordsman')` inside
+    // their own `fire` closures instead of reading `w.cfg.classKey` (the
+    // class `probeAllKinds()`'s outer loop actually built the World for) —
+    // harmless only because each kind happens to be 1:1 with one class today.
+    // A future class reusing either kind on its own Active (`fireEffect`'s
+    // own doc comment in `classes.ts` treats kind-sharing as an anticipated
+    // pattern; `burst_damage` already is shared) would have silently
+    // measured the WRONG class's real numbers under the new class's own
+    // classKey/kind label — exactly the "reads clean for the wrong reason"
+    // failure this whole file exists to prevent, and neither `Probe`'s own
+    // declared `classKey`/`which` fields nor anything else asserted it.
+    // This pins two things live: every `FIRE_RECIPES` kind really is
+    // authored by exactly one class/slot in the current roster, and that
+    // owner matches the recipe's own declared `classKey`/`which` — so a
+    // future collision reddens HERE with a clear message, rather than
+    // silently mismeasuring inside `probeAllKinds()`.
+    for (const [kind, recipe] of Object.entries(FIRE_RECIPES)) {
+      const owners: Array<{ classKey: string; which: 'active1' | 'active2' }> = [];
+      for (const cls of content.classes.classes) {
+        if (cls.active1.kind === kind) owners.push({ classKey: cls.key, which: 'active1' });
+        if (cls.active2.kind === kind) owners.push({ classKey: cls.key, which: 'active2' });
+      }
+      expect(owners, `${kind}: expected exactly one owner`).toEqual([{ classKey: recipe.classKey, which: recipe.which }]);
+    }
+  });
+
+  it('charge_pierce/charge_nova recipes read the class off the World, not a hardcoded stand-in (regression)', () => {
+    // qa-playtester (fb174 independent QA pass): reproduced twice, live —
+    // both closures used to call `content.classByKey.get('archer')`/
+    // `('swordsman')` directly, ignoring whichever World `probeAllKinds()`
+    // actually built (`w.cfg.classKey`), so firing either recipe against a
+    // World built for a DIFFERENT class still measured Archer's/Swordsman's
+    // own real kit. Direct proof of the fix: fire each recipe against a
+    // World for a class that does NOT own this kind — `tickClassCharge`
+    // (classes.ts) no-ops for any class whose Active1 isn't a charge kind
+    // (`isChargeKind` guard), so a correctly-fixed recipe measures nothing,
+    // while the old hardcoded-class bug would still have fired the
+    // original class's real Circle Slash/Deadeye Draw regardless.
+    const isChargeKindKind = (k: string) => k === 'charge_nova' || k === 'charge_pierce';
+    for (const kind of ['charge_pierce', 'charge_nova'] as const) {
+      const recipe = FIRE_RECIPES[kind];
+      // Any class whose Active1 is neither charge kind at all (not just "not
+      // this one") — `tickClassCharge`'s own `isChargeKind` guard covers
+      // both, so a class using the OTHER charge kind would (correctly)
+      // still fire its own real charge Active, which is a fine outcome but
+      // not the clean zero-damage baseline this assertion wants.
+      const otherCls = content.classes.classes.find((c) => c.key !== recipe.classKey && !isChargeKindKind(c.active1.kind))!;
+      const w = new World(cfg({ classKey: otherCls.key }));
+      w.warden.x = 6;
+      w.warden.y = 10;
+      const enemies = recipe.place(w);
+      w.rebuildBuckets();
+      recipe.fire(w, enemies);
+      const measured = damagePerTarget(enemies);
+      expect(measured.every((d) => d === 0), `${kind} fired against ${otherCls.key} measured ${JSON.stringify(measured)}`).toBe(true);
+    }
   });
 
   it('the seven special-recipe kinds actually measure real, nonzero damage (the recipe genuinely fires them)', () => {
