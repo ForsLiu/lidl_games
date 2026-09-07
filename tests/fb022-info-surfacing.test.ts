@@ -203,16 +203,26 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
 /* -------------------------------------------------------- Surface 2: core */
 
 describe('fb022 Surface 2: Core screen + in-run Core tooltip show TD/VS effect and step preview', () => {
-  it('the Hub Core panel groups Stone Heart\'s HP-bonus step as a TD effect, with the real step numbers', () => {
+  it("fb117: the Hub Core-select screen's Step 1 hover entry groups Stone Heart's HP-bonus step as a TD effect, with the real step numbers", () => {
     const { root } = mountHub();
     const stoneHeart = content.cores.cores.find((c) => c.key === 'stone_heart')!;
     // Stone Heart is the default core (unlockedByDefault), already selected.
     const detail = [...root.querySelectorAll('.sw-classdetail')].find((el) => el.textContent?.includes(stoneHeart.name))!;
     expect(detail).toBeTruthy();
-    expect(detail.textContent).toContain('TD effect');
-    expect(detail.textContent).not.toContain('VS effect'); // Stone Heart has no VS-only field
-    expect(detail.textContent).toContain(String(stoneHeart.upgrade.steps![0].coreHpBonus));
-    expect(detail.textContent).toContain(`${stoneHeart.upgrade.stepCost} gold`);
+    const entries = [...detail.querySelectorAll<HTMLElement>('.sw-cs-skill')];
+    // fb117: TD effect and VS effect are now two always-present hover labels
+    // (mirroring fb058's always-4 class-skill entries), so "VS effect" as a
+    // LABEL is expected even for a Core with no VS-only field — the
+    // meaningful check is that its TIP carries no real effect, unlike TD's.
+    const tdTip = entries[0].querySelector('.sw-cs-tip')!.textContent ?? '';
+    const vsTip = entries[1].querySelector('.sw-cs-tip')!.textContent ?? '';
+    expect(tdTip).toContain('No effect'); // Stone Heart's base `effects` is empty; its only mechanic is the HP-bonus step below
+    expect(vsTip).toContain('No effect');
+    const step1Tip = entries[2].querySelector('.sw-cs-tip')!.textContent ?? '';
+    expect(step1Tip).toContain('TD effect');
+    expect(step1Tip).not.toContain('VS effect'); // the step itself has no VS-only field
+    expect(step1Tip).toContain(String(stoneHeart.upgrade.steps![0].coreHpBonus));
+    expect(entries[2].querySelector('.sw-cs-label')!.textContent).toContain(`${stoneHeart.upgrade.stepCost}g`);
   });
 
   it('coreDetailMarkup groups Carnivorous Plant into both a TD (devour) and a VS (poison volley) list', () => {
