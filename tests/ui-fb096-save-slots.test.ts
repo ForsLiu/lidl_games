@@ -148,15 +148,22 @@ describe('fb096: save-slots module', () => {
   });
 
   /**
-   * fb101 (qa-playtester finding): a failure on `switchToSlot`'s third and
-   * final write (the active-slot pointer) must fail the whole call closed —
-   * not report success while the pointer never actually moved.
+   * fb101 (qa-playtester finding): a failure on `switchToSlot`'s final write
+   * (the active-slot pointer) must fail the whole call closed — not report
+   * success while the pointer never actually moved.
+   *
+   * Targeted by KEY (`stonewake.activeslot.v1`, the literal `ACTIVE_SLOT_KEY`
+   * in saveslots.ts) rather than by call ordinal — fb172 added an extra
+   * `setItem` to the normal flush path (the `slotLastFlushKey` bookkeeping
+   * write), which quietly moved the pointer write from the 3rd `setItem` call
+   * to the 4th and would have made a position-based mock silently start
+   * testing the wrong write's failure instead of the one this test is named
+   * for.
    */
   it('a storage failure on the active-slot-pointer write fails switchToSlot closed', () => {
     ensureActiveSlotMigrated();
     // Both slot 0 and slot 1 must already hold data so `switchToSlot`'s flush
-    // and load steps both take the `setItem` branch (not `removeItem`) —
-    // otherwise the pointer write isn't actually the 3rd `setItem` call.
+    // and load steps both take the `setItem` branch (not `removeItem`).
     saveMeta({ ...defaultMeta(), skillPoints: 5 });
     switchToSlot(1);
     saveMeta({ ...defaultMeta(), skillPoints: 9 });
@@ -165,16 +172,18 @@ describe('fb096: save-slots module', () => {
 
     const realSetItem = Storage.prototype.setItem.bind(localStorage);
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
-    let calls = 0;
+    let pointerWriteAttempted = false;
     setItem.mockImplementation((key, value) => {
-      calls++;
-      if (calls === 3) throw new Error('quota exceeded');
+      if (key === 'stonewake.activeslot.v1') {
+        pointerWriteAttempted = true;
+        throw new Error('quota exceeded');
+      }
       realSetItem(key, value);
     });
 
     expect(switchToSlot(1)).toBe(false);
     setItem.mockRestore();
-    expect(calls).toBe(3);
+    expect(pointerWriteAttempted).toBe(true);
     expect(getActiveSlot()).toBe(0);
   });
 
@@ -245,10 +254,10 @@ describe('fb096: save-slots module', () => {
 
     // Before fb147 slot 3 had no key at all and 333 was simply gone. It is now
     // a file of its own, which is the point: a per-file provider can back it
-    // up and hand it back. Recovering the LIVE cache from it is still the
-    // switch machinery's job — `switchToSlot` still flushes `SAVE_KEY` over
-    // the outgoing slot key — so this asserts the data survives the restore,
-    // not that the game repairs itself afterwards (filed as fb172).
+    // up and hand it back. This asserts the data survives the restore itself
+    // (immediately, no switch involved) — what a switch-away does with a
+    // SAVE_KEY that now disagrees with the slot's own file is fb172's own
+    // scope, tested in the "fb172:" describe block below.
     expect(loadMeta().skillPoints).toBe(7);
     expect(slotSkillPoints(2)).toBe(333);
   });
@@ -502,5 +511,87 @@ describe('fb096: Settings tab Save Slots panel', () => {
 
     expect(called).toBe(false);
     expect(root.textContent).toContain('Slot 2 deleted.');
+  });
+});
+
+/**
+ * fb172 (code-reviewer finding during fb147 review): `switchToSlot`'s
+ * outgoing flush used to run unconditionally, so an out-of-process restore
+ * of either `SAVE_KEY` or the outgoing slot's own file (a per-file cloud
+ * provider — Steam Cloud is per-file LWW, same precedent fb147's own header
+ * comment cites) was silently destroyed by that same flush at the very next
+ * switch-away. `slotUnchangedSinceOurLastFlush` (saveslots.ts) now refuses
+ * the flush whenever either side has moved since this module's own last
+ * known-good sync point, rather than guessing which side should win.
+ */
+describe('fb172: a switch-away no longer silently destroys an out-of-process restore', () => {
+  it("a restore of the outgoing slot's own file survives a switch-away-and-back", () => {
+    ensureActiveSlotMigrated();
+    switchToSlot(2);
+    reload();
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 333 });
+    expect(slotSkillPoints(2)).toBe(333);
+
+    // A per-file provider restores slot 3's own file out of process — newer
+    // progress from another device, landing directly on the file rather than
+    // on the live SAVE_KEY cache (which still reads 333, this session's own
+    // stale in-memory understanding).
+    localStorage.setItem('stonewake.save.slot3.v1', JSON.stringify({ version: 1, meta: { ...defaultMeta(), skillPoints: 555 } }));
+
+    // The switch away from slot 3 must not clobber the just-restored file
+    // with this session's stale live cache.
+    expect(switchToSlot(0)).toBe(true);
+    expect(slotSkillPoints(2)).toBe(555);
+
+    // Switching back and forth again afterwards behaves normally — this
+    // isn't a permanent lockout, just a one-time refusal at the moment of
+    // the actual conflict.
+    reload();
+    expect(switchToSlot(2)).toBe(true);
+    reload();
+    expect(loadMeta().skillPoints).toBe(555);
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 556 });
+    expect(switchToSlot(0)).toBe(true);
+    expect(slotSkillPoints(2)).toBe(556);
+  });
+
+  it('a restore of SAVE_KEY alone survives a switch-away-and-back (the outgoing slot copy is not clobbered with the foreign value)', () => {
+    ensureActiveSlotMigrated();
+    switchToSlot(2);
+    reload();
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 333 });
+    expect(slotSkillPoints(2)).toBe(333);
+
+    // A last-write-wins provider replaces the live SAVE_KEY file out of
+    // process — e.g. a stale/foreign account from another device — without
+    // touching slot 3's own file, which still correctly reads 333.
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, meta: { ...defaultMeta(), skillPoints: 7 } }));
+
+    // The switch away from slot 3 must not propagate that foreign 7 into
+    // the slot's own intact 333 copy.
+    expect(switchToSlot(0)).toBe(true);
+    expect(slotSkillPoints(2)).toBe(333);
+  });
+
+  it('a switch-away with nothing touched externally still flushes normally (no false-positive refusal)', () => {
+    ensureActiveSlotMigrated();
+    switchToSlot(2);
+    reload();
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 333 });
+    saveMetaToActiveSlot({ ...defaultMeta(), skillPoints: 444 });
+
+    expect(switchToSlot(0)).toBe(true);
+    expect(slotSkillPoints(2)).toBe(444);
+  });
+
+  it('an account with no flush history yet (predates this fix) still flushes normally on its first switch', () => {
+    ensureActiveSlotMigrated();
+    // Direct saveMeta, bypassing saveMetaToActiveSlot/syncActiveSlotKey
+    // entirely — the exact shape a pre-fb147 save left behind, with no
+    // slotLastFlushKey record at all.
+    saveMeta({ ...defaultMeta(), skillPoints: 99 });
+
+    expect(switchToSlot(1)).toBe(true);
+    expect(slotSkillPoints(0)).toBe(99);
   });
 });
