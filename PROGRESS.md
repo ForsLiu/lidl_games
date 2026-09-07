@@ -11,6 +11,41 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT fb062 done (in-lane portion).**
+  Pinned Poison Barrel's every-second poison mechanic and, while scoping it,
+  found and fixed a real bug: `firePoisonBarrel` (`src/sim/classes.ts`)
+  seeded each application's dps with the raw character-scaled `damage`
+  directly; since `combat.ts`'s `updateAreas` feeds a poison area's `dps`
+  straight into a fixed 3s `applyPoison` stack, this delivered `seed x 3`
+  per application instead of SPEC-FINAL §3's authored `seed x 1.2` (120% of
+  the triggering damage over 3s) — a 2.5x overshoot. Fixed by routing the
+  seed through `dotDpsFor` (`src/sim/damagetypes.ts`), the exact conversion
+  `src/sim/cores.ts`'s Corpse-poison call site and `applyDamageType`'s own
+  dot branch already use. New `tests/class-poison-barrel-mechanic.test.ts`:
+  a regression pin driving the real zone end-to-end (measured 36.0 pre-fix
+  against the correct 14.4, confirmed red then green), the 1s cadence and
+  3-stack cap, zero direct damage/no lifesteal (both already true, now
+  pinned), and one `it.skip`-ed case documenting a tooltip-text mismatch
+  that's out of this lane's Scope (`src/ui/class-info.ts`, filed for the UI
+  lane in BACKLOG-CONTENT.md). code-reviewer REQUEST-CHANGES, addressed: one
+  Major (`tests/p6e-class-diversity.test.ts`'s two live exact-count pins
+  were measured against the pre-fix damage and one — the 16/66
+  fingerprint-distance pin — plausibly moved; filed for the main lane rather
+  than re-measured here, since that ~100-minute excluded suite is not this
+  item's to re-run per CLAUDE.md working rule 8), one Minor (a stray scratch
+  probe script deleted before commit), one Nit (the `poisonDef` fallback,
+  confirmed dead code by QA). qa-playtester PASS: independently re-derived
+  the magnitude from raw `/data` via the real `Run`/Command path (not
+  reusing the fix's own helpers), confirmed Poison Boost/`active1PotencyMul`
+  /Spreading Plague all interact correctly with the corrected magnitude, and
+  the zero-damage/undefined-`poisonDef` edge cases are handled cleanly.
+  `npx tsc --noEmit` clean; `tests/class-*`/`equip-*` (29 files, 1012 tests,
+  run twice) and `npm run test:fast` (4234 passed) green apart from the two
+  pre-existing unrelated `q15`/`q45` `tools/fuzz-command-domain`
+  scratch-directory module-resolution failures — refs: SPEC-FINAL §4.1
+  (Plaguebringer), §3 (Poison), owner feedback
+  `feature-poison-barrel-mechanic`.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT fb180 done, docs only.**
   `BACKLOG-CONTENT.md` was well past fb178's 400-line budget for live
   backlog files (3807 lines). Every `[x]` item from the Queue (c001-c041,
@@ -287,31 +322,3 @@
   added to BACKLOG-CONTENT.md's Log: fb082 unblocks fb062 (a broader,
   still-open content-lane item — its own zero-direct-damage/no-lifesteal
   and tooltip-text acceptance is untouched by this item).
-
-- **2026-09-07 — BACKLOG fb080 done.** `data/terrain.json` joins every data
-  tool that previously didn't know it existed. `src/sim/terrain/config.ts`'s
-  module-private `schema` is now the exported `TerrainFileSchema` (identical
-  `.superRefine` — `parseTerrain` is exactly `TerrainFileSchema.parse`, so
-  nothing was lost); `content.ts`'s `TUNER_FILES` gains a `terrain` entry
-  (no `contentField`, same as `warden`'s precedent); `tools/fuzz-data.ts`'s
-  `DATA_FILES` gains `'terrain'`. The one real wrinkle: `content.ts` reaches
-  `terrain.json` indirectly through `terrain/config.ts`'s `TERRAIN_RAW`, not
-  a direct import like the other fourteen, so `tests/q7-data-fuzz.test.ts`'s
-  "mocks exactly the files content.ts imports" pin now explicitly checks
-  that two-link indirection (both import strings asserted) instead of
-  either breaking or silently special-casing it. `tests/q7-loader-holes.ts`
-  regenerated via the documented `Q7_RECORD=1` procedure — diffed against
-  the prior file to confirm every change is new and additive, nothing
-  pre-existing moved. `tools/mutation-probe.ts` needed no change (confirmed
-  it has no per-file `/data` registry — it copies the whole directory and
-  targets known `/src` regressions). Zero `/data` content changes, no new
-  validation logic beyond wiring. `npm run test:fast`: 4155 passed, 53
-  skipped, only the documented pre-existing `q15`/`q45` flake. code-reviewer
-  (full tier): APPROVE, two Minor/one Nit, all documented rather than acted
-  on (a future indirectly-reached file needs its own hand-added exception in
-  the q7 test; the fuzz-data.ts/q7-loader-holes "new file shows up as a
-  mismatch" framing only covers direct-import files) — independently traced
-  the Tuner save path (confirming the full `TerrainFileSchema` validation,
-  tile-order pin included, actually runs on a Tuner-edited document) and
-  spot-checked several regenerated hole entries against the real schema and
-  shipped `/data` values.
