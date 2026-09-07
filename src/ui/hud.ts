@@ -1715,6 +1715,47 @@ export class Hud {
     }
   }
 
+  /**
+   * fb139: F8's small note box. Deliberately dumb — it knows nothing about
+   * `World`/replay/screenshot, just renders a textarea onto the shared
+   * `this.modal` slot and hands the typed note back through a callback, the
+   * same "Hud owns the DOM, the caller owns the sim/meta logic" split
+   * `onDev`/the practice-tool buttons already use. The caller (`main.ts`) is
+   * responsible for having already paused the run — `setPaused(true)` shows
+   * the plain Pause card first (it owns that transition), and this simply
+   * overwrites it, the same double-render `showPause` itself already does
+   * when flipping into/out of its own Options sub-screen.
+   */
+  showBugReportBox(onConfirm: (note: string) => void, onCancel: () => void): void {
+    this.openModal();
+    this.modal.innerHTML = `
+      <div class="sw-card">
+        <h2>Report a bug</h2>
+        <p class="sw-note">One line is enough — a replay and a screenshot go with it.</p>
+        <textarea id="sw-bugreport-note" class="sw-bugreport-note" rows="2" maxlength="2000" placeholder="What went wrong?"></textarea>
+        <div class="sw-pausebuttons">
+          <button class="sw-reroll" data-act="bugreport-cancel">Cancel</button>
+          <button class="sw-go" data-act="bugreport-confirm" disabled>Send</button>
+        </div>
+      </div>`;
+    const textarea = this.modal.querySelector<HTMLTextAreaElement>('#sw-bugreport-note');
+    const sendBtn = this.modal.querySelector<HTMLButtonElement>('[data-act="bugreport-confirm"]');
+    textarea?.focus();
+    // qa-playtester finding: an empty/whitespace note used to post silently
+    // and close the box exactly like a real success (the server correctly
+    // rejects it, but nothing surfaced that to the player) — disabled by
+    // default and only enabled once there is something to send.
+    textarea?.addEventListener('input', () => {
+      if (sendBtn) sendBtn.disabled = (textarea.value ?? '').trim().length === 0;
+    });
+    sendBtn?.addEventListener('click', () => {
+      const note = (textarea?.value ?? '').trim();
+      if (note.length === 0) return;
+      onConfirm(note);
+    });
+    this.modal.querySelector('[data-act="bugreport-cancel"]')?.addEventListener('click', () => onCancel());
+  }
+
   /** Modal screens: level-up, results. */
   syncModal(w: World): void {
     if (this.paused) return;

@@ -450,7 +450,17 @@ export interface GroundArea {
   /** 'poison' | 'burn' */
   type: string;
   source: string;
-  /** Damage-over-time tick accumulator. Declared since this type was written; still unread. */
+  /**
+   * fb082: seconds between `type: 'poison'` applications (SPEC-FINAL §4.1:
+   * "applying poison damage every second"), read by `updateAreas`
+   * (`src/sim/combat.ts`) as `tickSeconds ?? 1` — optional so every
+   * pre-existing literal `GroundArea` push (non-poison types, which never
+   * read it) still type-checks. Unused by `'burn'`, which already pays
+   * continuously via `dt` scaling, and by the types `updateAreas` handles
+   * before ever reaching this field (`'bossSlam'`, `'enemyFire'`).
+   */
+  tickSeconds?: number;
+  /** Damage-over-time tick accumulator, advanced every frame the area is alive. */
   acc: number;
   dead: boolean;
 }

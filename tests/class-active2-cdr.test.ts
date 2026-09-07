@@ -196,6 +196,11 @@ function active2(classKey: string): ClassEffect {
   return content.classByKey.get(classKey)!.active2;
 }
 
+/** `active2`'s twin — needed by `c041`, since Animist's summon cap (Manifest) lives on Active1, not Active2. */
+function active1(classKey: string): ClassEffect {
+  return content.classByKey.get(classKey)!.active1;
+}
+
 /**
  * How long this class's Active2 summon lives. Two `/data` field names, because
  * the two summoning Active2s are authored differently: Pop Turret is a summon
@@ -790,6 +795,83 @@ describe('c019 — named deviation: at a cap it holds, Pop Turret Cooldown buys 
     ).toBeGreaterThan(means[0]);
     expect(means[1], 'rank 1 should already pin the board at the top cap').toBeCloseTo(topCap, 6);
     expect(means[2], 'rank 2 has nothing left to buy above the cap').toBeCloseTo(means[1], 6);
+  });
+});
+
+/**
+ * c041 (BACKLOG-CONTENT, lane `content`) — re-measurement of c018's own
+ * "cooldown cliff" headroom numbers (Engineer's Pop Turret, Animist's
+ * Manifest), which CLAUDE.md's measurement rules call "a measurement with an
+ * expiry date": two balance-affecting changes have landed since (`p12c`'s T1
+ * `baseHpMul: 20`, `fb077`'s terrain generation), and `c030` found "obviously
+ * unrelated" wrong twice on this exact kind of assumption applied to other
+ * numbers in this lane.
+ *
+ * **The cliff, defined precisely.** `lapsPerLife` (above) is the exact
+ * formula this whole file already validates against real simulated board
+ * behaviour (`requireCapHolds`'s cap-holds cases, the exact-multiple case at
+ * line 683). The "cliff" is the largest `cooldownSeconds` at which the
+ * `cadenceReaches` ceiling (`lapsPerLife + 1`) still touches a target cap —
+ * found here by binary search *calling that same formula*, not a
+ * separately-derived closed form, so a change to `lapsPerLife`'s own epsilon
+ * convention moves this measurement too rather than silently diverging from
+ * it.
+ *
+ * Unlike a win-rate or fingerprint measurement, this one is pure `/data`
+ * arithmetic with no seed, no wave scaling and no terrain dependency — so it
+ * is cheap enough to assert live rather than `.skip`, and c030's own lesson
+ * applies in reverse here: if `baseHpMul`/terrain really are "obviously
+ * unrelated" to this number, a live assertion proves it every run instead of
+ * asking the next session to take that on faith again.
+ */
+describe('c041: summon-cooldown headroom re-measured against current /data', () => {
+  /** Binary search for the largest `cooldownSeconds` at which `target` concurrent summons is still reachable at all. */
+  function cliffFor(eff: ClassEffect, target: number): number {
+    let lo = 0.01;
+    let hi = eff.summonDurationSeconds ?? 0;
+    const reachable = (cd: number): boolean => lapsPerLife({ ...eff, cooldownSeconds: cd }) + 1 >= target;
+    for (let i = 0; i < 100; i++) {
+      const mid = (lo + hi) / 2;
+      if (reachable(mid)) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  it('Engineer Pop Turret: the top cap rank (4) sits close to its cliff, same margin c018 recorded (~11%)', () => {
+    const eff = active2('engineer');
+    const topCap = (eff.summonCap ?? 0) + lineCard('engineer').maxRank * lineCard('engineer').perRank;
+    const cliff = cliffFor(eff, topCap);
+    const headroom = (cliff - eff.cooldownSeconds) / cliff;
+    // c018 (2026-09-04) recorded "cliff ~3.35 s vs shipped 3 s, ~11% headroom".
+    // Re-measured 2026-09-07 against unchanged `/data`: cliff ≈3.33 s, ~9.8%
+    // headroom relative to the cliff itself (~11% relative to the shipped
+    // value instead — c018's prose did not specify which denominator it used,
+    // and both land in the same "comfortably positive, single digits to low
+    // double digits" range). Still positive, still not worth flagging for
+    // `p10r` — the topCap ceiling barely touches 4 at shipped `cd=3`
+    // (`lapsPerLife(10,3)+1 === 4`), same as recorded, so the "board
+    // oscillates 3<->4 at cdr rank 0" finding also still holds.
+    expect(cliff, `Engineer Pop Turret cliff moved off ~3.33s (now ${cliff.toFixed(4)}) — re-run c041's derivation`).toBeCloseTo(3.328, 2);
+    expect(headroom, `Engineer headroom dropped below 5% (now ${(headroom * 100).toFixed(2)}%) — flag for p10r`).toBeGreaterThan(0.05);
+    expect(headroom, `Engineer headroom rose above 15% (now ${(headroom * 100).toFixed(2)}%) — c041's pin is stale, re-measure`).toBeLessThan(0.15);
+  });
+
+  it('Animist Manifest: the top cap rank (5) sits close to its cliff, same margin c018 recorded (~20%)', () => {
+    const eff = active1('animist');
+    const topCap = (eff.summonCap ?? 0) + lineCard('animist').maxRank * lineCard('animist').perRank;
+    const cliff = cliffFor(eff, topCap);
+    const headroom = (cliff - eff.cooldownSeconds) / cliff;
+    // c018 (2026-09-04) recorded "cliff ~5.00 s vs shipped 4 s, ~20% headroom".
+    // Re-measured 2026-09-07 against unchanged `/data`: cliff ≈4.996 s, ~19.9%
+    // headroom — an almost exact match, i.e. no drift at all. Unsurprising:
+    // neither `p12c`'s `baseHpMul` nor `fb077`'s terrain generation touches
+    // `data/classes.json`'s Manifest cooldown/duration/cap fields, and this
+    // measurement has no seed or wave-scaling dependency to move it — the
+    // re-check confirms that rather than assuming it.
+    expect(cliff, `Animist Manifest cliff moved off ~5.00s (now ${cliff.toFixed(4)}) — re-run c041's derivation`).toBeCloseTo(4.996, 2);
+    expect(headroom, `Animist headroom dropped below 15% (now ${(headroom * 100).toFixed(2)}%) — flag for p10r`).toBeGreaterThan(0.15);
+    expect(headroom, `Animist headroom rose above 25% (now ${(headroom * 100).toFixed(2)}%) — c041's pin is stale, re-measure`).toBeLessThan(0.25);
   });
 });
 

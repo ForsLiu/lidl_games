@@ -653,7 +653,41 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       ⚖ (no all-landslide roster), measured via `classifyMargin`/
       `summarizeMargins`; T3's G1/G8/G14/G23 bands (moved there by p12b) are
       re-confirmed unaffected — refs: BALANCE DIRECTION v2 §C.
-- [ ] (p12d) [balance] Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
+- [x] (p12d) [balance] **DONE 2026-09-07.** SPEC-FINAL §14's G1/G8/G14/G23
+      rows now name T3 as reference tier with T1 `[55%,90%]`/`>=25%
+      close-win` and T5 `[5%,20%]` as companion checks (not replacements),
+      and G8's row states the two replacement diversity clauses. Matching
+      test changes landed in `tests/p10d-run-length.test.ts` (G1),
+      `tests/boss.test.ts` (G14), `tests/p-core-f-gates.test.ts` (G23, plus a
+      `tier`/`maxTicks` override added to `runCoreScripted`), and
+      `tests/p6e-class-diversity.test.ts` (G8, whose diversity describe now
+      computes clause (i) own-kit VS share and clause (ii) fingerprint
+      distance off the file's own existing T3 `beforeAll` sweep rather than
+      a second one). Every new assertion was run against the live sim, not
+      assumed: G1 and G14's T1/T5 companions both pass live; G23's ten new
+      per-Core companions (reduced to 6 seeds/60-min cap after a 12-seed/
+      120-min first attempt ran over an hour — some Core/tier combinations
+      that don't resolve simulate the whole cap) are 9 `.skip`-ed with
+      measured numbers and one (`time` T5) live; G8's T5 companion and both
+      new diversity-clause pins are live, T1 measured 6/12 (50%, just under
+      the 55% floor, `.skip`-ed — the same shared `engineer`/`hybrid`
+      harness as G1's passing 24-seed T1, read as sampling noise at n=12,
+      not a new wall). Both clauses (i)/(ii) measured red at T3 as expected
+      (0/12 classes at 35% own-kit share; 16/66 pairs below the 0.15
+      fingerprint floor) and are exact-pinned, not left as a vacuous
+      `>=0` placeholder — code-reviewer's first pass (REQUEST-CHANGES) and
+      qa-playtester both caught that exact gap independently; fixed by
+      re-running the ~100-minute sweep once more to record the real number.
+      G8's T1/T5 companions are measured once on the shared harness rather
+      than per-class (would have tripled an already ~100-minute file's
+      cost for a question the shared harness already answers) — logged as
+      QUESTIONS Q197. `npx tsc --noEmit` clean; `npm run test:fast` green
+      except two pre-existing failures (`tests/q15-command-domain-fuzz
+      .test.ts`, `tests/q45-cli-schema-violation.test.ts`) confirmed via
+      `git stash` to fail identically on unmodified HEAD (a scratch-
+      directory module-resolution issue in this sandbox, unrelated to this
+      item). Original text follows.
+      Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
       §14) and their test files to (1) measure at T3 as reference tier
       (p12b), with the new T1 band `[55%,90%]`/`>=25% close-win` (p12c) and T5
       `[5%,20%]` (p12b) as companion assertions, not replacements for the T3
@@ -666,7 +700,35 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+- [x] (p12e) [bug] **DONE 2026-09-07** — the diagnosed fix landed as-named:
+      the final boss (`TRAIT.finalBoss`, not the broader `TRAIT.boss` —
+      `gatebreaker` also carries `boss` and must keep taking the roster
+      multiplier, code-reviewer's first-pass Critical finding on this item)
+      is now exempted from `baseHpMul` in `makeEnemy`, restoring fb099's
+      independently-fitted ~180-380s boss fight instead of stacking p12c's
+      x20 on top of it. Measured on a 24-seed T3 `runScripted`/`hybrid`/
+      full-tree matrix: **0/24 timeouts** (was some fraction of a comparable
+      batch stalling at the tick cap), **11/24 wins (45.8%)** — unchanged
+      from Q177's own figure, confirming the fix removes censoring without
+      moving difficulty — boss-kill times back at 188-222s. qa-playtester
+      independently re-swept 24 seed x tier x policy combinations (zero
+      timeouts throughout) and live-spawned both `gatebreaker` (still takes
+      the full multiplier, 1,763,065 hp at wave 18) and the final boss
+      (36,500 hp = authored value, zero multiplier) in real runs, not just
+      unit tests; also grepped `src/` for stale hardcoded million-scale boss-
+      HP assumptions (none found). `src/ui/codex-collections.ts`'s enemies
+      column mirrors the same exemption (code-reviewer Major finding: it
+      would otherwise show the boss at its old unreachable 7.3M). Both named
+      re-enable points closed: `tests/fb077-terrain-wiring.test.ts`'s seed-52
+      case is un-skipped and passes; `tests/boss.test.ts`'s four-seed
+      mechanism check was already passing, unaffected by the shorter fight.
+      **Not attempted, and left to p12d** (which already owns re-running the
+      four gate matrices to rewrite their text/bands): the full "all classes,
+      all 5 Cores, T1/T3/T5" G1/G8/G14/G23 sweep and a fresh `npm run status`
+      snapshot named in this item's original acceptance — this item fixed and
+      verified the root cause on a representative sample rather than
+      re-running every gate combination twice. Original text follows.
+      **Now the blocker for this whole arc** (QUESTIONS Q177),
       and **diagnosed — start from this, not from a fresh sweep.** Profiling
       the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
       at a 120-minute cap) shows the tail is **entirely the boss fight**:
@@ -757,7 +819,42 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       Q177's retraction. The real blocker the correction exposed is the tick
       cap, which is **p12e**'s, not a new item's.
 
-- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+- [x] (p12h) [bug] **DONE 2026-09-07** — bisected to two additive causes, only
+      one of which was a bug this item owned to fix. (1) **fb076->fb077**:
+      fb077 ("wire generated terrain into every non-practice World run")
+      flipped `tools/a4probe.ts`'s probe from the flat arena it was always
+      tuned against to real generated terrain, purely because its `RunConfig`
+      never set `practice: true` — a scope leak, not intended difficulty
+      (this gate's own header says it isolates solo-tower TD viability from
+      other systems, the same reason it sets `world.invulnerable`). Confirmed
+      by checking out the commit before fb077 (exact reproduction of fb076's
+      authored 5/5/5/5/4/5/4) and the commit at/after fb077 (drops to
+      {1,1,0,0,1,3,0}, matching the item's own HEAD-control number exactly).
+      (2) **p12c**'s `baseHpMul: 20` (not tier-scaled, hits T1 as hard as
+      every tier) takes {1,1,0,0,1,3,0} to {0,0,0,0,0,0,0} — already
+      acknowledged in p12c's own commit message as a cost it deepened but did
+      not cause, and explicitly not this item's (BALANCE DIRECTION v2's own
+      T3-anchor tradeoff, owned by p12d's gate rewrite). **Fixed (1) only**:
+      `runSingleType` now sets `practice: true` (its only other effect, dev
+      commands, is inert here); verified this alone restores viability by
+      reverting `baseHpMul` to 1 via a content override (not a `/data` edit)
+      and re-running all seven towers — **{5,5,5,5,4,4,5}**, matching/
+      bettering the original table, pinned as a new passing test rather than
+      left as an unverified claim. At real HEAD content the gate's own
+      numbers are unchanged (still 0/5 for all seven, since cause (2) alone
+      already saturates every tower to zero) — the fix is real but its effect
+      is currently masked by the separately-owned anchor; `.skip`-ed with the
+      honest number, re-enable point **p12d**. code-reviewer: APPROVE, no
+      Critical/Major (one pre-existing stale-docstring nit elsewhere, out of
+      scope). qa-playtester independently re-ran 3 towers through the fix
+      (matched {5,5,5,5} exactly), checked `practice`'s RNG-independence
+      (terrain generation uses its own local seed, not `w.rng` — zero
+      determinism risk from skipping it), checked no other test/tool depends
+      on the old terrain-degraded numbers as a fixture, and ran the full
+      touched file (534s, green) — PASS. `vitest.fast.config.ts`'s exclude
+      comment for this file re-measured and updated (the new case alone is
+      ~515s). Original text follows.
+      G13's solo-viability clause (`tests/a4-single-type.test.ts`)
       was **already largely red before p12c**, and nobody had measured it.
       Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
       identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
@@ -781,7 +878,63 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07** — F8 (dev and prod alike, not gated
+      on `devMode`) opens a self-contained note box (`src/ui/bugreport.ts`'s
+      `BugReportBox`, deliberately not `hud.ts`'s shared `.sw-modal`) that
+      pauses a running run for its duration and restores whatever pause state
+      held before. Submit builds a bundle (class/Core/tier/wave/phase/tick/
+      seed/content hash/`endHash`/the full recorded input log/a canvas
+      screenshot) and, in a dev build (`isDevBuild()`, the same predicate
+      `hud.ts`'s Tuner surface already gates on), POSTs it to a new
+      `/__bugreport/save` dev-server endpoint (`src/devserver/
+      bugReportPlugin.ts`/`bugReportSave.ts`, `apply: 'serve'`, mirroring
+      `tunerPlugin.ts`/`tunerSave.ts` exactly) which writes the replay
+      (`RecordedRun` JSON) and screenshot PNG under `/replays` and a
+      `bug-<timestamp>.md` into the inbox directory naming both paths plus
+      every metadata field; a production build downloads the same bundle as
+      one JSON file instead (no dev server to reach — confirmed absent from
+      a real `vite build` bundle). Q193 logs the `D:\lidl_inbox` default as an
+      injectable parameter (same shape `tunerPlugin.ts` already established
+      for `data/`), verbatim from the feedback text, with every test
+      injecting a temp dir instead. `tests/fb139-bug-report-replay.test.ts`
+      is the acceptance line's own literal ask: a real `Run` stepped partway,
+      saved through `saveBugReport`, read back off disk, and replayed via
+      `replayRecorded`/`hashWorld` (architecture rule 2) to confirm an
+      identical end-state hash at the recorded tick. CLAUDE.md's Full-tier
+      bullet now names a saved F8 bundle a first-class repro.
+      code-reviewer's one Critical (this session): the outer `window`
+      keydown listener wasn't gated on the box being open, so typing a note
+      — Escape, Enter, 'u'/'x'/'q'/'e', tower-slot digits — queued live
+      gameplay Commands and even unpaused the run via Escape's own
+      `togglePause`, the instant the box closed; fixed with an early return
+      right after the F8 branch, proven by a failing-then-passing regression
+      test dispatching real `KeyboardEvent`s at the open textarea.
+      qa-playtester's one Major (this session): a literal top-level JSON
+      `null` body is valid JSON (so the shared `readJsonBody`'s parse
+      `try/catch` never saw it), and the first property read on it threw as
+      an unhandled rejection inside the `async` middleware — crashing the
+      dev server instead of answering 400. Latent in the sibling
+      `tunerSaveMiddleware` too (same shape, pre-existing, confirmed by the
+      same repro) and fixed in both, each pinned by a regression test
+      confirmed red beforehand. `readJsonBody` also picked up a Minor fix in
+      the same pass: its own size cap is now parameterized (`maxBytes`,
+      default unchanged) so the bug-report endpoint's 64 MB cap (replay
+      bundles routinely dwarf a `/data` file) doesn't inherit the Tuner's
+      10 MB one — both caps now have their own regression test. `npm run
+      test:fast` (twice, before and after the fixes): only the documented,
+      pre-existing `q15`/`q45` host-load flake, reproduced identically on a
+      clean `git stash` of this whole diff. `npx tsc --noEmit` clean.
+      **Merge note (2026-09-07):** this branch and master (PR #36) each built
+      this item independently; master's implementation is kept here (the
+      branch's own — `Hud.showBugReportBox`, a `BugReportPayload`/`meta`
+      shape — is dropped as redundant scaffolding, confirmed against this
+      branch's own `git log` to be a small side-item rather than its main
+      point), with one fold-in from the branch's own code-reviewer finding:
+      the inbox default is platform-aware (`D:\lidl_inbox` only on win32, a
+      repo-relative `inbox/` elsewhere) — master's own literal-path default
+      silently wrote a bogus directory named `D:\lidl_inbox` under
+      `process.cwd()` on this repo's own Linux host.
+      Original text follows. top priority: in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into
@@ -3982,7 +4135,42 @@ generation-rule boundary.
       overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
       `'terrain'` falls into the same drop-the-plan branch `'occupied'`
       did. Renderer string stays UI-lane fb116 (was fb091).
-- [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
+- [x] (fb079) [docs] **DONE 2026-09-07** — appended §10.5 (SPEC-FINAL.md)
+      verbatim from the feedback file plus the Q162/Q171 lane decisions,
+      folded G2's wording (a terrain-determinism clause) and §13's content
+      totals (the terrain file), noted the addition in a new MIGRATION.md
+      §8.6, and logged the append itself as Q194
+      (`[designer-fill]`, owner verdict pending). Docs-only — no `/src` or
+      `/data` touched. `npm run test:fast`'s SPEC-FINAL-parsing suites
+      (`tests/q10-gate-audit.test.ts`, `tests/fb038-status.test.ts`,
+      `tests/class-spec-numbers.test.ts`, `tests/equip-spec-numbers.test.ts`)
+      re-run green — the new G2 table row stays one line (no `|` introduced)
+      so `tools/gate-audit.ts`'s row parser is unaffected. code-reviewer
+      (light tier, docs-only) found two Major fidelity gaps on the first
+      pass, both fixed before this was marked done: the "verbatim" quote had
+      silently dropped two source clauses (the Core-legal-positions
+      rationale, "Tuner page (density/ratios editable)") and reflowed the
+      tile-types bullets into prose, losing the rock-passthrough
+      `[designer note]` and the `(Spitter)` example — now quoted as an
+      actual verbatim bullet list matching the source file; and a lane-
+      decisions bullet claimed the run's live gate list is threaded through
+      "every" gate-reading function, contradicting Q171(9)/open BACKLOG
+      fb134 (`describeTerrain` still reads the base `GATES` constant) — now
+      states that exception explicitly. Re-reviewed after the fixes: no
+      further findings.
+      **Merge note (2026-09-07):** this branch and master (PR #36) each wrote
+      §10.5 independently from the same feedback file; master's version is
+      kept as the base, with two more fidelity gaps closed at the merge that
+      neither side's own review had caught — the "verbatim" quote was still
+      missing its title line and trailing `Priority: normal` line (both
+      present in the source memo), and the character-passage bullet had
+      drifted to claim the shipped default lets the character fly over rock,
+      when `data/terrain.json` (`rock`/`high` both `blocksCharacter: true`)
+      and `src/sim/terrain/character.ts`'s own doc comment ("the vetoed
+      reading of a clause whose default is pass-through") both confirm the
+      opposite — restored to the branch's own, verified wording (open, not
+      resolved, tracked at Q171/Q194).
+      Original text follows. SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
       `feedback/processed/20260903-121255-feature-terrain-generation.md`
@@ -3994,7 +4182,41 @@ generation-rule boundary.
       file; MIGRATION.md §8 notes the addition. Log the append in
       QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
       §10, §14 G2, §17. **Amended at the 2026-09-04 merge:** §10.5 must also cover the lane's later decisions (Q171) — Core placement rules and the suggested anchor, the high-ground families and the no-boss-family rule, the character-passage flag, the seed domain, the approach band (`maxGateDetour`) beside fb064a's bands, the uncontested-high repair, and the run-gate-list threading.
-- [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
+- [x] (fb080) [polish] **DONE 2026-09-07** — `data/terrain.json` joins the
+      fuzzed/Tuner-validated set. `src/sim/terrain/config.ts`'s module-private
+      `schema` is now the exported `TerrainFileSchema` (identical
+      `.superRefine`, tile-order pin included — `parseTerrain` is defined as
+      exactly `TerrainFileSchema.parse`, so nothing was lost); `content.ts`'s
+      `TUNER_FILES` gains a `terrain` entry with no `contentField` (same as
+      `warden`'s precedent — terrain has no cross-file reference for
+      `loadContent()`'s override union to dry-run). `tools/fuzz-data.ts`'s
+      `DATA_FILES` gains `'terrain'`, with the doc comment explaining the one
+      real wrinkle: `content.ts` reaches `terrain.json` *indirectly* (through
+      `terrain/config.ts`'s `TERRAIN_RAW`), not with its own direct import
+      like the other fourteen — `tests/q7-data-fuzz.test.ts`'s "mocks exactly
+      the files content.ts imports" pin now checks that indirection
+      explicitly (both link strings asserted) rather than either breaking or
+      silently special-casing it. `tests/q7-loader-holes.ts` regenerated via
+      the documented `Q7_RECORD=1` procedure — diffed against the prior file
+      to confirm every change is a new, additive `terrain.*` entry and
+      nothing pre-existing moved. `tools/mutation-probe.ts` needed no change:
+      confirmed it carries no per-file `/data` registry of its own (it
+      copies the whole `data/` directory and targets known `/src` source
+      regressions, not individual data files) — code-reviewer verified this
+      directly. Zero `/data` content changes; no new validation logic beyond
+      wiring. `npm run test:fast` (4155 passed, 53 skipped, only the
+      documented pre-existing `q15`/`q45` flake) and `npx tsc --noEmit`
+      clean. code-reviewer (full tier — touches `/src/sim`): **APPROVE**,
+      two Minor/one Nit (documented rather than fixed: a future indirectly-
+      reached file needs its own hand-added exception in the same q7 test,
+      no structural safeguard forces that; the fuzz-data.ts/q7-loader-holes
+      comments' "new file shows up as a mismatch" framing is pre-existing
+      and only covers direct-import files, not a `/data`-directory readdir)
+      — independently traced the Tuner save path and spot-checked several
+      regenerated hole entries against the real schema and shipped values,
+      confirmed honestly measured. BACKLOG-TERRAIN fb064f's terrain page
+      builds on this next.
+      Original text follows. `data/terrain.json` is unknown to every data tool:
       `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
       `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
       `TERRAIN_RAW` precisely so q7's import-seam pin stays honest until this
@@ -4008,7 +4230,39 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [ ] (fb081) [bug] `src/sim/combat.ts`'s `lineHit` broadphase uses a
+- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — `lineHit`'s broadphase
+      margin fixed to `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`),
+      mirroring the hand-rolled copy already fixed in `classes.ts`'s
+      `fireCrimsonRush`. Failing-first regression test
+      (`tests/fb081-linehit-broadphase.test.ts`) confirmed red on the new
+      cases before the fix (stashed the source change and re-ran: failed with
+      the exact expected pre-fix symptom, restored and re-confirmed green).
+      The sibling inconsistency was resolved by aligning, not pinning:
+      `towers.ts`'s `single`/`pierce` kinds now both pass `LINE_HALF_WIDTH *
+      area` to `lineHit`/`bestLineDirection`, matching `vswield.ts` and every
+      other attack shape in the same function (SPEC-FINAL §2: Area "applies
+      to every attack, active, and effect") — superseding an earlier draft of
+      this fix that left `pierce` deliberately unscaled per a since-reversed
+      Q194 note; scaling it keeps `towers.ts` consistent with `vswield.ts`'s
+      already-scaled wielded `pierce` case, closing the exact inconsistency
+      fb081b (below) flagged, rather than leaving it open. Regression tests
+      for both the margin fix (Dash Slash, areaMul 4 and areaMul 8) and the
+      towers.ts alignment (Arrow Spire tier 4, a side enemy only pierced once
+      Area is scaled in) live in the same test file — all confirmed
+      red-before/green-after against the actual fix. code-reviewer's Major
+      finding — the new tower-beam footprint had no row in
+      `tests/class-wide-grove-reach.test.ts`'s c013 ledger, the exact
+      completeness guard built for this failure mode — was closed by adding
+      an Arrow Spire CONSUMERS row and a Ballista DEVIATIONS row (aim-only
+      `bestLineDirection`, mirroring the existing wielded-side entry).
+      qa-playtester independently reproduced the pre-fix miss via `git stash`
+      on `towers.ts` alone (proving the `towers.ts` half is load-bearing, not
+      just the `combat.ts` margin), confirmed baseline (`areaMul===1`)
+      behavior is unchanged, and found no bugs. `npm run test:fast`: 4075
+      passed, only the two known pre-existing, unrelated fb119 failures
+      (`tools/fuzz-command-domain` module resolution under `bench/.tmp`).
+      Original text follows.
+      `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
       stop being hit (BACKLOG-CONTENT.md c001 Log; measured first-miss
@@ -4020,7 +4274,94 @@ generation-rule boundary.
       `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
       `* areaMul` (align tower beams with vswield/classes or pin the
       exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
-- [ ] (fb082) [bug] Poison Barrel's ground area applies poison **every
+- [x] (fb081b) [polish] **MOOT 2026-09-07** — code-reviewer follow-up on an
+      earlier draft of fb081 that left `towers.ts`'s `pierce` case unscaled
+      while `vswield.ts`'s wielded `pierce` case already scaled the identical
+      aim-heuristic call by `area`. fb081 landed with `towers.ts`'s `pierce`
+      also scaled (`LINE_HALF_WIDTH * area`), matching `vswield.ts` — the two
+      call sites are now consistent and there is nothing left to decide here.
+      No QUESTIONS.md entry needed beyond fb081's own note.
+- [x] (fb082) [bug] **DONE 2026-09-07** — `updateAreas`'s poison branch
+      (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
+      (`GroundArea.acc`, declared since the type was written but never read)
+      instead of firing every 60 Hz frame; authored explicitly as
+      `groundTickSeconds: 1` in `data/classes.json`'s Plaguebringer `active1`
+      (threaded through a new optional, `.positive()`-validated schema field
+      and read in `firePoisonBarrel`), with a loader cross-check refusing
+      `groundTickSeconds > groundDurationSeconds` (an authored value that
+      would silently, permanently disable the mechanic).
+      **A first pass shipped a real ~3.5x DPS regression** — code-reviewer
+      and qa-playtester independently measured it (429.6 -> 120 total damage
+      over the barrel's 5 s life). Root cause: gating call *frequency* alone
+      while leaving `applyPoison`'s pre-existing hardcoded `duration: 1.0`
+      unchanged let every stack fully expire before the next application
+      arrived (never more than 1 concurrent stack), where the pre-fix 60 Hz
+      spam had kept all `POISON_STACK_CAP` (3) slots refreshed almost
+      continuously. Fixed by passing `duration: tick * POISON_STACK_CAP`
+      instead, so consecutive per-`tick` applications overlap enough to
+      reach and sustain the cap — restoring the pre-fix magnitude while
+      still cadencing correctly (one *application* per tick, not one per
+      frame); a new test drives real per-frame DoT decay (`updateEnemies`)
+      alongside `updateAreas` to prove `dotStacks` actually reaches 3 at
+      steady state, confirmed red against the naive fix and green against
+      this one.
+      **qa-playtester also found a second bug in the same first pass**: a
+      poison area whose *entire* lifetime is a single `tickSeconds` window
+      (Venom Spore's own trail blob — a fresh one replaces it every
+      `special.interval`, `data/towers.json`) went permanently silent,
+      because the cadence accumulator was checked *after* the area's own
+      expiry early-return, losing its one scheduled application to a
+      `remaining`/`acc` rounding race at the boundary — measured 0 damage at
+      the shipped 1.4286 s interval. Fixed by re-ordering `updateAreas` so
+      the poison branch accumulates and checks cadence *before* marking the
+      area dead (every other type's expiry behaviour is unchanged, including
+      `'burn'`'s pre-existing, negligible sub-frame loss on its own exact
+      expiry frame); `vsspecials.ts`'s `updatePoisonTrail` now also sets
+      `tickSeconds: special.interval` explicitly, matching each blob's own
+      lifetime by construction rather than depending on the engine's `?? 1`
+      default happening to be smaller. A parametrized regression test
+      (`tests/p2c-vs-specials.test.ts`) drives real `updateAreas` over a full
+      blob lifetime at 1.4286/1/0.5 s intervals, confirmed red before the
+      re-ordering fix at every value.
+      A remaining, narrower limitation is logged rather than engineered
+      around: a poison area whose lifetime is *not* an exact multiple of its
+      own `tickSeconds` loses its trailing partial window (no fractional
+      "final tick" — `applyPoison`'s stack model has no notion of a partial
+      application). Not reachable by any shipped `/data` row today (Poison
+      Barrel is 5/1, Venom Spore's blob now ties `tickSeconds` to its own
+      exact lifetime) and not part of this item's acceptance; qa-playtester
+      flagged it as a Major worth a future item if a duration-scaling skill
+      card (e.g. Time Lock's own "+2s/rank" pattern) is ever authored for
+      Poison Barrel.
+      **Re-review round (code-reviewer + qa-playtester again, same session):
+      both APPROVE/PASS**, empirically re-measuring the DPS fix (independent
+      methodology landed within noise of the first measurement, confirming
+      the restored magnitude is genuinely close to the pre-fix baseline, not
+      just "improved") and re-driving the Venom Spore fix at three interval
+      values through the real tower-build pipeline. One more Minor closed
+      from that pass: `groundDurationSeconds <= 0` with `groundTickSeconds`
+      left unauthored slipped past the exceeds-check (which only compares
+      when both fields are present) and reached `firePoisonBarrel`'s `?? 1`
+      fallback — a lifetime that can never cross even the default cadence.
+      Now an independent, scoped-to-`ground_poison` positivity check (not a
+      schema-wide change, since `dash_trail`/`time_lock` share the same field
+      for a lifetime with no cadence to cross). Confirmed this closes no
+      further q7 census entries (the fuzzer mutates one field per trial, and
+      real data always authors `groundTickSeconds`, so this exact combination
+      was never reachable through the existing single-field mutation
+      families — verified by an unchanged `q7-data-fuzz` census before/after).
+      `tests/class-spec-numbers.test.ts`'s c008 ledger row for "applying
+      poison damage every second" moved `defect` -> `match` (census 67->68
+      match, 1->0 defect); `tests/q7-loader-holes.ts` regenerated twice via
+      the documented `Q7_RECORD=1` procedure (once for the new field, again
+      after the loader cross-check closed `groundDurationSeconds`'s own
+      stale negative/zero holes) — diffed both times to confirm purely
+      additive/closing changes. `npm run test:fast`: only the documented
+      pre-existing `q15`/`q45` flake. `npx tsc --noEmit` clean. Short cross-
+      lane note added to BACKLOG-CONTENT.md's Log (fb082 landed, unblocks
+      fb062's own remaining acceptance — zero-direct-damage/no-lifesteal and
+      tooltip tests — which this item does not touch).
+      Original text follows. Poison Barrel's ground area applies poison **every
       tick**: `updateAreas` (`src/sim/combat.ts`) calls `applyPoison(w, e,
       a.dps * scale, 1.0, 3, a.source)` at 60 Hz where SPEC-FINAL §4.1 says
       "applying poison damage every second" — the stack cap bounds the damage
@@ -4031,20 +4372,52 @@ generation-rule boundary.
       authored in `/data` (per-area `tickSeconds`), 1 s for the barrel; TTK
       re-measured so the barrel's DPS is unchanged at the new cadence —
       refs: SPEC-FINAL §4.1, §8 statuses.
-- [ ] (fb083) [feat] there is no tower-only Area stat key, so two tower
-      passives are authored with the *global* `area` key and — since c001
-      routed Area into the kits — widen the caster's own Actives: the
-      Animist's "All towers +10% area" (so the Animist has no `areaMul === 1`
-      baseline at all) and Time Lord's Chronal Surge (+10% every 2 TD waves,
-      **uncapped**: areaMul 3.203 at the end of a seed-2 `cycles: 6` run, of
-      which +90% is Chronal Surge — Time's r7 mark becomes a 22-tile pulse on
-      a 36x20 board). Acceptance: `towerArea` in `statkeys.ts`/`stats.ts`
-      read by `towers.ts`'s aura/lob/poison radii; both passives re-authored
-      onto it in `data/classes.json`; `tests/class-area-stat.test.ts`'s
-      Animist exception retired; a cap or a pin for Chronal Surge's total
-      recorded in BALANCE.md. Owner-vetoable (a "towers" passive that also
-      buffs the kit may be intended) — refs: SPEC-FINAL §2, §4.2, QUESTIONS
-      Q163.
+- [x] (fb083) [feat] **DONE 2026-09-07** — a new tower-only Area stat key,
+      `towerArea`/`derived.towerAreaMul` (`statkeys.ts`/`stats.ts`), closes the
+      global-`area` leak c013/c024 measured: the Animist's Wide Grove ("all
+      towers +10% area") and Time Lord's Chronal Surge (+10% every
+      `waveInterval` TD waves, uncapped — areaMul 3.203 at a seed-2 `cycles: 6`
+      run's end) both re-authored onto it (`data/classes.json`,
+      `applyChronalSurge` in `run.ts`), and no longer widen the caster's own
+      class Actives or VS-wielded attacks. `towers.ts`'s
+      `effectiveTowerRange`/`effectiveTowerAoe` gained a caller-chosen
+      `route: 'tower' | 'character'` parameter (default `'tower'`;
+      `vswield.ts`'s four wielded-attack call sites pass `'character'`
+      explicitly, per §6.1's "treated as character attacks"; tower-cloned
+      summons — Engineer's Pop Turret, the Animist's own Manifest spirit via
+      `towerSummonProfile` — stay on the default, QUESTIONS Q195).
+      **Two more shared reads couldn't take that parameter** — Electric's
+      inherent AoE (`damagetypes.ts`'s `applyDamageType`) and Burning's splash
+      (`enemies.ts`'s `tickDotSplash`) only ever receive a `source: string`,
+      not a caller-chosen route — so a first pass left them starved (neither
+      route reached them once Wide Grove moved off the global key). Fixed
+      with a new exported `isTowerSource(w, source)` helper next to the
+      existing `dotPotency`, reusing its exact `!w.huntsWarden &&
+      w.content.towerByKey.has(source)` idiom (QUESTIONS Q196) so a real
+      tower's own Electric/Burning hit reads `towerAreaMul` again while a
+      class Active's/Core's does not, and a tower's attack during VS
+      (`huntsWarden`) correctly stays on the character route. Also closed:
+      `data/equipment.json`'s Normal Bracelet authored only `area: 0.1`
+      despite its own "character and tower area +10%" desc, silently killing
+      its tower half the moment Wide Grove moved off that key — given
+      `towerArea: 0.1` alongside, mirroring Sniper Bracelet's existing
+      `towerRange`/`charRange` split.
+      **code-reviewer**: APPROVE, no findings (traced every caller of
+      `effectiveTowerAoe`/`isTowerSource`, confirmed no VS-phase tower attack
+      can reach `isTowerSource`'s guard incorrectly, confirmed the split is
+      complete via the wide-grove-reach file's own regex completeness
+      guards). **qa-playtester**: PASS on all six acceptance criteria,
+      independently probing the engine rather than trusting the shipped
+      tests (Wide Grove/Chronal Surge tower-only widening, the Electric/
+      Burning route fix, the VS carve-out both directions, Normal Bracelet's
+      multiplicative x1.21 stack with Wide Grove) — one pre-existing,
+      fb083-unrelated `q15`/`q45` CLI-fuzz environment failure noted (repros
+      identically on the pre-fb083 commit) and one doc-only nit
+      (`content.ts`'s Chronal Surge comment, fixed here). Verification:
+      `npx tsc --noEmit` clean; the 12-file targeted suite this item touches
+      634/634; full `q7-data-fuzz` regenerated and green (new
+      `equipment.items[].mods.towerArea` census row) — refs: SPEC-FINAL §2,
+      §4.2, QUESTIONS Q163/Q195/Q196, BACKLOG-CONTENT.md c013/c024/c036.
 - [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
       (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
       rather than a class-key check") cannot be built from the content lane.
@@ -4195,6 +4568,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       fb087), then either restore a <60 s standalone run or move q15 to the
       exclude list with the measured time; the config comment matches the
       measurement — refs: CLAUDE.md test tiers, fb087.
+      **2026-09-07 re-measurement: the symptom has changed and the old
+      "hangs" diagnosis is stale.** On this host q15 no longer times out —
+      it fails in ~1.3s, standalone and under `npm run test:fast` alike,
+      with `Error: Cannot find module '.../tools/fuzz-command-domain'
+      imported from .../tools/fuzz-command-domain-worker.ts`. `q45` (which
+      exercises the same `probeInWorker` machinery via a scratch-copied
+      tree) fails the same way. Root-caused with a Vitest-free repro (a
+      bare `node` script spawning the same `new Worker(WORKER_PATH,
+      {execArgv: ['--import', 'tsx/esm']})` call `fuzz-command-domain.ts`
+      itself uses): the extensionless relative import
+      (`fuzz-command-domain-worker.ts`'s `from './fuzz-command-domain'`)
+      resolves fine when the exact same `--import tsx/esm` flag runs on the
+      **main thread**, but fails to resolve inside a spawned
+      **`Worker`** thread on this host's `tsx@4.23.12` (`package.json` only
+      pins `^4.19.2`) under Node `22.22.2` — tsx's ESM resolve hook does not
+      appear to intercept bare specifiers inside a worker's own execArgv
+      registration here, and the failure is not specific to one import: a
+      manual `.ts`/`.js`-suffixed rewrite of the worker's own import moves
+      the identical error one level deeper, to the next extensionless
+      import inside `fuzz-command-domain.ts` itself
+      (`.../src/sim/run`) — a real fix would mean adding explicit
+      extensions to every transitively-imported specifier reachable from
+      the worker entry point, or pinning/patching the `tsx` dependency
+      itself, either of which is a materially different, larger, and
+      environment-sensitive change than this item's own acceptance text
+      anticipated ("find why the probe hangs"). Left open rather than
+      attempted blind, since a "fix" that only silences this exact
+      `tsx@4.23.12` patch could read as broken or unnecessary on a
+      differently-resolved `^4.19.2` install (CI, another contributor's
+      machine) and cannot be verified here either way — a floating-version
+      dependency bug is a judgment call for the owner (pin `tsx` to a known
+      version and verify across environments, or find whichever tsx patch
+      regressed worker resolution and report upstream) rather than a
+      same-session code fix. `q45`'s failure is the identical root cause,
+      not a second bug — refs: CLAUDE.md test tiers, fb087.
 - [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
       tier cannot see, both expired measurements: `tests/a3-movement-
       mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`

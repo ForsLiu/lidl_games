@@ -317,21 +317,32 @@ export function effectiveTowerRange(w: World, def: TowerDef, _level = 1): number
   // The level parameter survives for callers that iterate a track (and for the
   // panel's "next level" column); under §4 it no longer changes the answer.
   const targeting = a.range * w.derived.towerRangeMul;
-  return a.kind === 'aura' ? targeting * w.derived.areaMul : targeting;
+  return a.kind === 'aura' ? targeting * w.derived.towerAreaMul : targeting;
 }
 
 /**
  * Splash radius a shell detonates for, or 0 for a tower that has none. Only
  * `lob` reads `aoe` in `fireTower`, and it defaults to 1.5 when unauthored —
  * both facts are mirrored here so a new lob tower cannot silently disagree.
+ *
+ * fb083: shared by three callers with two different intents, so the Area
+ * multiplier is a parameter rather than a hardcoded read. `fireTower`'s own
+ * poison dispatch and `classes.ts`'s `towerSummonProfile` (Engineer's Pop
+ * Turret, the Animist's own Manifest spirit — both literal tower clones) are
+ * `'tower'` route by construction, the default. `vswield.ts`'s wielded lob/
+ * poison blasts pass `'character'` explicitly: §6.1 treats a wielded attack
+ * as a character attack, riding the caster's own Area (never `towerAreaMul`,
+ * the same reasoning `wieldedRangeFor`'s own `charRangeMul`/never-
+ * `towerRangeMul` choice already states).
  */
-export function effectiveTowerAoe(w: World, def: TowerDef): number {
+export function effectiveTowerAoe(w: World, def: TowerDef, route: 'tower' | 'character' = 'tower'): number {
   const a = def.attack;
   if (!a) return 0;
+  const areaMul = route === 'tower' ? w.derived.towerAreaMul : w.derived.areaMul;
   // A lob always bursts (1.5 where unauthored); SPEC-V3 §4's Poison tower has
   // a "small AoE" it authors outright, and every other kind has none.
-  if (a.kind === 'lob') return (a.aoe ?? 1.5) * w.derived.areaMul;
-  if (a.kind === 'poison') return (a.aoe ?? 0) * w.derived.areaMul;
+  if (a.kind === 'lob') return (a.aoe ?? 1.5) * areaMul;
+  if (a.kind === 'poison') return (a.aoe ?? 0) * areaMul;
   return 0;
 }
 
@@ -449,7 +460,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
   const y = s.ty + 0.5;
   const range = towerRange(w, s, a.range);
   const dmg = towerDamage(w, s, a.damage);
-  const area = w.derived.areaMul;
+  const area = w.derived.towerAreaMul;
   const source = def.key;
   // SPEC-V3 §4's milestone specials, folded into what this tower fires *at this
   // level*. Read here rather than off `def` so no case can shoot the authored
@@ -477,8 +488,12 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       // of (0,0) is a line every enemy in reach lies on — so the shot pierces
       // nothing rather than everything.
       const hits = dir.x === 0 && dir.y === 0 ? 1 : 1 + prof.pierce;
+      // fb081: Area scales every other shape in this function (aura range,
+      // lob/poison aoe, cone half-angle, blast aoe) and `vswield.ts`'s own
+      // copy of this same beam kind — a bare `LINE_HALF_WIDTH` here was the
+      // one shape SPEC-FINAL §2's "applies to every attack" left behind.
       for (let i = 0; i < prof.projectiles; i++) {
-        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH, dmg, source, hits, fx, {
+        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH * area, dmg, source, hits, fx, {
           primary: t,
         });
         w.emit('shot', x, y, t.x, t.y);
@@ -486,7 +501,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'pierce': {
-      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH);
+      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH * area);
       if (!dir) {
         s.cooldown = 0;
         return;

@@ -13,7 +13,7 @@ import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
 import { tierEnemyHpMul } from '../src/sim/tiers';
-import { cfg, GATE_TIER, runScripted, scaled } from './helpers';
+import { cfg, classifyMargin, GATE_TIER, runScripted, scaled, summarizeMargins } from './helpers';
 
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
 // Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
@@ -93,7 +93,18 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
-  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
+  //
+  // p12e (2026-09-07): root-caused as p12c's `baseHpMul: 20` silently
+  // multiplying the already-fitted 365,000 by 20x, taking boss fights to
+  // 920-1187s on the slow T3 seeds and pushing some runs past the 45-minute
+  // gate cap. Landed fix: the final boss (`TRAIT.finalBoss`, not the broader
+  // `TRAIT.boss` — `gatebreaker` also carries `boss` and must keep taking the
+  // roster multiplier) is exempted from `baseHpMul` in `makeEnemy`, restoring
+  // fb099's independently-fitted ~180-380s fight instead of stacking p12c's
+  // x20 on top of it. Measured on a 24-seed T3 matrix: 0/24 timeouts, 11/24
+  // wins (45.8%, unchanged from the pre-fix figure — censoring removed
+  // without moving difficulty), boss-kill times back at 188-222s.
+  it('spawns at 3:01 with 365,000 HP scaled by tier, exempt from baseHpMul', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
     // to read the rung it names rather than whichever tier the gates happen
@@ -104,14 +115,14 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
-    // Warden-Eater is an enemy and takes the roster multiplier like every
-    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
-    // pinned so a re-anchor moves the fixture with the game; the *authored*
-    // number is still asserted, just not the spawned one. The fight-length
-    // case below is what proves this is still a beatable fight rather than a
-    // wall, and it is measured, not assumed.
-    expect(e.maxHp).toBeCloseTo(scaled(365000) * w.content.enemies.baseHpMul, 0);
+    // p12e: the Warden-Eater no longer takes the roster-wide `baseHpMul`. Its
+    // 365,000 was independently fitted (fb099) to a real boss-fight length
+    // *without* that multiplier; p12c's x20 stacked on top of the fit rather
+    // than replacing it, taking fights from 180-380s to 920-1187s and pushing
+    // contested seeds past the gate matrices' tick cap (QUESTIONS Q177/Q184).
+    // At T1 the tier rung is exactly 1.0, so the spawned HP is just the
+    // authored (scaled) number.
+    expect(e.maxHp).toBeCloseTo(scaled(365000), 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed
@@ -119,8 +130,38 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(scaled(365000) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(scaled(365000) * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
+  });
+
+  // p12e (QUESTIONS Q177/Q184): the *final* boss and ordinary enemies must
+  // diverge on `baseHpMul` specifically, not merely differ in final HP
+  // (which the tier rung and `mods.bossHp` would explain on their own) —
+  // this pins the exemption itself rather than an emergent number.
+  it('exempts only the final boss from baseHpMul while ordinary enemies still take it', () => {
+    const w = act2World(1);
+    const husk = spawnEnemy(w, 'husk', 5, 5, { overlay: false })!;
+    const huskDef = w.content.enemyByKey.get('husk')!;
+    expect(w.content.enemies.baseHpMul).toBeGreaterThan(1);
+    expect(husk.maxHp).toBeCloseTo(huskDef.hp * w.content.enemies.baseHpMul, 0);
+
+    const e = boss(w);
+    const bossDef = w.content.enemyByKey.get('warden_eater')!;
+    // The boss takes neither `baseHpMul` nor `mods.enemyHp`/`w.mods.bossHp`
+    // (both default 0 here) — just the authored HP.
+    expect(e.maxHp).toBeCloseTo(bossDef.hp, 0);
+    expect(e.maxHp).not.toBeCloseTo(bossDef.hp * w.content.enemies.baseHpMul, 0);
+  });
+
+  // code-reviewer (p12e): `gatebreaker` carries `TRAIT.boss` too (it's a
+  // wave-18 miniboss, not the Warden-Eater) — the exemption must be keyed on
+  // `TRAIT.finalBoss` specifically, the same distinction `dotVaryingMul`
+  // already draws for its own boss-only ramp, or this silently 20x-nerfs it.
+  it('does not exempt gatebreaker (TRAIT.boss but not TRAIT.finalBoss) from baseHpMul', () => {
+    const w = act2World(1);
+    const gate = spawnEnemy(w, 'gatebreaker', 5, 5, { overlay: false })!;
+    const gateDef = w.content.enemyByKey.get('gatebreaker')!;
+    expect(gate.maxHp).toBeCloseTo(gateDef.hp * w.content.enemies.baseHpMul, 0);
   });
 
   it('moves through three phases as its HP falls', () => {
@@ -523,6 +564,43 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(wins, message).toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.6));
     expect(wins, message).toBeLessThan(seeds.length);
   }); // p10s re-measurement (scripted harness): 20/20 (100%), every seed victory/w18
+
+  // p12d (BACKLOG.md): T1/T5 companion checks alongside — not replacing —
+  // the T3 reference-tier band above, same harness and 20-seed shape,
+  // reusing the bands `tests/p12c-margin.test.ts`'s opt-in sweep first
+  // recorded for this tier/harness combination.
+  describe('G14 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+    const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+    const T1_WIN_BAND = [0.55, 0.9] as const;
+    const T1_MIN_CLOSE_WIN = 0.25;
+    const T5_WIN_BAND = [0.05, 0.2] as const;
+
+    function runAt(tier: number) {
+      return seeds.map((seed) => runScripted(cfg({ seed, cycles: 6, tier, allocated: FULL_TREE }), 'hybrid').report);
+    }
+
+    it('T1: win rate in [55%,90%] with >=25% close-win share', () => {
+      const reports = runAt(1);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+      const rate = wins.length / reports.length;
+      const closeShare = closeWins / reports.length;
+      const detail = `T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+      expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+    });
+
+    it('T5: win rate in [5%,20%]', () => {
+      const reports = runAt(5);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const resolved = reports.filter((r) => r.outcome !== 'running');
+      const rate = wins.length / resolved.length;
+      const detail = `T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds) — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
+    });
+  });
 });
 
 describe('Rift events (SPEC 5.1)', () => {

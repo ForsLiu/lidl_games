@@ -41,6 +41,9 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
 Run again 2026-09-07 (`c036` was the last actionable one left, all of
 `c032`-`c036` now Done — see the Log), appending `c037`-`c041` below the
 owner items.
+**Every one of `c037`-`c041` is now Done (see the Log) — c001-c041 are all
+Done/Skipped/Blocked. The next session should run the generation rule again
+before executing further.**
 
 ### Actionable in this lane
 
@@ -996,7 +999,7 @@ owner items.
       rule again per CLAUDE.md's "fewer than 3 actionable items remain" clause
       before executing further.
 
-- [ ] (c037) [bug] `c036`'s same-stat-key stacking check has a twin gap on the
+- [x] (c037) [bug] **DONE 2026-09-07.** `c036`'s same-stat-key stacking check has a twin gap on the
       **character-passive** slot, not just `towerPassive`. An exhaustive
       diff of every class `passive`/`towerPassive` mods key against every
       `data/equipment.json` mods/`classFallback` key finds exactly four
@@ -1015,8 +1018,31 @@ owner items.
       through the real `derived`/`Stats.factor()` path, not a hand-rolled
       formula, the same device `c036` uses. In-lane only - refs: SPEC-FINAL §2
       (stacking), §14 G5, c036.
+      **The `towerCost` half landed as specified: `tests/class-passive-liveness.
+      test.ts`'s new `describe('c037: ...')` proves Engineer + Normal Necklace
+      reads `w.derived.towerCostMul === 0.72`, not `0.70`, through the real
+      `Stats.factor('towerCost')` path. The `leech` half's premise was wrong and
+      is corrected, not silently reworded: `src/sim/statkeys.ts` classifies
+      `leech` `STAT_KIND.flat`, not `mul` — "rates and flags, not boosts: leech
+      and luck are read raw" is the file's own words, flagged there under Q62 as
+      a deliberate design line, not an oversight — and `derive()` reads it via
+      `Stats.total()` (a sum), not `Stats.factor()` (a product). Measured
+      directly (`w.derived.leech`): Blood Frenzy + Bleeding Ring reads `0.0301`
+      (additive), not `0.030103` (what `(1.03)(1.0001)` predicts). The shipped
+      test pins the real, additive reading instead of the item's predicted one,
+      with the correction documented in the test's own header — the same
+      premise-correction shape as c008/c017/c018. code-reviewer approved (no
+      Critical/Major; two Minor/Nit notes on comment precision, addressed in the
+      final text) and qa-playtester independently re-derived `STAT_KIND`/
+      `derive()`'s behaviour from source, mutated all four `/data` fields plus
+      both `Stats` read paths (six mutations total, each reverted), and
+      independently re-ran the exhaustive class-passive/equipment key diff,
+      confirming these are the only two overlaps left after c036. `npm run
+      test:fast`: 4043 passed (three new), the same two pre-existing unrelated
+      `q15`/`q45` fuzz-command-domain failures c029 already logged as present
+      on HEAD.**
 
-- [ ] (c038) [polish] the roster size (12 classes) is a **hardcoded
+- [x] (c038) [polish] **DONE 2026-09-07.** the roster size (12 classes) is a **hardcoded
       assumption in at least three lane files with no shared source and no
       self-check**: `tests/class-kit-fingerprint.test.ts` (c033, "66 pairs"),
       `tests/class-kit-damage-share.test.ts` (c002, "distinct top sources:
@@ -1034,8 +1060,35 @@ owner items.
       output, so the check is proven live rather than a tautology. In-lane
       only, no `/data` change - refs: c002, c003, c014, c029, c033, fb057,
       fb059.
+      **The "at least three lane files" premise was checked against the code,
+      not assumed, and only one of the three actually pinned a live literal.**
+      `tests/class-kit-damage-share.test.ts` already derives `KEYS`/`rows.length`
+      from `content.classes.classes` live — its "N/12" text is all doc-comment
+      measurement history or `console.log` strings, never a runtime assertion.
+      `tests/class-time-lord-band.test.ts` has its own code comment (line ~201)
+      stating it deliberately avoids a roster-count pin, naming three *other*,
+      out-of-lane files that carry one (`fb013-timelord`, `grid`,
+      `p6d-nine-classes` — none in this lane's Scope). Only
+      `tests/class-kit-fingerprint.test.ts` had a live `expect(KEYS.length).
+      toBe(12)` / `.toBe(66)`. New `tests/class-roster-size.ts` exports
+      `rosterSize()`/`pairCount()`/`ROSTER_SIZE`/`PAIR_COUNT` (mirroring
+      `class-board.ts`'s shared-module precedent from c014); the fingerprint
+      file's invariant now reads those instead of the literals. New
+      `tests/class-roster-size.test.ts` re-derives both from an independent
+      `loadContent()` call (not a tautology against the module's own cached
+      value) and, separately, clones a class row plus its required
+      `data/vsupgrades.json` `skillCards` entry into a synthetic 13th class,
+      proving `pairCount`'s formula itself moves (66 -> 78) rather than just
+      the count field. code-reviewer approved (no Critical/Major; one Nit
+      noting `class-kit-fingerprint.test.ts`'s own updated assertion is now
+      tautological against the shared cached `Content` — correctly so, since
+      the live-formula proof was deliberately placed in
+      `class-roster-size.test.ts`'s independently-loaded case instead).
+      `npx tsc --noEmit` clean; `npm run test:fast` (run together with c040's
+      edits to the same file, below): 4046 passed, same two pre-existing
+      unrelated `q15`/`q45` failures.
 
-- [ ] (c039) [balance] `c033`'s pairwise fingerprint measurement (2026-09-07,
+- [x] (c039) [balance] **DONE 2026-09-07, negative result, no `/data` change.** `c033`'s pairwise fingerprint measurement (2026-09-07,
       2 seeds) found 50/66 pairs already clear BALANCE DIRECTION v2 §D's 0.15
       floor, but two of the three closest pairs share a class:
       `necromancer`/`bloodlord` (0.0355) and `bloodlord`/`animist` (0.0720).
@@ -1054,8 +1107,42 @@ owner items.
       the fields considered rather than force one — either outcome closes
       the item. In-lane (`data/classes.json` only if a tune is taken) - refs:
       SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D, c033, CLAUDE.md rule 6.
+      **Negative result, mechanism-argued and then measured.** Bloodlord's two
+      Actives (`fireBloodTithe`, `fireCrimsonRush`, `classes.ts`) deal **zero
+      engine-attributed damage by design** — Blood Tithe only sets a
+      permanent tower-damage multiplier consumed in `towers.ts` (so it counts
+      as *tower* damage, not `class_active`), Crimson Rush only heals, and the
+      passive (`leech`) is lifesteal, not a `damageByWeapon` bucket at all.
+      The only field that maps into the vector clause (ii) reads is
+      `basicAttack.dps` -> `class_basic`, measured at a baseline share of
+      **0.04-0.05%** across all three classes (necromancer/bloodlord/animist)
+      — roughly two orders of magnitude short of the several-percentage-point
+      move the 0.15 floor would need. Six-seed measurement (seeds 1-6, T1
+      hybrid, same harness as `class-kit-fingerprint`/`class-kit-damage-share`):
+      necromancer/bloodlord L1 distance ~0.099, **~98% of which is tower-share
+      overlap** (`mortar`/`frost_obelisk`/`ballista`/`arrow_spire`/
+      `venom_spore` — none Bloodlord-authored), only ~0.5 points attributable
+      to the `class_basic`/`class_summon` gap. One candidate was tried anyway
+      (`basicAttack.dps` 51 -> 70, +37%, the same order of magnitude as a
+      prior main-lane p10s probe on this field): win rate roughly **halved**
+      (8-seed control pair, bloodlord: 3/8 -> 1/8), outside any reasonable
+      band reading, and even in that degenerate arm `class_basic`'s share
+      only reached 0.27% — a ~6.75x jump still two orders of magnitude short.
+      Reverted; `data/classes.json` confirmed byte-identical to HEAD via
+      `git diff`. Five other fields considered and rejected on mechanism
+      alone (no damage attribution exists in code for Blood Tithe/Crimson
+      Rush's tuning fields; `towerPassive.towerDamage`/`towerHp` are uniform
+      across every tower and cancel or shrink kit share; `leech` isn't a
+      damage-vector field; `moveSpeedBonus` is this exact harness's most
+      win-rate-sensitive stat roster-wide per `p6e-class-diversity.test.ts`'s
+      own history, wrong lever for a mix-only goal). Conclusion: this is the
+      same structural wall Q175/p12f/c033 already found for clause (i) — kit
+      damage is dwarfed by the full-tree tower economy — read here as the
+      clause (ii) symptom for Bloodlord specifically. Closing it needs a
+      `/src` change (giving Blood Tithe or Crimson Rush their own
+      damage-dealing behaviour), out of this item's and this lane's Scope.**
 
-- [ ] (c040) [balance] `c033` measured only the **damage-source** half of
+- [x] (c040) [balance] **DONE 2026-09-07.** `c033` measured only the **damage-source** half of
       BALANCE DIRECTION v2 §D clause (ii)'s "damage-source/damage-type
       vector method" — G22's own `fingerprint()` (`tests/p-core-f-
       gates.test.ts`) is `damageShareVector` (by weapon/kit-bucket key) plus
@@ -1074,8 +1161,47 @@ owner items.
       sign-off rather than swap the gate's metric from here. In-lane
       measurement only - refs: SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §D,
       c033.
+      **It lowers the count, sharply.** Extended `c033`'s existing `beforeAll`
+      sweep to accumulate `report.damageByType` alongside the pre-existing
+      `report.damageByWeapon` sum — off the *same* runs, no second sweep of
+      expensive full T1 scripted-kit runs. Measured (`KIT_FP_MEASURE=1
+      KIT_FP_SEEDS=2`, identical 24 runs c033 used): **damageByType clears the
+      >=0.15 floor on only 11/66 pairs**, against `damageByWeapon`'s 50/66 on
+      the same runs. The closest pairs under `damageByType` are almost all
+      near-zero (`plaguebringer/archer` 0.0001, `engineer/cryomancer` 0.0009,
+      `bloodlord/animist` 0.0009) — every class but Stormcaller and Time Lord
+      clusters tightly, because damage *type* is a far coarser bucket than
+      damage *source*: most classes and towers alike deal `physical`, so two
+      classes whose kits and tower choices are genuinely different can still
+      read near-identical by type. Stormcaller (electric) and, to a lesser
+      extent, Time Lord separate cleanly from the rest (their pairs with
+      every other class clear 0.09-0.23), which is the one place this vector
+      reads *more* informatively than `damageByWeapon` — but it is nowhere
+      near enough to lift the overall count. Logged for `p12d`/owner
+      sign-off, per this item's own acceptance: **not** a case for swapping
+      clause (ii)'s metric from `damageByWeapon` to `damageByType` — if
+      anything the opposite, since `damageByWeapon` is both the gate's
+      existing reading and the one that actually discriminates. No `/data`
+      change. code-reviewer approved (no Critical/Major; confirmed
+      `damageByWeapon`/`damageByType` are incremented at the identical
+      `enemies.ts` choke point off the same `dmgBooked`, so both vectors
+      share the same normalizing `total` by construction, and the new
+      `describe.skipIf(!MEASURE)` block's "the two vectors actually differ"
+      sanity check is correctly index-aligned since both pair arrays are
+      built in the same nested loop). qa-playtester independently re-ran the
+      full sweep (pinned to commit `e132fc7` rather than the live working
+      tree, since the repo had other in-flight lane work mid-verification)
+      and reproduced the exact 11/66 and unchanged 50/66 readings and the
+      same closest-3 pairs; confirmed `damageByWeapon`/`damageByType` are
+      populated by genuinely different accumulators in `enemies.ts`
+      (spot-checked Stormcaller at 10.5% electric share, an outlier every
+      other class lacks, and Time Lord at 4.5% bleeding vs ~0% elsewhere —
+      exactly the two separations the log above already named); confirmed
+      `l1Distance`/`shareVector` match G22's `p-core-f-gates.test.ts`
+      formulas line-for-line; confirmed the console output format and the
+      zero-`/data`-diff claim against the parent commit. No bugs filed.**
 
-- [ ] (c041) [polish] c018/c019's summon-cooldown headroom numbers (Engineer
+- [x] (c041) [polish] **DONE 2026-09-07.** c018/c019's summon-cooldown headroom numbers (Engineer
       59 ticks, Animist 119 ticks at shipped `/data`, recorded 2026-09-04)
       are a measurement with an expiry date (CLAUDE.md's measurement rules)
       that has never been re-checked, and at least two balance-affecting
@@ -1091,6 +1217,32 @@ owner items.
       positive, matching `c003`'s own convention. In-lane, `/data` unchanged
       unless the re-measurement finds a genuine regression - refs: CLAUDE.md
       measurement rules, c018, c019, c030.
+      **Both cards' `/data` fields are unchanged since c018, and the
+      re-derivation confirms both margins are unmoved, comfortably positive.**
+      New `describe('c041: ...')` in `tests/class-active2-cdr.test.ts` adds a
+      `cliffFor` binary search that calls the file's own already-validated
+      `lapsPerLife` (not a separately hand-rolled formula) to find the largest
+      `cooldownSeconds` at which each card's top-rank target cap
+      (`summonCap` + `class_line` card's `maxRank * perRank`) is still
+      reachable at all. Engineer Pop Turret: cliff ≈3.328 s vs shipped 3 s
+      (c018 recorded "~3.35 s / ~11%"; re-measured today at ~9.8% headroom
+      relative to the cliff, ~10.9% relative to the shipped value — c018's
+      prose did not specify which denominator it used, both land in the same
+      range). Animist Manifest: cliff ≈4.996 s vs shipped 4 s, ~19.9%
+      headroom (c018: "~5.00 s / ~20%") — an almost exact match. Since
+      `p12c`'s `baseHpMul` and `fb077`'s terrain generation touch neither
+      class's cooldown/duration/cap fields and this measurement has no seed
+      or wave-scaling dependency, no drift was expected and none was found;
+      nothing to flag for `p10r`. Made the assertions **live** rather than
+      `.skip`-ed (the acceptance text allows either) since the derivation is
+      cheap pure arithmetic with no simulated runs — a real regression guard
+      at effectively no cost, unlike c003's expensive win-rate measurement.
+      code-reviewer approved (no Critical/Major; two Minor notes both fixed:
+      `cliffFor` now takes the real `ClassEffect` and spreads over it
+      (`{ ...eff, cooldownSeconds: cd }`) instead of an unsafe two-field cast,
+      and all four load-bearing assertions now carry a descriptive message
+      naming what to re-measure on failure). `npx tsc --noEmit` clean; full
+      file 92/92 passed.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -1191,6 +1343,19 @@ owner items.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### fb082 landed on main (2026-09-07)
+
+- **BACKLOG.md fb082 (Poison Barrel's sim-side cadence bug, fb062's sim
+  half) is done on the main lane** (`src/sim/combat.ts`'s `updateAreas`
+  poison branch, gated on a new authored `groundTickSeconds` — 1 s for the
+  barrel — instead of re-applying every 60 Hz frame). `tests/class-spec-
+  numbers.test.ts`'s c008 ledger row for "applying poison damage every
+  second" moved `defect` -> `match`. fb062 itself is **not** closed by
+  this — the cadence bug was only the blocker fb082's own filing named;
+  fb062's own remaining acceptance (the barrel's zero-direct-damage/no-
+  lifesteal behavior, the tooltip text test, and its own unit tests) is
+  still this lane's to do, now unblocked.
 
 ### c036, and a same-branch collision on c033-c035 (2026-09-07)
 
