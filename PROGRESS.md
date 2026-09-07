@@ -5,6 +5,65 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c035 done, no bug found.**
+  Three Swordsman-locked equipment items (`sleeve_sword`, `swordsman_armor`,
+  `swordsman_shoes`) each carry an off-class `classFallback`, and SPEC-FINAL
+  §2 says equipped items are separate sources that multiply — proven
+  individually per item, but nothing had equipped two or three together on a
+  non-Swordsman, where a stacking bug (e.g. last-write-wins instead of a
+  running product) would slip past every single-item test. New `c035`
+  describe block in `tests/equip-spec-numbers.test.ts`: two items on an
+  Engineer compose to 1.44x1.65=2.376; all three on a Cryomancer compose the
+  attack-speed product (2.6136) and the movement factor (2.2) simultaneously
+  in the same World; all three on the Swordsman withhold every fallback.
+  Verified by mutation (a deliberate last-write-wins rewrite of
+  `Stats.factor()`, reverted, reddens exactly the new tests). code-reviewer
+  approved (one Nit); qa-playtester independently reproduced every number by
+  hand and ran its own additional mutations — no bugs filed. Full
+  `tests/equip-*` glob (5 files, 176 passed) and `npx tsc --noEmit` green.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c034 done, measurement only.**
+  G10 (Archer dps-optimal charge, 2-6s window) and G11 (Stormcaller chain
+  ceiling <=x3.6) were converted to ratio form by `p12a` so a kit re-anchor
+  couldn't break them, but the only verification lived in the out-of-Scope
+  `tests/p6d-nine-classes.test.ts` — never independently re-derived in this
+  lane. Found this item's own acceptance text had guessed G11's formula
+  wrong (`chainCap` instead of the real `chainCap - 1`, read off `p6d`
+  directly — `chainCap` alone would already fail on shipped data, which
+  `p6d` does not). New `tests/class-gate-ratios.test.ts` copies both real
+  formulas from `p6d` and confirms them live under mutation (shipped
+  numbers pass with real margin; `chainCap`/`chargeCapSeconds` raised past
+  the point `p6d` itself would fail turns each check red). No `/data`
+  change — pure `data/classes.json` arithmetic, no sim. code-reviewer
+  approved (one wording nit fixed); qa-playtester independently re-derived
+  both formulas by hand, verified the exponent correction against `p6d`,
+  ran its own mutations, and confirmed the full `tests/class-*.test.ts`
+  glob (21 files, 792 passed) plus `p6d`/`p6b-swordsman` (166/166) green —
+  no bugs filed.
+
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c033 done, measurement only,
+  no `/data` tune.** G8's diversity clause was rewritten (BALANCE DIRECTION
+  v2 §D) into two checks: own-kit VS share >=35% (already covered, c002/c030)
+  and pairwise class-kit fingerprint distance >=0.15 for all 66 class pairs,
+  reusing G22's method — never measured before. New
+  `tests/class-kit-fingerprint.test.ts` reuses G22's `damageShareVector`/
+  `l1Distance` (copied from the out-of-Scope `tests/p-core-f-gates.test.ts`)
+  and `class-kit-damage-share.test.ts`'s exact scripted-kit runner, gated
+  behind an opt-in env var so the normal suite only runs a trivial invariant.
+  Measured (`KIT_FP_SEEDS=2`, 24 full T1 runs, ~10.5 min): **50/66 pairs pass
+  the floor**, 16 fail, clustering around 8 classes for the same reason
+  clause (i) fails — every class's whole-run fingerprint is dominated by
+  shared tower usage (near-unanimous `mortar` top source) rather than by its
+  own kit. No `/data` tune applied: the failing set has no single safe lever,
+  and verifying one would need a win-rate re-run outside this item's Scope —
+  logged for the main-lane `p12d` instead, per CLAUDE.md rule 6 ("never force
+  a fragile tune"). code-reviewer approved with no Critical/Major findings
+  (verified the reused formulas/runner byte-for-byte by diff).
+  qa-playtester independently re-ran the full sweep and got an exact match to
+  4 decimal places, plus a vacuity check confirming non-degenerate vectors —
+  no bugs filed. Full `tests/class-*.test.ts` glob (20 files, 785 passed) and
+  `npx tsc --noEmit` green.
+
 - **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
   `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
   compounds on any `class_`-prefixed `damageEnemy` source, deliberately
