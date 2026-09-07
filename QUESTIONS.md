@@ -784,15 +784,18 @@ Q91 and Q102 corrections if not yet done.
   or verified from this Linux checkout.** Chosen default: the same
   `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
   `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
-  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` and a
-  repo-relative `replays/` directory respectively, so the owner's real
-  `npm run dev` writes exactly where the feedback text says while every test
-  injects a temp directory (`tests/fb139-bug-report-plugin.test.ts`,
-  `tests/fb139-bug-report-replay.test.ts`) and never touches either path. —
-  Reason: CLAUDE.md's gap rule (fill with the most spec-consistent default
-  and log it) — the alternative, silently substituting a different directory
-  for the default, would mean the owner's own dev server never actually
-  writes where the order says. — (owner verdict: pending)
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` (Windows)
+  or a repo-relative `inbox/` (any other host — the merge's own platform-check
+  fold-in, since a literal Windows path is a bogus folder name rather than a
+  meaningful path on POSIX) and a repo-relative `replays/` directory
+  respectively, so the owner's real `npm run dev` writes exactly where the
+  feedback text says while every test injects a temp directory
+  (`tests/fb139-bug-report-plugin.test.ts`, `tests/fb139-bug-report-
+  replay.test.ts`) and never touches either path. — Reason: CLAUDE.md's gap
+  rule (fill with the most spec-consistent default and log it) — the
+  alternative, silently substituting a different directory for the default,
+  would mean the owner's own dev server never actually writes where the
+  order says. — (owner verdict: pending)
 
 - **Q194. [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
   appended, written from `feedback/processed/20260903-121255-feature-terrain-
@@ -810,4 +813,43 @@ Q91 and Q102 corrections if not yet done.
   stop to ask, choose and log) — the section is marked `[designer-fill]`
   itself per its own owner-feature tag, so the owner may still veto or
   reshape it via a later inbox verdict. — (owner verdict: pending)
+  **Merge note (2026-09-07):** this branch and master each wrote §10.5
+  independently from the same feedback file; master's landed version is kept,
+  with two fidelity fixes made at the merge — the quote was still missing its
+  title and `Priority: normal` lines (both present in the source memo), and
+  the character-passage bullet had drifted to claim the shipped default lets
+  the character fly over rock, when `data/terrain.json` and
+  `src/sim/terrain/character.ts`'s own doc comment both confirm the opposite
+  (the vetoed reading shipped, unresolved) — restored to match this branch's
+  own, verified text.
+
+- **Q195. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch).
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way.
 

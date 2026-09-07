@@ -7,6 +7,7 @@
  * code path in a shipped bundle that could reach this file at all.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { platform } from 'node:os';
 
 import type { Plugin } from 'vite';
 
@@ -24,12 +25,20 @@ export const MAX_BUG_REPORT_BODY_BYTES = 64 * 1024 * 1024;
 
 /**
  * Q193 (owner feedback `feature-bug-report-hotkey`): the owner's literal
- * machine path (`D:\lidl_inbox`), kept verbatim from the feedback text. This
- * default is only ever reached by the owner's own `npm run dev`; every test
- * injects a temp directory instead, the same `dataDir`-injection shape
+ * machine path (`D:\lidl_inbox`), kept verbatim from the feedback text — but
+ * only on the owner's own Windows machine. POSIX treats a backslash as an
+ * ordinary filename character, so on any other host `mkdirSync` would
+ * neither fail nor write where a reader expects: it creates a directory
+ * literally named `D:\lidl_inbox` under `process.cwd()` (merge fold-in from
+ * `claude/admiring-cray-fn7op5`'s own code-reviewer finding on this exact
+ * line). Reached only by an un-injected `npm run dev`; every test injects a
+ * temp directory instead, the same `dataDir`-injection shape
  * `tunerPlugin.ts` established for `data/`.
  */
-export const DEFAULT_INBOX_DIR = 'D:\\lidl_inbox';
+export function defaultInboxDir(): string {
+  return platform() === 'win32' ? 'D:\\lidl_inbox' : 'inbox';
+}
+export const DEFAULT_INBOX_DIR = defaultInboxDir();
 export const DEFAULT_REPLAYS_DIR = 'replays';
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

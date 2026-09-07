@@ -262,6 +262,214 @@
   session's own in-progress scratch files under `tools/` (not part of this
   item's diff). Committed `692b8fc`.
 
+- **2026-09-07 — BACKLOG fb080 done: `data/terrain.json` wired into every
+  data tool it was missing from.** `tools/fuzz-data.ts`'s `DATA_FILES` gained
+  `'terrain'` (now 15 files). `tests/q7-data-fuzz.test.ts` gained a `terrain`
+  holder and `vi.mock('../data/terrain.json', ...)`; its "mocks exactly the
+  files content.ts imports" test now also asserts the indirect seam, since
+  `content.ts` reaches terrain through `TERRAIN_RAW` from `./terrain/config`
+  rather than a literal `data/terrain.json` import — added a second regex
+  assertion for that path instead of loosening the strict direct-import
+  check for the other 14 files. `tests/q7-loader-holes.ts` regenerated via
+  `Q7_RECORD=1`: ACCEPTED gained 25 terrain rows, REF_VERDICTS gained 4,
+  INEFFECTIVE unchanged (no terrain zero-value field lacks mutation
+  coverage) — code-reviewer independently re-ran the regeneration and
+  confirmed the result byte-identical. `src/sim/terrain/config.ts` exported
+  its private schema as `TerrainFileSchema`; `src/sim/content.ts` imports it
+  and adds a `TUNER_FILES` entry (`{ key: 'terrain', fileName: 'terrain.json',
+  schema: TerrainFileSchema }`, no `contentField` — matching `warden`'s entry
+  by the same reasoning: the cross-check of `highGround.families[].traits`
+  against enemy traits is deliberately test-only per `config.ts`'s own
+  comment, not a loader rule). `tests/p9c-tuner-save.test.ts` gained a valid-
+  edit round-trip and an out-of-range-density rejection test for `terrain`,
+  spot-checking Save actually validates through `parseTerrain` rather than
+  trusting the "accepts every real unedited file" case alone.
+  `tools/mutation-probe.ts` gained `terrain-generate-ignore-rock-density`: no
+  prior historical bug existed to revert for this file (unlike the array's
+  other entries), so this injects a representative fresh defect — silently
+  discounting `density.rock` by 0.3x — hand-verified red against
+  `tests/terrain-generation.test.ts`'s density-tracking case, then restored
+  and reconfirmed green. The automated `tests/q14-mutation-smoke.test.ts`
+  harness's `realFileUntouched` check fails on this new entry because
+  `mutation-probe.ts`'s `gitDiffClean()` checks the whole repo rather than a
+  pathspec, and this session carried unrelated uncommitted changes
+  throughout; confirmed this is pre-existing and unrelated to the new entry
+  by running an existing, long-established entry
+  (`meta-drop-skillpoints-on-serialize`) through the same harness and getting
+  an identical failure — the hand-verification above stands in for it.
+  code-reviewer: APPROVE, zero findings across four independent checks (the
+  q7 regeneration, the indirect-import assertion's continued strictness for
+  the other 14 files, the `gitDiffClean()` limitation's genuineness, and the
+  TUNER_FILES entry's missing `contentField`). Light tier is not quite right
+  here (this touches `/data`-adjacent tooling, not a balance value, but
+  changes `src/sim/content.ts` and `src/sim/terrain/config.ts`), so it ran
+  effectively full-tier via code-reviewer only, matching CLAUDE.md's
+  "data-only change that isn't a balance value" carve-out. `npm run
+  test:fast`: 4071 passed, only the one known pre-existing, unrelated fb119
+  failure. BACKLOG-TERRAIN fb064f's terrain Tuner page can now build on this.
+
+- **2026-09-07 — BACKLOG fb079 done: SPEC-FINAL.md gained §10.5 (terrain
+  generation), reconciling the spec document with code `lane/terrain` had
+  already built, merged and shipped weeks earlier.** No code changed — this
+  is a docs-only item. §10.5 quotes the owner's original feature feedback
+  (`feedback/processed/20260903-121255-feature-terrain-generation.md`) in
+  full, then restates the lane's own already-owner-approved design decisions
+  (QUESTIONS Q162, Q171) as spec prose: the four tile kinds and their
+  walkable/buildable/highGround/blocksCharacter flags; the six generation
+  bands and how they're measured (whole-grid, border included; `high`
+  counts against the walkable band); structural gate mains carved before
+  scatter so "never enclosed / all connect / no sub-2 corridor" hold by
+  construction; the `fallback: true` degenerate-seed semantics and the
+  `a/(a+1)` Core-band loader ceiling; Core placement
+  (`validateCorePlacement`/`legalCoreAnchors` agreeing by one enumeration);
+  the high-ground family table and the "boss is not a family, exempted at
+  call sites rather than by a flag" rule; the full `[-2^31, 2^32-1]` seed
+  domain; the `maxGateDetour` approach band; uncontestable high ground
+  repaired to rock rather than rejected; practice runs always playing the
+  flat arena. §14's **G2** row is extended to name generation determinism
+  explicitly (same seed → identical map + hash; the seed+1 regeneration
+  walk is itself deterministic) rather than leaving it implied by G2's
+  general wording. §13's content totals gain the terrain file. MIGRATION.md
+  §8.1 is updated from "four things are genuinely new" to five, dating §10.5
+  as an addition made after the original SPEC-FINAL reconcile pass. New
+  QUESTIONS **Q193** logs the append itself as `[designer-fill]` — narrowly
+  scoped to *the choice to append as one section restating Q162/Q171
+  verbatim*, since those two decisions already carry independent owner
+  approval and aren't reopened by this entry.
+  code-reviewer's first pass (REQUEST-CHANGES, one Major) caught something
+  real: the first draft's blockquote reflowed the owner's memo into prose
+  and silently dropped several clauses without disclosing it as an excerpt —
+  worst among them the rock/character pass-through clause ("the character
+  still passes... veto if rocks should block the character"), the single
+  most load-bearing one, since `src/sim/terrain/character.ts`'s own doc
+  comment already names a real, pre-existing gap: the shipped
+  `blocksCharacter: true` for rock is the *vetoed* reading of the owner's
+  stated default, with no recorded veto anywhere. Fixed by reproducing the
+  entire feedback memo verbatim (bullets, designer notes, and all) and
+  adding one paragraph surfacing that gap explicitly in the spec text
+  itself, rather than leaving it buried in a code comment — a real
+  reconciliation this item was positioned to make, not a new decision (the
+  gap is left exactly as shipped, carried forward as the same open item
+  Q171 already named). Re-verified: `tests/q10-gate-audit.test.ts` and
+  `tests/fb038-status.test.ts` (both parse SPEC-FINAL.md's `## 14.` gate
+  table programmatically) stay green after every edit — the G2 row's
+  reworded cell doesn't touch the table structure either parser reads.
+  Light tier (docs-only): `npm run test:fast` green throughout (the one
+  known pre-existing, unrelated fb119 failure aside), no qa-playtester pass
+  needed per CLAUDE.md's tiered-QA rule.
+
+- **2026-09-07 — BACKLOG fb139 done: the F8 in-run bug-report hotkey.**
+  Pressing F8 during a live run (dev or prod build) pauses the sim
+  (`setPaused(true)` shows the plain Pause card first; `Hud.showBugReportBox`
+  immediately overwrites it with a small note textarea — `syncModal` no-ops
+  entirely while paused, which is what keeps the box from being wiped by the
+  next frame) and, on Confirm, gathers a reproducible bundle: `{ config:
+  w.cfg, inputLog: this.inputLog.slice(0, w.tick) }` — the exact
+  `RecordedRun` shape architecture rule 2's replay/hash machinery already
+  uses (`src/sim/run.ts`) — plus class/core/tier/phase/wavesCleared/tick/
+  seed/contentHash and a canvas screenshot (base64 PNG via `canvas.toBlob`
+  -> `arrayBuffer` -> chunked base64, capped at a 2s `Promise.race` timeout).
+  A dev build (`isDevBuild()`) POSTs the bundle to a new Vite dev-server
+  endpoint; a prod build has no dev server to write to, so the same bundle
+  downloads as one JSON file instead (Blob + anchor-click, the same idiom
+  the existing dev screenshot export already uses).
+  New `src/devserver/bugReportSave.ts` (pure Node file-writing/validation —
+  validate every field before writing anything, atomic temp-file+rename
+  writes) and `src/devserver/bugReportPlugin.ts` (the Vite `apply: 'serve'`
+  plugin/middleware) mirror the existing `tunerSave.ts`/`tunerPlugin.ts`
+  split exactly, down to reusing `tunerPlugin.ts`'s own `readJsonBody` body-
+  size cap. New `src/ui/bugreport.ts` holds the client-side halves
+  (`postBugReport`, `downloadBugReportBundle`, `captureScreenshotBase64`),
+  hardcoding the `/__bugreport/save` literal rather than importing from
+  `src/devserver/**`, the same isolation `tuner.ts` already maintains for
+  `/__tuner/save` (nothing under `src/ui` may import the Node-only devserver
+  module graph). `Hud` gained `showBugReportBox`; `main.ts` gained the F8
+  keydown handler (guarded on an active running world and
+  `!this.hud.modalOpen`, which correctly excludes pause/level-up/results —
+  all three share the one modal slot) plus `hotkeyBugReport`/
+  `submitBugReport`.
+  `tests/fb139-bugreport-replay-hash.test.ts` is the item's actual proof:
+  builds a real sim run, captures a hash mid-run, saves a bundle through
+  `saveBugReport`, reads it back off disk, replays it through a fresh `Run`,
+  and confirms the hash matches — plus a negative case (the last recorded
+  input dropped) that does NOT reproduce the same hash, so the check has
+  teeth. 27 tests total across 5 files (`fb139-bugreport-save`,
+  `fb139-bugreport-plugin`, `fb139-bugreport-replay-hash`,
+  `ui-fb139-bugreport-hotkey` dev-build, `ui-fb139-bugreport-hotkey-prod`
+  simulated prod build via the same `vi.mock('../src/meta/devprofile', ...)`
+  idiom `ui-fb094-screenshot-export-prod.test.ts` uses). `npx tsc --noEmit`
+  and `npm run build` both clean; the built client bundle was grepped to
+  confirm zero devserver/Node code (`mkdirSync`, `node:fs`) leaked in.
+  code-reviewer's first pass (REQUEST-CHANGES) found: (1) **Major** —
+  `bugReportPlugin`'s default inbox directory was the literal
+  `'D:\\lidl_inbox'` on every platform; on this repo's own Linux host that
+  silently created a bogus directory literally named `D:\lidl_inbox` under
+  the cwd instead of failing or writing somewhere sane (POSIX treats a
+  backslash as an ordinary filename character) — fixed with a
+  `os.platform() === 'win32'` check, `<cwd>/inbox` everywhere else, and a
+  regression test pinning the non-Windows default never contains the
+  literal path; (2) a `saveBugReport` throw (e.g. a value `JSON.stringify`
+  refuses) becoming an unhandled rejection rather than a clean 400 — fixed
+  with a try/catch and a mock-based regression test; (3) no timeout on
+  screenshot capture — fixed with the `Promise.race` mentioned above. All
+  three re-verified, re-approved. qa-playtester booted a *real* Vite dev
+  server (`vite.createServer` in middleware mode, not mocks) and POSTed a
+  bundle built from an actual `Run`/`World`: got a 200, and the `.md`,
+  replay `.json` (parses, `inputLog.length` and `config.seed` both match the
+  request), and `.png` were all written correctly end-to-end through the
+  real plugin pipeline — then found a real bug: an empty/whitespace note
+  posted and closed the box exactly like a real success, because the
+  server's 400 was never inspected client-side (only network failure was
+  caught). Fixed two ways: the Send button now starts disabled and only
+  enables once the textarea holds non-whitespace text (closes the common
+  case at the source), and `submitBugReport` now surfaces a toast
+  (`hud.say`) if a save is ever rejected anyway (defense in depth for a
+  rejection the client couldn't have predicted) — both with regression
+  tests, re-verified green. CLAUDE.md gained one bullet under "Subagent
+  protocol" naming an F8 bundle a first-class repro, per the item's own
+  acceptance clause. `npm run test:fast` green throughout (the one known
+  pre-existing, unrelated fb119 failure aside).
+
+- **2026-09-07 — BACKLOG p12h done: bisected G13's solo-viability regression
+  to two additive causes, fixed the one that was a bug.** `tests/a4-single-
+  type.test.ts` probes whether one tower type alone can solo all 18 TD waves
+  at T1 (`tools/a4probe.ts`, `world.invulnerable = true` to isolate TD from
+  VS combat). Authored (fb076): {arrow_spire:5, ballista:5, ember_brazier:5,
+  frost_obelisk:5, tesla_coil:4, mortar:5, venom_spore:4} of 5 seeds; HEAD
+  read all zeroes. Checking out commits either side of the two candidate
+  changes and re-running the exact probe found: (1) fb077 ("wire generated
+  terrain into every non-practice World run") flipped this probe from the
+  flat arena it was tuned against to real generated terrain, purely because
+  `runSingleType`'s `RunConfig` never set `practice: true` — an accidental
+  scope leak (map geometry was never meant to be part of what this gate
+  measures), dropping the table to {1,1,0,0,1,3,0}; (2) p12c's `baseHpMul: 20`
+  (not tier-scaled, hits T1 as hard as T3/T5) then takes that to all zeroes —
+  a real, deliberate difficulty change for a different gate, already named in
+  p12c's own commit message and explicitly deferred to p12d (the gate-rewrite
+  item), not this one's to reverse. Fixed only (1): `runSingleType` now sets
+  `practice: true` (confirmed its only other effect, enabling dev commands,
+  is inert here — this probe never issues one; confirmed terrain generation
+  uses its own local seed rather than `w.rng`, so the fix carries zero
+  determinism risk). Verified the fix actually restores viability rather than
+  asserting it: a new test reverts `baseHpMul` to 1 via a `loadContent`
+  override (not a `/data` edit) and re-runs all seven towers through the
+  fixed probe, measuring **{5,5,5,5,4,4,5}** — matching/bettering the
+  original table. At real HEAD content the gate's own numbers are unchanged
+  (still 0/5 for all seven, since cause (2) alone already saturates
+  everything to zero); `.skip`-ed with the honest number, re-enable point
+  p12d. `tools/a4probe.ts` also gained an optional `runContent` parameter
+  (defaulting to real content) so the new test can override in-memory
+  without touching `/data`; confirmed backward-compatible with every other
+  caller. code-reviewer: APPROVE, no Critical/Major (independently re-ran
+  two towers and matched the numbers; one pre-existing stale-docstring nit
+  elsewhere, out of scope). qa-playtester independently re-ran three more
+  towers through the fix (matched exactly), checked no other test/tool
+  depends on the old terrain-degraded numbers as a fixture, and ran the full
+  touched file (534s) green — PASS. `vitest.fast.config.ts`'s stale exclude
+  comment for this file was re-measured and corrected (the new case alone is
+  ~515s; the whole file was already excluded). `npm run test:fast` green
+  throughout (the one known pre-existing, unrelated fb119 failure aside).
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
   session should run the generation rule again before executing further).

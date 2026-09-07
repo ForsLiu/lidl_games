@@ -785,7 +785,42 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       Q177's retraction. The real blocker the correction exposed is the tick
       cap, which is **p12e**'s, not a new item's.
 
-- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+- [x] (p12h) [bug] **DONE 2026-09-07** — bisected to two additive causes, only
+      one of which was a bug this item owned to fix. (1) **fb076->fb077**:
+      fb077 ("wire generated terrain into every non-practice World run")
+      flipped `tools/a4probe.ts`'s probe from the flat arena it was always
+      tuned against to real generated terrain, purely because its `RunConfig`
+      never set `practice: true` — a scope leak, not intended difficulty
+      (this gate's own header says it isolates solo-tower TD viability from
+      other systems, the same reason it sets `world.invulnerable`). Confirmed
+      by checking out the commit before fb077 (exact reproduction of fb076's
+      authored 5/5/5/5/4/5/4) and the commit at/after fb077 (drops to
+      {1,1,0,0,1,3,0}, matching the item's own HEAD-control number exactly).
+      (2) **p12c**'s `baseHpMul: 20` (not tier-scaled, hits T1 as hard as
+      every tier) takes {1,1,0,0,1,3,0} to {0,0,0,0,0,0,0} — already
+      acknowledged in p12c's own commit message as a cost it deepened but did
+      not cause, and explicitly not this item's (BALANCE DIRECTION v2's own
+      T3-anchor tradeoff, owned by p12d's gate rewrite). **Fixed (1) only**:
+      `runSingleType` now sets `practice: true` (its only other effect, dev
+      commands, is inert here); verified this alone restores viability by
+      reverting `baseHpMul` to 1 via a content override (not a `/data` edit)
+      and re-running all seven towers — **{5,5,5,5,4,4,5}**, matching/
+      bettering the original table, pinned as a new passing test rather than
+      left as an unverified claim. At real HEAD content the gate's own
+      numbers are unchanged (still 0/5 for all seven, since cause (2) alone
+      already saturates every tower to zero) — the fix is real but its effect
+      is currently masked by the separately-owned anchor; `.skip`-ed with the
+      honest number, re-enable point **p12d**. code-reviewer: APPROVE, no
+      Critical/Major (one pre-existing stale-docstring nit elsewhere, out of
+      scope). qa-playtester independently re-ran 3 towers through the fix
+      (matched {5,5,5,5} exactly), checked `practice`'s RNG-independence
+      (terrain generation uses its own local seed, not `w.rng` — zero
+      determinism risk from skipping it), checked no other test/tool depends
+      on the old terrain-degraded numbers as a fixture, and ran the full
+      touched file (534s, green) — PASS. `vitest.fast.config.ts`'s exclude
+      comment for this file re-measured and updated (the new case alone is
+      ~515s). Original text follows.
+      G13's solo-viability clause (`tests/a4-single-type.test.ts`)
       was **already largely red before p12c**, and nobody had measured it.
       Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
       identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
@@ -855,6 +890,16 @@ of p12a-p12e easier.
       test:fast` (twice, before and after the fixes): only the documented,
       pre-existing `q15`/`q45` host-load flake, reproduced identically on a
       clean `git stash` of this whole diff. `npx tsc --noEmit` clean.
+      **Merge note (2026-09-07):** this branch and master (PR #36) each built
+      this item independently; master's implementation is kept here (the
+      branch's own — `Hud.showBugReportBox`, a `BugReportPayload`/`meta`
+      shape — is dropped as redundant scaffolding, confirmed against this
+      branch's own `git log` to be a small side-item rather than its main
+      point), with one fold-in from the branch's own code-reviewer finding:
+      the inbox default is platform-aware (`D:\lidl_inbox` only on win32, a
+      repo-relative `inbox/` elsewhere) — master's own literal-path default
+      silently wrote a bogus directory named `D:\lidl_inbox` under
+      `process.cwd()` on this repo's own Linux host.
       Original text follows. top priority: in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
@@ -4079,6 +4124,18 @@ generation-rule boundary.
       fb134 (`describeTerrain` still reads the base `GATES` constant) — now
       states that exception explicitly. Re-reviewed after the fixes: no
       further findings.
+      **Merge note (2026-09-07):** this branch and master (PR #36) each wrote
+      §10.5 independently from the same feedback file; master's version is
+      kept as the base, with two more fidelity gaps closed at the merge that
+      neither side's own review had caught — the "verbatim" quote was still
+      missing its title line and trailing `Priority: normal` line (both
+      present in the source memo), and the character-passage bullet had
+      drifted to claim the shipped default lets the character fly over rock,
+      when `data/terrain.json` (`rock`/`high` both `blocksCharacter: true`)
+      and `src/sim/terrain/character.ts`'s own doc comment ("the vetoed
+      reading of a clause whose default is pass-through") both confirm the
+      opposite — restored to the branch's own, verified wording (open, not
+      resolved, tracked at Q171/Q194).
       Original text follows. SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
@@ -4139,25 +4196,38 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — margin fixed to
-      `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`), matching the
-      `fireCrimsonRush` fix already shipped; the sibling inconsistency was
-      resolved by aligning, not pinning — `towers.ts`'s `single`/`pierce`
-      kinds now pass `LINE_HALF_WIDTH * area` to `lineHit`/`bestLineDirection`,
-      matching `vswield.ts` and every other attack shape in the same function
-      (SPEC-FINAL §2: Area "applies to every attack, active, and effect").
-      `tests/fb081-linehit-broadphase.test.ts` pins the `dash_line` areaMul-4
-      corner-miss regression, written first and confirmed red at HEAD
-      (CLAUDE.md rule 3). code-reviewer's one Major finding — the new
-      tower-beam footprint had no row in `tests/class-wide-grove-reach.test.ts`'s
-      c013 ledger, the exact completeness guard built for this failure mode —
-      was closed by adding an Arrow Spire CONSUMERS row and a Ballista
-      DEVIATIONS row (aim-only `bestLineDirection`, mirroring the existing
-      wielded-side entry). qa-playtester independently reproduced the
-      pre-fix miss via `git stash` on `towers.ts` alone (proving the
-      `towers.ts` half is load-bearing, not just the `combat.ts` margin),
-      confirmed baseline (`areaMul===1`) behavior is unchanged, and found no
-      bugs. Original text follows.
+- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — `lineHit`'s broadphase
+      margin fixed to `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`),
+      mirroring the hand-rolled copy already fixed in `classes.ts`'s
+      `fireCrimsonRush`. Failing-first regression test
+      (`tests/fb081-linehit-broadphase.test.ts`) confirmed red on the new
+      cases before the fix (stashed the source change and re-ran: failed with
+      the exact expected pre-fix symptom, restored and re-confirmed green).
+      The sibling inconsistency was resolved by aligning, not pinning:
+      `towers.ts`'s `single`/`pierce` kinds now both pass `LINE_HALF_WIDTH *
+      area` to `lineHit`/`bestLineDirection`, matching `vswield.ts` and every
+      other attack shape in the same function (SPEC-FINAL §2: Area "applies
+      to every attack, active, and effect") — superseding an earlier draft of
+      this fix that left `pierce` deliberately unscaled per a since-reversed
+      Q194 note; scaling it keeps `towers.ts` consistent with `vswield.ts`'s
+      already-scaled wielded `pierce` case, closing the exact inconsistency
+      fb081b (below) flagged, rather than leaving it open. Regression tests
+      for both the margin fix (Dash Slash, areaMul 4 and areaMul 8) and the
+      towers.ts alignment (Arrow Spire tier 4, a side enemy only pierced once
+      Area is scaled in) live in the same test file — all confirmed
+      red-before/green-after against the actual fix. code-reviewer's Major
+      finding — the new tower-beam footprint had no row in
+      `tests/class-wide-grove-reach.test.ts`'s c013 ledger, the exact
+      completeness guard built for this failure mode — was closed by adding
+      an Arrow Spire CONSUMERS row and a Ballista DEVIATIONS row (aim-only
+      `bestLineDirection`, mirroring the existing wielded-side entry).
+      qa-playtester independently reproduced the pre-fix miss via `git stash`
+      on `towers.ts` alone (proving the `towers.ts` half is load-bearing, not
+      just the `combat.ts` margin), confirmed baseline (`areaMul===1`)
+      behavior is unchanged, and found no bugs. `npm run test:fast`: 4075
+      passed, only the two known pre-existing, unrelated fb119 failures
+      (`tools/fuzz-command-domain` module resolution under `bench/.tmp`).
+      Original text follows.
       `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
@@ -4170,6 +4240,13 @@ generation-rule boundary.
       `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
       `* areaMul` (align tower beams with vswield/classes or pin the
       exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
+- [x] (fb081b) [polish] **MOOT 2026-09-07** — code-reviewer follow-up on an
+      earlier draft of fb081 that left `towers.ts`'s `pierce` case unscaled
+      while `vswield.ts`'s wielded `pierce` case already scaled the identical
+      aim-heuristic call by `area`. fb081 landed with `towers.ts`'s `pierce`
+      also scaled (`LINE_HALF_WIDTH * area`), matching `vswield.ts` — the two
+      call sites are now consistent and there is nothing left to decide here.
+      No QUESTIONS.md entry needed beyond fb081's own note.
 - [x] (fb082) [bug] **DONE 2026-09-07** — `updateAreas`'s poison branch
       (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
       (`GroundArea.acc`, declared since the type was written but never read)
