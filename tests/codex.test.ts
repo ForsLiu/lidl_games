@@ -115,6 +115,26 @@ describe('buildCodexCollections — every /data collection is reachable', () => 
     expect(byKey.get('damagetypes')!.rows.length).toBe(content.damageTypes.types.length);
   });
 
+  // p12e: the Codex enemies column shows the HP an enemy actually *spawns*
+  // with (p12c), which since p12e differs for the final boss specifically —
+  // it no longer takes `baseHpMul` (QUESTIONS Q177/Q184), unlike every other
+  // enemy including the wave-18 `gatebreaker` miniboss, which also carries
+  // the `boss` trait but is not the final boss and must keep taking it
+  // (code-reviewer p12e finding: the two must not be conflated).
+  it('enemies row HP is the spawned value: baseHpMul applies to every enemy except the final boss', () => {
+    const byKey = new Map(collections.map((c) => [c.key, c]));
+    const rows = byKey.get('enemies')!.rows as unknown as { key: string; hp: number }[];
+    const rowByKey = new Map(rows.map((r) => [r.key, r]));
+    const defByKey = content.enemyByKey;
+    const husk = rowByKey.get('husk')!;
+    expect(husk.hp).toBeCloseTo(defByKey.get('husk')!.hp * content.enemies.baseHpMul, 6);
+    const gatebreaker = rowByKey.get('gatebreaker')!;
+    expect(gatebreaker.hp).toBeCloseTo(defByKey.get('gatebreaker')!.hp * content.enemies.baseHpMul, 6);
+    const wardenEater = rowByKey.get('warden_eater')!;
+    expect(wardenEater.hp).toBeCloseTo(defByKey.get('warden_eater')!.hp, 6);
+    expect(wardenEater.hp).not.toBeCloseTo(defByKey.get('warden_eater')!.hp * content.enemies.baseHpMul, 6);
+  });
+
   it('a schema field the current roster has never used still gets its own column, on real rows', () => {
     // Not synthetic from scratch — real tower rows with one extra property spread
     // on, standing in for "the schema gains a field, some rows populate it". If

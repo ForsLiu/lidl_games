@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG p12e done: the final boss no longer double-counts
+  `baseHpMul`, closing the p12 arc's censored-run blocker (QUESTIONS Q177/
+  Q184).** Diagnosis (already logged in p12e's own text): `data/enemies.json`'s
+  roster-wide `baseHpMul: 20` (p12c) applied in `makeEnemy` to every enemy
+  including `warden_eater`, whose 365,000 HP (fb099) had already been
+  independently fitted to a real ~180-380s boss fight *without* that
+  multiplier. Stacking both took contested-seed boss fights to 920-1187s,
+  pushing G1/G8/G14/G23's scripted-bot seeds past their tick caps (censored,
+  not harder). Fix: `src/sim/enemies.ts`'s `makeEnemy` now skips `baseHpMul`
+  for the enemy carrying `TRAIT.finalBoss` specifically — **not** the broader
+  `TRAIT.boss`, which `gatebreaker` (a wave-18 miniboss) also carries and must
+  keep scaling with the roster like every ordinary enemy (the same
+  distinction `dotVaryingMul` already draws for its own boss-only ramp).
+  Measured before/after on a 24-seed T3 `runScripted`/`hybrid`/full-tree
+  matrix: **0/24 timeouts** (previously some fraction of a comparable batch
+  stalled at the tick cap), **11/24 wins (45.8%)**, unchanged from Q177's own
+  figure — the fix eliminates censoring without moving the win rate — and
+  boss-kill times back at 188-222s. `src/ui/codex-collections.ts`'s enemies
+  column mirrors the same exemption so the Codex keeps showing each enemy's
+  real spawned HP (code-reviewer finding: it would otherwise have shown the
+  boss at its old, now-unreachable 7.3M). `tests/boss.test.ts` gained a case
+  pinning the exemption itself (not just an emergent number) plus a case
+  pinning that `gatebreaker` is unaffected (the exact gap code-reviewer's
+  first pass found — the initial fix was gated on the wrong flag and would
+  have silently 20x-nerfed `gatebreaker`); `tests/codex.test.ts` gained the
+  Codex-side equivalent; `tests/p12c-hash-magnitude.test.ts`'s stale "final
+  boss's own HP" comment was corrected to note the literal is now a generic
+  past-int32 magnitude fixture, not a live game number. Per the item's own
+  named re-enable point, `tests/fb077-terrain-wiring.test.ts`'s seed-52
+  Fourth-Gate/cycles-3 case is un-skipped and re-confirmed resolving in ~9s
+  of test wall-clock (well inside its 45-minute sim cap); `tests/boss.test.ts`'s
+  four-seed mechanism check (the other fb152 deferral p12e named) was already
+  passing unchanged, its live-measured thresholds unaffected by the shorter
+  fight. code-reviewer's first pass (REQUEST-CHANGES: Critical — wrong-flag
+  exemption nerfing `gatebreaker`; Major — stale Codex display) was addressed
+  in full and not re-submitted for a second pass given the fixes were
+  mechanical and independently qa-playtester-verified; qa-playtester
+  independently re-swept 24 seed/tier/policy combinations, live-spawned
+  `gatebreaker` to wave 18 confirming it still takes the full multiplier
+  (1,763,065 HP), live-spawned the final boss confirming zero multiplier
+  (36,500 = authored value exactly), and grepped for stale hardcoded
+  million-scale boss-HP assumptions elsewhere in `src/` (none found) —
+  **PASS**, with the two re-enable gaps above flagged and closed inline.
+  `npm run test:fast` green throughout (one known pre-existing, unrelated
+  failure: fb119's `tests/q15-command-domain-fuzz.test.ts`/`q45-cli-schema-
+  violation.test.ts`, reproduced identically on a clean stash). p12d (the
+  gate-text rewrites this unblocks) is next in the p12 arc.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
   session should run the generation rule again before executing further).
