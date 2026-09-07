@@ -3,6 +3,34 @@
 Moved out of the live PROGRESS.md by fb178 (feedback/feature-token-economy.md)
 to keep the live file readable. Verbatim, in original order; append only.
 
+- **2026-09-07 — BACKLOG fb080 done.** `data/terrain.json` joins every data
+  tool that previously didn't know it existed. `src/sim/terrain/config.ts`'s
+  module-private `schema` is now the exported `TerrainFileSchema` (identical
+  `.superRefine` — `parseTerrain` is exactly `TerrainFileSchema.parse`, so
+  nothing was lost); `content.ts`'s `TUNER_FILES` gains a `terrain` entry
+  (no `contentField`, same as `warden`'s precedent); `tools/fuzz-data.ts`'s
+  `DATA_FILES` gains `'terrain'`. The one real wrinkle: `content.ts` reaches
+  `terrain.json` indirectly through `terrain/config.ts`'s `TERRAIN_RAW`, not
+  a direct import like the other fourteen, so `tests/q7-data-fuzz.test.ts`'s
+  "mocks exactly the files content.ts imports" pin now explicitly checks
+  that two-link indirection (both import strings asserted) instead of
+  either breaking or silently special-casing it. `tests/q7-loader-holes.ts`
+  regenerated via the documented `Q7_RECORD=1` procedure — diffed against
+  the prior file to confirm every change is new and additive, nothing
+  pre-existing moved. `tools/mutation-probe.ts` needed no change (confirmed
+  it has no per-file `/data` registry — it copies the whole directory and
+  targets known `/src` regressions). Zero `/data` content changes, no new
+  validation logic beyond wiring. `npm run test:fast`: 4155 passed, 53
+  skipped, only the documented pre-existing `q15`/`q45` flake. code-reviewer
+  (full tier): APPROVE, two Minor/one Nit, all documented rather than acted
+  on (a future indirectly-reached file needs its own hand-added exception in
+  the q7 test; the fuzz-data.ts/q7-loader-holes "new file shows up as a
+  mismatch" framing only covers direct-import files) — independently traced
+  the Tuner save path (confirming the full `TerrainFileSchema` validation,
+  tile-order pin included, actually runs on a Tuner-edited document) and
+  spot-checked several regenerated hole entries against the real schema and
+  shipped `/data` values.
+
 - **2026-09-07 — BACKLOG fb079 done, docs only.** SPEC-FINAL.md gains §10.5
   (Terrain generation & Core placement), written verbatim from `feedback/
   processed/20260903-121255-feature-terrain-generation.md` plus the
