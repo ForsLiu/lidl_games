@@ -781,7 +781,53 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07** — F8 (dev and prod alike, not gated
+      on `devMode`) opens a self-contained note box (`src/ui/bugreport.ts`'s
+      `BugReportBox`, deliberately not `hud.ts`'s shared `.sw-modal`) that
+      pauses a running run for its duration and restores whatever pause state
+      held before. Submit builds a bundle (class/Core/tier/wave/phase/tick/
+      seed/content hash/`endHash`/the full recorded input log/a canvas
+      screenshot) and, in a dev build (`isDevBuild()`, the same predicate
+      `hud.ts`'s Tuner surface already gates on), POSTs it to a new
+      `/__bugreport/save` dev-server endpoint (`src/devserver/
+      bugReportPlugin.ts`/`bugReportSave.ts`, `apply: 'serve'`, mirroring
+      `tunerPlugin.ts`/`tunerSave.ts` exactly) which writes the replay
+      (`RecordedRun` JSON) and screenshot PNG under `/replays` and a
+      `bug-<timestamp>.md` into the inbox directory naming both paths plus
+      every metadata field; a production build downloads the same bundle as
+      one JSON file instead (no dev server to reach — confirmed absent from
+      a real `vite build` bundle). Q193 logs the `D:\lidl_inbox` default as an
+      injectable parameter (same shape `tunerPlugin.ts` already established
+      for `data/`), verbatim from the feedback text, with every test
+      injecting a temp dir instead. `tests/fb139-bug-report-replay.test.ts`
+      is the acceptance line's own literal ask: a real `Run` stepped partway,
+      saved through `saveBugReport`, read back off disk, and replayed via
+      `replayRecorded`/`hashWorld` (architecture rule 2) to confirm an
+      identical end-state hash at the recorded tick. CLAUDE.md's Full-tier
+      bullet now names a saved F8 bundle a first-class repro.
+      code-reviewer's one Critical (this session): the outer `window`
+      keydown listener wasn't gated on the box being open, so typing a note
+      — Escape, Enter, 'u'/'x'/'q'/'e', tower-slot digits — queued live
+      gameplay Commands and even unpaused the run via Escape's own
+      `togglePause`, the instant the box closed; fixed with an early return
+      right after the F8 branch, proven by a failing-then-passing regression
+      test dispatching real `KeyboardEvent`s at the open textarea.
+      qa-playtester's one Major (this session): a literal top-level JSON
+      `null` body is valid JSON (so the shared `readJsonBody`'s parse
+      `try/catch` never saw it), and the first property read on it threw as
+      an unhandled rejection inside the `async` middleware — crashing the
+      dev server instead of answering 400. Latent in the sibling
+      `tunerSaveMiddleware` too (same shape, pre-existing, confirmed by the
+      same repro) and fixed in both, each pinned by a regression test
+      confirmed red beforehand. `readJsonBody` also picked up a Minor fix in
+      the same pass: its own size cap is now parameterized (`maxBytes`,
+      default unchanged) so the bug-report endpoint's 64 MB cap (replay
+      bundles routinely dwarf a `/data` file) doesn't inherit the Tuner's
+      10 MB one — both caps now have their own regression test. `npm run
+      test:fast` (twice, before and after the fixes): only the documented,
+      pre-existing `q15`/`q45` host-load flake, reproduced identically on a
+      clean `git stash` of this whole diff. `npx tsc --noEmit` clean.
+      Original text follows. top priority: in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into

@@ -5,6 +5,57 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb139 done.** F8 (dev and prod alike) opens a
+  self-contained note box (`src/ui/bugreport.ts`'s `BugReportBox`) that
+  pauses a running run for its duration, restoring whatever pause state held
+  before. Submit builds a bundle — class/Core/tier/wave/phase/tick/seed/
+  content hash/`endHash`/the full recorded input log/a canvas screenshot —
+  and in a dev build (`isDevBuild()`) POSTs it to a new `/__bugreport/save`
+  dev-server endpoint (`src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`,
+  `apply: 'serve'`, mirroring `tunerPlugin.ts`/`tunerSave.ts`), which writes
+  the replay (`RecordedRun` JSON) and screenshot PNG under `/replays` and a
+  `bug-<timestamp>.md` into the inbox directory naming both paths plus every
+  metadata field; a production build downloads the same bundle as one JSON
+  file instead. QUESTIONS Q193 logs the owner's literal `D:\lidl_inbox` as an
+  injectable default (mirrors `tunerPlugin.ts`'s `dataDir` shape), verbatim
+  from the feedback text — every test injects a temp dir. The acceptance
+  line's own ask (`tests/fb139-bug-report-replay.test.ts`): a real `Run`
+  stepped partway, saved through `saveBugReport`, read back off disk, and
+  replayed via `replayRecorded`/`hashWorld` (architecture rule 2) reproduces
+  an identical end-state hash at the recorded tick. CLAUDE.md's Full-tier
+  bullet now names a saved F8 bundle a first-class repro alongside a written
+  one.
+  code-reviewer's one Critical: the outer `window` keydown listener was only
+  short-circuited for the F8 key itself, so every other key typed into the
+  open note box (Escape, Enter, 'u'/'x'/'q'/'e', tower-slot digits) still
+  reached `makeKeyDownHandler`'s unconditional gameplay effects — queuing
+  Commands and even unpausing the run via Escape's own `togglePause` — the
+  instant the box closed, directly against the feature's own point (typing a
+  note "cannot cost the player a Core mid-sentence"). Fixed with an early
+  return (`if (this.bugReportBox?.isOpen) return;`) right after the F8
+  branch; proven with a regression test dispatching real `KeyboardEvent`s at
+  the open textarea, confirmed red before the fix (Escape resumed the run
+  and queued a `'call'` Command) and green after.
+  qa-playtester's one Major: a literal top-level JSON `null` body is valid
+  JSON, so the shared `readJsonBody`'s parse `try/catch` never saw it — the
+  first property read on the resulting `null` threw as an unhandled
+  rejection inside the `async` middleware, crashing the dev server instead
+  of answering 400 like every other malformed body. The exact same shape was
+  latent in the pre-existing `tunerSaveMiddleware` (`body.key` on a `null`
+  `parsedBody`); fixed in both, each pinned by its own regression test
+  confirmed red beforehand by temporarily reverting the guard. Also closed a
+  Minor QA flagged: `readJsonBody`'s size cap is now a parameter (`maxBytes`,
+  default unchanged for the Tuner), so the bug-report endpoint's own 64 MB
+  cap (a replay bundle with a long input log routinely dwarfs a `/data`
+  file) doesn't silently inherit the Tuner's 10 MB one — both caps now have
+  a regression test.
+  `npm run test:fast` run twice (before and after the two fixes above): only
+  the documented, pre-existing `q15-command-domain-fuzz`/`q45-cli-schema-
+  violation` host-load module-resolution flake (`tools/fuzz-command-domain`
+  scratch-dir resolution), reproduced identically on a clean `git stash` of
+  this entire diff — 4152 passed / 1 failed (pre-existing) / 53 skipped both
+  times. `npx tsc --noEmit` clean throughout.
+
 - **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
   broadphase used a constant `range * 0.5 + 2` margin around the swept
   line's midpoint, which only bounds the rectangle's true reach

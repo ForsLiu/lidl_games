@@ -778,3 +778,19 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
+- **Q193. [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` and a
+  repo-relative `replays/` directory respectively, so the owner's real
+  `npm run dev` writes exactly where the feedback text says while every test
+  injects a temp directory (`tests/fb139-bug-report-plugin.test.ts`,
+  `tests/fb139-bug-report-replay.test.ts`) and never touches either path. —
+  Reason: CLAUDE.md's gap rule (fill with the most spec-consistent default
+  and log it) — the alternative, silently substituting a different directory
+  for the default, would mean the owner's own dev server never actually
+  writes where the order says. — (owner verdict: pending)
+
