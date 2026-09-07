@@ -4698,7 +4698,7 @@ logs a blocker below rather than editing `/data` itself.
       a deliberately misclassified kind (not just a new one) reddens it —
       refs: fb149, fb146, fb148.
 
-- [ ] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
+- [x] (fb175) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the
       same `lineHit` drop-off the class sentences now name, and does not name
       it. Measured twice: `arrow_spire` at tier 5 (`attackProfile` ->
@@ -4714,6 +4714,28 @@ logs a blocker below rather than editing `/data` itself.
       nothing when it is 0, with both measurements above as the regression's
       mechanism legs — refs: fb149, `fireTower`'s `single`/`pierce` cases
       (`src/sim/towers.ts`).
+      **DONE 2026-09-07** — `KIND_TEXT.single` (`tower-info.ts`) now appends
+      `LINE_FALLOFF_CLAUSE` (`info-format.ts`, reused verbatim — no new
+      literal) when `p.pierce > 0`, nothing when 0. New
+      `tests/ui-fb175-single-falloff-clause.test.ts` (3 tests): pierce-0 has
+      no clause; pierce>0 (arrow_spire at max tier) both has the clause and a
+      live fire+projectile-tick measurement shows the carried-through hit is
+      genuinely less than the primary (six husks in a line, struck damages
+      collected and sorted descending rather than assumed by spawn order,
+      since `targetFirst` picks by path progress); Ballista (`pierce` kind)
+      never gets it and still says "full damage each". code-reviewer
+      **APPROVE**: no Critical/Major; confirmed `arrow_spire` is the ONLY
+      `single`-kind tower in `data/towers.json` (no other tower silently
+      affected), confirmed Ballista's `pierce`-kind path (`spawnProjectile`/
+      `pierceLeft`) genuinely deals unscaled damage to every pierced target
+      (leaving that entry untouched is correct, not an oversight), manually
+      reverted the source fix and reran the test file to confirm it's a
+      genuine regression test, and noted (Minor, not blocking) the new test
+      file's `world()`/`freeTileNear()` helpers duplicate `tests/tower-info
+      .test.ts`'s own — consistent with this suite's established per-file
+      convention, not a new problem. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 282 passed / 8 skipped files, 4174 passed tests, only the
+      pre-existing `q15`/`q45` flake class red.
 
 - [ ] (fb176) [polish] filed 2026-09-05 by qa-playtester during fb149
       verification — the falloff floor makes "each one behind it takes less"
