@@ -53,11 +53,11 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('prints the gates it was given, not the base three', () => {
     const map = generateTerrain(40, cfg, FOUR);
     const line = describeTerrain(map, cfg, FOUR).split('\n')[2];
-    expect(line).toBe('gates west=0,10 north=18,0 east=35,17 south=12,19');
+    expect(line).toBe('gates west=0,16 north=28,0 east=55,27 south=19,31');
     // Unchanged when no list is given: the default is still `GATES`, so every
     // existing dump in every existing golden is byte-identical.
     expect(describeTerrain(map, cfg).split('\n')[2]).toBe(
-      'gates west=0,10 north=18,0 east=35,17',
+      'gates west=0,16 north=28,0 east=55,27',
     );
   });
 
@@ -103,17 +103,17 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const swap = (from: string, to: string): string => dump.replace(from, to);
 
     // A base gate at the wrong place: the message is unchanged, verbatim.
-    expect(() => parseTerrainDump(swap('west=0,10', 'west=0,11'))).toThrow(
-      /gate "west" is at 0,11, this build has it at 0,10/,
+    expect(() => parseTerrainDump(swap('west=0,16', 'west=0,17'))).toThrow(
+      /gate "west" is at 0,17, this build has it at 0,16/,
     );
     // A base gate missing entirely.
-    expect(() => parseTerrainDump(swap(' north=18,0', ''))).toThrow(/north/);
+    expect(() => parseTerrainDump(swap(' north=28,0', ''))).toThrow(/north/);
     // Malformed coordinates.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=x'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,27', 'east=x'))).toThrow(
       /gate "east" is not "tx,ty"/,
     );
     // Duplicates, still refused rather than last-write-wins.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=35,17 east=35,17'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,27', 'east=55,27 east=55,27'))).toThrow(
       /duplicate "east" on the "gates" line/,
     );
   });
@@ -130,7 +130,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const truth = measureTerrain(view, cfg, w.gates);
     const dump = describeTerrain(view, cfg, w.gates);
 
-    expect(dump.split('\n')[2]).toContain('south=12,19');
+    expect(dump.split('\n')[2]).toContain('south=19,31');
     expect(dump.split('\n')[3]).toContain(`gateDetour=${truth.maxGateDetour.toFixed(6)}`);
     expect(dump.split('\n')[4]).toContain(`coreAnchors=${truth.legalCoreCount}`);
     // Still a repro: it reads back, and it still says `source=-` because a
@@ -154,7 +154,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     // in the file that makes it.
     const map = generateTerrain(7, cfg);
     const dump = describeTerrain(map, cfg);
-    expect(dump.split('\n')[2]).toBe('gates west=0,10 north=18,0 east=35,17');
+    expect(dump.split('\n')[2]).toBe('gates west=0,16 north=28,0 east=55,27');
     const parsed = parseTerrainDump(dump);
     expect(parsed.gates).toHaveLength(3);
     expect(Array.from(parsed.kind)).toEqual(Array.from(map.kind));
@@ -184,9 +184,9 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('refuses an extra gate that is not a gate', () => {
     const map = generateTerrain(7, cfg, FOUR);
     const dump = describeTerrain(map, cfg, FOUR);
-    const swap = (to: string): string => dump.replace('south=12,19', to);
+    const swap = (to: string): string => dump.replace('south=19,31', to);
 
-    expect(() => parseTerrainDump(swap('south=12'))).toThrow(/gate "south" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south=19'))).toThrow(/gate "south" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap('south=1.5,19'))).toThrow(/gate "south" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap(`south=${GRID_W},19`))).toThrow(/off the .* arena/);
     expect(() => parseTerrainDump(swap(`south=12,${GRID_H}`))).toThrow(/off the .* arena/);
