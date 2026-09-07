@@ -394,7 +394,14 @@ describe('c001/fb081: TD tower fire single/pierce shots scale their line half-wi
   it("a maxed Arrow Spire's pierced second target is only hit once Area widens the line enough to reach it", () => {
     const tower = content.towerByKey.get('arrow_spire')!;
     const buildAt = (area: number) => {
-      const w = areaWorld('engineer', area);
+      // TD tower fire reads `towerAreaMul` (the `towerArea` stat, fb083),
+      // never `areaMul`/`classArea` — `areaWorld`'s `area` bonus is the
+      // wrong lever here, so this test feeds `towerArea` directly.
+      const w = areaWorld('engineer', 0);
+      if (area !== 0) {
+        w.stats.addAll('test:towerArea', { towerArea: area });
+        w.recomputeDerived();
+      }
       w.gold = 1e6;
       w.warden.x = WX;
       w.warden.y = WY;
