@@ -798,7 +798,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       reproducing QA's exact repro. Full `tests/class-*.test.ts` glob (19
       files, 783 tests) and `npx tsc --noEmit` green.
 
-- [ ] (c033) [balance] G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
+- [x] (c033) [balance] **DONE 2026-09-06.** G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
       verdict, `feedback/processed/20260904-223211-verdicts-q155-167.md`) into
       two checks: (i) every class's own-kit VS share >=35% from wave 12
       (p12a/p12f's target) and (ii) pairwise class-kit fingerprint distance
@@ -820,8 +820,40 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       (CLAUDE.md rule 6). In-lane measurement plus optional
       `data/classes.json` tune only - refs: SPEC-FINAL §14 G8, BALANCE
       DIRECTION v2 §D, BACKLOG.md p12d, c002, c030.
+      **Measured, no tune applied.** `tests/class-kit-fingerprint.test.ts`
+      reuses G22's `damageShareVector`/`l1Distance` (copied from the
+      out-of-Scope `tests/p-core-f-gates.test.ts`, adapted to aggregate
+      `damageByWeapon`/`damageTotal` across seeds before normalizing, the
+      same order `class-kit-damage-share.test.ts`'s own `ownShare`/`vsShare`
+      already use) and `class-kit-damage-share.test.ts`'s exact
+      `runClassScripted`/`describeSource`, gated behind
+      `KIT_FP_MEASURE=1`/`KIT_FP_SEEDS` (default 12, analogous to
+      `KIT_SHARE_MEASURE`/`KIT_SHARE_SEEDS`) so the normal suite only runs a
+      trivial 12-classes/66-pairs invariant. Measured
+      `KIT_FP_MEASURE=1 KIT_FP_SEEDS=2` (12 classes x 2 seeds = 24 full T1
+      runs, ~10.5 min): **50/66 pairs meet the >=0.15 floor**, 16 fail,
+      closest pair necromancer/bloodlord at 0.0374. The 16 failing pairs
+      cluster around 8 of the 12 classes and trace to the same mechanism
+      c002/c030 found for clause (i): every class's `topLabel` resolves to a
+      shared tower key (`mortar`, near-unanimous) because no class clears
+      `MATERIALITY_SHARE` on its own kit, so a whole-run fingerprint is
+      dominated by shared tower usage rather than by each kit's own small
+      slice. No `/data` tune applied: the failing set spans 8 classes with
+      no single lever that would separate all 16 pairs without risking
+      pairs that already pass with real margin (e.g. paladin sits in 5
+      failing pairs and 6 passing ones), and verifying a tune's safety would
+      need a win-rate re-run outside this item's Scope — exactly the
+      "fragile tune" CLAUDE.md rule 6 warns against forcing. Logged for
+      `p12d` instead, per the item's own fallback clause. code-reviewer
+      approved with no Critical/Major findings (verified the formula/runner
+      reuse byte-for-byte via direct diff against the source files). QA
+      independently re-ran the full `KIT_FP_SEEDS=2` sweep (~10.6 min) and
+      got an **exact match** to the recorded numbers to 4 decimal places,
+      plus a `KIT_FP_SEEDS=1` vacuity check showing genuinely non-degenerate
+      per-seed vectors — no bugs filed. Full `tests/class-*.test.ts` glob
+      (20 files, 785 passed) and `npx tsc --noEmit` green.
 
-- [ ] (c034) [bug] `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
+- [x] (c034) [bug] **DONE 2026-09-07.** `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
       accepted with G10/G11's absolute pins converted to ratio form "and still
       pass" (BACKLOG.md p12a acceptance), but that verification lived in
       `tests/p6d-nine-classes.test.ts`/`tests/p6b-swordsman.test.ts` — both
@@ -842,8 +874,34 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       under a synthetic mutation (`chainCap` 8->10, `chargeCapSeconds` 5->30)
       that must turn them red. In-lane only, no `/data` change - refs:
       SPEC-FINAL §14 G10/G11, BACKLOG.md p12a.
+      **This item's own acceptance text guessed G11's formula wrong** — the
+      real ceiling exponent, read off `tests/p6d-nine-classes.test.ts`
+      directly rather than re-derived from scratch, is `chainCap - 1` (a jump
+      index starting at 0), not `chainCap`: `1.2^8 = 4.30` would already
+      exceed 3.6 on shipped data, and `p6d` does not fail, so `chainCap - 1`
+      is the only formula consistent with p6d's own passing state (measured,
+      not assumed — CLAUDE.md's own rule). New `tests/class-gate-ratios.
+      test.ts` copies both real formulas from `p6d` (G11's `(1+chainGrowth)
+      ^(chainCap-1)`; G10's numeric search over held time, `growth^min(t,cap)
+      / (t+cooldown)`) and confirms them live under mutation: shipped
+      `chainGrowth 0.20`/`chainCap 8` gives ceiling ≈3.58 (<=3.6, and >3 as
+      an anti-vacuity floor); `chainCap` 8->10 pushes it to ≈5.16 and reddens
+      the check; shipped Archer numbers land the dps-optimal charge at
+      exactly the 5 s cap (inside G10's 2-6 s window); `chargeCapSeconds`
+      5->30 pushes the optimum past 6 s and reddens that check. code-reviewer
+      approved with three Minor documentation nits (one fixed here — a
+      comment said `jumps` "exceeds" `chainCap` when shipped data has them
+      exactly equal, 8==8; the other two are precision notes about what a
+      same-file coherence check does and doesn't prove, no functional
+      issue). qa-playtester independently re-derived both formulas by hand
+      against shipped `/data`, confirmed the exact numbers, read `p6d`
+      directly to verify the exponent correction, ran its own additional
+      mutations (chainGrowth 0.20->0.01 catches the anti-vacuity floor;
+      cooldownSeconds sweep shows a sane monotonic optimum), and re-ran the
+      full `tests/class-*.test.ts` glob (21 files, 792 passed) plus
+      `p6d`/`p6b-swordsman` (166/166) — no bugs filed.
 
-- [ ] (c035) [bug] the three Swordsman-locked equipment items' off-class fallbacks are proven
+- [x] (c035) [bug] **DONE 2026-09-07.** the three Swordsman-locked equipment items' off-class fallbacks are proven
       individually and never jointly. `tests/equip-spec-numbers.test.ts`
       proves `sleeve_sword` alone composes to §7's 1.2x1.2 and `swordsman_armor`
       alone to 1.1x1.5 on an Engineer, and `tests/fb015-equipment.test.ts`
@@ -867,6 +925,28 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       (`tests/equip-*`, no `/data` or `/src` edit needed unless the check finds
       a real bug, in which case only `data/equipment.json` moves) - refs:
       SPEC-FINAL §2 (stacking), §7, §14 G5.
+      **No bug found — the mechanism holds, now proven jointly.** Hoisted
+      `equipmentAttackSpeedFactor` from `c012`'s describe block to module
+      scope and widened it to accept an item array; added a sibling
+      `equipmentMoveSpeedFactor`; three new cases in a `c035` describe block:
+      `sleeve_sword`+`swordsman_armor` on an Engineer composes to
+      1.44x1.65=2.376; all three on a Cryomancer compose the attack-speed
+      product (2.376x1.1=2.6136, shoes has no attackSpeed fallback) and the
+      movement factor (2x1.1=2.2) simultaneously in the same World — the
+      movement half read directly off `content.equipment.items` rather than
+      parsed from a §7 quote, since (confirmed by both code-reviewer and
+      qa-playtester against the real ledger row) unlike the two atk-speed
+      items §7 states the shoes' movement fallback as a single factor with
+      no "(so X×Y)" composite to parse; all three on the Swordsman itself
+      withhold every fallback. Verified by mutation: a deliberate
+      last-write-wins rewrite of `Stats.factor()` (reverted) reddens the new
+      tests exactly as expected; qa-playtester additionally flipped
+      `swordsman_shoes.classFallback.notClassKey` and perturbed
+      `sleeve_sword.mods.attackSpeed` (both reverted), each catching the
+      injected drift. code-reviewer approved (one Nit: a redundant `!`
+      assertion, not worth a follow-up) and independently confirmed every
+      numeric claim against `data/equipment.json`. Full `tests/equip-*`
+      glob (5 files, 176 passed) and `npx tsc --noEmit` green.
 
 - [ ] (c036) [bug] equipment-sourced and class-tower-passive-sourced bonuses on the same stat
       key have never been jointly measured, though both are explicitly separate
