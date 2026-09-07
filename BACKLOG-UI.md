@@ -71,21 +71,6 @@ not already expose it) logs that need below instead of reaching into
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
 
-- [ ] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
-      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
-      diff, extends fb065/fb082) — ultrawide/narrow HUD safe-area audit
-      coverage. QUALITY.md 1.0's checklist names "16:9/16:10/ultrawide safe"
-      as its own line, distinct from what fb065/fb082 already built
-      (floating rails anchored to the letterboxed canvas rect at arbitrary
-      aspect ratios) — neither item's own test coverage includes a real
-      `tools/ui-audit.ts` scene at an ultrawide (e.g. 2560x1080, ~21:9) or
-      narrow/portrait (e.g. 1024x1280) viewport, only unit-level geometry
-      math. Acceptance: `tools/ui-audit.ts` gains at least one ultrawide and
-      one narrow/portrait scene alongside its existing set; `npm run
-      ui-audit` shows zero `hud-overlap` failures and no critical control
-      (bottom bar, rail handles) rendered fully offscreen at either — refs:
-      fb065, fb082, QUALITY.md 1.0 (Steam/itch checklist).
-
 - [ ] (fb097) [feat] low priority: generated 2026-09-04 (same generation
       batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
       fb094) — gif capture mode. fb094 scoped out "gif capture mode" from
@@ -245,6 +230,7 @@ archive normally.
 
 ### Recently completed
 
+- (fb093) [polish] **DONE 2026-09-07** — ultrawide/narrow HUD safe-area audit coverage: a real-Chromium test at 2560x1080 and 1024x1280 checking zero hud-overlap and no offscreen critical control.
 - (fb176) [polish] **DONE 2026-09-07** — the falloff floor makes "each one behind it takes less" stop being literally true past a reachable target count.
 - (fb175) [polish] **DONE 2026-09-07** — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the same `lineHit` drop-off the class sentences now name, and did not name it.
 - (fb173) [bug] **DONE 2026-09-07** — every radius and width in the in-run ability sentences ignored the live Area multiplier, exactly the way `dashRange` ignored move speed before fb148.
@@ -254,6 +240,5 @@ archive normally.
 - (fb169) [polish] **DONE 2026-09-07** — "Reset settings to defaults" re-buried the OS reduced-motion preference.
 - (fb177) [feat] **DONE 2026-09-07** — per-tower attack projectile/beam visuals: every tower type gets a distinct registered VFX entry.
 - (fb117) [feat] **DONE 2026-09-07** — Core-select screen redesign to match class-select layout.
-- (fb096) [feat] **DONE 2026-09-07** — Swordsman combo swept-area indicator for a Dash Slash cast during a Circle Slash charge.
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.

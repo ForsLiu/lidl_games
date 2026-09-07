@@ -17992,6 +17992,62 @@ logs a blocker below rather than editing `/data` itself.
       lane's Scope to write directly) rather than as a code change here — no
       source/test edit needed, this item is closed by that Log entry alone.
 
+- [x] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff, extends fb065/fb082) — ultrawide/narrow HUD safe-area audit
+      coverage. QUALITY.md 1.0's checklist names "16:9/16:10/ultrawide safe"
+      as its own line, distinct from what fb065/fb082 already built
+      (floating rails anchored to the letterboxed canvas rect at arbitrary
+      aspect ratios) — neither item's own test coverage includes a real
+      `tools/ui-audit.ts` scene at an ultrawide (e.g. 2560x1080, ~21:9) or
+      narrow/portrait (e.g. 1024x1280) viewport, only unit-level geometry
+      math. Acceptance: `tools/ui-audit.ts` gains at least one ultrawide and
+      one narrow/portrait scene alongside its existing set; `npm run
+      ui-audit` shows zero `hud-overlap` failures and no critical control
+      (bottom bar, rail handles) rendered fully offscreen at either — refs:
+      fb065, fb082, QUALITY.md 1.0 (Steam/itch checklist). **DONE
+      2026-09-07** — `tools/ui-audit.ts` itself is outside this lane's Scope
+      (same exception fb098's own DONE note already took: "the equivalent
+      render test" branch rather than editing `tools/`). New
+      `tests/ui-fb093-ultrawide-narrow-audit.test.ts` drives the real
+      dev-only `window.__stonewakeAudit` bridge through a real headless
+      Chromium (same harness as `tests/b032/b035/b036`) at 2560x1080
+      (ultrawide) and 1024x1280 (narrow/portrait), reads real
+      `getBoundingClientRect()` geometry off a "busy" scene (a built tower,
+      a called wave, a selected tower — same scene b035/b036 already
+      drive), and reuses `tools/audit/checks.ts`'s own `rectsOverlap`/
+      `isOffscreen` (read-only import, not editing `tools/`) so a
+      regression is caught by the exact arithmetic `npm run ui-audit` uses
+      at 1920x1080: one test per viewport asserts zero pairwise overlaps
+      among the same "chrome" selector list `checkHudOverlap` compares
+      (`#sw-bar`/`#sw-stats`/`#sw-progress`/`#sw-toast`/`#sw-controls`/
+      `#sw-practice`/`#sw-towerinfo`/`#sw-dpsdock`/`#sw-vsdock`, whichever
+      are mounted+visible, with a >=5-present sanity floor so the check
+      cannot trivially pass on an empty set), and one asserts the bottom
+      bar (`#sw-controls`) and both rail handles
+      (`#sw-rail-left-handle`/`#sw-rail-right-handle`) are never fully
+      offscreen. Found live while writing the scene: calling
+      `toggleDpsPanel` in the same scene collapses the right rail (fb065's
+      documented behavior — the rail auto-collapses whenever either dock
+      tab shows), which hides `#sw-towerinfo`/`#sw-stats`/`#sw-progress`
+      along with it — dropped that call rather than trading one set of
+      chrome elements for another. Verified the two failure modes this
+      test is meant to catch are real, not just plausible: temporarily
+      added `left: -99999px` to `.sw-controls` in `style.css`, confirmed
+      the offscreen-control test reddens with the exact rect in its
+      failure message, then reverted (`git diff` clean after). Runs
+      against this sandbox's pre-installed headless Chromium via the
+      existing `tests/helpers/browser.ts` `hasChromium`/`launchChromium`
+      probe (same `describe.skipIf(!hasChromium)` idiom every other
+      browser-driven suite in this repo already uses, so a checkout with no
+      browser installed skips rather than fails) — confirmed both the pass
+      case and the fail case live, not only inferred from reading the
+      harness. `npx vitest run tests/ui-fb093-ultrawide-narrow-audit.test.ts`
+      4/4 green; `npm run test:fast` otherwise unchanged (only the
+      pre-existing `q15`/`q45` flake class red, confirmed present on
+      unmodified HEAD by earlier sessions' PROGRESS.md entries). No `/src`
+      non-test change, no `/data` change.
+
 ## Log
 
 - 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane
