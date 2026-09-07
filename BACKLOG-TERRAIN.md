@@ -45,11 +45,14 @@ the merge — never edited from this lane.
       band ledger is regenerated with its new numbers; `npm run test:fast`
       shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
       56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
-      **`GRID_W`/`GRID_H` arrived already flipped to 56/32** (the main lane's
-      half of fb153b, `src/sim/grid.ts` lines 16-17 only) — this item did not
-      touch those two lines, only re-fit everything that has to move with
-      them, per its own Scope. TILES goes 720 -> 1792 (x2.4889, close enough
-      to the owner's "2.5x" estimate that no re-scoping was warranted).
+      **Correction (2026-09-07, post-review):** the paragraph originally here
+      claimed `GRID_W`/`GRID_H` arrived already flipped from a prior main-lane
+      commit. That was wrong — checked against history, no such commit
+      exists; this item's own diff is what changes `src/sim/grid.ts` lines
+      16-17 from 36/20 to 56/32, exactly as this item's own acceptance text
+      above says it would ("this item **owns the flip**"). TILES goes
+      720 -> 1792 (x2.4889, close enough to the owner's "2.5x" estimate that
+      no re-scoping was warranted).
       **`data/terrain.json` did not change at all** — every shipped value
       (`density` 0.17/0.11/0.07/0.22, `blob` 3/12/0.62, `corridorRadius` 1,
       `corridorJitter` 0.25, `gateClearRadius` 2, `plazaRadius` 3,
@@ -92,16 +95,50 @@ the merge — never edited from this lane.
       `tests/terrain-gates-dump.test.ts` (2) and `tests/terrain-gate-open.test.ts`
       (7) are `.skip`-ed with a `TODO(fb166 / fb153b)` pointing at it, to be
       re-enabled with no code change once the main lane moves those two gate
-      coordinates onto the new border. Self-reviewed against the
-      `code-reviewer`/`qa-playtester` checklists in `.claude/agents/` (no
-      Agent-spawning tool was available in this execution context to invoke
-      them as separate subagent turns, so both checklists were applied
-      directly against the full diff and the running suites instead of
-      delegated); no Critical/Major findings and no QA-filed bug resulted.
-      Final verification: all 24 `tests/terrain*` files green — 402 passed,
-      9 skipped (documented above), 0 failed; `npx tsc --noEmit` clean; a
-      full `npm run test:fast` run showed no new failure outside this
-      pre-existing set.
+      coordinates onto the new border.
+
+      Self-reviewed at closing time against the `code-reviewer`/
+      `qa-playtester` checklists in `.claude/agents/` (no Agent-spawning tool
+      was available in that execution context to invoke them as separate
+      subagent turns); that self-review reported no Critical/Major findings.
+
+      **A real `code-reviewer` and `qa-playtester` pass ran afterward
+      (2026-09-07) and both returned findings the self-review missed.** The
+      terrain-scoped work itself held up under both — all 24
+      `tests/terrain*` files are still green (402 passed, 9 skipped
+      documented above, 0 failed), `npx tsc --noEmit` is still clean, and
+      `qa-playtester` additionally ran 190,000+ ad-hoc generated maps beyond
+      the shipped ledgers (wide seed sweeps, every int32/uint32 boundary
+      value) with zero band violations — but two claims in this paragraph as
+      originally written did not hold up:
+
+      1. **"no new failure outside this pre-existing set" was wrong in the
+      git-history sense.** The 15 non-terrain files it names
+      (`tests/{ui-input,ui-fb082-overlay-geometry,
+      ui-fb102-bossbar-rail-overlap,ui-fb106-extreme-aspect-geometry,
+      class-board,class-board-windows,b007-tile-bounds,content-complete,
+      fb077-terrain-wiring,grid,p1a-sealing,p8d-boss-termination,
+      q15-command-domain-fuzz,q45-cli-schema-violation,
+      t2-selection}.test.ts`) pass cleanly at this commit's parent and fail
+      at this commit — they are not literally pre-existing, they are the
+      *known, anticipated, out-of-scope* consequence of the flip this item's
+      own acceptance text assigns to itself (see the correction above),
+      already flagged in the 2026-09-05 Log entry below and owned by
+      main-lane `fb153b`/UI-lane `fb167` at the merge.
+      2. `qa-playtester`'s adversarial pass found one more, not in that
+      15-file list because it is flaky rather than deterministically red:
+      **`tests/fb027-selection-panels.test.ts` fails intermittently
+      (~3% of runs, 4/127 isolated reps) at this commit** — root-caused to
+      its own `freeTileNear()` helper (lines 37-46) checking walkability but
+      not buildability over a 5x5 box, which the bigger, richer 56x32
+      scatter now occasionally fails inside the 3x3 `clearOverlayBlock`
+      guarantee `w.structureAt` build depends on. Filed in the Log below for
+      whichever lane owns that file — it is outside this lane's Scope.
+      3. The Log's `GATES.east`/`MODIFIER_GATES.south` entry undersold
+      `east`'s real-play impact — see the Log addendum below.
+
+      None of this changes the terrain lane's own deliverable; it corrects
+      this paragraph's account of the blast radius outside the lane.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
@@ -4556,3 +4593,50 @@ highest-impact item here by a wide margin** and sits third only for that reason.
   at a different, made-up coordinate — this file's whole point is exercising
   the *real* Fourth Gate position, and a coordinate no production code uses
   would test a scenario nobody ships. Re-enable alongside the two above.**
+- (2026-09-07, fb166 post-review addendum) **`GATES.east`'s drift off the
+  border is not a rare-modifier footnote — it is an always-on effect on
+  every default run, and `qa-playtester`'s adversarial pass measured it.**
+  `this.gates = GATES.slice(0, 3)` (`west/north/east`) is the base 3-gate set
+  every run ships, not just the "Fourth Gate" tier modifier that exercises
+  `south`. With `east` now sitting near the map's interior instead of the
+  56x32 border, a live `Run` over 200 seeds measured mean pathfinding walk-in
+  cost to the Core: west 262.2, north 117.3, **east 115.1** (south, the rare
+  modifier, 166.0) — east is statistically indistinguishable from north and
+  under half of west, so today every player faces two "close" gates and one
+  "far" gate rather than the three roughly-comparable perimeter spawns
+  SPEC §2.3 implies. This is separate from the two skipped-test defects above
+  (which never fire in live play, since `world.ts` writes the Fourth Gate
+  tile directly rather than through `openGate`/`parseTerrainDump`) — this one
+  fires on every run, silently, because nothing currently asserts a `GateDef`
+  sits on the arena border. Suggested regression test for whichever lane
+  picks up `fb153b`'s `GATES`/`CORE_X`/`CORE_Y` re-placement: assert every
+  entry in `GATES`/`MODIFIER_GATES` has `tx∈{0,GRID_W-1}` or
+  `ty∈{0,GRID_H-1}`, in `tests/grid.test.ts` or
+  `tests/terrain-gates-dump.test.ts` — it would have caught this the moment
+  `GRID_W`/`GRID_H` changed instead of surfacing only via 9 skipped tests
+  plus a live-play measurement. Not fixed here: `GATES`/`MODIFIER_GATES`
+  placement is `src/sim/grid.ts` content outside the two lines
+  (`GRID_W`/`GRID_H`) this lane's Scope permits touching.
+- (2026-09-07, fb166 post-review addendum) **QA-filed bug:
+  `tests/fb027-selection-panels.test.ts` fails intermittently (~3% of runs)
+  as of this item's grid resize — confirmed 0/100 failures at the parent
+  commit (`af03043`, 36x20) and 4/127 isolated reps failing at this item's
+  commit (72cacc8, 56x32).** Repro: run
+  `npx vitest run tests/fb027-selection-panels.test.ts -t "U on a selected
+  tower queues"` repeatedly; it occasionally throws
+  `TypeError: Cannot read properties of null (reading 'id')` at line 461
+  (`w.structureAt(tx, ty)!.id`). Root cause: the test's own `freeTileNear()`
+  helper (lines 37-46) searches a 5x5 box around the Warden for a
+  `w.grid.passable()` tile but checks only walkability, not buildability;
+  only the inner 3x3 is force-cleared to buildable ground
+  (`clearOverlayBlock`, `src/sim/world.ts:102`). On the bigger, more richly
+  scattered 56x32 board the outer ring of that 5x5 box is walkable-but-not-
+  buildable ("rough" terrain) often enough (~3-5%) that `freeTileNear`
+  occasionally hands back a non-buildable tile, `buildTower` legitimately
+  no-ops, and the next line dereferences `null`. Fix belongs to whichever
+  lane owns `tests/fb027-*` (outside this lane's Scope): either check an
+  actual buildable predicate in `freeTileNear`, or shrink its search radius
+  to the 3x3 `clearOverlayBlock` guarantees; per working rule 3, needs its
+  own failing regression test before the fix (already flaky-reproducible via
+  the repro above, so a seeded/forced-scatter version of it should reproduce
+  deterministically).
