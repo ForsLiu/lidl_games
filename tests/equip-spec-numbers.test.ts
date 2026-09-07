@@ -2217,8 +2217,19 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
       // it can pass. (Caught by this file's own first run.)
       const points = /HP (-?\d+(?:\.\d+)?) \/ Atk (-?\d+(?:\.\d+)?) \/ Def (-?\d+(?:\.\d+)?)/.exec(desc);
       expect(points, `${item.key}: desc states no "HP a / Atk b / Def c" line`).not.toBeNull();
-      expect(Number(points![1]), `${item.key}: §7's HP is ${row.cells.hp}`).toBeCloseTo(row.cells.hp, 10);
-      expect(Number(points![2]), `${item.key}: §7's Atk is ${row.cells.atk}`).toBeCloseTo(row.cells.atk, 10);
+      // fb164: `numberScale` divides every HP/damage-denominated stat at
+      // load, and the desc now quotes the *loaded* magnitude (what the sim
+      // actually runs on) rather than restating §7's authored figure — the
+      // same narrowing `tests/class-descriptions.test.ts`'s c015 ledger
+      // documents for `flameDps`. HP (`maxHp`) and Atk (`atkFlat`) are both
+      // scaled; Def (`armor`) is not.
+      const hpFactor = STAT_SCALED.maxHp ? content.modifiers.numberScale : 1;
+      const atkFactor = STAT_SCALED.atkFlat ? content.modifiers.numberScale : 1;
+      expect(Number(points![1]), `${item.key}: §7's HP is ${row.cells.hp}`).toBeCloseTo(row.cells.hp * hpFactor, 10);
+      expect(Number(points![2]), `${item.key}: §7's Atk is ${row.cells.atk}`).toBeCloseTo(
+        row.cells.atk * atkFactor,
+        10,
+      );
       expect(Number(points![3]), `${item.key}: §7's Def is ${row.cells.def}`).toBeCloseTo(row.cells.def, 10);
 
       // The two `×n` columns are read out of the desc's **stats clause** only
@@ -2267,7 +2278,20 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
       // the file this ledger exists to audit.
       const desc = norm(String(item.desc));
       for (const f of rows) {
-        const want = f.descQuote ?? norm(f.quote!);
+        let want = f.descQuote ?? norm(f.quote!);
+        // fb164: a scaled stat's desc now quotes the loaded (post-
+        // `numberScale`) magnitude, not §7's authored one — the same
+        // narrowing the HP/Atk check above applies, extended to Effect
+        // quotes. Rebuilds the expected substring with the quote's own
+        // numeral scaled, rather than loosening the containment check.
+        if (f.stat && STAT_SCALED[f.stat as StatKey] && f.fromQuote) {
+          const m = f.fromQuote.pattern.exec(want);
+          expect(m, `${id(f)}: fromQuote pattern does not match "${want}"`).not.toBeNull();
+          const scaled = Number(m![1]) * content.modifiers.numberScale;
+          const numStart = m![0].indexOf(m![1]);
+          const scaledMatch = m![0].slice(0, numStart) + String(scaled) + m![0].slice(numStart + m![1].length);
+          want = want.slice(0, m!.index) + scaledMatch + want.slice(m!.index + m![0].length);
+        }
         expect(desc, `${id(f)}: the desc does not state §7's "${f.quote}"`).toContain(want);
         // `descQuote` is the one hand-typed expectation left in this file, and
         // QA showed it was unconstrained: change the desc to "Halves Dash Slash
