@@ -44,6 +44,57 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
+- [x] (fb173) [bug] **DONE 2026-09-07, filed by qa-playtester on fb172, fixed
+      in the same session with the failing test first.** Two defects, one of
+      them in fb172's own diff.
+      (a) `probeInWorker`/`aliasProbeInWorker`'s deadline **silently collapsed
+      to 1 ms** for any `timeoutMs` above `2**31-1`, or `Infinity`/`NaN`:
+      `setTimeout` clamps those, so asking for a *longer* ceiling produced the
+      shortest possible one and every probe came back a false `hangs`. Not
+      hypothetical — QA reached it through `bench/q44-worker-timing-probe.ts`,
+      the tool that exists to tell a real hang from a slow one, which reported
+      **"75/75 never resolved"** at a 3e9 ms ceiling. New
+      `assertUsableDeadline` throws instead; rejected rather than clamped to
+      the 4000 default, because substituting a default hides the caller's
+      mistake in exactly the instrument meant to catch it. Five `it.each`
+      cases (`Infinity`, `NaN`, `2**31`, `-1`, `0`) confirmed red first. The
+      repro now fails loudly, and a sane 8000 ms ceiling measures
+      p50 525 / p95 571 / max 612 ms, 0/75 over budget.
+      (b) fb172 claimed to have removed a duplicate loader registration by
+      dropping `execArgv`. It had not: **a Worker with no `execArgv` inherits
+      the parent's**, and under `npx tsx` that is tsx's own `--require
+      preflight.cjs --import loader.mjs` (verified directly). So the flag was
+      made implicit and parent-dependent, not removed, and fb172's own comment
+      was wrong. Both Worker sites now pin `execArgv: []`, which is what
+      actually makes the bootstrap's `register()` the single registration on
+      every parent — and is faster (p50 507 vs 561 ms).
+
+- [ ] (fb174) [bug] q15's census deadline sits inside the noise band under
+      concurrent load, and a spurious `hangs` **silently removes coverage**:
+      `classify()` short-circuits on that verdict, so those field×family
+      combinations are simply not tested, with nothing red to say so. Filed by
+      qa-playtester on fb172, which made it newly reachable — while q15 died
+      at collection the whole census was inert, so this could not bite.
+      Measured 3/3 reproductions under a concurrent vitest run, **a different
+      combo set each time** (`build.ty:negInf`/`build.ty:negative`/
+      `class_active2.aimY:posInf`/`dev.gold.amount:nan`, then
+      `build.tx:nan`/`build.tx:negInf`/`sell.ty:posInf`, then
+      `dev.fast_forward.amount:nan`/`posInf`/`dev.xp.amount:nan`) — timing,
+      not a real hang. Alone on a quiet host it is 3/3 green with 6-wide
+      startup at 1498 ms against the 4000 ms budget (2.7x); under a concurrent
+      run that startup is 3.0-3.5 s (1.1x). **BACKLOG-QUALITY q44 measured
+      this margin once and deliberately declined to file it** — that deferral
+      predates fb172/fb173 and CLAUDE.md's "a deferral is a measurement with
+      an expiry date" says re-measure it rather than inherit it (fb173's
+      `execArgv: []` has since taken per-worker startup down, so re-measure
+      before choosing a number). Acceptance: a spurious `hangs` can no longer
+      silently drop a combination — either retry a `hangs` verdict once
+      serially before recording it (preferred: keeps fast detection and makes
+      a load-induced verdict self-correcting) or raise `runCensus`'s deadline
+      with the re-measured margin recorded; plus a case proving a dropped
+      combination now surfaces instead of passing quietly — refs: fb172,
+      BACKLOG-QUALITY.md q44, CLAUDE.md measurement rules.
+
 - [x] (fb172) [bug] **DONE 2026-09-07, found by the loop's own fast-tier run,
       not by a backlog item.** `tests/q15-command-domain-fuzz.test.ts` was
       failing its **whole suite at collection** and taking q45's

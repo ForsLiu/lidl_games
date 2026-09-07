@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — fb173 done; fb174 filed. QA caught fb172 correcting itself
+  wrongly.** Two defects, one of them in fb172's own diff an hour old.
+  (a) `probeInWorker`'s deadline **silently collapsed to 1 ms** for anything
+  above `2**31-1`, or `Infinity`/`NaN` — `setTimeout` clamps those — so asking
+  for a *longer* ceiling produced the shortest possible one and every probe
+  returned a false `hangs`. QA reached it through
+  `bench/q44-worker-timing-probe.ts`, the very tool built to distinguish a
+  real hang from a slow one, which duly reported "75/75 never resolved" at a
+  3e9 ms ceiling. Now rejected by `assertUsableDeadline` rather than clamped
+  to the 4000 default: substituting a default would hide the caller's mistake
+  inside the instrument meant to catch it. Five `it.each` cases red first.
+  (b) **fb172's own claim was wrong and this is the more useful lesson.** It
+  said dropping `execArgv` removed a duplicate loader registration. It did
+  not: a Worker with no `execArgv` **inherits the parent's**, and under
+  `npx tsx` that is tsx's `--require preflight.cjs --import loader.mjs`
+  (verified directly rather than argued). So the duplicate registration was
+  made implicit and dependent on how the parent was launched — and the
+  comment asserting "one story" was false. Both sites now pin `execArgv: []`,
+  which is what actually delivers a single registration on every parent, and
+  measures faster (p50 507 vs 561 ms). A sane 8000 ms ceiling now measures
+  p50 525 / p95 571 / max 612 ms, 0/75 over budget.
+  QA's third finding is real but separate and is filed as **fb174**: under
+  concurrent load a spurious `hangs` verdict makes `classify()`
+  short-circuit, so those combinations are **silently not tested** — 3/3
+  reproductions with a *different* combo set each time. q44 measured that
+  margin once and declined to file it; that deferral has an expiry date now
+  that fb172 made the census live at all.
+
 - **2026-09-07 — fb172 done: q15 was not flaky, it was not running.** The
   loop's own fast-tier run kept showing `tests/q15-command-domain-fuzz.
   test.ts` red, and this file's long history of q15 entries made "the

@@ -153,6 +153,19 @@ describe('q15 command-argument domain fuzz', () => {
       const r = await probeInWorker('pick.index', 'negative', 1);
       expect('hangs' in r && r.hangs).toBe(true);
     }, 15000);
+
+    // fb173 (qa-playtester on fb172): `setTimeout` clamps any delay above
+    // 2**31-1 — and `Infinity`/`NaN` — down to **1 ms**, so asking for a
+    // *longer* deadline used to produce the shortest possible one and every
+    // probe came back a false `hangs`. That is not hypothetical: it is
+    // reachable through `bench/q44-worker-timing-probe.ts`, the tool built to
+    // tell a real hang from a slow one, which reported "75/75 never resolved"
+    // at a 3e9 ms ceiling — precisely the wrong conclusion, from the
+    // instrument meant to prevent it. A rejected deadline is the only safe
+    // answer: silently substituting 4000 would hide the caller's mistake.
+    it.each([Infinity, NaN, 2 ** 31, -1, 0])('refuses the unusable deadline %p rather than clamping it to 1 ms', async (ms) => {
+      await expect(probeInWorker('pick.index', 'negative', ms)).rejects.toThrow(/deadline/i);
+    });
   });
 
   describe('closed finding (BACKLOG b007): an out-of-grid tx used to alias onto a real tile one row up, for both upgrade and sell', () => {
