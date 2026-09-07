@@ -1562,6 +1562,17 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-07, fb177 qa-playtester, post-commit) `new Grid([])` (an empty
+  custom gate list) is silently accepted rather than refused —
+  `assertGateListLegal`'s loop simply never runs on an empty array, so there
+  is nothing to reject, and the result is a 0-gate grid no walker could ever
+  enter. QA's own verdict: not a violation of fb177's stated acceptance
+  (which enumerates only off-border/corner/non-integer/duplicate as refused
+  cases) and not reachable from any live caller today (`jitterGates` never
+  returns an empty array). Low severity, filed as a forward-looking gap for
+  whichever item next touches `assertGateListLegal` — a minimum-length check
+  (`gates.length === 0` throws `"at least one gate"` or similar) plus a
+  `tests/terrain-grid-gates.test.ts` case would close it.
 - (2026-09-07, generation-rule SPEC-FINAL diff) `SPEC-FINAL.md` §10's own text
   ("One map: 36×20 tiles, 3 gates (W/N/E)") is now stale: this lane has already
   shipped both amendments it describes as current (fb166's 56x32 resize,
