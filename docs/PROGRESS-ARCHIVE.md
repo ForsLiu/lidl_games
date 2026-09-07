@@ -3,6 +3,42 @@
 Moved out of the live PROGRESS.md by fb178 (feedback/feature-token-economy.md)
 to keep the live file readable. Verbatim, in original order; append only.
 
+- **2026-09-07 — BACKLOG fb079 done, docs only.** SPEC-FINAL.md gains §10.5
+  (Terrain generation & Core placement), written verbatim from `feedback/
+  processed/20260903-121255-feature-terrain-generation.md` plus the
+  `lane/terrain` design decisions already owner-approved at QUESTIONS Q162/
+  Q171 (tile kinds and the six generation bands, structural gate mains,
+  sealing/fallback semantics, the `a/(a+1)` Core-band ceiling, Core
+  placement and its suggested anchor, high-ground's no-boss-family rule, the
+  per-kind `blocksCharacter` flag, the `[-2^31, 2^32-1]` seed domain, the
+  `maxGateDetour` approach band, the uncontested-high repair, and the
+  run-gate-list threading) — the section itself carries an unresolved owner
+  item forward (BACKLOG fb129's Act II high-ground/Burrower residual).
+  §14's G2 row gained a terrain-determinism clause (same seed → identical
+  map + hash, seed+1 regeneration is itself deterministic); §13's content
+  totals gained `data/terrain.json`; MIGRATION.md gained a new §8.6 noting
+  the spec catching up to what the lane had already built and merged; the
+  append itself is logged as QUESTIONS Q194, `[designer-fill]`, owner
+  verdict pending. Zero `/src` or `/data` changes — confirmed by re-running
+  every SPEC-FINAL-parsing suite (`tests/q10-gate-audit.test.ts`,
+  `tests/fb038-status.test.ts`, `tests/class-spec-numbers.test.ts`,
+  `tests/equip-spec-numbers.test.ts`, 291 tests) green, including
+  `tools/gate-audit.ts`'s own G2-row parser against the edited table.
+  code-reviewer's first pass found two Major fidelity gaps, both fixed
+  before this was marked done: the "verbatim" quote had silently dropped
+  two source clauses (the Core-legal-positions rationale and "Tuner page
+  (density/ratios editable)") and reflowed the tile-types bullets into
+  prose, losing the rock-passthrough `[designer note]` and the `(Spitter)`
+  example — replaced with an actual verbatim quote of the source file's own
+  bullet lists; and a lane-decisions bullet claimed the run's live gate
+  list is threaded through "every" gate-reading function, contradicting
+  Q171(9)/open BACKLOG fb134 (`describeTerrain` still reads the module's
+  base `GATES` constant, confirmed live in `src/sim/terrain/describe.ts`) —
+  now states that exception explicitly. Diffed the corrected quote
+  line-for-line against the source feedback file to confirm true verbatim
+  fidelity (one intentional blank line added for Markdown blockquote
+  paragraph spacing, no other difference).
+
 - **2026-09-07 — BACKLOG fb139 done.** F8 (dev and prod alike) opens a
   self-contained note box (`src/ui/bugreport.ts`'s `BugReportBox`) that
   pauses a running run for its duration, restoring whatever pause state held

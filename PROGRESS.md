@@ -11,6 +11,43 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — main lane: BACKLOG fb179 done, negative result, no
+  QUESTIONS.md content moved.** fb178's deferred point 3: move every
+  QUESTIONS.md entry whose owner verdict is dated more than 14 days before
+  the run date to a new `docs/QUESTIONS-ARCHIVE.md`. Measured first, per the
+  item's own caution against a wrong archival dropping a verdict a fresh
+  session needs: QUESTIONS.md carries no per-entry verdict dates, only the
+  "Verdict log" section's dated batch headers, which name the Q-ranges each
+  batch actually verdicted — Q1-Q121 on 2026-08-27 (`feedback/verdicts-q1-
+  121`), Q122-Q133 on 2026-08-28, Q134-Q154 on 2026-09-01, and Q94/Q155-Q167
+  on 2026-09-04 (`feedback/processed/20260904-223211-verdicts-q155-167.md`,
+  never logged into the Verdict log section itself, dated from the feedback
+  file's own timestamp). Every entry from Q168 onward cites a `fb1xx`/`p12x`
+  item from this same week and is newer still. A full-file grep for any date
+  before 2026-08-25 (`2026-0[1-7]-|2026-08-0[0-9]|2026-08-1[0-9]|2026-08-2[0-
+  4]`) returned zero matches, confirming no verdict predates the batch log's
+  earliest entry. Run date is 2026-09-07; the 14-day cutoff is 2026-08-24.
+  Every verdict date found (2026-08-27 through 2026-09-07) falls **inside**
+  that 14-day window — the earliest is only 11 days old. **Result: zero of
+  the 173 `(owner verdict:` entries qualify for archival** (4 of those 173 —
+  Q193-Q196 — are themselves still `pending` and never move on age alone,
+  so 169 entries actually carry a verdict; all 169 fall inside the window
+  regardless), so QUESTIONS.md is
+  unchanged (still 918 lines; the item's own "~400 lines" acceptance
+  assumed enough entries would be old enough, which is not yet true — no
+  verdict in this file predates 2026-08-27, so nothing crosses 14 days
+  until 2026-09-10 at the earliest). `pendingQuestions()`
+  (`tools/status.ts`) was re-run before and after this measurement and
+  returns the identical pending set both times, as expected since no bytes
+  of QUESTIONS.md changed — the acceptance's control-check clause holds
+  trivially. Created `docs/QUESTIONS-ARCHIVE.md` (header only, empty,
+  append-only) so the destination CLAUDE.md's Sources-of-truth list already
+  names exists on disk, ready for the first real archival once verdicts
+  age past the cutoff. Re-measure this item (or a successor) on or after
+  2026-09-10, when the Q1-Q121 batch first crosses 14 days old. No `/src`
+  or `/data` change; `npm run test:fast` unaffected (no code path touches
+  QUESTIONS.md's content).
+
 - **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
   rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
   tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
@@ -284,40 +321,4 @@
   tile-order pin included, actually runs on a Tuner-edited document) and
   spot-checked several regenerated hole entries against the real schema and
   shipped `/data` values.
-
-- **2026-09-07 — BACKLOG fb079 done, docs only.** SPEC-FINAL.md gains §10.5
-  (Terrain generation & Core placement), written verbatim from `feedback/
-  processed/20260903-121255-feature-terrain-generation.md` plus the
-  `lane/terrain` design decisions already owner-approved at QUESTIONS Q162/
-  Q171 (tile kinds and the six generation bands, structural gate mains,
-  sealing/fallback semantics, the `a/(a+1)` Core-band ceiling, Core
-  placement and its suggested anchor, high-ground's no-boss-family rule, the
-  per-kind `blocksCharacter` flag, the `[-2^31, 2^32-1]` seed domain, the
-  `maxGateDetour` approach band, the uncontested-high repair, and the
-  run-gate-list threading) — the section itself carries an unresolved owner
-  item forward (BACKLOG fb129's Act II high-ground/Burrower residual).
-  §14's G2 row gained a terrain-determinism clause (same seed → identical
-  map + hash, seed+1 regeneration is itself deterministic); §13's content
-  totals gained `data/terrain.json`; MIGRATION.md gained a new §8.6 noting
-  the spec catching up to what the lane had already built and merged; the
-  append itself is logged as QUESTIONS Q194, `[designer-fill]`, owner
-  verdict pending. Zero `/src` or `/data` changes — confirmed by re-running
-  every SPEC-FINAL-parsing suite (`tests/q10-gate-audit.test.ts`,
-  `tests/fb038-status.test.ts`, `tests/class-spec-numbers.test.ts`,
-  `tests/equip-spec-numbers.test.ts`, 291 tests) green, including
-  `tools/gate-audit.ts`'s own G2-row parser against the edited table.
-  code-reviewer's first pass found two Major fidelity gaps, both fixed
-  before this was marked done: the "verbatim" quote had silently dropped
-  two source clauses (the Core-legal-positions rationale and "Tuner page
-  (density/ratios editable)") and reflowed the tile-types bullets into
-  prose, losing the rock-passthrough `[designer note]` and the `(Spitter)`
-  example — replaced with an actual verbatim quote of the source file's own
-  bullet lists; and a lane-decisions bullet claimed the run's live gate
-  list is threaded through "every" gate-reading function, contradicting
-  Q171(9)/open BACKLOG fb134 (`describeTerrain` still reads the module's
-  base `GATES` constant, confirmed live in `src/sim/terrain/describe.ts`) —
-  now states that exception explicitly. Diffed the corrected quote
-  line-for-line against the source feedback file to confirm true verbatim
-  fidelity (one intentional blank line added for Markdown blockquote
-  paragraph spacing, no other difference).
 
