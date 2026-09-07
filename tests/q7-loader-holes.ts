@@ -22,6 +22,23 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-07 (fb082, revised after code-reviewer/qa-playtester
+ * findings in the same session): `data/classes.json`'s new
+ * `active1.groundTickSeconds` (Poison Barrel's authored poison-application
+ * cadence) is `.positive()`-validated, so it accepts only `fractional` plus
+ * `drop-key`/`rename-key` (a missing value falls back to 1 in
+ * `firePoisonBarrel`, classes.ts, rather than erroring — unlike its sibling
+ * `groundDurationSeconds`, which `content.ts` requires outright).
+ * `active1.groundDurationSeconds` itself lost its `negative`/`zero` holes at
+ * the same pass: a new `ground_poison` cross-check (`content.ts`) refuses
+ * `groundTickSeconds > groundDurationSeconds`, and once `groundTickSeconds`
+ * is authored (1) that check now also refuses a `groundDurationSeconds`
+ * mutated to `<= 0` (the finding that made a negative/zero duration
+ * "acceptable" in the first place — a poison area whose whole life ends
+ * before its own cadence ever fires is exactly the class of hole this
+ * cross-check exists to close). `active2.groundDurationSeconds`
+ * (Pyromancer's unrelated `dash_trail`) is untouched by any of this.
+ *
  * Regenerated 2026-09-07 (fb080): `data/terrain.json` joins the fuzzed set —
  * previously known to every data tool except this one, `tools/fuzz-data.ts`'s
  * `DATA_FILES` and `tools/mutation-probe.ts` (BACKLOG-TERRAIN.md fb064a Log).
@@ -272,7 +289,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.compoundPerSecond': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.cooldownSeconds': ['fractional'],
   'classes.classes[].active1.damage': ['zero', 'fractional'],
-  'classes.classes[].active1.groundDurationSeconds': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.groundDurationSeconds': ['fractional'],
+  'classes.classes[].active1.groundTickSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.knockback': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.markEliteExecuteFraction': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.markFutureDotSeconds': ['negative', 'zero', 'fractional'],

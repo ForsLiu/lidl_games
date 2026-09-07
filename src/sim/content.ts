@@ -796,6 +796,8 @@ const ClassEffectSchema = z.object({
   dashWidth: num.optional(),
   /** `ground_poison` only (p6c, Q119): seconds the ground zone persists after being cast — §4.1's "for 5 s", distinct from `cooldownSeconds` (the Active's own recast timer). */
   groundDurationSeconds: num.optional(),
+  /** `ground_poison` only (fb082): seconds between poison applications — §4.1's "applying poison damage every second." Falls back to 1 in `firePoisonBarrel` (classes.ts) if absent, so this is authored explicitly rather than left to the fallback. */
+  groundTickSeconds: num.positive().optional(),
 
   /* -------------------------------------------------- p6d, §4.2 kit fields */
 
@@ -1361,6 +1363,28 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
   }
   if (eff.kind === 'ground_poison') {
     if (eff.groundDurationSeconds === undefined) throw new Error(`${where}: ground_poison needs groundDurationSeconds`);
+    // qa-playtester (fb082, same session, re-QA pass): a `groundDurationSeconds
+    // <= 0` slipped through with `groundTickSeconds` left unauthored — the
+    // cross-check just below only fires when both fields are present, so a
+    // zero/negative lifetime with no explicit tick still reached
+    // `firePoisonBarrel`'s `?? 1` fallback and produced a permanently inert
+    // zone (a lifetime that can never cross even the default 1 s cadence).
+    // `ground_poison` is the only kind this field's own `updateAreas` cadence
+    // math applies to, so the positivity requirement is scoped here rather
+    // than on the shared schema field (`dash_trail`/`time_lock` also use
+    // `groundDurationSeconds`, for a zone lifetime with no cadence to cross).
+    if (eff.groundDurationSeconds <= 0) {
+      throw new Error(`${where}: ground_poison's groundDurationSeconds must be positive`);
+    }
+    // fb082 (code-reviewer/qa-playtester, same session): `groundTickSeconds`
+    // is validated `.positive()` by the schema, but nothing stopped it
+    // exceeding the zone's own lifetime — which `updateAreas`' cadence gate
+    // (src/sim/combat.ts) never crosses before the area expires, so the
+    // poison mechanic would go silently, permanently inert. Rule 4: a loader
+    // rule that refuses unpayable data beats a comment saying it must be valid.
+    if (eff.groundTickSeconds !== undefined && eff.groundTickSeconds > eff.groundDurationSeconds) {
+      throw new Error(`${where}: ground_poison's groundTickSeconds must not exceed groundDurationSeconds`);
+    }
   }
   for (const [kind, fields] of Object.entries(REQUIRED_EFFECT_FIELDS)) {
     if (eff.kind !== kind) continue;

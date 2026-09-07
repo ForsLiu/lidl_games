@@ -4142,7 +4142,87 @@ generation-rule boundary.
       `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
       `* areaMul` (align tower beams with vswield/classes or pin the
       exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
-- [ ] (fb082) [bug] Poison Barrel's ground area applies poison **every
+- [x] (fb082) [bug] **DONE 2026-09-07** — `updateAreas`'s poison branch
+      (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
+      (`GroundArea.acc`, declared since the type was written but never read)
+      instead of firing every 60 Hz frame; authored explicitly as
+      `groundTickSeconds: 1` in `data/classes.json`'s Plaguebringer `active1`
+      (threaded through a new optional, `.positive()`-validated schema field
+      and read in `firePoisonBarrel`), with a loader cross-check refusing
+      `groundTickSeconds > groundDurationSeconds` (an authored value that
+      would silently, permanently disable the mechanic).
+      **A first pass shipped a real ~3.5x DPS regression** — code-reviewer
+      and qa-playtester independently measured it (429.6 -> 120 total damage
+      over the barrel's 5 s life). Root cause: gating call *frequency* alone
+      while leaving `applyPoison`'s pre-existing hardcoded `duration: 1.0`
+      unchanged let every stack fully expire before the next application
+      arrived (never more than 1 concurrent stack), where the pre-fix 60 Hz
+      spam had kept all `POISON_STACK_CAP` (3) slots refreshed almost
+      continuously. Fixed by passing `duration: tick * POISON_STACK_CAP`
+      instead, so consecutive per-`tick` applications overlap enough to
+      reach and sustain the cap — restoring the pre-fix magnitude while
+      still cadencing correctly (one *application* per tick, not one per
+      frame); a new test drives real per-frame DoT decay (`updateEnemies`)
+      alongside `updateAreas` to prove `dotStacks` actually reaches 3 at
+      steady state, confirmed red against the naive fix and green against
+      this one.
+      **qa-playtester also found a second bug in the same first pass**: a
+      poison area whose *entire* lifetime is a single `tickSeconds` window
+      (Venom Spore's own trail blob — a fresh one replaces it every
+      `special.interval`, `data/towers.json`) went permanently silent,
+      because the cadence accumulator was checked *after* the area's own
+      expiry early-return, losing its one scheduled application to a
+      `remaining`/`acc` rounding race at the boundary — measured 0 damage at
+      the shipped 1.4286 s interval. Fixed by re-ordering `updateAreas` so
+      the poison branch accumulates and checks cadence *before* marking the
+      area dead (every other type's expiry behaviour is unchanged, including
+      `'burn'`'s pre-existing, negligible sub-frame loss on its own exact
+      expiry frame); `vsspecials.ts`'s `updatePoisonTrail` now also sets
+      `tickSeconds: special.interval` explicitly, matching each blob's own
+      lifetime by construction rather than depending on the engine's `?? 1`
+      default happening to be smaller. A parametrized regression test
+      (`tests/p2c-vs-specials.test.ts`) drives real `updateAreas` over a full
+      blob lifetime at 1.4286/1/0.5 s intervals, confirmed red before the
+      re-ordering fix at every value.
+      A remaining, narrower limitation is logged rather than engineered
+      around: a poison area whose lifetime is *not* an exact multiple of its
+      own `tickSeconds` loses its trailing partial window (no fractional
+      "final tick" — `applyPoison`'s stack model has no notion of a partial
+      application). Not reachable by any shipped `/data` row today (Poison
+      Barrel is 5/1, Venom Spore's blob now ties `tickSeconds` to its own
+      exact lifetime) and not part of this item's acceptance; qa-playtester
+      flagged it as a Major worth a future item if a duration-scaling skill
+      card (e.g. Time Lock's own "+2s/rank" pattern) is ever authored for
+      Poison Barrel.
+      **Re-review round (code-reviewer + qa-playtester again, same session):
+      both APPROVE/PASS**, empirically re-measuring the DPS fix (independent
+      methodology landed within noise of the first measurement, confirming
+      the restored magnitude is genuinely close to the pre-fix baseline, not
+      just "improved") and re-driving the Venom Spore fix at three interval
+      values through the real tower-build pipeline. One more Minor closed
+      from that pass: `groundDurationSeconds <= 0` with `groundTickSeconds`
+      left unauthored slipped past the exceeds-check (which only compares
+      when both fields are present) and reached `firePoisonBarrel`'s `?? 1`
+      fallback — a lifetime that can never cross even the default cadence.
+      Now an independent, scoped-to-`ground_poison` positivity check (not a
+      schema-wide change, since `dash_trail`/`time_lock` share the same field
+      for a lifetime with no cadence to cross). Confirmed this closes no
+      further q7 census entries (the fuzzer mutates one field per trial, and
+      real data always authors `groundTickSeconds`, so this exact combination
+      was never reachable through the existing single-field mutation
+      families — verified by an unchanged `q7-data-fuzz` census before/after).
+      `tests/class-spec-numbers.test.ts`'s c008 ledger row for "applying
+      poison damage every second" moved `defect` -> `match` (census 67->68
+      match, 1->0 defect); `tests/q7-loader-holes.ts` regenerated twice via
+      the documented `Q7_RECORD=1` procedure (once for the new field, again
+      after the loader cross-check closed `groundDurationSeconds`'s own
+      stale negative/zero holes) — diffed both times to confirm purely
+      additive/closing changes. `npm run test:fast`: only the documented
+      pre-existing `q15`/`q45` flake. `npx tsc --noEmit` clean. Short cross-
+      lane note added to BACKLOG-CONTENT.md's Log (fb082 landed, unblocks
+      fb062's own remaining acceptance — zero-direct-damage/no-lifesteal and
+      tooltip tests — which this item does not touch).
+      Original text follows. Poison Barrel's ground area applies poison **every
       tick**: `updateAreas` (`src/sim/combat.ts`) calls `applyPoison(w, e,
       a.dps * scale, 1.0, 3, a.source)` at 60 Hz where SPEC-FINAL §4.1 says
       "applying poison damage every second" — the stack cap bounds the damage
