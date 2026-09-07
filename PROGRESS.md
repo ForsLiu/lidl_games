@@ -37,8 +37,12 @@
   for it. code-reviewer approved (no Critical/Major; confirmed
   `damageByWeapon`/`damageByType` share the same `enemies.ts` choke point and
   normalizing total, and the new sanity check is correctly index-aligned).
-  qa-playtester pass launched in parallel; its result follows as a separate
-  log entry once it returns. `npx tsc --noEmit` clean.
+  qa-playtester independently re-ran the full sweep pinned to commit
+  `e132fc7`, reproduced the exact 11/66 and unchanged 50/66 readings, and
+  confirmed `damageByWeapon`/`damageByType` are genuinely different
+  accumulators (Stormcaller's 10.5% electric share, Time Lord's 4.5%
+  bleeding, both outliers every other class lacks). No bugs filed.
+  `npx tsc --noEmit` clean.
 
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c038 done, one premise
   correction, no bug found.** The item's own premise named three files with a

@@ -1151,10 +1151,18 @@ owner items.
       share the same normalizing `total` by construction, and the new
       `describe.skipIf(!MEASURE)` block's "the two vectors actually differ"
       sanity check is correctly index-aligned since both pair arrays are
-      built in the same nested loop). qa-playtester pass launched in
-      parallel with this commit; its result will be appended here as a
-      follow-up log entry once it returns, per this lane's own convention of
-      never fabricating a result ahead of the tool call that produces it.**
+      built in the same nested loop). qa-playtester independently re-ran the
+      full sweep (pinned to commit `e132fc7` rather than the live working
+      tree, since the repo had other in-flight lane work mid-verification)
+      and reproduced the exact 11/66 and unchanged 50/66 readings and the
+      same closest-3 pairs; confirmed `damageByWeapon`/`damageByType` are
+      populated by genuinely different accumulators in `enemies.ts`
+      (spot-checked Stormcaller at 10.5% electric share, an outlier every
+      other class lacks, and Time Lord at 4.5% bleeding vs ~0% elsewhere —
+      exactly the two separations the log above already named); confirmed
+      `l1Distance`/`shareVector` match G22's `p-core-f-gates.test.ts`
+      formulas line-for-line; confirmed the console output format and the
+      zero-`/data`-diff claim against the parent commit. No bugs filed.**
 
 - [x] (c041) [polish] **DONE 2026-09-07.** c018/c019's summon-cooldown headroom numbers (Engineer
       59 ticks, Animist 119 ticks at shipped `/data`, recorded 2026-09-04)
