@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Hub } from '../src/ui/hub';
 import { defaultMeta } from '../src/meta/meta';
@@ -136,5 +136,76 @@ describe('fb075: Settings "reset to defaults"', () => {
     resetButton(root).click(); // re-arm, not execute
     expect(onSettingsChanged).not.toHaveBeenCalled();
     expect(resetButton(root).textContent).toContain('Click again to confirm');
+  });
+});
+
+/**
+ * fb169 (code-reviewer, filed during fb144 review): fb144 seeds
+ * `reducedMotion` from the OS `prefers-reduced-motion` query on a first run
+ * only — but `sanitize(defaultSettings())` at the reset site wrote a hard
+ * `reducedMotion: false` regardless, and a stored value always wins from then
+ * on (`loadSettings`'s own rule), so an OS-"reduce" player who ever pressed
+ * Reset lost the preference for the rest of the session. Fixed by resetting
+ * through `firstRunSettings()` instead, the exact function a first run itself
+ * uses.
+ */
+describe('fb169: Settings reset re-derives reducedMotion from the OS preference, like a first run would', () => {
+  const QUERY = '(prefers-reduced-motion: reduce)';
+
+  function installMatchMedia(matches: boolean): void {
+    (globalThis as unknown as { matchMedia: unknown }).matchMedia = (media: string) => ({
+      media,
+      matches: media === QUERY ? matches : false,
+    });
+  }
+
+  afterEach(() => {
+    delete (globalThis as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  it('an OS "reduce" preference survives a reset: reducedMotion comes back true, not the hard false defaultSettings() alone would write', () => {
+    installMatchMedia(true);
+    const onSettingsChanged = vi.fn();
+    const { root } = openHub(onSettingsChanged);
+
+    // Turn it off by hand first, so the reset is what turns it back on —
+    // not a value that was simply never touched.
+    const toggle = root.querySelector<HTMLInputElement>('[data-toggle="reducedMotion"]')!;
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    expect((onSettingsChanged.mock.calls.at(-1)![0] as Settings).reducedMotion).toBe(false);
+
+    resetButton(root).click(); // arm
+    resetButton(root).click(); // confirm
+
+    const finalSettings = onSettingsChanged.mock.calls.at(-1)![0] as Settings;
+    expect(finalSettings.reducedMotion).toBe(true);
+    expect(root.querySelector<HTMLInputElement>('[data-toggle="reducedMotion"]')!.checked).toBe(true);
+    // Every other field still matches the plain defaults — this is not a
+    // reset that silently changed anything besides the one seeded field.
+    expect(finalSettings).toEqual({ ...defaultSettings(), reducedMotion: true });
+  });
+
+  it('control: no OS preference — a reset leaves reducedMotion false, same as before this fix', () => {
+    installMatchMedia(false);
+    const onSettingsChanged = vi.fn();
+    const { root } = openHub(onSettingsChanged);
+
+    resetButton(root).click(); // arm
+    resetButton(root).click(); // confirm
+
+    const finalSettings = onSettingsChanged.mock.calls.at(-1)![0] as Settings;
+    expect(finalSettings.reducedMotion).toBe(false);
+    expect(finalSettings).toEqual(defaultSettings());
+  });
+
+  it('no matchMedia at all (jsdom\'s own default shape) resets cleanly to false, no throw', () => {
+    const onSettingsChanged = vi.fn();
+    const { root } = openHub(onSettingsChanged);
+
+    resetButton(root).click();
+    resetButton(root).click();
+
+    expect((onSettingsChanged.mock.calls.at(-1)![0] as Settings).reducedMotion).toBe(false);
   });
 });
