@@ -49,9 +49,12 @@ not already expose it) logs that need below instead of reaching into
       other lane files' post-trim wording); the two still-blocked items
       (`fb167`, blocked on `BACKLOG-TERRAIN.md` `fb166`; `fb160`, blocked on
       new main-lane sim state) under a new `### Blocked out of Scope` heading;
-      the five still-open actionable items (`fb085`, `fb093`, `fb097`,
-      `fb151`, `fb174`) under a new `### Actionable in this lane` heading,
-      this item first; a new `### Recently completed` list of the last 10
+      the four still-open actionable items (`fb093`, `fb097`, `fb151`,
+      `fb174`) under a new `### Actionable in this lane` heading, this item
+      first (`fb085` also starts there, then moves to `### Blocked out of
+      Scope` in the very next item below, once its own acceptance line
+      turns out to need a `data/strings.json` this lane can't create); a
+      new `### Recently completed` list of the last 10
       other done ids (`fb096`, `fb117`, `fb177`, `fb169`-`fb173`, `fb175`,
       `fb176`) as one-liners. **One exception, found by running
       `npx vitest run tests/fb038-status.test.ts` after the first pass (it
@@ -67,22 +70,6 @@ not already expose it) logs that need below instead of reaching into
       way it did live. File drops from 5449 to well under 400 lines. No
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
-
-- [ ] (fb085) [feat] low priority: generated 2026-09-04 — localization-
-      readiness groundwork for QUALITY.md BETA's "zero user-facing string
-      literals outside `data/strings.json` (lint rule)" bar, currently
-      entirely unmet (no `data/strings.json` exists; every UI string is a
-      literal in `src/ui/*.ts`). Scoped to standing up the mechanism rather
-      than a single-pass full-repo extraction, which is far larger than one
-      backlog item: acceptance is a new `data/strings.json` (seeded, not
-      necessarily exhaustive), a small typed loader (`src/ui/strings.ts`),
-      and a lint/test rule that fails when a hardcoded user-facing string
-      literal appears in a designated "already converted" file list;
-      convert one representative, self-contained surface (e.g. the pause/
-      results modal text in `hud.ts`) as the first migrated file and the
-      rule's own proof case; a test confirms the rule actually catches a
-      reintroduced literal in that converted file — refs: QUALITY.md BETA,
-      SPEC-FINAL §11.
 
 - [ ] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
@@ -155,6 +142,29 @@ not already expose it) logs that need below instead of reaching into
       refs: fb149, fb146, fb148.
 
 ### Blocked out of Scope
+
+- [ ] (fb085) [feat] low priority: **BLOCKED out of Scope 2026-09-07 — this
+      item's own acceptance line requires a new `data/strings.json`, and
+      `/data` is not in this lane's Scope (`src/ui/**`, `src/render/**`,
+      `tests/ui*`, `tests/render*`, this file only); the loader/lint-rule
+      halves are in-scope but depend on the data file existing first, so
+      nothing here is independently completable. Needs a main-lane
+      companion to create/own `data/strings.json` before this lane can build
+      the loader and convert the first surface.** generated 2026-09-04 —
+      localization-readiness groundwork for QUALITY.md BETA's "zero
+      user-facing string literals outside `data/strings.json` (lint rule)"
+      bar, currently entirely unmet (no `data/strings.json` exists; every UI
+      string is a literal in `src/ui/*.ts`). Scoped to standing up the
+      mechanism rather than a single-pass full-repo extraction, which is far
+      larger than one backlog item: acceptance is a new `data/strings.json`
+      (seeded, not necessarily exhaustive), a small typed loader
+      (`src/ui/strings.ts`), and a lint/test rule that fails when a
+      hardcoded user-facing string literal appears in a designated
+      "already converted" file list; convert one representative,
+      self-contained surface (e.g. the pause/results modal text in
+      `hud.ts`) as the first migrated file and the rule's own proof case; a
+      test confirms the rule actually catches a reintroduced literal in
+      that converted file — refs: QUALITY.md BETA, SPEC-FINAL §11.
 
 - [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
       `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
