@@ -778,3 +778,29 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
+- **Q193. [fb079] SPEC-FINAL had no §10.5 for terrain generation, even though
+  `lane/terrain` had already built it, merged it, and logged its own design
+  decisions (Q162, Q171, both owner-approved) — the spec text itself was the
+  only piece still missing.** Chosen default (a **[designer-fill]** append,
+  per SPEC-FINAL's own header convention, since this is new spec text rather
+  than a fresh ambiguity): §10.5 quotes the owner's original feature feedback
+  (`feedback/processed/20260903-121255-feature-terrain-generation.md`)
+  verbatim, then restates Q162/Q171's already-approved decisions as spec
+  text rather than leaving them scattered across two Q-log entries and a
+  lane BACKLOG file. §14 G2's own row is extended to name terrain-generation
+  determinism (same seed → identical map + hash; the seed+1 degenerate-seed
+  regeneration walk is itself deterministic) explicitly, rather than leaving
+  it implied by G2's general "100/100 replay hash match" wording. §13's
+  content totals gain the terrain file. MIGRATION.md §8.1 is updated from
+  "four things are genuinely new" to five, with §10.5 named as the fifth and
+  dated after the original reconcile pass. No code changed — this item is
+  docs-only, reconciling the spec document with terrain generation and
+  placement code that was already built, reviewed and shipped. — Reason:
+  CLAUDE.md rule 5 (fill a genuine gap with the most spec-consistent
+  default, log it) and SPEC-FINAL's own text ("[designer-fill] sections...
+  the owner may veto any of them via an inbox verdict") — the two decisions
+  §10.5 restates (Q162, Q171) already carry independent owner approval, so
+  this entry's own vetoable surface is narrower: only the *choice to append
+  as one designer-fill section reusing those decisions verbatim*, not the
+  decisions themselves, which stand regardless of this entry's own verdict.
+

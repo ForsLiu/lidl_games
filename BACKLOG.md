@@ -4078,7 +4078,35 @@ generation-rule boundary.
       overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
       `'terrain'` falls into the same drop-the-plan branch `'occupied'`
       did. Renderer string stays UI-lane fb116 (was fb091).
-- [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
+- [x] (fb079) [docs] **DONE 2026-09-07** — SPEC-FINAL.md gained §10.5,
+      quoting the owner's original feedback file in full (a code-reviewer
+      first-pass Major finding caught the first draft silently reflowing and
+      trimming it — including the rock/character pass-through clause, the
+      single most load-bearing one — fixed by reproducing the whole memo
+      verbatim) followed by the lane's Q162/Q171 design decisions restated
+      as spec prose: tile kinds and bands, structural gate mains, fallback
+      semantics, the `a/(a+1)` Core-band ceiling, Core placement, the
+      high-ground family table and the no-boss-family rule, character
+      passage, seed domain, the `maxGateDetour` approach band, and the
+      uncontested-high repair. §14's G2 row is extended to name generation
+      determinism explicitly; §13 gains the terrain file; MIGRATION.md §8.1
+      is updated from "four things" to "five," naming §10.5 as the fifth;
+      QUESTIONS Q193 logs the append as `[designer-fill]`. Also surfaced
+      (not silently fixed, since this is a docs-only item): the shipped
+      `blocksCharacter: true` for rock is the *vetoed* reading of the
+      owner's own stated default ("character flies over"), with no recorded
+      veto — carried forward as the same open item Q171 already named, now
+      visible in the spec text itself rather than buried in a code comment.
+      Light tier (docs only, no code touched): `npm run test:fast` green
+      throughout (the one known pre-existing, unrelated fb119 failure
+      aside); `tests/q10-gate-audit.test.ts`/`fb038-status.test.ts` (both
+      parse SPEC-FINAL.md's gate table programmatically) re-verified green
+      after every edit. code-reviewer's only finding (the verbatim-quote
+      gap) fixed and re-verified; no other issues. The run-gate-list
+      threading Q171 also logged is left out of spec text — an internal
+      function-parameter-ordering detail, not a game-design decision, and
+      already forward-referenced to BACKLOG fb134. Original text follows.
+      SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
       `feedback/processed/20260903-121255-feature-terrain-generation.md`

@@ -5,6 +5,56 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb079 done: SPEC-FINAL.md gained §10.5 (terrain
+  generation), reconciling the spec document with code `lane/terrain` had
+  already built, merged and shipped weeks earlier.** No code changed — this
+  is a docs-only item. §10.5 quotes the owner's original feature feedback
+  (`feedback/processed/20260903-121255-feature-terrain-generation.md`) in
+  full, then restates the lane's own already-owner-approved design decisions
+  (QUESTIONS Q162, Q171) as spec prose: the four tile kinds and their
+  walkable/buildable/highGround/blocksCharacter flags; the six generation
+  bands and how they're measured (whole-grid, border included; `high`
+  counts against the walkable band); structural gate mains carved before
+  scatter so "never enclosed / all connect / no sub-2 corridor" hold by
+  construction; the `fallback: true` degenerate-seed semantics and the
+  `a/(a+1)` Core-band loader ceiling; Core placement
+  (`validateCorePlacement`/`legalCoreAnchors` agreeing by one enumeration);
+  the high-ground family table and the "boss is not a family, exempted at
+  call sites rather than by a flag" rule; the full `[-2^31, 2^32-1]` seed
+  domain; the `maxGateDetour` approach band; uncontestable high ground
+  repaired to rock rather than rejected; practice runs always playing the
+  flat arena. §14's **G2** row is extended to name generation determinism
+  explicitly (same seed → identical map + hash; the seed+1 regeneration
+  walk is itself deterministic) rather than leaving it implied by G2's
+  general wording. §13's content totals gain the terrain file. MIGRATION.md
+  §8.1 is updated from "four things are genuinely new" to five, dating §10.5
+  as an addition made after the original SPEC-FINAL reconcile pass. New
+  QUESTIONS **Q193** logs the append itself as `[designer-fill]` — narrowly
+  scoped to *the choice to append as one section restating Q162/Q171
+  verbatim*, since those two decisions already carry independent owner
+  approval and aren't reopened by this entry.
+  code-reviewer's first pass (REQUEST-CHANGES, one Major) caught something
+  real: the first draft's blockquote reflowed the owner's memo into prose
+  and silently dropped several clauses without disclosing it as an excerpt —
+  worst among them the rock/character pass-through clause ("the character
+  still passes... veto if rocks should block the character"), the single
+  most load-bearing one, since `src/sim/terrain/character.ts`'s own doc
+  comment already names a real, pre-existing gap: the shipped
+  `blocksCharacter: true` for rock is the *vetoed* reading of the owner's
+  stated default, with no recorded veto anywhere. Fixed by reproducing the
+  entire feedback memo verbatim (bullets, designer notes, and all) and
+  adding one paragraph surfacing that gap explicitly in the spec text
+  itself, rather than leaving it buried in a code comment — a real
+  reconciliation this item was positioned to make, not a new decision (the
+  gap is left exactly as shipped, carried forward as the same open item
+  Q171 already named). Re-verified: `tests/q10-gate-audit.test.ts` and
+  `tests/fb038-status.test.ts` (both parse SPEC-FINAL.md's `## 14.` gate
+  table programmatically) stay green after every edit — the G2 row's
+  reworded cell doesn't touch the table structure either parser reads.
+  Light tier (docs-only): `npm run test:fast` green throughout (the one
+  known pre-existing, unrelated fb119 failure aside), no qa-playtester pass
+  needed per CLAUDE.md's tiered-QA rule.
+
 - **2026-09-07 — BACKLOG fb139 done: the F8 in-run bug-report hotkey.**
   Pressing F8 during a live run (dev or prod build) pauses the sim
   (`setPaused(true)` shows the plain Pause card first; `Hud.showBugReportBox`
