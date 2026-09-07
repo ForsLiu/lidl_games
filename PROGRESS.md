@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c041 done, re-measurement
+  only, no regression.** c018/c019's summon-cooldown headroom numbers
+  (Engineer Pop Turret, Animist Manifest) were a measurement with an expiry
+  date per CLAUDE.md's rules; re-derived against current `/data` (unchanged
+  since c018) via a binary search built on the file's own already-validated
+  `lapsPerLife` formula. Engineer: cliff ≈3.328s vs shipped 3s, ~9.8-10.9%
+  headroom (c018: "~3.35s, ~11%"). Animist: cliff ≈4.996s vs shipped 4s,
+  ~19.9% headroom (c018: "~5.00s, ~20%", an almost exact match). Both
+  comfortably positive, nothing to flag for `p10r`. New
+  `describe('c041: ...')` in `tests/class-active2-cdr.test.ts`, made live
+  (not `.skip`-ed) since the derivation is cheap pure arithmetic. code-reviewer
+  approved (no Critical/Major; two Minor notes fixed — an unsafe type cast
+  replaced with a real `ClassEffect` spread, and descriptive failure messages
+  added to the four key assertions). `npx tsc --noEmit` clean; full file
+  92/92 passed.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c040 done, measurement only,
   no `/data` tune.** `c033` measured G8's diversity clause (ii) using only
   the damage-*source* half of "damage-source/damage-type vector method"

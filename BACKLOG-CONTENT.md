@@ -1156,7 +1156,7 @@ owner items.
       follow-up log entry once it returns, per this lane's own convention of
       never fabricating a result ahead of the tool call that produces it.**
 
-- [ ] (c041) [polish] c018/c019's summon-cooldown headroom numbers (Engineer
+- [x] (c041) [polish] **DONE 2026-09-07.** c018/c019's summon-cooldown headroom numbers (Engineer
       59 ticks, Animist 119 ticks at shipped `/data`, recorded 2026-09-04)
       are a measurement with an expiry date (CLAUDE.md's measurement rules)
       that has never been re-checked, and at least two balance-affecting
@@ -1172,6 +1172,32 @@ owner items.
       positive, matching `c003`'s own convention. In-lane, `/data` unchanged
       unless the re-measurement finds a genuine regression - refs: CLAUDE.md
       measurement rules, c018, c019, c030.
+      **Both cards' `/data` fields are unchanged since c018, and the
+      re-derivation confirms both margins are unmoved, comfortably positive.**
+      New `describe('c041: ...')` in `tests/class-active2-cdr.test.ts` adds a
+      `cliffFor` binary search that calls the file's own already-validated
+      `lapsPerLife` (not a separately hand-rolled formula) to find the largest
+      `cooldownSeconds` at which each card's top-rank target cap
+      (`summonCap` + `class_line` card's `maxRank * perRank`) is still
+      reachable at all. Engineer Pop Turret: cliff ≈3.328 s vs shipped 3 s
+      (c018 recorded "~3.35 s / ~11%"; re-measured today at ~9.8% headroom
+      relative to the cliff, ~10.9% relative to the shipped value — c018's
+      prose did not specify which denominator it used, both land in the same
+      range). Animist Manifest: cliff ≈4.996 s vs shipped 4 s, ~19.9%
+      headroom (c018: "~5.00 s / ~20%") — an almost exact match. Since
+      `p12c`'s `baseHpMul` and `fb077`'s terrain generation touch neither
+      class's cooldown/duration/cap fields and this measurement has no seed
+      or wave-scaling dependency, no drift was expected and none was found;
+      nothing to flag for `p10r`. Made the assertions **live** rather than
+      `.skip`-ed (the acceptance text allows either) since the derivation is
+      cheap pure arithmetic with no simulated runs — a real regression guard
+      at effectively no cost, unlike c003's expensive win-rate measurement.
+      code-reviewer approved (no Critical/Major; two Minor notes both fixed:
+      `cliffFor` now takes the real `ClassEffect` and spreads over it
+      (`{ ...eff, cooldownSeconds: cd }`) instead of an unsafe two-field cast,
+      and all four load-bearing assertions now carry a descriptive message
+      naming what to re-measure on failure). `npx tsc --noEmit` clean; full
+      file 92/92 passed.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
