@@ -4036,7 +4036,26 @@ generation-rule boundary.
       fb064f's terrain page (density/ratios live-editable, path-based
       highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
       §14 G15, BACKLOG-TERRAIN.md fb064f.
-- [ ] (fb081) [bug] `src/sim/combat.ts`'s `lineHit` broadphase uses a
+- [x] (fb081) [bug] **DONE 2026-09-07** (`692b8fc`) — margin fixed to
+      `range * 0.5 + halfWidth + 2` (`src/sim/combat.ts`), matching the
+      `fireCrimsonRush` fix already shipped; the sibling inconsistency was
+      resolved by aligning, not pinning — `towers.ts`'s `single`/`pierce`
+      kinds now pass `LINE_HALF_WIDTH * area` to `lineHit`/`bestLineDirection`,
+      matching `vswield.ts` and every other attack shape in the same function
+      (SPEC-FINAL §2: Area "applies to every attack, active, and effect").
+      `tests/fb081-linehit-broadphase.test.ts` pins the `dash_line` areaMul-4
+      corner-miss regression, written first and confirmed red at HEAD
+      (CLAUDE.md rule 3). code-reviewer's one Major finding — the new
+      tower-beam footprint had no row in `tests/class-wide-grove-reach.test.ts`'s
+      c013 ledger, the exact completeness guard built for this failure mode —
+      was closed by adding an Arrow Spire CONSUMERS row and a Ballista
+      DEVIATIONS row (aim-only `bestLineDirection`, mirroring the existing
+      wielded-side entry). qa-playtester independently reproduced the
+      pre-fix miss via `git stash` on `towers.ts` alone (proving the
+      `towers.ts` half is load-bearing, not just the `combat.ts` margin),
+      confirmed baseline (`areaMul===1`) behavior is unchanged, and found no
+      bugs. Original text follows.
+      `src/sim/combat.ts`'s `lineHit` broadphase uses a
       constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
       exceeds ~2 the footprint saturates into a lens and the outermost enemies
       stop being hit (BACKLOG-CONTENT.md c001 Log; measured first-miss

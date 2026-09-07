@@ -73,6 +73,14 @@ function reveal(): void {
 describe('fb145: a hidden tab auto-pauses, with no blur event anywhere', () => {
   afterEach(() => {
     delete (document as unknown as { hidden?: unknown }).hidden;
+    // fb170: a `hide()` now genuinely persists a running run's checkpoint
+    // (this file's own tests included, since they drive a real `Game` through
+    // a real `visibilitychange`), so a later test's fresh `Game` finding one
+    // in `localStorage` would resume it instead of showing the Hub — this
+    // file's cases are about pause state, not persistence, and clear it same
+    // as `tests/ui-fb074-resume-on-refresh.test.ts` and
+    // `tests/ui-fb170-hidden-tab-flush.test.ts` both already do.
+    localStorage.clear();
   });
 
   it.each(['act1_wave', 'act2'] as const)(

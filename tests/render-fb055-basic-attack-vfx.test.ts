@@ -20,7 +20,18 @@ import { Renderer, type ViewState } from '../src/render/canvas';
 import { World } from '../src/sim/world';
 import { TILE } from '../src/sim/grid';
 import { defaultSettings } from '../src/ui/settings';
-import { cfg } from './helpers';
+import { cfg as cfgWithTerrain } from './helpers';
+
+// fb116: this file's basic-attack VFX assertions have nothing to do with
+// terrain (the same reasoning tests/fb016-vfx-registry.test.ts's own local
+// `cfg()` wrapper already states for the identical reason) — every `cfg()`
+// call here keeps the pre-fb077 flat board, so a real generated map's own
+// rock-silhouette edge lines (drawn unconditionally, `drawTerrainEdges`) can
+// never be mistaken for a tracer line by a test that scans every captured
+// line rather than one filtered by color/position.
+function cfg(over: Parameters<typeof cfgWithTerrain>[0] = {}): ReturnType<typeof cfgWithTerrain> {
+  return cfgWithTerrain({ practice: true, ...over });
+}
 
 /** Same recording proxy as tests/fb016-vfx-registry.test.ts's `recordingCanvas`, plus `ellipse` (theme.ts's `glob`/`orb` projectile shapes call it) so a class_basic tracer doesn't throw. */
 function recordingCanvas(): {

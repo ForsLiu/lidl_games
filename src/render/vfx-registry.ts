@@ -58,6 +58,31 @@ export const ACTIVE_KIND_SHAPE: Record<ClassEffect['kind'], VfxShape> = {
   time_lock: 'nova',
 };
 
+/**
+ * fb115: the `ClassEffect.kind`s whose `eff.radius` IS the Area stat's own
+ * `classArea(w, eff.radius)` (`src/sim/classes.ts`) at the point the sim
+ * actually fires them — as opposed to a kind that reuses the same field name
+ * for a target-search radius (`nearestEnemy`/`nearestStructure`, never
+ * Area-scaled), a placement offset (`ice_wall`'s `(eff.radius || 1)`), or an
+ * unused placeholder (`dash_line`/`poison_boost`, `radius: 0`). A renderer
+ * preview (`drawSkillHoverRing`) that scaled the wrong half would trade one
+ * drift bug for the opposite one, so this set is checked per-`fire*` handler,
+ * not guessed from the `nova`/`line` VFX shape above (`raise_skeletons` is a
+ * `nova` shape but its radius is `summonRadius`, a different, unscaled
+ * field — the two tables classify different things and must not be merged).
+ */
+export const AREA_SCALED_ACTIVE_KINDS: ReadonlySet<ClassEffect['kind']> = new Set([
+  'burst_damage', // fireEffect
+  'charge_nova', // fireCircleSlash
+  'ground_poison', // firePoisonBarrel
+  'frost_nova', // fireFrostNova
+  'recall_totem', // fireRecallTotem
+  'clarion_taunt', // fireClarionTaunt
+  'judgement', // fireJudgement
+  'time_mark', // fireTimeMark
+  'time_lock', // fireTimeLock
+]);
+
 export interface SkillVfxEntry {
   /** Short human-readable description of the aim/charge indicator shown while casting. */
   indicator: string;
