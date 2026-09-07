@@ -177,25 +177,62 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
       `/data` only — refs: SPEC-FINAL §4.1 (Plaguebringer, amends), owner
       feedback `feature-plaguebringer-charge`.
 
-- [ ] (fb062) [feat] normal priority: pin down and enforce Poison Barrel's
-      every-second poison mechanic regardless of current code: every 1s
-      tick, every enemy inside gets one Poison application seeded by the
-      skill's `damage` field (120% of `damage` over 3s, stacking cap 3,
-      refresh-shortest per SPEC-FINAL §3); the barrel deals zero direct
-      damage of its own (ignores armor, no lifesteal, counts as character
-      DoT for Spreading Plague and Poison Boost's doubling); entering
-      mid-duration applies at the next tick, leaving stops new
-      applications but running stacks finish normally; cadence stays 1s
-      across `fb061`'s charge-duration range. Acceptance: a unit test
-      places one enemy in the barrel for its full duration and asserts one
-      application per second, stack cap 3, total damage matching the
-      formula; a second test asserts zero normal damage/lifesteal from the
-      barrel; a tooltip text test matches the owner's sentence-form
-      wording with live numbers — refs: SPEC-FINAL §4.1 (Plaguebringer),
-      §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
+### Filed 2026-09-07 — fb062 cross-lane findings (not this lane's to fix)
+
+- **Tooltip text (main-lane/UI-lane follow-up).** `fb062`'s third acceptance
+  clause ("a tooltip text test matches the owner's sentence-form wording")
+  cannot close from this lane: the sentence lives in `poisonBarrelSentence`
+  (`src/ui/class-info.ts`), and `src/ui/**` is not in this lane's Scope. The
+  shipped sentence ("Drops a 3-tile poison cloud dealing 2.4 damage/s for
+  5s. ... Cooldown 7s.") names a flat continuous rate, not the real
+  per-application/3s-window/3-stack-cap mechanic the fix below makes exact.
+  `tests/class-poison-barrel-mechanic.test.ts` carries an `it.skip`
+  documenting the exact current (wrong) string as the UI lane's repro.
+- **`tests/p6e-class-diversity.test.ts` (main lane) — two live exact-count
+  pins measured against the pre-fix, 2.5x-overshooting Poison Barrel; found
+  by code-reviewer on the fix below.** Plaguebringer's own-kit VS-share
+  count (pinned `0`, `:673`) is very unlikely to move — Plaguebringer was
+  already measured far under the 35% floor (15.4%, per that file's own
+  comment) and this fix only *shrinks* one of its two Actives' damage, which
+  cannot newly cross a floor from below. The fingerprint-distance failure
+  count (pinned `16/66`, `:711`) has no such margin visible and plausibly
+  moved: Poison Barrel is one of Plaguebringer's two damage-share vector
+  components, now ~40% of its former size. Re-measure both (or at least the
+  second) the next time that excluded, ~100-minute suite actually runs,
+  per CLAUDE.md's "a deferral is a measurement with an expiry date" rule —
+  not re-run from here per working rule 8 (no gate/full-suite re-measurement
+  outside a `[balance]` item or one whose acceptance is a gate
+  re-measurement).
 
 ### Recently completed
 
+- (fb062) [feat] **DONE 2026-09-07 (in-lane portion; tooltip filed above for
+  the UI lane).** pin down and enforce Poison Barrel's every-second poison
+  mechanic. Found and fixed a real bug while scoping it: `firePoisonBarrel`
+  (`classes.ts`) seeded each application's dps with the raw character-scaled
+  `damage` directly; since `combat.ts`'s `updateAreas` feeds that straight
+  into a fixed 3s `applyPoison` stack, this delivered `seed x 3` per
+  application instead of SPEC-FINAL §3's `seed x 1.2` (120% over 3s) — a
+  2.5x overshoot. Fixed by routing the seed through `dotDpsFor`
+  (`damagetypes.ts`), the exact conversion `cores.ts`'s Corpse-poison call
+  site and `applyDamageType`'s own dot branch already use. New
+  `tests/class-poison-barrel-mechanic.test.ts`: the corrected formula
+  end-to-end through the real zone (regression-tested red pre-fix, measured
+  36.0 vs the correct 14.4), the 1s cadence and 3-stack cap, zero direct
+  damage/no lifesteal (both already true, now pinned), and one `.skip`-ed
+  tooltip case documenting the UI-lane blocker above. code-reviewer
+  REQUEST-CHANGES (one Major — the `p6e` staleness risk above, filed rather
+  than fixed; one Minor — a stray scratch probe script deleted before
+  commit; one Nit — the `poisonDef` fallback, confirmed dead code by QA
+  since `content.ts`'s `REQUIRED_DAMAGE_TYPE_KEYS` makes the row mandatory
+  at load). qa-playtester PASS: independently re-derived the magnitude from
+  raw `/data`, confirmed Poison Boost/`active1PotencyMul`/Spreading Plague
+  all interact correctly with the corrected (smaller) magnitude, and
+  confirmed the zero/`poisonDef`-undefined edge cases are handled cleanly.
+  `npx tsc --noEmit` clean; `tests/class-*`/`equip-*` (29 files, 1012 tests)
+  and `npm run test:fast` green apart from the two pre-existing unrelated
+  `q15`/`q45` failures — refs: SPEC-FINAL §4.1 (Plaguebringer), §3 (Poison),
+  owner feedback `feature-poison-barrel-mechanic`.
 - (c041) [polish] **DONE 2026-09-07** — c018/c019's summon-cooldown headroom numbers (Engineer
 - (c040) [balance] **DONE 2026-09-07** — `c033` measured only the **damage-source** half of
 - (c039) [balance] **DONE 2026-09-07, negative result, no `/data` change** — `c033`'s pairwise fingerprint measurement (2026-09-07,
@@ -205,6 +242,5 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
 - (c035) [bug] **DONE 2026-09-07** — the three Swordsman-locked equipment items' off-class fallbacks are proven
 - (c034) [bug] **DONE 2026-09-07** — `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
 - (c033) [balance] **DONE 2026-09-06** — G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
-- (c032) [bug] **DONE 2026-09-06** — `kitPowerMul`'s reach across the kit is asserted nowhere in this lane, for the
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.
