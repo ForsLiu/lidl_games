@@ -86,20 +86,33 @@ describe('fb064n — flatTerrain is the one flat arena', () => {
   it('golden: tiles byte-identical to the map the fallback used to build', () => {
     const flat = flatTerrain();
     expect(Array.from(flat.kind)).toEqual(Array.from(expectedFlatKinds()));
-    // Counts, so a diff reads as a shape rather than as 720 numbers. The border
-    // is the arena's perimeter minus the three gate tiles punched back to
-    // normal: 2*(GRID_W + GRID_H) - 4 = 108, less 3 gates on it.
+    // Counts, so a diff reads as a shape rather than as 1792 numbers. The
+    // border is the arena's perimeter minus every gate tile on it, punched
+    // back to normal: 2*(GRID_W + GRID_H) - 4 = 172.
+    //
+    // "Every gate tile *on it*", not "every gate", because fb166 left `GATES`
+    // unmoved at 56x32 per this lane's Scope (main-lane's fb153b owns
+    // relocating them) — and the stale "east" gate at (35,17), on the border
+    // at the old 36x20 grid, now lands on ordinary interior ground at 56x32.
+    // Punching an already-Normal interior tile to Normal is a no-op, so only
+    // the two gates genuinely on the border (`west`, `north`) reduce the rock
+    // count. This is measured, not assumed, and would go back to `GATES.length`
+    // once fb153b moves `east` back onto an edge.
     const border = 2 * (GRID_W + GRID_H) - 4;
+    const gatesOnBorder = GATES.filter(
+      (g) => g.tx === 0 || g.tx === GRID_W - 1 || g.ty === 0 || g.ty === GRID_H - 1,
+    ).length;
+    expect(gatesOnBorder).toBe(2);
     let rock = 0;
     for (const k of flat.kind) if (k === TerrainKind.Rock) rock++;
-    expect(rock).toBe(border - GATES.length);
-    expect(rock).toBe(105);
-    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 105);
+    expect(rock).toBe(border - gatesOnBorder);
+    expect(rock).toBe(170);
+    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 170);
     // The hash is the G2 determinism handle, so it is pinned as a literal too:
     // an equal-tiles assertion would still pass if `terrainHash` changed what
     // it folds, and every replay guard downstream reads this string.
     expect(flat.hash).toBe(terrainHash(0, expectedFlatKinds()));
-    expect(flat.hash).toBe('bb4e18dd');
+    expect(flat.hash).toBe('049bf17f');
   });
 
   it('the maxAttempts fallback ships exactly this map', () => {
@@ -181,7 +194,7 @@ describe('fb064n — legality is a question about a config', () => {
     expect(m.gateReachFrac).toBe(1);
     // The most permissive layout the arena admits: no walkable tile is
     // unreachable and every non-border tile is normal.
-    expect(m.walkableCount).toBe(GRID_W * GRID_H - 105);
+    expect(m.walkableCount).toBe(GRID_W * GRID_H - 170);
     expect(m.normalCount).toBe(m.walkableCount);
   });
 
@@ -199,11 +212,17 @@ describe('fb064n — legality is a question about a config', () => {
     // because the walkable ceiling is derived from *this* map's border.
     expect(() =>
       withConfig((raw) => {
-        (raw.constraints as Record<string, number>).minWalkableFrac = 0.86;
+        (raw.constraints as Record<string, number>).minWalkableFrac = 0.95;
       }),
-    ).toThrow(/0\.854/);
-    // And the ceiling really is the flat map's share, to six places.
-    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.854167, 6);
+    ).toThrow(/0\.906/);
+    // And the ceiling really is the flat map's share, to six places. (The
+    // formula's own ceiling, 1623/1792 = 0.906, is one tile more permissive
+    // than this: fb166 left `GATES` unmoved for the new 56x32 grid, per this
+    // lane's Scope, and the stale "east" gate at (35,17) no longer sits on the
+    // border at this size — it is ordinary interior ground now, so the flat
+    // map's real walkable count is `interior + 2` border gates, not `+3`. See
+    // BACKLOG-TERRAIN.md's Log.)
+    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.905134, 6);
   });
 });
 
@@ -447,7 +466,7 @@ describe('fb064s — the flat arena says so on its own seed line', () => {
       hash: terrainHash(0, k),
     };
     expect(() => parseTerrainDump(describeTerrain(small, cfg))).toThrow(
-      /always 36x20; this dump is 3x3/,
+      /always 56x32; this dump is 3x3/,
     );
   });
 

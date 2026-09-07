@@ -285,40 +285,37 @@ describe('suggestCoreAnchor (fb064h)', () => {
     // 1-3% of seeds. This is the lane's fb064a lesson applied — a generator
     // whose output nothing pins forks silently on any code change.
     //
-    // Chosen so the table is load-bearing in three directions: on 13/24/40 the
+    // Chosen so the table is load-bearing in three directions: on 5/8/24 the
     // build-room key overrides the lowest-index tie (dropping it or inverting
-    // it goes red), on 177/381 the *value* of ROOM_RADIUS decides (both 1 and 3
-    // go red), and on 97/112/189 the lowest index wins and the strict `<` / `>`
+    // it goes red), on 6/16 the *value* of ROOM_RADIUS decides (both 1 and 3
+    // go red), and on 112/368 the lowest index wins and the strict `<` / `>`
     // comparisons are what keep it (relaxing either to `<=` / `>=` goes red).
     // Seed 3 has a single nearest anchor and tests neither key; it is a plain
-    // value pin, kept from fb064a's table.
+    // value pin.
     //
-    // fb064l moved every generated map, so the table was re-derived rather
-    // than re-recorded: each seed was re-classified by measuring its own
-    // nearest-anchor tie and which key resolved it. Seeds 24 and 40 kept both
-    // role and anchor across the change; 13 replaces 127 and 97/112/189
-    // replace 58/173, because those seeds no longer produce a distance tie at
-    // all and an entry with no tie tests neither key.
-    //
-    // **177 and 381 are here because the first re-derivation lost a mutant.**
-    // Measured kills over the re-derived table: drop-room 3 seeds, invert 5,
-    // `ROOM_RADIUS = 3` one, `ROOM_RADIUS = 1` **zero** — where the old table
-    // killed it on 127 and 173. `ROOM_RADIUS` is the constant deliberately
-    // exempted from architecture rule 4 *because* (per `core-placement.ts`)
-    // "it is pinned by the golden table", so a table that no longer pins its
-    // value quietly voided that exemption. 177 and 381 each kill both radius
-    // mutants; the hand-built fixture below does not, since its 4x4 of build
-    // room resolves correctly at radius 1 too. (Review.)
+    // **fb166 re-derived the whole table at the 56x32 grid** (the terrain half
+    // of the owner's bigger-map order), the same way fb064l did for the
+    // density-jitter change: `data/terrain.json` is unchanged, but a bigger
+    // grid moves every generated map's tiles and so every anchor. Re-derived
+    // by a throwaway harness that reimplements `suggestCoreAnchor` four ways —
+    // drop the room key, invert its comparison, widen/narrow `ROOM_RADIUS` to
+    // 1 and 3, and flip the tie-break to last-wins — and classifies each of
+    // seeds 1..2000 by which mutants it kills. Chosen per category: 5/8/24 kill
+    // drop-room and invert-room but neither radius mutant; 6/16 kill both
+    // radius mutants (16 also kills drop/invert, so it is a radius witness
+    // that survives a weaker table too); 112/368 kill only last-wins, with
+    // build room genuinely tied between the two nearest anchors so the index
+    // order is the only thing deciding. 3 is the first seed with no distance
+    // tie at all and kept as the plain pin, as fb064a's original table used.
     const golden: ReadonlyArray<readonly [number, number]> = [
-      [3, 349],
-      [13, 421],
-      [24, 385],
-      [40, 421],
-      [97, 347],
-      [112, 347],
-      [177, 385],
-      [189, 348],
-      [381, 350],
+      [3, 529],
+      [5, 528],
+      [8, 528],
+      [24, 417],
+      [6, 417],
+      [16, 640],
+      [112, 473],
+      [368, 417],
     ];
     for (const [seed, want] of golden) {
       expect(suggestCoreAnchor(generateTerrain(seed, cfg), cfg), `seed ${seed}`).toBe(want);

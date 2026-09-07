@@ -37,11 +37,17 @@
  * part generation owns — the *geometry* never denies the contest.
  *
  * Measured on the shipped data with the repair disabled (`highContestRadius: 0`),
- * seeds 1..500: **27 seeds (5.40%) carry 85 such plots**, worst seed 409 with
- * 12. 55 of the 85 sit at a nearest-walkable distance in (4, 5], which is the
- * *normal* case rather than an edge one — `data/towers.json` `buildRange` is 4,
- * but `data/classes.json`'s Engineer passive adds +2 and `data/tree.json` node
- * 22 (`watchtowers`) adds +1, so a real run builds at range 5-7.
+ * seeds 1..500 at fb166's 56x32 grid: **26 seeds (5.20%) carry 99 such plots**,
+ * worst seed 422 with 14 (pre-fb166 at 36x20 it was 27 seeds/85 plots/seed 409
+ * worst-12 — a bigger interior does not shrink this exposure the way it
+ * shrinks most of this lane's edge cases, because `highContestRadius` is a
+ * fixed absolute distance tied to enemy attack range, not to grid size, so a
+ * bigger board simply has more room for a high plot to sit far from anything
+ * walkable). Most such plots sit at a nearest-walkable distance just past the
+ * radius rather than at an extreme one, which is the *normal* case rather than
+ * an edge one — `data/towers.json` `buildRange` is 4, but
+ * `data/classes.json`'s Engineer passive adds +2 and `data/tree.json`
+ * node 22 (`watchtowers`) adds +1, so a real run builds at range 5-7.
  *
  * Every measurement in this file is re-derived here, tile by tile, rather than
  * read back from `uncontestedHigh` — the generator's own repair calls that
@@ -204,22 +210,25 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (bad.length > worst.plots) worst = { seed: s, plots: bad.length };
     }
     // The measured band, recorded as numbers so a retune's cost is a diff.
-    expect(seeds).toBe(27);
-    expect(plots).toBe(85);
-    expect(worst).toEqual({ seed: 409, plots: 12 });
+    // Re-measured at fb166's 56x32 grid (pre-fb166 at 36x20: 27/85/seed 409-12).
+    expect(seeds).toBe(26);
+    expect(plots).toBe(99);
+    expect(worst).toEqual({ seed: 422, plots: 14 });
   });
 
   it('the recorded band is a 1..500 statistic, and the domain tail is worse', () => {
     // QA bug 2. The band above is what a designer reading "what does the veto
     // cost" would take away, and `1..500` is not the domain a run seed draws
     // from (`[-2**31, 2**32-1]`, fb064j) — the exact mistake this lane has now
-    // recorded three times. The *rate* barely moves (5.13% domain-wide against
-    // 5.40% here), but the tail does: the worst seed found over a 120k-seed
-    // domain sweep carries 17 plots against this window's 12.
+    // recorded three times. The *rate* is comparable domain-wide (6.00% below
+    // against 5.20% in the positive window at fb166's 56x32 grid), but the tail
+    // is worse: the worst seed found over a 25,000-seed domain comb carries 49
+    // plots against this window's 14.
     //
     // Pinned as a second window plus that named seed rather than by widening
     // the sweep above, which would cost minutes for a number that is a
-    // statistic either way.
+    // statistic either way. Re-measured at fb166's grid (pre-fb166 at 36x20:
+    // seeds 27, plots 50, worst -323 at 6).
     let seeds = 0;
     let plots = 0;
     let worst = { seed: 0, plots: 0 };
@@ -231,24 +240,31 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (bad.length > worst.plots) worst = { seed: s, plots: bad.length };
     }
     expect({ seeds, plots, worst }).toEqual({
-      seeds: 27,
-      plots: 50,
-      worst: { seed: -323, plots: 6 },
+      seeds: 30,
+      plots: 102,
+      worst: { seed: -27, plots: 17 },
     });
 
-    // The named worst of the domain sweep, and the repair answers it too.
-    expect(exposedHigh(generateTerrain(-1399976589, off), ROSTER_MIN_REACH).length).toBe(17);
-    expect(exposedHigh(generateTerrain(-1399976589, cfg), ROSTER_MIN_REACH)).toEqual([]);
+    // The named worst of a 25,000-point domain comb (stride 171799 — smaller
+    // than the pre-fb166 120k-seed sweep this test used to cite, and honestly
+    // sized to this item's budget rather than reused; a bigger sweep may still
+    // find a worse one later, which is fine — this witness only has to be
+    // real), and the repair answers it too.
+    expect(exposedHigh(generateTerrain(1264784238, off), ROSTER_MIN_REACH).length).toBe(49);
+    expect(exposedHigh(generateTerrain(1264784238, cfg), ROSTER_MIN_REACH)).toEqual([]);
   });
 
   it('demotes exactly the uncontestable plots and nothing else', () => {
-    // The named worst seeds: 409 is the worst of the sweep, 621 is the seed
-    // that carries the tightest `buildableNormalFrac` (fb064l), and 1 is the
-    // golden seed — so this also documents why fb064a's seed-1 hash moved.
+    // Three examples spanning a range of plot counts, re-picked at fb166's
+    // 56x32 grid: 422 is the worst of the 1..500 sweep above, 323 and 69 are
+    // two others with fewer plots each. (Pre-fb166 at 36x20 this used 409, 621
+    // and 1 — none of which carries any uncontested plot at the new grid size
+    // any more, seed 1 included, which is why fb064a's seed-1 hash moved for a
+    // different reason this time than fb064m's original note describes.)
     for (const [seed, expected] of [
-      [409, 12],
-      [621, 10],
-      [1, 4],
+      [422, 14],
+      [323, 12],
+      [69, 1],
     ] as const) {
       const bare = generateTerrain(seed, off);
       const fixed = generateTerrain(seed, cfg);
@@ -294,7 +310,8 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (fixed.hash !== bare.hash) differed++;
     }
     // ... while the maps themselves really did change on the affected seeds.
-    expect(differed).toBe(27);
+    // Re-measured at fb166's 56x32 grid (pre-fb166: 27).
+    expect(differed).toBe(26);
   });
 
   it('the radius is capped at the arena span, and 0 is the accept-the-exposure veto', () => {
