@@ -484,6 +484,10 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     source: 'class_active',
     acc: 0,
     dead: false,
+    // fb082 (§4.1: "applying poison damage every second"): authored, not
+    // left to `updateAreas`'s own `?? 1` fallback, per the item's own
+    // acceptance text.
+    tickSeconds: eff.groundTickSeconds ?? 1,
   });
   w.emit('class_active', wd.x, wd.y, radius, 0);
 }

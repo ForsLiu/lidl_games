@@ -42,13 +42,17 @@ import { join } from 'node:path';
 /* ------------------------------------------------------------------- data */
 
 /**
- * Exactly the fifteen files `src/sim/content.ts` imports (p7d retired
- * `relics.json` along with the affix table it held; BACKLOG fb080 added
- * `terrain`, reached through `terrain/config.ts`'s `TERRAIN_RAW` rather than
- * a direct import — see that module's own doc comment). Kept as a literal
- * rather than a `readdir` so a *new* `/data` file that nothing loads shows up as
- * a mismatch in the test's "the fifteen files are the ones the loader reads"
- * pin, instead of being fuzzed against a loader that never reads it.
+ * Exactly the fifteen files `src/sim/content.ts` reaches (p7d retired
+ * `relics.json` along with the affix table it held). Fourteen are imported
+ * directly; `terrain` is the one exception (fb080) — `content.ts` reaches
+ * `data/terrain.json` through `src/sim/terrain/config.ts`'s `TERRAIN_RAW`,
+ * not with its own `from '../../data/terrain.json'`, so the q7 pin that
+ * derives `content.ts`'s direct-import set handles it as a named exception
+ * rather than expecting to find it by regex (`tests/q7-data-fuzz.test.ts`,
+ * "mocks exactly the files src/sim/content.ts imports"). Kept as a literal
+ * rather than a `readdir` so a *new* `/data` file that nothing loads shows up
+ * as a mismatch in that same pin, instead of being fuzzed against a loader
+ * that never reads it.
  */
 export const DATA_FILES = [
   'vsupgrades',

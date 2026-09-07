@@ -628,3 +628,19 @@ test header or a QUESTIONS entry can be followed:
 | G8 class win rates | C11 | G18 UI flows | B10 |
 | G9 Swordsman + Plaguebringer | C9 + C10 | G19 liveness | A2, A3, B11 |
 | G10 Archer charge | — (new) | G20 milestone specials | — (new) |
+
+### 8.6 Additions after the reconcile
+
+SPEC-FINAL has grown one section since §16's reconcile landed:
+
+- **§10.5 Terrain generation & Core placement** (fb079, this session): the
+  `lane/terrain` epic (BACKLOG-TERRAIN.md) built random per-seed terrain,
+  player-chosen Core placement, and the tile-kind/high-ground rules to an
+  owner feedback file that predates SPEC-FINAL's own §16 reconcile but was
+  never folded into the spec text itself — the generator, its property tests,
+  and `data/terrain.json` all shipped and merged (QUESTIONS Q162, Q171) while
+  §10 still read the old fixed 36×20/3-gate map. §10.5 now carries the
+  owner's request verbatim plus the lane's logged design decisions; §14's G2
+  gained a terrain-determinism clause and §13's content totals gained the
+  terrain file. No code changed — this is the spec catching up to what
+  `lane/terrain` had already built and measured.

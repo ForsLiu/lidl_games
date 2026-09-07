@@ -22,23 +22,36 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
- * Regenerated 2026-09-07 (fb080): `data/terrain.json` joins the census —
- * the fifteenth file, reached by `content.ts` indirectly through
- * `terrain/config.ts`'s `TERRAIN_RAW` rather than a direct import (that
- * module's own doc comment names the reason: keeping the fourteen-file
- * import-seam pin meaningful for the files content.ts imports literally,
- * while still letting terrain fuzz through the same `vi.mock` seam —
- * `tests/q7-data-fuzz.test.ts`'s "mocks exactly the files..." case now
- * asserts both halves). All of terrain's numeric/enum fields accept the
- * same unguarded `negative`/`zero`/`fractional`/`flip-bool`/`to-string`
- * shapes every other bare `num`/`bool`/`string` field in this table
- * already does — not a new class of hole, the pre-existing b013 pattern
- * extended to a fifteenth file. `terrain.tiles[].key` is `checked` in
- * REF_VERDICTS (the schema pins the four tile rows to a fixed enum, unlike
- * `highGround.families[].key`, which is free text — `open`). No INEFFECTIVE
- * entries: every zero-able terrain field's authored value is nonzero.
- * ACCEPTED and REF_VERDICTS both gained terrain's rows; INEFFECTIVE
- * unchanged.
+ * Regenerated 2026-09-07 (fb082, revised after code-reviewer/qa-playtester
+ * findings in the same session): `data/classes.json`'s new
+ * `active1.groundTickSeconds` (Poison Barrel's authored poison-application
+ * cadence) is `.positive()`-validated, so it accepts only `fractional` plus
+ * `drop-key`/`rename-key` (a missing value falls back to 1 in
+ * `firePoisonBarrel`, classes.ts, rather than erroring — unlike its sibling
+ * `groundDurationSeconds`, which `content.ts` requires outright).
+ * `active1.groundDurationSeconds` itself lost its `negative`/`zero` holes at
+ * the same pass: a new `ground_poison` cross-check (`content.ts`) refuses
+ * `groundTickSeconds > groundDurationSeconds`, and once `groundTickSeconds`
+ * is authored (1) that check now also refuses a `groundDurationSeconds`
+ * mutated to `<= 0` (the finding that made a negative/zero duration
+ * "acceptable" in the first place — a poison area whose whole life ends
+ * before its own cadence ever fires is exactly the class of hole this
+ * cross-check exists to close). `active2.groundDurationSeconds`
+ * (Pyromancer's unrelated `dash_trail`) is untouched by any of this.
+ *
+ * Regenerated 2026-09-07 (fb080): `data/terrain.json` joins the fuzzed set —
+ * previously known to every data tool except this one, `tools/fuzz-data.ts`'s
+ * `DATA_FILES` and `tools/mutation-probe.ts` (BACKLOG-TERRAIN.md fb064a Log).
+ * All new entries are additive; nothing existing moved. Every numeric
+ * `terrain.*` field is a bare `num`/`frac`/`posInt`/`nonNegInt` with no
+ * authored-0 exception, same shape as every other unguarded `/data` number in
+ * this census — not a new class of hole. Two open (uncross-checked) string
+ * fields: `terrain.highGround.families[].key` (an id nothing else references)
+ * and `.traits[]` (enemy trait strings — BACKLOG fb080/fb129 already flag the
+ * absence of a real cross-check here as future work, not a regression this
+ * item introduces). `terrain.tiles[].key` is `checked`: `TerrainFileSchema`
+ * pins the four tile rows to `normal, rough, rock, high` in that exact order
+ * (`src/sim/terrain/config.ts`), so a renamed key is refused at load.
  *
  * Regenerated 2026-09-03 (fb053): `data/warden.json`'s `dashDistance` was
  * replaced by `dashSpeedMul` (dash distance now falls out of speed x
@@ -276,7 +289,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.compoundPerSecond': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.cooldownSeconds': ['fractional'],
   'classes.classes[].active1.damage': ['zero', 'fractional'],
-  'classes.classes[].active1.groundDurationSeconds': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.groundDurationSeconds': ['fractional'],
+  'classes.classes[].active1.groundTickSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.knockback': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.markEliteExecuteFraction': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.markFutureDotSeconds': ['negative', 'zero', 'fractional'],
@@ -419,8 +433,24 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'cores.cores[].upgrade.steps[].storeRatio': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerLifestealBonus': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerOverhealConverts': ['negative', 'zero', 'fractional', 'drop-key'],
-  'damagetypes.colorblindExecuteColor': ['to-string', 'drop-key', 'rename-key'],
+  // fb155 closed 23 holes rather than opening any: the enemy attack-registry
+  // agreement rules (`loadContent`) now refuse a mutation of `radius`,
+  // `explodeRadius`, `healRadius`, `buffRadius`, `stompRadius` or
+  // `spawns.contactPadding` that leaves an authored `attackRange` disagreeing
+  // with the reach the sim swings, and `attackRange` itself is required and
+  // positive. The special-reach rule closed six more the same way — dropping or
+  // renaming `buffRadius`/`explodeRadius`/`stompRadius` now leaves a published
+  // `specialRange` with nothing behind it, and the fallback-to-the-code-default
+  // above rather than annotated. `healRadius` keeps its two: dropping it alone
+  // leaves the Mender coherent at the code's own `?? 3` default. `coreDamage`
+  // lost its `negative`/`zero` the day a melee row had to deal contact damage.
+  // fb152: the DoT tick cadence. `negative`/`zero` are rejected (`num.positive()`),
+  // and `fractional` is accepted because the authored value *is* fractional
+  // (0.25) — a cadence has no integrality to violate. `drop-key`/`rename-key`
+  // are the same optional-with-a-default back-compat shape `executeFontScale`
+  // below already has: a file predating this item still parses, at the default.
   'damagetypes.dotTickInterval': ['fractional', 'drop-key', 'rename-key'],
+  'damagetypes.colorblindExecuteColor': ['to-string', 'drop-key', 'rename-key'],
   'damagetypes.executeColor': ['to-string', 'drop-key', 'rename-key'],
   'damagetypes.executeFontScale': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'damagetypes.statuses.frost.attackSpeed': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -452,7 +482,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'dev.unlockAllClasses': ['flip-bool'],
   'dev.unlockAllCores': ['flip-bool'],
   'dev.unlockAllTiers': ['flip-bool'],
-  'enemies.baseHpMul': ['fractional'],
   'enemies.enemies[].attackDamage': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].attackInterval': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].bounty': ['negative', 'zero', 'fractional'],
@@ -467,8 +496,11 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'enemies.enemies[].flatReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].frontReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].gem': ['negative', 'zero', 'fractional'],
-  'enemies.enemies[].healRadius': ['drop-key', 'rename-key'],
   'enemies.enemies[].healRate': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
+  // fb155: dropping `healRadius` alone still loads — the agreement rule falls
+  // back to the same `?? 3` the sim uses, so the row stays coherent. It is
+  // refused as soon as the published range disagrees with that default.
+  'enemies.enemies[].healRadius': ['drop-key', 'rename-key'],
   'enemies.enemies[].hp': ['fractional'],
   'enemies.enemies[].id': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].name': ['to-string', 'empty-string'],
@@ -511,6 +543,25 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].name': ['to-string', 'empty-string'],
   'equipment.slots': ['dupe-element'],
+  // p12c: `baseHpMul` is a multiplier, so a fractional value is valid by
+  // design — it is the identity at 1.0 and the shipped value is 20. The
+  // schema's own `.positive()` refuses the unpayable cases (zero, negative).
+  'enemies.baseHpMul': ['fractional'],
+  // p12b: the tier ladder's three scalars are multipliers, so a fractional
+  // value is *valid* by design (the shipped ladder is 4.0/1.9/1.7). The one
+  // thing that would be unpayable — a value under 1, which inverts the ladder
+  // and would ship a T5 easier than T1 — is refused by `validateTierLadder`
+  // at load, one layer above the schema this census fuzzes.
+  // fb153a: the global HP/damage rescale. `negative`/`zero` are rejected
+  // (`num.positive()`), `fractional` is accepted because the shipped value *is*
+  // fractional (0.1) — a scale has no integrality to violate — and
+  // `drop-key`/`rename-key` are the optional-with-a-default back-compat shape
+  // every other field of this kind here has: a file predating the item loads at
+  // the 1.0 identity.
+  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
+  'modifiers.tierBudgetPerStep': ['fractional'],
+  'modifiers.tierCoreDamagePerStep': ['fractional'],
+  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.modifiers': ['drop-element'],
   'modifiers.modifiers[].desc': ['to-string', 'empty-string'],
   'modifiers.modifiers[].effect.bossHp': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -528,10 +579,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'modifiers.modifiers[].key': ['to-string', 'empty-string'],
   'modifiers.modifiers[].name': ['to-string', 'empty-string'],
   'modifiers.modifiers[].rewardBonus': ['negative', 'zero', 'fractional'],
-  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
-  'modifiers.tierBudgetPerStep': ['fractional'],
-  'modifiers.tierCoreDamagePerStep': ['fractional'],
-  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.tierRewardPerStep': ['negative', 'zero', 'fractional'],
   'quests.quests[].desc': ['to-string', 'empty-string'],
   'quests.quests[].metric': ['to-string', 'empty-string'],
@@ -794,6 +841,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'vsupgrades.statBoons[].maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.statBoons[].name': ['to-string', 'empty-string'],
   'vsupgrades.statBoons[].perRank': ['negative', 'zero', 'fractional'],
+  // fb041: `uncapped` is an optional boolean (same shape fb011 gave
+  // `boons.boons[].uncapped`) — flipping/dropping/renaming it still loads,
+  // it just changes whether the boon keeps appearing past `maxRank`.
   'vsupgrades.statBoons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'vsupgrades.typeMastery.maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.typeMastery.perRank': ['negative', 'zero', 'fractional'],
@@ -894,10 +944,16 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'damagetypes.types[].key': 'partial',
   'damagetypes.types[].name': 'open',
   'damagetypes.types[].refresh': 'checked',
+
+  // fb155: the attack registry's kind is a closed enum the loader also
+  // cross-checks against the row's own traits, so it is `checked` like `grade`.
   'enemies.enemies[].attackKind': 'checked',
   'enemies.enemies[].grade': 'checked',
   'enemies.enemies[].key': 'partial',
   'enemies.enemies[].name': 'open',
+  // fb155: the attack-registry rules read this array to decide the row's kind,
+  // so renaming a trait that decides one now throws at load while renaming a
+  // trait that decides nothing still does not — partially checked.
   'enemies.enemies[].traits[]': 'partial',
   'equipment.items[].classFallback.notClassKey': 'checked',
   'equipment.items[].desc': 'open',

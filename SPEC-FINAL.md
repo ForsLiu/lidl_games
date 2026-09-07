@@ -329,17 +329,14 @@ TD scaling: `hp × 1.30^(wave−1)` ⚖; composition curve in `data/waves.json`
 - Character: move WASD, dash (4 tiles, 3 s cd, brief i-frames), build within
   4 tiles of self, instant build/sell.
 
-## 10.5 Terrain generation **[designer-fill: implemented from owner feedback,
-verbatim below, with the lane's own design decisions layered on top — the
-owner may veto any of the layered decisions via an inbox verdict; QUESTIONS
-Q193 logs this append]**
+### 10.5 Terrain generation & Core placement (`data/terrain.json`) **[owner feature — inbox 2026-09-03, fb079]** [designer-fill]
 
-Owner feedback verbatim (`feedback/processed/20260903-121255-feature-
-terrain-generation.md`), the section's own authority — code-reviewer
-finding: the first draft of this quote reflowed and silently trimmed the
-source memo, which is what this section exists to prevent; reproduced here
-in full, bullets and designer notes included, changing only the markdown
-list/quote syntax needed to nest it:
+Owner request (`feedback/processed/20260903-121255-feature-terrain-generation.md`,
+verbatim below) is authoritative; the lane decisions after it (QUESTIONS Q162,
+Q171) are the most spec-consistent defaults under §12 rule 4 and are logged
+there for an owner veto, not picked silently. Reproduced in full against the
+source file at merge time (2026-09-07): the title and `Priority` lines are
+part of the memo too and belong in a "verbatim" quote.
 
 > [feature] Random terrain generation each run + player-chosen Core position
 >
@@ -386,66 +383,60 @@ list/quote syntax needed to nest it:
 > than shipping an illegal map.
 > Priority: normal
 
-**The rock/character clause above is open, not resolved.** The owner's own
-default is "character flies over" rock, vetoed only if rocks should block
-the character — but the shipped `data/terrain.json` has rock (and high
-ground) as `blocksCharacter: true`, i.e. the vetoed reading, with no
-recorded veto (`src/sim/terrain/character.ts`'s own doc comment names this
-gap). Left as shipped rather than silently changed by this docs-only item;
-carried forward as the open item Q171 already named ("the owner's open veto
-is 'character flies over rock'; one-line data edit if so").
+Lane decisions (Q162, folded at the 2026-09-03 merge; Q171, folded at the
+2026-09-04 merge), owner-approved:
 
-**Design decisions taken building it** (`data/terrain.json`; QUESTIONS Q162,
-Q171 carry the full reasoning, both owner-approved):
-
-- Band fractions are measured over the whole 36×20 grid, border included —
-  the stricter reading. `high` is `walkable: false, buildable: true` and
-  counts against the walkable band, not a fifth category.
-- Gate mains are structural, not incidental: a protected 3-wide main from
-  every gate to a centre plaza is carved first and scatter never touches it,
-  so "gates never enclosed / all connect / no sub-2 corridor" hold by
-  construction rather than by post-hoc measurement. Unreachable walkable
-  ground is sealed to rock before measuring; connectivity is 4-connected
-  (never optimistic); `gateReachFrac` is the worst single gate's share.
-- After `maxAttempts` (8) degenerate seeds, the flat-interior fallback ships
-  flagged `fallback: true` rather than throwing — a hostile `/data` edit
-  downgrades the map instead of killing the run (`RunReport.terrainFallback`,
-  §10's G2 note below). The loader refuses only bands no *map* can meet
-  (`minWalkableFrac`/`minBuildableNormalFrac` above ~0.854;
-  `minCoreLegalFrac` above `a/(a+1)`, `a` the flat map's anchor count), never
-  bands no *seed* happens to meet.
+- Band fractions are measured over the whole grid, border included (the
+  stricter reading). `high` is `walkable: false, buildable: true` and counts
+  against the walkable band. Unreachable walkable ground is sealed to rock
+  before measuring; connectivity is 4-connected so no measurement can read
+  optimistic. `gatesConnected` is measured unconditionally; `gateReachFrac`
+  is the worst single gate's share. Corridor width is measured on the 2×2
+  block lattice.
+- Gate mains are structural: a protected 3-wide main from every gate to a
+  centre plaza is carved first and scatter never touches it, so "gates never
+  enclosed / all connect / no sub-2 corridor" hold by construction rather
+  than by chance.
+- After `maxAttempts` degenerate seeds, a flat-interior fallback ships
+  flagged `fallback: true` instead of throwing — a hostile `/data` edit
+  downgrades the map rather than killing the run. The loader refuses only
+  bands no *map* can meet (`minWalkableFrac`/`minBuildableNormalFrac` above
+  ~0.854; `minCoreLegalFrac` above `a/(a+1)`, `a` the flat map's anchor
+  count), never bands no *seed* happens to meet.
 - Core placement: `validateCorePlacement` agrees with `legalCoreAnchors` by
-  construction (one enumeration, not two rule sets); the suggested anchor is
-  the legal anchor nearest the default Core position, tie-broken by build
-  room — balance-neutral, since Core-to-gate distance is what every wave is
-  tuned against.
-- High ground's exemptions are per-family data
-  (`data/terrain.json`'s `highGround.families`: `flier`/`ranged`/`burrower`/
-  `ground`, matched by enemy trait), not a `boss` row — the owner's note
-  exempts bosses' *specials*, not bosses themselves, and a family flag
-  cannot distinguish a boss's special from its melee. Bosses classify as
-  `ground` (their melee is blocked like any other walker's); their specials
-  are exempt by living outside the family-checked call sites entirely.
-- Character passage is a per-tile-kind `blocksCharacter` flag
-  (`data/terrain.json`): rock and high ground stop the Warden — the open
-  question of whether that is the right reading of the owner's own feedback
-  is discussed just above the design-decisions list, not repeated here.
-- The approach band (`maxGateDetour`, `constraints`) bounds how far a gate's
-  shortest path may detour past the straight-line distance to the Core's
-  suggested anchor, checked from both sides.
-- Run seeds are drawn from the full `[-2^31, 2^32-1]` domain (`>>> 0`), not
-  clamped to int32; the degenerate-seed retry walk wraps modulo 2^32.
-- Uncontestable high-ground plots (no adjacent low tile a ground enemy could
-  ever bump a tower on it from) are repaired to rock at generation time, not
-  rejected as illegal — a construction invariant, not a band that can fail.
-- Training Grounds (`practice: true` runs) always plays the flat fallback
-  arena — terrain generation never runs for a practice run.
+  construction (same rules, one enumeration); the suggested anchor is the
+  legal anchor nearest the map's default Core position, tie-broken by build
+  room — a balance-neutral choice, since Core-to-gate distance is what every
+  wave is tuned against.
+- High ground has no `boss` family: bosses classify as `ground` and their
+  *specials* are exempted individually (a blanket boss exemption let the
+  Gatebreaker chew a cliff tower from below). Uncontestable high plots
+  (no tower on them could ever be threatened) are repaired to rock at
+  generation time rather than rejected as illegal seeds.
+- Character passage is a per-kind `blocksCharacter` flag in
+  `data/terrain.json`. **Open, not resolved:** the owner's own default is
+  "character flies over" rock, vetoed only if rocks should block the
+  character (fb002) — but the shipped file sets `rock` and `high` to
+  `blocksCharacter: true`, i.e. the vetoed reading, with no recorded veto
+  (`src/sim/terrain/character.ts`'s own doc comment names this gap). Left as
+  shipped rather than silently changed by a docs-only item; tracked as the
+  open item Q171 already named ("the owner's open veto is 'character flies
+  over rock'; one-line data edit if so").
+- Seed domain is `[-2^31, 2^32-1]`, not int32 — run seeds are drawn `>>> 0`,
+  so the retry-on-degenerate-seed walk wraps modulo 2^32 (`-0` normalised)
+  rather than truncating with `seed | 0`.
+- The approach band (`maxGateDetour`, checked from both sides) is measured
+  to the suggested Core anchor, beside fb064a's six generation bands above.
+- Every gate-reading terrain function threads the run's live gate list (not
+  a hardcoded default) as its last parameter, so per-run gate layouts
+  (§1.1's VS gate spawns) stay correct — except `describeTerrain`, which
+  still reads the module's base `GATES` constant, tracked open at BACKLOG
+  fb134.
 
-**Gate extension.** §14 **G2**'s determinism clause covers terrain
-generation explicitly: the same seed produces the identical map (tile-for-
-tile) and hash on every run, and the degenerate-seed fallback's own
-regeneration walk (seed → seed+1 → seed+2 → …) is itself deterministic —
-never a second source of nondeterminism inside a nominally-reproducible run.
+Open for the owner (BACKLOG fb129, unresolved): with melee denied the cliff
+edge and Spitters skipping structures during the VS phase, every high-ground
+tower reads as uncontestable in Act II, and the Burrower's untargetable
+window widens to match — flagged, not yet re-tuned.
 
 ## 11. Tooling, dev mode, UX (all as previously specced and largely built)
 
@@ -471,15 +462,15 @@ content hash in RunConfig; `npm test` green gates every commit.
 
 12 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses ·
 20 enemies · 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses ·
-VS upgrade pool per §6.3 · terrain generation per §10.5 (4 tile kinds,
-generation constraints, high-ground family table) · Codex & Tuner.
+VS upgrade pool per §6.3 · Codex & Tuner · §10.5 terrain generation
+(`data/terrain.json`).
 
 ## 14. Acceptance gates (consolidated; replaces all prior A/B/C lists)
 
 | # | Gate |
 |---|---|
 | G1 | Mean victorious run 30–36 min (24+ seeds; means/pass-rates, never medians). |
-| G2 | Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward, terrain generation (same seed → identical map + hash; the degenerate-seed seed+1 regeneration walk is itself deterministic, §10.5). |
+| G2 | Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward. Extends to §10.5 terrain generation: the same seed produces an identical map and terrain hash every time, and the seed+1 degenerate-seed regeneration rule is itself deterministic. |
 | G3 | VS inheritance unit tests incl. §6.1's worked example verbatim. |
 | G4 | Armor edges: +99→99%, clamp above, −90→×1.9, floor −100; DoTs ignore armor; Burning shred lowers it. |
 | G5 | Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. |

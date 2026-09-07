@@ -1,165 +1,114 @@
 /**
- * fb139: the in-run bug-report hotkey's write path. Pure Node, no Vite/HTTP
- * concerns — `bugReportPlugin.ts` is the thin HTTP wrapper around this, same
- * split `tunerSave.ts`/`tunerPlugin.ts` already use. Tests call this directly
- * against a scratch directory so nothing here ever touches a real inbox.
- *
- * The point of the whole feature is that a bug report is *reproducible*: the
- * note alone is a story, but `{ config, inputLog }` — the same `RecordedRun`
- * shape architecture rule 2's replay/hash machinery already uses (`src/sim/
- * run.ts`) — is a fixture the qa/dev loop can replay to the exact recorded
- * tick. The `.md` file is the human-readable index; the replay JSON next to
- * it is what actually reproduces the bug.
+ * fb139: the F8 bug-report hotkey's write path. Pure Node, mirroring
+ * `tunerSave.ts`'s split — `bugReportPlugin.ts` is the thin HTTP wrapper
+ * around this; tests call this directly against temp directories so nothing
+ * here ever touches the real `D:\lidl_inbox` or `/replays`.
  */
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export interface BugReportFieldError {
-  path: string;
-  message: string;
+import type { RecordedRun } from '../sim/run';
+
+export interface BugReportInput {
+  note: unknown;
+  classKey: unknown;
+  core: unknown;
+  tier: unknown;
+  wave: unknown;
+  phase: unknown;
+  tick: unknown;
+  seed: unknown;
+  contentHash: unknown;
+  endHash: unknown;
+  recorded: unknown;
+  /** base64-encoded PNG, no `data:` prefix. */
+  screenshotPng: unknown;
 }
 
 export interface BugReportSaveResult {
   ok: boolean;
-  mdPath?: string;
+  error?: string;
+  bugPath?: string;
   replayPath?: string;
   screenshotPath?: string;
-  errors?: BugReportFieldError[];
 }
 
-/** A one-line note capped well short of anything that would make the `.md` file unwieldy. */
-const MAX_NOTE_LENGTH = 2000;
-
-interface ValidatedMeta {
-  classKey: string;
-  core: string;
-  tier: number;
-  phase: string;
-  wavesCleared: number;
-  tick: number;
-  seed: number;
-  contentHash: string;
+function uniqueId(): string {
+  // Matches `tunerSave.ts`'s own reasoning for a per-call unique suffix
+  // (Minor #6): cheap here since this is Node dev-server code, not `/src/sim`.
+  return `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/**
- * Field-by-field, matching `tunerSave.ts`'s error shape, so a malformed
- * client payload (a stale build, a hand-rolled request) fails with a
- * specific complaint rather than a generic 400.
- */
-function validateMeta(meta: unknown, errors: BugReportFieldError[]): ValidatedMeta | null {
-  if (typeof meta !== 'object' || meta === null) {
-    errors.push({ path: 'meta', message: 'missing or non-object "meta"' });
-    return null;
-  }
-  const m = meta as Record<string, unknown>;
-  const stringFields = ['classKey', 'core', 'phase', 'contentHash'] as const;
-  const numberFields = ['tier', 'wavesCleared', 'tick', 'seed'] as const;
-  let ok = true;
-  for (const f of stringFields) {
-    if (typeof m[f] !== 'string' || m[f] === '') {
-      errors.push({ path: `meta.${f}`, message: `missing or non-string "meta.${f}"` });
-      ok = false;
-    }
-  }
-  for (const f of numberFields) {
-    if (typeof m[f] !== 'number' || !Number.isFinite(m[f])) {
-      errors.push({ path: `meta.${f}`, message: `missing or non-finite "meta.${f}"` });
-      ok = false;
-    }
-  }
-  if (!ok) return null;
-  return m as unknown as ValidatedMeta;
+function isRecordedRun(v: unknown): v is RecordedRun {
+  return !!v && typeof v === 'object' && Array.isArray((v as RecordedRun).inputLog) && !!(v as RecordedRun).config;
 }
 
-/** Same atomic write idiom `tunerSave.ts` uses: temp file + rename, per-call unique suffix so two overlapping saves cannot clobber each other's tmp file. */
-function writeAtomic(filePath: string, data: string | Buffer): void {
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  writeFileSync(tmpPath, data);
-  renameSync(tmpPath, filePath);
-}
-
-function bugReportMarkdown(note: string, meta: ValidatedMeta, replayPath: string, screenshotPath: string | undefined): string {
-  const lines = [
-    `# Bug report — ${new Date().toISOString()}`,
-    '',
-    note,
-    '',
-    `- class: ${meta.classKey}`,
-    `- core: ${meta.core}`,
-    `- tier: ${meta.tier}`,
-    `- phase: ${meta.phase}`,
-    `- waves cleared: ${meta.wavesCleared}`,
-    `- tick: ${meta.tick}`,
-    `- seed: ${meta.seed}`,
-    `- content hash: ${meta.contentHash}`,
-    `- replay: ${replayPath}`,
-  ];
-  if (screenshotPath) lines.push(`- screenshot: ${screenshotPath}`);
-  lines.push('');
-  return lines.join('\n');
+function writeAtomic(path: string, data: string | Buffer): void {
+  const tmp = `${path}.${uniqueId()}.tmp`;
+  writeFileSync(tmp, data);
+  renameSync(tmp, path);
 }
 
 /**
- * Validates and writes one bug report: the replay bundle (`{ config,
- * inputLog }`) under `replaysDir`, an optional screenshot PNG and the `.md`
- * index under `inboxDir`. Rejects (writing nothing) on a malformed payload,
- * the same "validate everything before writing anything" shape
- * `saveTunerFile` uses.
+ * Writes three files: the replay bundle (`RecordedRun` JSON) and the
+ * screenshot PNG under `replaysDir`, and the human-readable `.md` report
+ * (note, run metadata, and paths to the other two) under `inboxDir` — the
+ * same `feedback/*.md` shape the loop's own protocol already reads, so a
+ * bug report can be dropped straight into `feedback/` with no reformatting.
+ * The `.md`'s "replay" line is the "path to a saved replay file under
+ * `/replays`" half of fb139's acceptance; the full input log is never
+ * inlined into the `.md` itself.
  */
-export function saveBugReport(body: unknown, inboxDir: string, replaysDir: string): BugReportSaveResult {
-  const errors: BugReportFieldError[] = [];
-  if (typeof body !== 'object' || body === null) {
-    return { ok: false, errors: [{ path: '', message: 'missing or non-object request body' }] };
+export function saveBugReport(input: BugReportInput, inboxDir: string, replaysDir: string): BugReportSaveResult {
+  // qa-playtester: a literal top-level JSON `null` body is valid JSON (so
+  // the middleware's own parse `try/catch` never sees it) and reached
+  // `input.note` below, throwing "Cannot read properties of null" as an
+  // unhandled rejection that crashed the dev server instead of answering
+  // 400 like every other malformed body. Guarded here too, not just at the
+  // middleware, since this function is exported and callable directly.
+  if (typeof input !== 'object' || input === null) {
+    return { ok: false, error: 'body must be a JSON object' };
   }
-  const b = body as Record<string, unknown>;
-
-  const note = typeof b.note === 'string' ? b.note.trim() : '';
-  if (note.length === 0) errors.push({ path: 'note', message: 'missing or empty "note"' });
-  if (note.length > MAX_NOTE_LENGTH) {
-    errors.push({ path: 'note', message: `"note" exceeds ${MAX_NOTE_LENGTH} characters` });
+  if (typeof input.note !== 'string' || input.note.trim().length === 0) {
+    return { ok: false, error: 'note must be a non-empty string' };
   }
-
-  const meta = validateMeta(b.meta, errors);
-
-  if (typeof b.config !== 'object' || b.config === null) {
-    errors.push({ path: 'config', message: 'missing or non-object "config"' });
+  if (!isRecordedRun(input.recorded)) {
+    return { ok: false, error: 'recorded run is missing config/inputLog' };
   }
-  if (!Array.isArray(b.inputLog)) {
-    errors.push({ path: 'inputLog', message: 'missing or non-array "inputLog"' });
+  if (typeof input.screenshotPng !== 'string' || input.screenshotPng.length === 0) {
+    return { ok: false, error: 'screenshotPng must be a non-empty base64 string' };
   }
 
-  let screenshotBuffer: Buffer | undefined;
-  if (b.screenshotBase64 !== undefined) {
-    if (typeof b.screenshotBase64 !== 'string' || b.screenshotBase64.length === 0) {
-      errors.push({ path: 'screenshotBase64', message: 'non-empty string expected when present' });
-    } else {
-      try {
-        screenshotBuffer = Buffer.from(b.screenshotBase64, 'base64');
-      } catch {
-        errors.push({ path: 'screenshotBase64', message: 'not valid base64' });
-      }
-    }
-  }
-
-  if (errors.length > 0 || !meta) return { ok: false, errors };
-
-  mkdirSync(inboxDir, { recursive: true });
+  const id = uniqueId();
   mkdirSync(replaysDir, { recursive: true });
+  mkdirSync(inboxDir, { recursive: true });
 
-  // One id shared by all three files, so a reader can tell at a glance which
-  // replay/screenshot belong to which report without parsing the .md body.
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const replayPath = join(replaysDir, `bug-${id}.json`);
-  writeAtomic(replayPath, JSON.stringify({ config: b.config, inputLog: b.inputLog }));
+  const replayPath = join(replaysDir, `replay-${id}.json`);
+  writeAtomic(replayPath, `${JSON.stringify(input.recorded, null, 2)}\n`);
 
-  let screenshotPath: string | undefined;
-  if (screenshotBuffer) {
-    screenshotPath = join(inboxDir, `bug-${id}.png`);
-    writeAtomic(screenshotPath, screenshotBuffer);
-  }
+  const screenshotPath = join(replaysDir, `screenshot-${id}.png`);
+  writeAtomic(screenshotPath, Buffer.from(input.screenshotPng, 'base64'));
 
-  const mdPath = join(inboxDir, `bug-${id}.md`);
-  writeAtomic(mdPath, bugReportMarkdown(note, meta, replayPath, screenshotPath));
+  const bugPath = join(inboxDir, `bug-${id}.md`);
+  const md = [
+    '# In-run bug report (F8)',
+    '',
+    input.note.trim(),
+    '',
+    `- class: ${input.classKey}`,
+    `- core: ${input.core}`,
+    `- tier: ${input.tier}`,
+    `- wave: ${input.wave}`,
+    `- phase: ${input.phase}`,
+    `- tick: ${input.tick}`,
+    `- seed: ${input.seed}`,
+    `- content hash: ${input.contentHash ?? '(none)'}`,
+    `- end-state hash at report time: ${input.endHash}`,
+    `- replay: ${replayPath}`,
+    `- screenshot: ${screenshotPath}`,
+    '',
+  ].join('\n');
+  writeAtomic(bugPath, md);
 
-  return { ok: true, mdPath, replayPath, screenshotPath };
+  return { ok: true, bugPath, replayPath, screenshotPath };
 }

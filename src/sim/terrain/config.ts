@@ -203,7 +203,13 @@ const highGroundFamilySchema = z
   })
   .strict();
 
-/** BACKLOG fb080: exported so the Tuner's save endpoint (`src/sim/content.ts`'s `TUNER_FILES`) validates against the exact same schema `loadTerrain`/`parseTerrain` do, the same one-registry-for-both shape every other Tuner-editable file already uses. */
+/**
+ * fb080: exported (was module-private `schema`) so `src/sim/content.ts`'s
+ * `TUNER_FILES` registry can validate a Tuner-edited `data/terrain.json`
+ * through the identical schema `loadTerrain()`/`parseTerrain()` use, the
+ * same "one registry shared by both" guarantee every other Tuner file
+ * already has (`content.ts`'s own doc comment on `TUNER_FILES`).
+ */
 export const TerrainFileSchema = z
   .object({
     tiles: z.array(tileSchema).length(TERRAIN_KEYS.length),

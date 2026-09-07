@@ -1,134 +1,146 @@
 /**
- * fb139: the client-side half of the in-run bug-report hotkey (F8). Same
- * split as `tuner.ts`'s `postTunerSave` — a plain fetch to a hardcoded
- * dev-server path, never an import from `src/devserver/**` (that module
- * graph is Node-only and excluded from `vite build`; nothing under `src/ui`
- * may import it — see `tunerPlugin.ts`'s own header comment). The literal
- * path here must match `bugReportPlugin.ts`'s `BUG_REPORT_SAVE_PATH`.
+ * fb139: the F8 in-run bug-report hotkey. The note box lives here as a
+ * self-contained overlay, deliberately not `hud.ts`'s `.sw-modal` (the
+ * level-up/quest/Core-choice cards already own that element's open/close
+ * bookkeeping) — F8 must be reachable at any moment in a run, including
+ * while one of those cards is up, without racing it.
  *
- * The point of the bundle is reproducibility, not just a note: `{ config,
- * inputLog }` is the same `RecordedRun` shape architecture rule 2's
- * replay/hash machinery already uses (`src/sim/run.ts`), truncated to the
- * exact tick the report was taken at.
+ * Dev vs. prod split mirrors `tuner.ts`: `postBugReport` posts to the
+ * literal `/__bugreport/save` path (never imports `src/devserver/**`, which
+ * `bugReportPlugin.ts`'s own header explains is what keeps a production
+ * bundle free of the endpoint) when `isDevBuild()`, and
+ * `downloadBugReportBundle` — the "prod builds: F8 downloads the same
+ * bundle as a file instead" half — otherwise.
  */
-import type { RunConfig, TickInput } from '../sim/types';
+import type { RecordedRun } from '../sim/run';
+import { hashWorld } from '../sim/run';
 import type { World } from '../sim/world';
 
-export interface BugReportMeta {
+export interface BugReportBundle {
+  note: string;
   classKey: string;
   core: string;
   tier: number;
+  wave: number;
   phase: string;
-  wavesCleared: number;
   tick: number;
   seed: number;
-  contentHash: string;
+  contentHash: string | undefined;
+  endHash: string;
+  recorded: RecordedRun;
+  /** base64-encoded PNG, no `data:` prefix. */
+  screenshotPng: string;
 }
 
-export interface BugReportPayload {
-  note: string;
-  meta: BugReportMeta;
-  config: RunConfig;
-  inputLog: TickInput[];
-  screenshotBase64?: string;
+/** Everything about "the moment of report" that isn't the note itself or the screenshot. */
+export function buildBugReportBundle(world: World, inputLog: RecordedRun['inputLog'], note: string, screenshotPng: string): BugReportBundle {
+  return {
+    note,
+    classKey: world.cfg.classKey,
+    core: world.cfg.core ?? '(default)',
+    tier: world.cfg.tier,
+    wave: world.wavesCleared,
+    phase: world.phase,
+    tick: world.tick,
+    seed: world.cfg.seed,
+    contentHash: world.cfg.contentHash,
+    endHash: hashWorld(world),
+    recorded: { config: world.cfg, inputLog: inputLog.slice() },
+    screenshotPng,
+  };
 }
 
 export interface BugReportSaveResponse {
   ok: boolean;
-  mdPath?: string;
-  replayPath?: string;
-  screenshotPath?: string;
-  errors?: { path: string; message: string }[];
+  error?: string;
+  bugPath?: string;
 }
 
-export function buildBugReportMeta(w: World): BugReportMeta {
-  return {
-    classKey: w.cfg.classKey,
-    core: w.coreKey,
-    tier: w.cfg.tier,
-    phase: w.phase,
-    wavesCleared: w.wavesCleared,
-    tick: w.tick,
-    seed: w.cfg.seed,
-    // Always populated by the time a World exists (its constructor stamps
-    // it in) — the `?? ''` is a type-narrowing fallback, not an expected path.
-    contentHash: w.cfg.contentHash ?? '',
-  };
-}
-
-export async function postBugReport(payload: BugReportPayload): Promise<BugReportSaveResponse> {
+export async function postBugReport(bundle: BugReportBundle): Promise<BugReportSaveResponse> {
   const res = await fetch('/__bugreport/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(bundle),
   });
   return (await res.json()) as BugReportSaveResponse;
 }
 
 /**
- * Prod fallback: there is no dev server to write to, so the whole bundle
- * (note + meta + replay + screenshot) downloads as one JSON file instead —
- * same `Blob` + `URL.createObjectURL` + anchor-click idiom `hud.ts`'s dev
- * screenshot export and `tuner.ts`'s "Export JSON" button already use.
+ * Prod-build fallback: no dev server to POST to, so the same bundle a dev
+ * build would have sent is downloaded as one JSON file instead (same
+ * Blob + `URL.createObjectURL` + anchor-click idiom `hud.ts`'s
+ * `exportScreenshot`/`tuner.ts`'s "Export JSON" already use), guarded the
+ * same way against a `URL`-less environment.
  */
-export function downloadBugReportBundle(payload: BugReportPayload): void {
-  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+export function downloadBugReportBundle(bundle: BugReportBundle): void {
+  if (typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `bug-${Date.now()}.json`;
+  a.download = `stonewake-bugreport-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-/**
- * `Uint8Array` -> base64, chunked so a multi-megabyte screenshot never hits
- * `String.fromCharCode`'s own argument-count ceiling (spreading the whole
- * array as call arguments, not just a performance concern past a few
- * hundred KB).
- */
-function bytesToBase64(bytes: Uint8Array): string {
-  const CHUNK = 0x8000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+/** A minimal, self-contained note box: a textarea plus Submit/Cancel, hidden until `open()`. */
+export class BugReportBox {
+  private root: HTMLDivElement;
+  private textarea: HTMLTextAreaElement;
+  private onSubmit: ((note: string) => void) | null = null;
+  private onCancel: (() => void) | null = null;
+
+  constructor(parent: HTMLElement = document.body) {
+    this.root = document.createElement('div');
+    this.root.hidden = true;
+    this.root.dataset.testid = 'bugreport-box';
+    this.root.style.cssText =
+      'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,0.6);z-index:1000;';
+    this.root.innerHTML = `
+      <div style="background:#1c1f26;color:#eee;padding:16px;border-radius:8px;width:360px;max-width:90vw;font:14px sans-serif;">
+        <div style="margin-bottom:8px;font-weight:bold;">Report a bug (F8)</div>
+        <textarea rows="4" style="width:100%;box-sizing:border-box;" placeholder="What went wrong?"></textarea>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" data-act="cancel">Cancel</button>
+          <button type="button" data-act="submit">Submit</button>
+        </div>
+      </div>`;
+    this.textarea = this.root.querySelector('textarea') as HTMLTextAreaElement;
+    this.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => this.cancel());
+    this.root.querySelector('[data-act="submit"]')?.addEventListener('click', () => this.submit());
+    parent.appendChild(this.root);
   }
-  return btoa(binary);
-}
 
-/**
- * `toBlob`'s spec guarantees its callback eventually fires, but a screenshot
- * is a nice-to-have on the report, not the report itself — capped so one
- * unresponsive canvas can't leave the note sitting uncaptured indefinitely
- * (code-reviewer finding).
- */
-const SCREENSHOT_TIMEOUT_MS = 2000;
+  get isOpen(): boolean {
+    return !this.root.hidden;
+  }
 
-/**
- * Resolves to `undefined` rather than throwing when canvas capture is
- * unavailable (jsdom, a stripped-down test runner) — the same silent-no-op
- * guard `hud.ts`'s `exportScreenshot` already uses for the same reason.
- */
-export function captureScreenshotBase64(canvas: HTMLCanvasElement): Promise<string | undefined> {
-  const capture = new Promise<string | undefined>((resolve) => {
-    if (typeof canvas.toBlob !== 'function') {
-      resolve(undefined);
-      return;
-    }
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        resolve(undefined);
-        return;
-      }
-      blob
-        .arrayBuffer()
-        .then((buf) => resolve(bytesToBase64(new Uint8Array(buf))))
-        .catch(() => resolve(undefined));
-    }, 'image/png');
-  });
-  const timeout = new Promise<string | undefined>((resolve) => {
-    setTimeout(() => resolve(undefined), SCREENSHOT_TIMEOUT_MS);
-  });
-  return Promise.race([capture, timeout]);
+  open(onSubmit: (note: string) => void, onCancel: () => void): void {
+    this.onSubmit = onSubmit;
+    this.onCancel = onCancel;
+    this.textarea.value = '';
+    this.root.hidden = false;
+    this.textarea.focus();
+  }
+
+  private cancel(): void {
+    const cb = this.onCancel;
+    this.close();
+    if (cb) cb();
+  }
+
+  private submit(): void {
+    const note = this.textarea.value.trim();
+    if (!note) return;
+    const cb = this.onSubmit;
+    this.close();
+    if (cb) cb(note);
+  }
+
+  private close(): void {
+    this.root.hidden = true;
+    this.onSubmit = null;
+    this.onCancel = null;
+  }
 }
