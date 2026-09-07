@@ -300,7 +300,7 @@ export const TOWER_VFX: Record<string, TowerVfxEntry> = {
   mortar: {
     fire: 'a shell leaves the tower the instant it fires',
     travel: 'a real `Projectile` (`w.projectiles`) arcing — a rendered height lift, the sim shell itself travels flat — at the tower\'s authored `projectileSpeed`',
-    impact: 'an impact crater flash plus the shell\'s own AoE splash, each struck enemy getting the shared per-damage-type hit flash',
+    impact: 'a screen-shake pulse (the `boom` fx case) plus the shell\'s own AoE splash, each struck enemy getting the shared per-damage-type hit flash — no dedicated crater/flash draw of its own yet',
   },
   venom_spore: {
     fire: 'a spore glob leaves the tower the instant it fires',
