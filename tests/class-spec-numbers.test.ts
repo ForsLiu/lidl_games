@@ -1051,7 +1051,9 @@ const LEDGER: readonly Figure[] = [
       tracked: 'c004 (BACKLOG-CONTENT, blocked out of Scope)',
       why:
         "`data/classes.json`'s Kinship row authors only the aura half (`mods: {}`, no `kind`), " +
-        'and the three summon-cap sites in `classes.ts` add only `classLineBonus`.',
+        'and the three summon-cap sites in `classes.ts`, while now also folding in a generic ' +
+        '`summonCapBonus` (fb084), still have nothing to fold in — Kinship\'s own passive ' +
+        'authors no such source.',
       in: 'passive',
       absentKey: /cap|summon|minion|spirit|limit|retinue|kinship/i,
       knownKeys: ['active1.summonCap', 'active1.summonDurationSeconds', 'active1.summonStatMul', 'active1.summonRadius'],
