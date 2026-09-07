@@ -71,22 +71,6 @@ not already expose it) logs that need below instead of reaching into
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
 
-- [ ] (fb097) [feat] low priority: generated 2026-09-04 (same generation
-      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
-      fb094) — gif capture mode. fb094 scoped out "gif capture mode" from
-      QUALITY.md 1.0's "store-page asset export (screenshots at fixed seeds,
-      gif capture mode)" line as "materially larger scope, left for a future
-      item" — this is that item. Add a dev-profile-only control (alongside
-      fb094's screenshot export, same gating pattern) that records N seconds
-      of canvas frames on a fixed interval and exports them as an animated
-      GIF (or, if a GIF encoder is judged too heavy a dependency for this
-      item, a downloadable frame-sequence archive with a logged QUESTIONS.md
-      note on the substitution). Acceptance: a unit test triggers capture,
-      confirms it collects the expected number of frames over a mocked
-      clock/rAF, and produces a downloadable file; the control is absent/
-      inert outside dev profile, matching fb094's own gating pattern — refs:
-      QUALITY.md 1.0 (Steam/itch checklist), fb094.
-
 - [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — the Dash Slash slash VFX is drawn to the physical dash
       TARGET, not the hit line, so mid-charge and against walls the graphic is
@@ -228,8 +212,23 @@ archive normally.
       scratch-dir EPERM flake class documented across dozens of prior
       PROGRESS.md sessions, none touching `src/render/**`.
 
+### Cross-lane notes (for the main lane; QUESTIONS.md is out of this lane's Scope)
+
+- 2026-09-07, fb097: took the frame-sequence-archive branch of this item's
+  own acceptance ("if a GIF encoder is judged too heavy a dependency for
+  this item, a downloadable frame-sequence archive with a logged
+  QUESTIONS.md note on the substitution"), not a real animated GIF. A GIF
+  encoder was judged too heavy a dependency: it would add a new npm
+  package (binary-size and licensing surface) for a dev-only tool, where a
+  dependency-free STORE-only ZIP writer (`src/ui/zip-archive.ts`, new)
+  gets the same "one downloadable file bundling N frames" result with zero
+  new dependencies. Please add the QUESTIONS.md entry recording this
+  substitution (this lane cannot write QUESTIONS.md directly) — refs:
+  fb097, fb094.
+
 ### Recently completed
 
+- (fb097) [feat] **DONE 2026-09-07** — dev-profile-only frame-sequence capture: 6 canvas frames on a fixed 500ms interval, bundled into one downloadable ZIP.
 - (fb093) [polish] **DONE 2026-09-07** — ultrawide/narrow HUD safe-area audit coverage: a real-Chromium test at 2560x1080 and 1024x1280 checking zero hud-overlap and no offscreen critical control.
 - (fb176) [polish] **DONE 2026-09-07** — the falloff floor makes "each one behind it takes less" stop being literally true past a reachable target count.
 - (fb175) [polish] **DONE 2026-09-07** — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the same `lineHit` drop-off the class sentences now name, and did not name it.
@@ -239,6 +238,5 @@ archive normally.
 - (fb170) [bug] **DONE 2026-09-07** — hiding the tab paused but did not flush the persisted run.
 - (fb169) [polish] **DONE 2026-09-07** — "Reset settings to defaults" re-buried the OS reduced-motion preference.
 - (fb177) [feat] **DONE 2026-09-07** — per-tower attack projectile/beam visuals: every tower type gets a distinct registered VFX entry.
-- (fb117) [feat] **DONE 2026-09-07** — Core-select screen redesign to match class-select layout.
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.

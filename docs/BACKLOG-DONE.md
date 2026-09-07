@@ -18048,6 +18048,105 @@ logs a blocker below rather than editing `/data` itself.
       unmodified HEAD by earlier sessions' PROGRESS.md entries). No `/src`
       non-test change, no `/data` change.
 
+- [x] (fb097) [feat] low priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
+      fb094) — gif capture mode. fb094 scoped out "gif capture mode" from
+      QUALITY.md 1.0's "store-page asset export (screenshots at fixed seeds,
+      gif capture mode)" line as "materially larger scope, left for a future
+      item" — this is that item. Add a dev-profile-only control (alongside
+      fb094's screenshot export, same gating pattern) that records N seconds
+      of canvas frames on a fixed interval and exports them as an animated
+      GIF (or, if a GIF encoder is judged too heavy a dependency for this
+      item, a downloadable frame-sequence archive with a logged QUESTIONS.md
+      note on the substitution). Acceptance: a unit test triggers capture,
+      confirms it collects the expected number of frames over a mocked
+      clock/rAF, and produces a downloadable file; the control is absent/
+      inert outside dev profile, matching fb094's own gating pattern — refs:
+      QUALITY.md 1.0 (Steam/itch checklist), fb094. **DONE 2026-09-07** —
+      took the frame-sequence-archive branch, not a real GIF encoder (logged
+      as a cross-lane QUESTIONS.md need in this file's live "Cross-lane
+      notes" subsection, since QUESTIONS.md is outside this lane's Scope):
+      a new npm dependency's binary-size/licensing surface was judged too
+      heavy for a dev-only tool. New `src/ui/zip-archive.ts` — a
+      dependency-free, STORE-only (uncompressed) ZIP writer implementing
+      CRC-32 plus the PKZIP local-file-header/central-directory/
+      end-of-central-directory layout — with its own
+      `tests/ui-fb097-zip-archive.test.ts` (5 tests) proving a genuine
+      byte-for-byte round trip (a hand-rolled minimal ZIP reader decodes
+      what the writer wrote and compares against the originals, including a
+      multi-entry ordering check and the standard "123456789" ->
+      `0xCBF43926` CRC-32 reference test vector). `Hud` (`hud.ts`) gains a
+      `devMode`-gated "Frame Capture" button (`#sw-framecapture`, same
+      `isDevBuild() && devProfileActive()` gating fb094's `#sw-screenshot`
+      already uses) wired to a new private `captureFrameSequence()`:
+      captures `FRAME_CAPTURE_COUNT` (6) canvas frames on a fixed
+      `setInterval` (`FRAME_CAPTURE_INTERVAL_MS`, 500), bundles the settled
+      frames into one ZIP via `buildStoreZip`, and downloads it through the
+      same `URL.createObjectURL` + anchor-click + `revokeObjectURL` idiom
+      `exportScreenshot`/`tuner.ts`'s "Export JSON" already use; a settled
+      count (independent of capture-issue order) triggers the download
+      exactly once and clears the interval, and a `null`/blob-less
+      `toBlob` resolution is a no-throw no-op, matching
+      `exportScreenshot`'s own guard shape. Targeted
+      `tests/ui-fb097-frame-capture.test.ts` (3 tests, fake timers +
+      `vi.advanceTimersByTimeAsync` driving the fixed interval end-to-end:
+      the control renders under dev profile; a full capture calls
+      `canvas.toBlob` exactly `FRAME_CAPTURE_COUNT` times, downloads
+      exactly one `application/zip`-typed Blob whose first four bytes are
+      the real ZIP local-file-header signature, and — the regression this
+      test is actually pinned against, confirmed by mutating
+      `FRAME_CAPTURE_COUNT` to 8 and watching the assertion redden before
+      reverting — stops issuing captures once the interval keeps firing
+      past the target count) and
+      `tests/ui-fb097-frame-capture-prod.test.ts` (1 test, same
+      `vi.mock('isDevBuild')` split-file pattern as
+      `ui-fb094-screenshot-export-prod.test.ts`: the control never mounts
+      outside dev profile).
+
+      **Two review rounds, both real findings fixed.** code-reviewer
+      (full tier, no Critical/Major): independently built a small archive
+      with `buildStoreZip` outside any test harness and opened it with
+      real `unzip`/Python `zipfile` (not just this repo's own hand-rolled
+      round-trip reader) — confirmed genuinely valid. Two Minor fixes
+      applied: (1) a double-click on "Frame Capture" before the first
+      6-frame sequence finished started a fully independent second
+      sequence (two overlapping `toBlob` cadences, two downloads) — fixed
+      with a new `frameCaptureInFlight` guard that also disables the
+      button for the capture's duration; (2) the ZIP's DOS date/time
+      fields were hardcoded to `0`/`0`, which decodes as the invalid "month
+      0, day 0" (confirmed via `zipfile`'s own date_time readback) — fixed
+      to a valid fixed `1980-01-01 00:00:00`. qa-playtester (independent
+      pass, own from-scratch probe plus real `unzip`/`zipfile` validation,
+      not just re-running the shipped tests) found one real bug beyond
+      those two: **the capture interval never cleared if any `canvas
+      .toBlob` call dropped its callback entirely or threw synchronously**
+      (e.g. a tainted-canvas `SecurityError`) after the first frame — the
+      only place that ever called `clearInterval` was the fully-settled
+      path, which a dropped/throwing callback can never reach, so the
+      `setInterval` (and the disabled button, after the re-entrancy fix
+      above) would be stuck for the rest of the page's life. Fixed in two
+      parts: `stopTimer()` now runs the moment the LAST capture is
+      *issued* (synchronously, before that capture's own `toBlob` call —
+      so even a throw on that exact call can't skip it), independent of
+      whether any frame ever settles; and a bounded `setTimeout` safety
+      fallback (three missed intervals' worth of grace) force-finishes
+      (downloading whatever subset did settle, or no-op'ing) so a
+      permanently-hung capture can't leave the button stuck disabled
+      forever either. `canvas.toBlob(...)` itself is now wrapped in a
+      `try`/`catch` (a synchronous throw was otherwise an uncaught
+      exception inside a `setInterval` callback). Three new regression
+      tests pin this: `canvas.toBlob` that never invokes its callback, one
+      that throws synchronously after the first frame, and one proving the
+      safety-timeout path re-enables the button — all three confirmed red
+      against the pre-fix code (reverted the fix, re-ran, watched all
+      three fail with the exact symptoms qa-playtester described, then
+      restored the fix) before being accepted as genuine regression tests,
+      not just plausible-looking ones. `tests/ui-fb097-frame-capture.test.ts`
+      is now 6 tests (12 total across the three new files, 16 with the
+      sibling `ui-fb094-screenshot-export*` coverage) — all green; `npx tsc
+      --noEmit` clean; `npm run test:fast` otherwise unchanged (only the
+      pre-existing `q15`/`q45` flake class red). No `/data` change.
+
 ## Log
 
 - 2026-09-07, fb176 (for the main lane — a QUESTIONS.md entry this lane
