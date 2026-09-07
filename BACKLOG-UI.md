@@ -4443,7 +4443,7 @@ logs a blocker below rather than editing `/data` itself.
       the pre-existing `q15`/`q45` flake class red — refs: fb145, fb074,
       fb087, QUALITY.md BETA.
 
-- [ ] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+- [x] (fb171) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
       that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
       covers the hidden `visibilitychange` edge, but neither fires for a run
       that begins in an already-backgrounded document: fb074's boot-resume
@@ -4461,6 +4461,39 @@ logs a blocker below rather than editing `/data` itself.
       true BEFORE constructing the `Game`, boots a fresh run and a persisted
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
+      **DONE 2026-09-07** — one line at the very end of `beginRun`
+      (`src/ui/main.ts`, after every Hud/renderer/input-listener setup call in
+      that function): `if (document.hidden && this.run.world.outcome ===
+      'running' && !this.paused) this.setPaused(true);` — the same guard shape
+      `onFocusLost` already uses, reusing `setPaused(true)` (not a raw field
+      write) so pause-entry side effects (`clearKeysForPause`, `hud.
+      setPaused`) run identically to every other pause path. Fires for both a
+      fresh `startRun` and a `tryResumePersistedRun` resume, since both funnel
+      through this same `beginRun` tail. New `tests/ui-fb171-hidden-boot-
+      pause.test.ts` (4 tests): a fresh run and a persisted resume, each
+      booted with `document.hidden` stubbed true before `Game` construction
+      (same shadowing convention as `ui-fb145`'s own `setHidden`), plus a
+      `hidden === false` control for each. code-reviewer **APPROVE**: no
+      Critical/Major; one Minor — the guard omitted the `!this.paused`
+      conjunct `onFocusLost` carries (harmless today since `this.paused` was
+      just set `false` a few lines up, but implicit rather than enforced) —
+      fixed same session, added the conjunct plus a comment explaining why.
+      qa-playtester **PASS**: confirmed the shipped tests are genuine
+      regression tests (checked out the pre-fix parent commit with the new
+      test file still in place — both `hidden=true` cases failed there,
+      controls still passed, restored after), and independently probed
+      Practice/Training Grounds (both route through the same `beginRun` tail,
+      confirmed protected), `document.hidden === undefined` (short-circuits
+      falsy, no throw), a reveal after a hidden-boot pause (stays paused,
+      matching fb071/fb145's manual-resume convention), and the
+      already-finished-outcome case (`tryResumePersistedRun`'s `finish()`
+      diverts a done run to the Hub before `beginRun` is ever called, so the
+      `outcome === 'running'` guard is defensive symmetry, not dead code) —
+      no bugs found. Also ran a money-path sanity sweep (death flow, save
+      fuzz, Retry/New Run config carry-over) with no interaction found.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 281 passed / 8 skipped
+      files, 4165 passed tests, only the pre-existing `q15`/`q45` flake class
+      red.
 
 - [ ] (fb172) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
       a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a

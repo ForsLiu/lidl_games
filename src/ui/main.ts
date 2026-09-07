@@ -485,9 +485,13 @@ export class Game {
     // tab) binds those listeners too late to ever see a hide event; the only
     // one left to arrive is the reveal, which `onFocusLost`'s own
     // `!document.hidden` guard correctly ignores. Mirrors that same
-    // `outcome === 'running'` guard at bind time instead, so the player never
-    // gets dropped straight into live combat with no visible pause.
-    if (document.hidden && this.run.world.outcome === 'running') this.setPaused(true);
+    // `outcome === 'running' && !this.paused` guard at bind time instead
+    // (code-reviewer: `this.paused` is always false here today — just set a
+    // few lines up — but the explicit conjunct keeps that an enforced
+    // invariant rather than an implicit one a future insertion between the
+    // two could silently break), so the player never gets dropped straight
+    // into live combat with no visible pause.
+    if (document.hidden && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
   }
 
   /**
