@@ -863,3 +863,38 @@ Q91 and Q102 corrections if not yet done.
   a wrong item (p12i) that would have spent a real session retuning towers
   against the wrong diagnosis.
 
+- **Q196. [fb119] q15's standalone failure root-caused to a `tsx/esm`
+  `worker_threads` limitation, `.skip`-ed rather than fixed — the real fix
+  is a different isolation mechanism, out of this item's scope.** q15's own
+  header (this session, dated) has the full technical writeup; summarized
+  here for the decision record. `tools/fuzz-command-domain-worker.ts`
+  (loaded via `new Worker(WORKER_PATH, { execArgv: ['--import', 'tsx/esm']
+  })`) has one extensionless relative import; on this session's Node
+  22.22.2 / tsx 4.23.12 that import fails to resolve, confirmed with a
+  minimal two-file repro entirely outside this project. Adding the missing
+  `.ts` extension only moves the failure to the next extensionless import
+  one level down (`fuzz-command-domain.ts` pulls in most of `/src/sim`),
+  and every extensionless import anywhere in that graph hits the same wall
+  once loaded through this specific worker's loader hook — annotating the
+  whole `/src/sim` import graph with explicit extensions (against this
+  codebase's convention everywhere else, which works fine under both
+  Vitest and the plain `tsx` CLI) would be a far larger, riskier change
+  than this item's scope. Five other angles tried and rejected (a bare
+  `tsx` import, a `file://` worker path, an explicit `env`, `NODE_OPTIONS`
+  in place of `execArgv`, and Node's own native `--experimental-strip-
+  types`) all reproduce the identical failure — CLAUDE.md rule 6's
+  five-attempt threshold, `.skip`-ed rather than chasing a sixth. Verified
+  the concrete fix path rather than leaving it vague: `npx tsx <script>.ts`
+  (the full CLI, not the `--import` hook) resolves the same extensionless
+  imports with no error — swapping `probeInWorker`/`aliasProbeInWorker`'s
+  isolation from `worker_threads.Worker` to a `child_process` spawn of the
+  `tsx` CLI (keeping the "forcibly killable on timeout" property via
+  `child.kill()`, JSON-over-stdout or IPC instead of `postMessage`) would
+  close this without touching `/src/sim` at all — real, separate
+  engineering work, not attempted here. The same defect very likely
+  explains `tests/q45-cli-schema-violation.test.ts`'s standing
+  `fuzz-command-domain.ts` row failure too (identical "Cannot find module
+  '.../tools/fuzz-command-domain'" message, same worker path) — noted with
+  a comment there, left red and out of fb119's own named scope rather than
+  fixed in the same item.
+

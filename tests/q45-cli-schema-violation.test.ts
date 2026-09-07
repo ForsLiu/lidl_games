@@ -109,6 +109,21 @@ function runCli(dir: string, tool: string, args: string[]): { exitCode: number; 
 
 const RAW_STACK_FRAME = /\bat \S+ \(/;
 
+// fb119 (BACKLOG.md, this session): the `fuzz-command-domain.ts` row below
+// is known-red in this session's environment (Node 22.22.2, tsx 4.23.12),
+// unrelated to the schema-violation handling this file actually tests — its
+// `main()` spawns the same `worker_threads.Worker` + `tsx/esm` `--import`
+// hook `tests/q15-command-domain-fuzz.test.ts` diagnosed and `.skip`-ed
+// (that file's own header has the full root-cause writeup and the fix path
+// for whoever picks this row up too): an extensionless relative import
+// inside the worker entry (`tools/fuzz-command-domain-worker.ts`) fails to
+// resolve, so the CLI process here dies with `Cannot find module '.../tools/
+// fuzz-command-domain'` before it ever reaches the schema-violation code
+// path this `describe.each` means to exercise. Left red rather than
+// skipped/removed here (out of fb119's own named scope — that item is q15
+// specifically), same conclusion either way: fixing it needs the
+// `child_process`-based worker isolation q15's writeup proposes, not a
+// change to this file.
 describe.each([
   ['perf-ratio.ts', ['--calib-iters', '1000', '--tick-samples', '2'], 'perf-ratio'],
   ['a4probe.ts', [] as string[], 'a4probe'],

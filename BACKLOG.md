@@ -4350,7 +4350,37 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Lanes section; either way a `tools/` check (or a test) fails when an
       id appears in two backlog files with different titles — refs:
       CLAUDE.md Lanes, BACKLOG-UI.md 2026-09-04 merge Log.
-- [ ] (fb119) [bug] `tests/q15-command-domain-fuzz.test.ts` is red
+- [x] (fb119) [bug] **DONE 2026-09-07 — root-caused and `.skip`-ed, not
+      fixed in place** (QUESTIONS Q196; full technical writeup in `tests/
+      q15-command-domain-fuzz.test.ts`'s own dated header). In this
+      session's environment (Node 22.22.2/tsx 4.23.12) the failure isn't the
+      120s hang the original text describes — it's an immediate
+      `ERR_MODULE_NOT_FOUND` — but the underlying defect is the same class:
+      `tools/fuzz-command-domain-worker.ts`'s one extensionless relative
+      import fails to resolve when loaded through `new Worker(WORKER_PATH,
+      { execArgv: ['--import', 'tsx/esm'] })`, confirmed with a minimal
+      repro entirely outside this project. Fixing the one import only moves
+      the failure to the next extensionless import one level down
+      (`fuzz-command-domain.ts` pulls in most of `/src/sim`), so a full fix
+      would mean annotating that entire import graph with explicit `.ts`
+      extensions — out of proportion to this item, and against the
+      codebase's convention everywhere else. Five other angles tried and
+      rejected (logged in Q196) before choosing CLAUDE.md rule 6's stop
+      point — rule 6's "`.skip` + TODO, move on" supersedes this item's own
+      original two literal options (restore <60s or exclude-list) below,
+      the same way it would for any other 5-distinct-attempts stop
+      (code-reviewer, confirming this doesn't just quietly miss its own
+      acceptance). `describe.skip`-ed the whole file with the diagnosis and a
+      concrete fix path (swap the `worker_threads` isolation for a
+      `child_process` spawn of the `tsx` CLI, which resolves the same
+      imports fine) rather than a mechanical exclude-list entry (this isn't
+      slow, the config's exclude list is for slow-but-working suites).
+      `npm run test:fast` now shows q15 skipped, not failed. Also noted
+      (comment only, not fixed): `tests/q45-cli-schema-violation.test.ts`'s
+      `fuzz-command-domain.ts` row almost certainly shares this exact root
+      cause. Follow-up filed as **fb136** with the concrete fix path.
+      Original text follows.
+      `tests/q15-command-domain-fuzz.test.ts` is red
       **standalone**, not just under load: its `beforeAll` (`runCensus()`)
       hits the 120 s `hookTimeout` and all 66 recorded entries read
       `"hangs"` — the worker-subprocess probe timing out wholesale (terrain
@@ -4362,6 +4392,28 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       fb087), then either restore a <60 s standalone run or move q15 to the
       exclude list with the measured time; the config comment matches the
       measurement — refs: CLAUDE.md test tiers, fb087.
+- [ ] (fb136) [test] the real fix fb119 diagnosed but did not attempt:
+      replace `tools/fuzz-command-domain.ts`'s `probeInWorker`/
+      `aliasProbeInWorker` isolation (`worker_threads.Worker` +
+      `execArgv: ['--import', 'tsx/esm']`) with a `child_process` spawn of
+      the `tsx` CLI against `tools/fuzz-command-domain-worker.ts` — verified
+      (QUESTIONS Q196) that the full CLI, unlike the `--import` loader hook,
+      resolves this file's extensionless relative imports with no error, so
+      this closes the defect without touching `/src/sim`. Preserve the two
+      properties the current mechanism provides: forcibly killable on a
+      timeout (`child.kill()` in place of `worker.terminate()`) and a
+      structured result back to the parent (JSON over stdout, or a real IPC
+      channel via `child_process.fork` if `tsx`'s CLI supports being invoked
+      that way — check before assuming `spawn` is the only option).
+      Acceptance: `tests/q15-command-domain-fuzz.test.ts` un-skipped and
+      green standalone (all 66 census entries resolve to a real verdict, no
+      `"hangs"`); `tests/q45-cli-schema-violation.test.ts`'s
+      `fuzz-command-domain.ts` row (its own comment names this item) passes
+      too, confirming the same fix closes both; the "genuinely hangs" case
+      this mechanism exists for (`dev.xp.amount`=`Infinity`, `tests/q15-
+      command-domain-fuzz.test.ts`'s own closed-finding describe block)
+      still settles within its probe deadline via `child.kill()` — refs:
+      BACKLOG fb119, QUESTIONS Q196.
 - [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
       tier cannot see, both expired measurements: `tests/a3-movement-
       mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`
