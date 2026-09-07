@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
+  broadphase used a constant `range * 0.5 + 2` margin around the swept
+  line's midpoint, which only bounds the rectangle's true reach
+  (`sqrt((range/2)^2 + halfWidth^2)`) while `halfWidth` stays small; once
+  an Area-scaled `halfWidth` (`dash_line`/`boon:reach`, uncapped) pushed the
+  rectangle's far corners past it, those enemies were never even
+  perp-tested. Margin is now `range * 0.5 + halfWidth + 2`, matching the
+  fix `fireCrimsonRush` (`classes.ts`) already shipped for its own
+  hand-rolled copy. Also closed the sibling inconsistency the item named:
+  `towers.ts`'s `single`/`pierce` tower kinds passed a bare `LINE_HALF_WIDTH`
+  to `lineHit`/`bestLineDirection` — the one attack shape in that function
+  Area didn't scale, unlike aura range/lob/poison aoe/cone half-angle/blast
+  aoe in the same file and `vswield.ts`'s identical beam calls. Aligned
+  rather than pinned, per SPEC-FINAL §2's "Area... applies to every attack,
+  active, and effect." `tests/fb081-linehit-broadphase.test.ts` pins the
+  `dash_line` areaMul-4 corner-miss regression (written first, confirmed
+  red at HEAD, CLAUDE.md rule 3). code-reviewer's one Major finding — the
+  new tower-beam footprint had no row in `tests/class-wide-grove-reach.
+  test.ts`'s c013 ledger, the exact "a new caller, not a new read" guard
+  built for this failure mode by c001 — was closed with a new Arrow Spire
+  CONSUMERS row (at its §5.2 pierce milestone, using the file's own
+  "primary must be the most path-advanced candidate, `targetFirst` doesn't
+  pick by raw distance" convention) and a Ballista DEVIATIONS row for the
+  aim-only `bestLineDirection` call, mirroring the existing wielded-side
+  entry. qa-playtester independently reproduced the pre-fix miss via
+  `git stash` on `towers.ts` alone (proving that half of the fix is
+  load-bearing on its own, not just the `combat.ts` margin), confirmed
+  `ballista`'s `pierce` kind benefits too, checked `halfWidth===0` and an
+  extreme synthetic `areaMul===1000` for NaN/perf issues (clean), and
+  found no bugs. Targeted suites (`fb081-linehit-broadphase`,
+  `class-area-stat`, `class-wide-grove-reach`, `p5d-projectile-damage-
+  credit`, `a2-towers-mandatory`, and the `ui-fb1*`/dash-width files) all
+  green. `npm run test:fast` full run: only pre-existing, unrelated
+  failures remain — the documented `q15-command-domain-fuzz`/`q45` host-
+  load module-resolution flake (reproduced independently on a clean stash
+  of this diff, logged repeatedly in this file since early sessions) and
+  `q47`'s CLI-crash-coverage census tripping on another concurrent
+  session's own in-progress scratch files under `tools/` (not part of this
+  item's diff). Committed `692b8fc`.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
   session should run the generation rule again before executing further).
