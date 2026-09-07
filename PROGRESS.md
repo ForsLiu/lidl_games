@@ -48,6 +48,37 @@
   or `/data` change; `npm run test:fast` unaffected (no code path touches
   QUESTIONS.md's content).
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT fb180 done, docs only.**
+  `BACKLOG-CONTENT.md` was well past fb178's 400-line budget for live
+  backlog files (3807 lines). Every `[x]` item from the Queue (c001-c041,
+  all Done/Skipped/Blocked) plus the entire `## Log` section moved verbatim,
+  in original order, to `docs/BACKLOG-DONE.md` under a new
+  `## BACKLOG-CONTENT.md` heading — the exact treatment fb178 itself gave
+  `BACKLOG.md`; verified programmatically (every item id and the full `##
+  Log` text byte-identical between the old file and the archive, none
+  missing, none duplicated). Kept live, full text unchanged: the `## Scope`
+  section (one cross-reference line updated since the Log it pointed to no
+  longer lives in this file); the three still-blocked/skipped in-lane items
+  (`c004`, `c002`, `c010`) and the five still-blocked owner items (`fb056`,
+  `fb057`, `fb059`, `fb061`, `fb062`); a new `### Recently completed` list
+  of the last 10 done ids (`c032`-`c041`) as one-liners. `BACKLOG-CONTENT.md`
+  is now 210 lines. `tools/status.ts`'s `backlogPaths()` already reads
+  `docs/BACKLOG-DONE.md` (fb178), so every feedback-ledger citation for an
+  id now living in the archive still resolves —
+  `npx vitest run tests/fb038-status.test.ts` green (27/27). code-reviewer
+  APPROVE (no Critical/Major; two Minor — this entry closes the missing-
+  PROGRESS.md-update one, and an unrelated `npm install`-driven
+  `package-lock.json` diff was reverted rather than committed — plus a Nit
+  noting `c004`/`c002`/`c010`'s unchanged text still says "see the Log",
+  softened by the new pointer note just above it). `npm run test:fast`:
+  4227 passed, 53 skipped, only the two pre-existing unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (present on HEAD, unrelated to this docs-only change). No `/src` or
+  `/data` change — refs: feedback/feature-token-economy.md, BACKLOG.md
+  fb178, BACKLOG-CONTENT.md fb180. **Moved to `docs/PROGRESS-ARCHIVE.md` by
+  this same item, to keep this file's last-10 window:** the prior oldest
+  entry, 2026-09-07's `BACKLOG fb079` (SPEC-FINAL §10.5 append).
+
 - **2026-09-07 — main lane: BACKLOG p12d done (BALANCE DIRECTION v2 §D gate
   rewrites).** SPEC-FINAL §14's G1/G8/G14/G23 rows now name T3 as reference
   tier with T1 `[55%,90%]`/`>=25% close-win` and T5 `[5%,20%]` as companion
