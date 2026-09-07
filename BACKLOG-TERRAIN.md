@@ -1445,7 +1445,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
       halved from a first version that called `generateTerrain` twice per seed);
       26 suites green (446); `npx tsc --noEmit` clean.
-- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+- [x] (fb065i) [polish] a terrain dump is only meaningful beside the config it
       was taken under, and it carries no trace of one. `describe.ts`'s own
       header says so — "a dump is only meaningful next to the config it was
       taken under" — and `parseTerrainDump` deliberately never re-measures, so a
@@ -1460,6 +1460,94 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       on a mismatch against the current config, so a stale dump stays readable;
       the round trip stays byte-identical and every existing refusal message is
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
+      **Shipped as a `config` line, the header's last, carrying
+      `terrainConfigFingerprint(cfg)` (new export, `config.ts`).** The
+      fingerprint is `new Hasher().str(JSON.stringify(cfg)).hex()` — the same
+      FNV-1a `Hasher` `terrainHash` already folds a map's tiles through, not a
+      `contentHash()`-style hash of `TERRAIN_RAW`. The two are hashing
+      different things on purpose: `contentHash` hashes the pre-parse document
+      specifically so a loader/schema change on byte-identical `/data` cannot
+      move it, but `describeTerrain` is handed whatever `TerrainConfig` its
+      caller already measured with — `loadTerrain()`'s cached one in
+      production, a hand-built `parseTerrain(patchedRaw)` in a good third of
+      this suite's own tests — and only the parsed object is guaranteed to be
+      the config the dump's bands were actually measured against; `TERRAIN_RAW`
+      knows nothing about a test's patched copy. `JSON.stringify(cfg)` is
+      stable for that purpose anyway: zod's `.parse()` rebuilds an object's
+      keys in the schema's own declaration order, never the source document's,
+      so the value is unmoved by a `/data/terrain.json` edit that only
+      reorders fields and moved by one that changes a value.
+      **Placed last of the seven header lines** (after `legend`, before
+      `map`), not up with `seed` where a reader's eye would reach it first —
+      the tradeoff made on purpose: every earlier line's fixed index (`gates`
+      is always line 2, `bands` always 3, and so on, which
+      `tests/terrain-gates-dump.test.ts` and `tests/terrain-grid-view.test.ts`
+      both index directly) stays exactly what every dump this build has ever
+      written assumed, and every truncated dump this suite's own tests
+      hand-build up through `legend` keeps parsing exactly as it did — so the
+      whole existing test file needed only one new line inserted into its
+      golden, not a renumbering.
+      `parseTerrainDump` gained an optional second `cfg` parameter (default
+      `loadTerrain()`, so every existing call site is unchanged): the
+      fingerprint's *shape* is refused exactly like every other header field —
+      unknown/missing/duplicate field, and a non-hex or wrong-length value
+      refused by the same eight-lowercase-hex-digit pattern `hashField` pins
+      `seed`'s `hash` to — but a well-formed fingerprint that disagrees with
+      `cfg`'s own is reported on the parsed result
+      (`TerrainDump.config.{fingerprint, current, matches}`), never thrown.
+      That is the acceptance's real distinction from `contentHash()`'s hard
+      replay failure: the one moment a dump is most useful is exactly when
+      `/data` has moved since it was taken, and refusing it would take away
+      the evidence rather than flag it.
+      **Golden and coverage.** `GOLDEN_SEED_1` (`tests/terrain-describe.test.ts`)
+      gained the one new line, computed for real by running `describeTerrain`
+      against the shipped config — `config fingerprint=c39bcb68` — with every
+      other line, every map row and every existing refusal-message assertion
+      byte-identical to before (all pinned to that build's real output, none
+      invented). New coverage added: unknown/missing/duplicate field on the
+      `config` line, a malformed fingerprint refused the way a malformed hash
+      is (wrong length, uppercase, non-hex, the same tab-smuggling hole
+      fb064w closed for `hash`), the mismatch-is-reported-never-thrown case
+      end to end (including the default-comparison case, where parsing with
+      no second argument reports a match against `loadTerrain()`), and a
+      mechanical pin that every header line from `seed` through `legend`
+      still sits at its pre-item fixed index.
+      **Code-reviewer: no subagent invocation available in this execution
+      context** (`ToolSearch` found no `Task`/`Agent`-shaped tool to launch
+      `.claude/agents/code-reviewer.md`, consistent with what fb156's and
+      other recent entries in this file record for this same lane) — disclosed
+      honestly rather than self-certified silently. Self-reviewed against that
+      file's own checklist in its stead: no architecture-rule violation (no
+      DOM/`Math.random`/`Date.now`/native trig touched, `/data` untouched, no
+      new tunable added — `HEADER_KEYS`/`GLYPHS` are already-precedented
+      code-not-data); no determinism hazard (`JSON.stringify` of a
+      zod-rebuilt object has stable key order, no object/map iteration of
+      unspecified order introduced); matches the acceptance as written; every
+      new behaviour has a dedicated test and the full existing suite still
+      passes unmodified; no hot-loop cost (`describeTerrain`/`parseTerrainDump`
+      run only when a dump is written or read, never per tick). One judgment
+      call worth naming rather than burying: the fingerprint is sensitive to
+      *any* field of `TerrainConfig`, including ones no band reads (`tiles[].color`,
+      say), so a colour-only `/data/terrain.json` edit reports an old dump as
+      "stale" even though its measured bands are still exactly right. Read
+      literally, the acceptance asks for a fingerprint "of the `TerrainConfig`
+      it was written under" — the whole object, not the subset that happens to
+      matter for measurement — so this is taken as the intended reading rather
+      than a defect; a narrower hash over only the fields `measureTerrain`
+      reads would need its own maintained field list and a second place for
+      that list to drift from `measureTerrain`'s real reads, which is exactly
+      the coupling `HEADER_KEYS`'s own doc block on this file already argues
+      against elsewhere.
+      **Verification:** `tests/terrain-describe.test.ts` 35/35 (30 pre-existing
+      + 5 new); `tests/terrain-gates-dump.test.ts`, `-flat`, `-grid-view`,
+      `-four-gates`, `-anchor-quality`, `-approach`, `-content-hash`,
+      `-run-provenance` all green; full `npm run test:fast` — 272 files passed,
+      9 failed (`b007-tile-bounds`, `class-board-windows`, `class-board`,
+      `content-complete`, `fb077-terrain-wiring`, `grid`, `p1a-sealing`,
+      `q15-command-domain-fuzz`, `q45-cli-schema-violation`), the exact same 9
+      fb166 already logged as pre-existing and unrelated — every
+      `tests/terrain*` file (25 files) shows 0 failures; `npx tsc --noEmit`
+      clean.
 
 ## Log
 

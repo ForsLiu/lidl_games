@@ -36,6 +36,7 @@ import {
   measureTerrain,
   parseTerrain,
   parseTerrainDump,
+  terrainConfigFingerprint,
   terrainHash,
   TerrainKind,
   TERRAIN_KEYS,
@@ -132,6 +133,17 @@ function field(text: string, head: string, key: string): string {
  * hold every owner band at the new size with real headroom (see
  * BACKLOG-TERRAIN.md's fb166 entry), so the density/blob/constraint numbers
  * are unchanged and only the golden itself moves.
+ *
+ * **Moved a fourth time, at fb065i**, which added the `config` line — a
+ * fingerprint of the `TerrainConfig` the dump was measured under
+ * (`terrainConfigFingerprint`, `config.ts`). Nothing about seed 1's map or its
+ * measured bands changed; the new line is the last header line, after
+ * `legend` and before `map`, precisely so every earlier line keeps the fixed
+ * index this file and others (`tests/terrain-gates-dump.test.ts`,
+ * `tests/terrain-grid-view.test.ts`) already read it by.
+ * `c39bcb68` is `terrainConfigFingerprint(loadTerrain())` for real, not
+ * invented — re-derive it by running `describeTerrain` if `data/terrain.json`
+ * ever changes and this golden goes red on that line alone.
  */
 const GOLDEN_SEED_1 = [
   'terrain 56x32',
@@ -141,6 +153,7 @@ const GOLDEN_SEED_1 = [
   'counts walkable=1320 normal=992 coreAnchors=522',
   'tiles normal=992 rough=328 rock=354 high=118',
   'legend normal=. rough=, rock=# high=^',
+  'config fingerprint=c39bcb68',
   'map',
   '##################.#####################################',
   '#.....###.........................^^.....,,,,,^^^,,.,..#',
@@ -815,7 +828,19 @@ describe('fb064w — a header line is refused unless its fields are exactly what
         .map((f) => f.slice(0, f.indexOf('=')));
       expect(emitted, head).toEqual([...HEADER_KEYS[head]]);
     }
-    expect([...Object.keys(HEADER_KEYS)].sort()).toEqual([...HEADS].sort());
+    // fb065i: `config` is not in `HEADS` above — every case in that loop
+    // reorders adjacent fields, and `config` has exactly one, so there is
+    // nothing to reorder and the shared loop's `parts.length` assertion below
+    // ("needs two fields to reorder") would fail on it for a reason that has
+    // nothing to do with this test's claim. Checked here instead, by the same
+    // rule as every other line: the key it declares is exactly the key the
+    // writer emits.
+    const configEmitted = headerLine(good, 'config')
+      .split(' ')
+      .slice(1)
+      .map((f) => f.slice(0, f.indexOf('=')));
+    expect(configEmitted).toEqual([...HEADER_KEYS.config]);
+    expect([...Object.keys(HEADER_KEYS)].sort()).toEqual([...HEADS, 'config'].sort());
   });
 
   it('pins the gates line’s refusal text, which fb065f changed silently', () => {
@@ -938,6 +963,102 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(() => parseTerrainDump(good.replace(/^(seed .*)$/m, '$1 bogus=1 bogus=2'))).toThrow(
       /unknown "bogus" on the "seed" line/,
     );
+  });
+});
+
+describe('fb065i — a dump carries a fingerprint of the config it was measured under', () => {
+  const good = GOLDEN_SEED_1;
+
+  it('prints the real fingerprint of the config it was measured with, as the last header line', () => {
+    expect(field(good, 'config', 'fingerprint')).toBe('c39bcb68');
+    expect(terrainConfigFingerprint(cfg)).toBe('c39bcb68');
+    // A config that measures the map differently prints a different mark —
+    // this is not a constant, it is a function of `cfg`.
+    const roomier = withConfig((raw) => {
+      (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 3;
+    });
+    expect(terrainConfigFingerprint(roomier)).not.toBe(terrainConfigFingerprint(cfg));
+    const map = generateTerrain(1, cfg);
+    expect(field(describeTerrain(map, roomier), 'config', 'fingerprint')).toBe(
+      terrainConfigFingerprint(roomier),
+    );
+  });
+
+  it('is checked the way every other header line is: no extras, no missing field, no duplicate', () => {
+    expect(() => parseTerrainDump(good.replace('config fingerprint=', 'config bogus=1 fingerprint='))).toThrow(
+      /unknown "bogus" on the "config" line/,
+    );
+    expect(() => parseTerrainDump(good.replace(/ fingerprint=[0-9a-f]{8}/, ''))).toThrow(
+      /"config" line has no "fingerprint"/,
+    );
+    expect(() =>
+      parseTerrainDump(good.replace('fingerprint=c39bcb68', 'fingerprint=c39bcb68 fingerprint=c39bcb68')),
+    ).toThrow(/duplicate "fingerprint" on the "config" line/);
+    expect(() => parseTerrainDump(good.replace('config ', ''))).toThrow(
+      /expected "config" line, got "fingerprint=c39bcb68"/,
+    );
+  });
+
+  it('refuses a malformed fingerprint the same way a malformed hash is refused', () => {
+    // Pinned to the same shape `hashField` pins `seed`'s `hash` to (eight
+    // lowercase hex digits), since both come out of `Hasher.hex()` — wrong
+    // length, uppercase, and non-hex text are all corruption, not staleness.
+    expect(() => parseTerrainDump(good.replace('fingerprint=c39bcb68', 'fingerprint=c39bcb6'))).toThrow(
+      /"config" line has non-hash fingerprint="c39bcb6"/,
+    );
+    expect(() =>
+      parseTerrainDump(good.replace('fingerprint=c39bcb68', 'fingerprint=C39BCB68')),
+    ).toThrow(/non-hash/);
+    expect(() =>
+      parseTerrainDump(good.replace('fingerprint=c39bcb68', 'fingerprint=not-a-hash')),
+    ).toThrow(/non-hash/);
+    // The tab-smuggling hole `fb064w` closed for `hash` applies identically
+    // here: `fields()` splits on a single space, so a tab-separated value
+    // would otherwise never reach the unknown-key check.
+    expect(() =>
+      parseTerrainDump(good.replace('fingerprint=c39bcb68', 'fingerprint=c39bcb68\tbogus=1')),
+    ).toThrow(/non-hash/);
+  });
+
+  it('reports a mismatch against the current config; it never throws for one', () => {
+    // The acceptance-critical case: a dump written under one config, read back
+    // against another, stays readable. `parseTerrainDump`'s own `cfg` argument
+    // stands in for "the caller's current config" — `loadTerrain()` by default.
+    const roomier = withConfig((raw) => {
+      (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 3;
+    });
+    expect(() => parseTerrainDump(good, roomier)).not.toThrow();
+    const parsed = parseTerrainDump(good, roomier);
+    expect(parsed.config.fingerprint).toBe('c39bcb68');
+    expect(parsed.config.current).toBe(terrainConfigFingerprint(roomier));
+    expect(parsed.config.matches).toBe(false);
+    // And it says the tiles are unaffected — a stale dump still reads back the
+    // same `kind` buffer, only the judgement it was measured under moved.
+    expect(Array.from(parsed.kind)).toEqual(Array.from(generateTerrain(1, cfg).kind));
+
+    // The default comparison: `good` was measured under `loadTerrain()`, so
+    // parsing it with no second argument reports a match.
+    const same = parseTerrainDump(good);
+    expect(same.config.matches).toBe(true);
+    expect(same.config.current).toBe(same.config.fingerprint);
+  });
+
+  it('keeps every earlier header line at the fixed index it always had', () => {
+    // fb065i is placed last of the header lines precisely so this holds: every
+    // dump this build ever wrote before this item, and every truncated dump
+    // this file's own tests hand-build up through `legend`, keeps parsing
+    // exactly as it did. Pinned mechanically rather than only by the rest of
+    // this file happening to still pass.
+    const lines = good.replace(/\n$/, '').split('\n');
+    expect(lines[0]).toMatch(/^terrain \d+x\d+$/);
+    expect(lines[1].startsWith('seed ')).toBe(true);
+    expect(lines[2].startsWith('gates ')).toBe(true);
+    expect(lines[3].startsWith('bands ')).toBe(true);
+    expect(lines[4].startsWith('counts ')).toBe(true);
+    expect(lines[5].startsWith('tiles ')).toBe(true);
+    expect(lines[6].startsWith('legend ')).toBe(true);
+    expect(lines[7].startsWith('config ')).toBe(true);
+    expect(lines[8]).toBe('map');
   });
 });
 
