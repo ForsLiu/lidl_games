@@ -904,15 +904,27 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
         .filter((r) => r.monoFree > 0)
         .map((r) => `${r.seed}: room +${r.gainRoom} · centroid -${fmt(r.gainCentroid)} · gate +${r.gainGate}`),
     }).toEqual({
-      buildRoom: 5,
-      centroidDist: '10.2894',
-      gateDist: 1,
+      // fb166: re-measured at 56x32 (was buildRoom 5, centroidDist '10.2894',
+      // gateDist 1, over the 5-seed free set at 36x20).
+      buildRoom: 16,
+      centroidDist: '12.9006',
+      gateDist: 16,
       perSeed: [
-        '13: room +3 · centroid -2.1506 · gate +0',
-        '177: room +2 · centroid -1.0526 · gate +0',
-        '184: room +0 · centroid -1.0846 · gate +0',
-        '315: room +0 · centroid -5.0956 · gate +0',
-        '381: room +0 · centroid -0.9059 · gate +1',
+        '8: room +2 · centroid -1.1976 · gate +1',
+        '24: room +0 · centroid -0.6565 · gate +1',
+        '25: room +2 · centroid -0.5942 · gate +1',
+        '50: room +0 · centroid -0.7412 · gate +1',
+        '119: room +1 · centroid -1.1693 · gate +1',
+        '185: room +2 · centroid -1.1305 · gate +1',
+        '199: room +0 · centroid -0.6297 · gate +1',
+        '212: room +0 · centroid -0.6475 · gate +1',
+        '322: room +1 · centroid -0.9966 · gate +1',
+        '327: room +0 · centroid -0.4783 · gate +1',
+        '328: room +1 · centroid -0.6500 · gate +1',
+        '366: room +2 · centroid -1.1695 · gate +1',
+        '398: room +1 · centroid -1.0598 · gate +2',
+        '459: room +0 · centroid -1.1450 · gate +1',
+        '468: room +4 · centroid -0.6347 · gate +1',
       ],
     });
   });
