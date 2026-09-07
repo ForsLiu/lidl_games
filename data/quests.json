@@ -12,7 +12,7 @@
     { "key": "chrono_veteran",    "name": "Chrono Veteran",     "desc": "Win 6 runs",                               "metric": "wins",               "target": 6,    "compare": "gte", "reward": { "kind": "class",    "value": "time_lord" } },
     { "key": "poison_purge",      "name": "Toxic Harvest",      "desc": "Get 300 lifetime poison kills",            "metric": "poison_kills",       "target": 300,  "compare": "gte", "reward": { "kind": "core",     "value": "carnivorous_plant" } },
     { "key": "scrape_by",         "name": "Scrape By",          "desc": "Finish a run with the Core at or below 25% HP", "metric": "core_finish_low_hp", "target": 1, "compare": "gte", "reward": { "kind": "core",     "value": "vampire_heart" } },
-    { "key": "hundred_grand",     "name": "Overkill",           "desc": "Deal 100,000 lifetime damage",             "metric": "lifetime_damage",    "target": 100000, "compare": "gte", "reward": { "kind": "core",   "value": "corpse" } },
+    { "key": "hundred_grand",     "name": "Overkill",           "desc": "Deal 10,000 lifetime damage",             "metric": "lifetime_damage",    "target": 100000, "compare": "gte", "reward": { "kind": "core",   "value": "corpse" } },
     { "key": "speedrunner",       "name": "Against the Clock",  "desc": "Win a run in under 32 minutes",            "metric": "fastest_win_seconds", "target": 1920, "compare": "lte", "reward": { "kind": "core",   "value": "time" } }
   ]
 }
