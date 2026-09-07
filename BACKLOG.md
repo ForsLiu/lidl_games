@@ -797,7 +797,17 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       flipped to `defeat_core` for the same reason — see PROGRESS "Known
       issues" and QUESTIONS Q179.
 
-- [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
+- [ ] (p12f) [balance] **Skipped this session (2026-09-07 loop pass) — logged,
+      not started.** Sequenced after p12d/p12e (both done this session) per
+      its own "sequenced after p12c" note staying live. Passed over for
+      p12h: this item's three candidate routes each imply a `/src/sim`
+      scaling-axis or engine change (route (a) explicitly; (b)/(c) still
+      need the same kind of cross-cutting VS-damage-attribution work), not
+      a `/data`-only tune, and its acceptance (>=9/12 classes moved,
+      G1/win-rate bands re-confirmed unaffected) is a full re-verification
+      matrix on the scale of p12d/p12e's, which already consumed this
+      session's remaining time budget. Deserves its own dedicated item
+      rather than a rushed partial implementation. Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS
       Q175). p12a shipped `kitPower` (x3.16 by wave 18) and the x3 base
       re-anchor and moved the VS kit share from 0.00-1.67% to 0.00-5.16% —
