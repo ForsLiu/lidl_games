@@ -4124,7 +4124,7 @@ logs a blocker below rather than editing `/data` itself.
       filed beyond the one caught and fixed above. `npx tsc --noEmit` clean
       throughout — refs: SPEC-FINAL §10.5 (fb079), §11.
 
-- [ ] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
+- [x] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
       when Dash Slash is cast during a Circle Slash charge, draw the merged
       attack's full effective hit region (the charged circle swept along the
       dash path, a capsule/stadium shape) as the aim indicator while charging
@@ -4134,8 +4134,67 @@ logs a blocker below rather than editing `/data` itself.
       `feedback/processed/20260904-162645-feature-combo-area-indicator.md`).
       Acceptance: indicator renders the capsule from current charge radius +
       cursor direction; a test asserts the rendered region equals the sim's
-      hit-detection region; afterimage respects the reduced-flash setting —
-      refs: SPEC-FINAL §4.1 (Swordsman combo), §11 (indicators).
+      hit-detection region; afterimage respects the reduced-flash setting.
+      **DONE 2026-09-07** — measured `lineHit` (`src/sim/combat.ts`) before
+      drawing anything: for a zero-radius point, `along` is rejected outright
+      once it exceeds `range` regardless of `perp`, so the real hit-detection
+      region has NO rounded cap at either end — a plain rectangle, not the
+      "capsule/stadium" the owner feedback describes conceptually. Per the
+      acceptance line's own wording ("equal the merged attack's real
+      hit-detection region, not an approximation"), drew the measured
+      rectangle rather than a capsule that would not equal it — logged here
+      rather than silently reinterpreted, the same way fb148/fb149 corrected
+      filed numbers against re-measurement. New `comboIndicatorRect(w, cls,
+      cursorX, cursorY)` (`src/render/canvas.ts`, exported for the test)
+      returns that rectangle's centerline + half-width whenever the combo is
+      chargeable (`cls.active1.kind === 'charge_nova' && cls.active2.kind ===
+      'dash_line' && wd.active1Charging` — checked by kind, not by class key,
+      so a future second class authoring the same pair gets the indicator
+      free), recomposing every number `fireDashSlash` itself uses
+      (`mergedRadius` via `circleSlashValues(...).radius * w.derived.areaMul`,
+      fb115's own fix; `dashRange` via `classLiveContext(w,
+      cls).dashRangeMul`/`swordsmanShoes`, fb148's own fix) from public state
+      rather than reaching into `classDashDuration`/`dashDistance` (private to
+      `classes.ts`). `drawComboIndicator` renders it moving with the cursor,
+      brightening with hold exactly like `drawChargeIndicator`'s own nova.
+      The afterimage (`drawComboAfterimages`) is the harder half: by the time
+      a `class_active2` fx event reaches `ingest()`, `fireDashSlash` has
+      already reset `wd.active1Charging`/`active1Charge` to false/0 in the
+      SAME tick — the identical data loss fb151's Log entry documents for the
+      identical reason, which is why that item could not be fixed in-lane.
+      Sidestepped rather than solved: `ingest()` now caches the live
+      `comboIndicatorRect` every tick end (`lastComboRect`/`wasComboCharging`)
+      *before* it could be invalidated, so when a `'class_active2'` event for
+      a `dash_line` kind arrives while `wasComboCharging` was true, the
+      afterimage uses the geometry from up to one tick (1/60s) earlier — an
+      imperceptible lag for a fade-out cue, not a fairness-critical number
+      fb151's own hit-extent problem was. New `tests/render-fb096-combo-
+      indicator.test.ts` (13 tests): `comboIndicatorRect`'s along-range AND
+      half-width cross-checked against a REAL fired merge, binary-searched
+      exactly like `tests/ui-fb148-dash-range-live.test.ts`'s own harness, at
+      three hold lengths; growth with hold time and with the live Area stat
+      (c001); a null case for a non-charging state and for a class with no
+      `charge_nova`+`dash_line` pair (Archer); a real
+      `Renderer.draw()` producing the exact 4 polygon corners
+      `comboRectCorners` computes; a merge leaving exactly one afterimage
+      against a lone Circle Slash release (no merge) leaving none;
+      `reducedFlash` producing a strictly dimmer but still-nonzero render; and
+      the afterimage's `update()`-driven fade-to-zero. Reverting only the
+      `canvas.ts` half (`git stash` before writing this note) drops 11 of 13
+      tests to red (module-import failures for the two now-missing exports
+      plus the two afterimage-array assertions) — confirmed non-vacuous
+      rather than assumed. Self-reviewed as both code-reviewer and
+      qa-playtester per CLAUDE.md's Subagent protocol (no Task-dispatch tool
+      available in this remote session, see fb115/fb173's DONE note for the
+      same caveat): no Critical/Major found; checked the new
+      `../ui/class-live` import for a layering violation before using it — the
+      same file already imports non-type code from `../ui/selection`/
+      `../ui/settings`, so this is a precedented pattern, not a new one.
+      `npm run test:fast`: 275 passed / 8 skipped files, 4111 passed tests
+      (up from the pre-item baseline's 4098 by exactly this item's 13), only
+      the pre-existing `q15`/`q45` `tools/fuzz-command-domain` flake class red
+      — refs: SPEC-FINAL §4.1
+      (Swordsman combo), §11 (indicators).
 - [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
