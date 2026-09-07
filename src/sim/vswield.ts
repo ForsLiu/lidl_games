@@ -393,6 +393,17 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       break;
     }
     case 'pierce': {
+      // c001 scaled this aim heuristic by Area along with every other line
+      // here; fb081 found the identical `towers.ts` call site (`fireTower`'s
+      // `pierce` case) resolves no line-shaped footprint by the time its
+      // bolt lands — a fixed-radius point collision in `updateProjectiles`,
+      // same as this wielded bolt — so scaling only biases which direction
+      // gets picked, not what gets hit. Left unscaled there and pinned with
+      // a comment (BACKLOG.md fb081, QUESTIONS Q194); this call predates
+      // that finding and is out of fb081's scope to silently change (it is
+      // shipped, presumably-tuned player-facing behaviour, not a bug this
+      // item reported) — logged as a follow-up in BACKLOG.md fb081b rather
+      // than reverted here.
       const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH * area);
       if (!dir) return false;
       for (let i = 0; i < prof.projectiles; i++) {
