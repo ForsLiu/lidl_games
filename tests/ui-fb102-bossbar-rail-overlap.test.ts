@@ -31,6 +31,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Hud } from '../src/ui/hud';
 import { World } from '../src/sim/world';
+import { GRID_W, GRID_H } from '../src/sim/grid';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -106,10 +107,12 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     const hud = makeHud(root);
     const w = new World(cfg());
     hud.buildTowerBar(w);
-    // aspect = 36/20 = 1.8; 900/1.8 = 500, so this is exactly on-aspect: no
-    // letterboxing, --cv-left/--cv-right both 0px, keeping the arithmetic
+    // aspect = GRID_W/GRID_H; pick a height that puts 900 exactly on-aspect:
+    // no letterboxing, --cv-left/--cv-right both 0px, keeping the arithmetic
     // below simple. 900px is under the 1180px rail-widening breakpoint.
-    stubStageSize(root, 900, 500);
+    const stageW = 900;
+    const stageH = stageW / (GRID_W / GRID_H);
+    stubStageSize(root, stageW, stageH);
 
     hud.update(w);
 
@@ -121,10 +124,10 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     expect(cvRight).toBe(0);
     expect(cx).toBe(450);
 
-    const railFraction = 900 <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : 0.32;
-    const railW = Math.min(RAIL_WIDTH_PX, railFraction * 900);
+    const railFraction = stageW <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : 0.32;
+    const railW = Math.min(RAIL_WIDTH_PX, railFraction * stageW);
     const leftRailRightEdge = cvLeft + RAIL_EDGE_GAP_PX + railW;
-    const rightRailLeftEdge = 900 - cvRight - RAIL_EDGE_GAP_PX - railW;
+    const rightRailLeftEdge = stageW - cvRight - RAIL_EDGE_GAP_PX - railW;
 
     const bossLeftEdge = cx - bossMaxW / 2;
     const bossRightEdge = cx + bossMaxW / 2;
@@ -137,7 +140,7 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     // = 360px, spanning [270, 630] — well inside both rails' footprints
     // ([8, 308] and [592, 892]). Asserting that hypothetical width against
     // the same rail edges proves this test would have failed pre-fix.
-    const unfixedBossW = Math.min(360, 0.6 * 900);
+    const unfixedBossW = Math.min(360, 0.6 * stageW);
     const unfixedLeftEdge = cx - unfixedBossW / 2;
     const unfixedRightEdge = cx + unfixedBossW / 2;
     expect(unfixedLeftEdge).toBeLessThan(leftRailRightEdge);

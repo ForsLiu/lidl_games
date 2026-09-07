@@ -374,7 +374,11 @@ export function lineHit(
   // second — has nothing to spend them on.
   if (n >= maxHits) return total;
 
-  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + 2);
+  // The swept rectangle's far corner sits at `sqrt((range/2)^2 + halfWidth^2)`
+  // from the midpoint; a constant margin only bounds that while `halfWidth`
+  // stays small (fb081 — an Area-scaled `halfWidth` above ~2 pushed real
+  // enemies outside a `range*0.5+2` circle before they were ever perp-tested).
+  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + halfWidth + 2);
   const hits: { e: Enemy; along: number }[] = [];
   for (const e of list) {
     const rx = e.x - x;

@@ -12,22 +12,27 @@ import {
   GRID_W,
   TILE,
   TileType,
+  type Grid,
 } from '../sim/grid';
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
 import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
+import type { ClassDef } from '../sim/content';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
 import { FIXED_DT, type Enemy } from '../sim/types';
 import type { World } from '../sim/world';
+import { classLiveContext } from '../ui/class-live';
 import {
   checkBuild,
   effectiveTowerAoe,
   effectiveTowerMinRange,
   effectiveTowerRange,
   towerCost,
+  type BuildRejection,
 } from '../sim/towers';
+import { loadTerrain, TerrainKind } from '../sim/terrain';
 import {
   ATTACK_KIND_COLORS,
   attackKindIconShape,
@@ -37,12 +42,20 @@ import {
   floatingNumberFontWeight,
   GATE_PATH_COLORS,
   PALETTE,
+  terrainTileFill,
   TERRAIN_COLORS,
   TOWER_COLORS,
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
-import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type BasicImpactShape, type VfxShape } from './vfx-registry';
+import {
+  ACTIVE_KIND_SHAPE,
+  AREA_SCALED_ACTIVE_KINDS,
+  CLASS_VFX,
+  CORE_VFX,
+  type BasicImpactShape,
+  type VfxShape,
+} from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -142,6 +155,102 @@ interface CastFx {
 const CAST_FX_LIFE = 0.28;
 
 /**
+ * fb096 (owner feedback `feature-combo-area-indicator`): the merged Dash
+ * Slash + mid-charge Circle Slash hit region, as a centerline (`x1,y1` the
+ * Warden, `x2,y2` the far end of the merged reach) plus a half-width — the
+ * same two-endpoints-and-a-half-width shape `lineHit` (`src/sim/combat.ts`)
+ * itself tests against (`along` clamped to `[0, range]`, `perp` clamped to
+ * `[-halfWidth, halfWidth]`), i.e. a plain rectangle, not a rounded capsule.
+ * The owner feedback's own "capsule/stadium" language describes the combo's
+ * *concept* (a circle swept along a line); the sim's actual hit test has no
+ * rounded cap at either end (a point exactly `range + epsilon` away is never
+ * hit, however close it sits to the centerline) — the acceptance line
+ * ("equal the merged attack's real hit-detection region, not an
+ * approximation") is what a faithful indicator must match, so this is a
+ * rectangle by measurement, not a simplification of a capsule.
+ */
+export interface ComboRect {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  halfWidth: number;
+}
+
+interface ComboAfterimage extends ComboRect {
+  life: number;
+  maxLife: number;
+  color: string;
+}
+
+const COMBO_AFTERIMAGE_LIFE = 0.25;
+
+/**
+ * The `ComboRect` the Swordsman-shaped combo (`charge_nova` Active1 +
+ * `dash_line` Active2 — checked by kind, not by class key, so any future
+ * class authoring the same pair of kinds gets the same indicator for free)
+ * would merge into if released toward `(cursorX, cursorY)` right now, or
+ * `null` when the combo is not currently chargeable — mirrors
+ * `fireDashSlash`'s own merge-eligibility check (`classes.ts`:
+ * `cls.active1.kind === 'charge_nova' && wd.active1Charging`) intersected
+ * with `useClassActive2`'s dispatch (`fireDashSlash` is reachable only when
+ * `cls.active2.kind === 'dash_line'`).
+ *
+ * Every number below is the exact one `fireDashSlash` computes, recomposed
+ * from public `World`/`ClassLiveContext` state the same way fb148's
+ * `dashRangeMul` and fb115's `AREA_SCALED_ACTIVE_KINDS` already do, rather
+ * than reaching into `classDashDuration`/`dashDistance`/`classBaseMoveSpeed`/
+ * `currentMoveSpeed` (all module-private to `src/sim/classes.ts`).
+ */
+export function comboIndicatorRect(w: World, cls: ClassDef, cursorX: number, cursorY: number): ComboRect | null {
+  const wd = w.warden;
+  if (!wd.active1Charging || cls.active1.kind !== 'charge_nova' || cls.active2.kind !== 'dash_line') return null;
+  const dirRaw = normalize(cursorX - wd.x, cursorY - wd.y);
+  const dirX = dirRaw.x !== 0 || dirRaw.y !== 0 ? dirRaw.x : wd.fx;
+  const dirY = dirRaw.x !== 0 || dirRaw.y !== 0 ? dirRaw.y : wd.fy;
+  // fb115: the nova's live (Area-scaled) radius — the exact value `fireDashSlash`
+  // folds into `hitRange` as `mergedRadius`.
+  const mergedRadius = circleSlashValues(cls.active1, wd.active1Charge).radius * w.derived.areaMul;
+  // fb148: `dashRangeMul` is the move-speed ratio every `dash_*` kind shares;
+  // `swordsmanShoes` is `fireDashSlash`'s own explicit extra doubling.
+  const live = classLiveContext(w, cls);
+  const dashRange = (cls.active2.dashRange ?? 0) * (live.dashRangeMul ?? 1) * (live.swordsmanShoes ? 2 : 1);
+  const hitRange = dashRange + mergedRadius;
+  const halfWidth = (cls.active2.dashWidth ?? 0) * w.derived.areaMul;
+  return { x1: wd.x, y1: wd.y, x2: wd.x + dirX * hitRange, y2: wd.y + dirY * hitRange, halfWidth };
+}
+
+/** The 4 corners (tile coords) of a `ComboRect`'s rectangle, winding order p1->p4->p3->p2. */
+export function comboRectCorners(r: ComboRect): { p1x: number; p1y: number; p2x: number; p2y: number; p3x: number; p3y: number; p4x: number; p4y: number } {
+  const dx = r.x2 - r.x1;
+  const dy = r.y2 - r.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len;
+  const py = dx / len;
+  return {
+    p1x: r.x1 + px * r.halfWidth,
+    p1y: r.y1 + py * r.halfWidth,
+    p2x: r.x1 - px * r.halfWidth,
+    p2y: r.y1 - py * r.halfWidth,
+    p3x: r.x2 - px * r.halfWidth,
+    p3y: r.y2 - py * r.halfWidth,
+    p4x: r.x2 + px * r.halfWidth,
+    p4y: r.y2 + py * r.halfWidth,
+  };
+}
+
+/** Traces a `ComboRect`'s rectangle path (tile coords -> pixels), left open for the caller to stroke/fill. */
+function traceComboRectPath(ctx: CanvasRenderingContext2D, r: ComboRect): void {
+  const c = comboRectCorners(r);
+  ctx.beginPath();
+  ctx.moveTo(c.p1x * TILE, c.p1y * TILE);
+  ctx.lineTo(c.p4x * TILE, c.p4y * TILE);
+  ctx.lineTo(c.p3x * TILE, c.p3y * TILE);
+  ctx.lineTo(c.p2x * TILE, c.p2y * TILE);
+  ctx.closePath();
+}
+
+/**
  * fb055: the impact moment of a basic attack, distinct per class (`slash` /
  * `splash` / `ripple`, `vfx-registry.ts`'s `BasicImpactShape`) so the three
  * visible classes' weapons read as landing differently, not just travelling
@@ -208,6 +317,40 @@ function coreEffectColor(coreKey: string, effectKey: string, fallback: string): 
   return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
 }
 
+/**
+ * fb116: one line per `BuildRejection` (`src/sim/towers.ts`) for the build
+ * ghost's label — a `Record` over the full union rather than a partial map
+ * plus a fallback string, so a future 7th reason fails TypeScript compilation
+ * here instead of silently rendering nothing (the same exhaustiveness
+ * precedent `ACTIVE_KIND_SHAPE`/`AREA_SCALED_ACTIVE_KINDS` already set for a
+ * `ClassEffect.kind` union).
+ */
+const BUILD_REJECTION_LABELS: Record<BuildRejection, string> = {
+  phase: 'Not buildable now',
+  unknown_tower: 'Unknown tower',
+  occupied: 'Tile occupied',
+  terrain: 'Blocked by terrain',
+  out_of_range: 'Out of build range',
+  gold: 'Not enough gold',
+};
+
+/**
+ * fb116: whether `(x, y)` should read as "the same rock mass" as its
+ * `drawTerrainEdges` caller — either genuinely `TerrainKind.Rock`, or the
+ * permanent map border (also `TerrainKind.Rock` per `generateTerrain`/
+ * `flatTerrain`'s own border-sealing, but with its own solid, already-drawn
+ * fill; an edge line drawn one tile inside it would be a redundant seam right
+ * next to an existing hard wall). Off-grid counts as sealed too, so a rock
+ * tile at the very edge of the addressable interior never draws a line into
+ * nothing.
+ */
+function isInteriorRock(grid: Grid, x: number, y: number): boolean {
+  if (!grid.inBounds(x, y)) return true;
+  const idx = grid.idx(x, y);
+  if (grid.tile[idx] === TileType.Border) return true;
+  return grid.terrainKind[idx] === TerrainKind.Rock;
+}
+
 /** Builds the short-lived line an instant-hit attack leaves behind. */
 function tracer(
   e: { k: string; x: number; y: number; a: number; b: number },
@@ -253,6 +396,23 @@ export class Renderer {
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
   private basicImpacts: BasicImpactFx[] = [];
+  private comboAfterimages: ComboAfterimage[] = [];
+  /**
+   * fb096: the combo indicator's geometry as of the END of the most recent
+   * `ingest()` call — i.e. up to one tick (1/60s) stale, an imperceptible lag
+   * for a cosmetic afterimage. `ingest()` cannot recompute "the geometry at
+   * the moment of firing" from `World` state alone: `fireDashSlash`
+   * (classes.ts) resets `wd.active1Charging`/`active1Charge` to
+   * false/0 BEFORE emitting `class_active2`, in the same World tick this
+   * event arrives from (the identical data-loss `fb151`'s Log entry
+   * documents for the exact same reason) — caching the last-seen charging
+   * geometry every tick, rather than trying to reconstruct it after the
+   * fact, sidesteps that loss entirely for a cue that only needs to be
+   * approximately right.
+   */
+  private lastComboRect: ComboRect | null = null;
+  /** Whether the combo was chargeable as of the end of the PREVIOUS `ingest()` call — see `lastComboRect`. */
+  private wasComboCharging = false;
   /**
    * fb060: per-enemy, per-DoT-type accumulated seconds toward the next
    * floating number. Keyed by the live `Enemy` object rather than `e.id` so a
@@ -477,6 +637,19 @@ export class Renderer {
           if (!cls) break;
           const kind = e.k === 'class_active' ? cls.active1.kind : cls.active2.kind;
           const shape = ACTIVE_KIND_SHAPE[kind] ?? 'point';
+          // fb096: a merged Dash Slash — this `class_active2` fired while the
+          // combo was chargeable as of last tick's cache (`lastComboRect`'s
+          // own doc comment) — leaves a brief afterimage of the region it
+          // just hit, using the last geometry seen rather than anything
+          // reconstructed from this (already-reset) tick's `World` state.
+          if (e.k === 'class_active2' && kind === 'dash_line' && this.wasComboCharging && this.lastComboRect) {
+            this.comboAfterimages.push({
+              ...this.lastComboRect,
+              life: COMBO_AFTERIMAGE_LIFE,
+              maxLife: COMBO_AFTERIMAGE_LIFE,
+              color: CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff',
+            });
+          }
           if (shape === 'skip') break;
           const entry = CLASS_VFX[w.cfg.classKey];
           const style = entry ? (e.k === 'class_active' ? entry.q : entry.e) : undefined;
@@ -549,6 +722,12 @@ export class Renderer {
           break;
       }
     }
+    // fb096: refresh the combo-indicator cache for NEXT tick's merge check —
+    // see `lastComboRect`'s own doc comment for why this cannot instead be
+    // computed after the fact, from this tick's own (already-reset) state.
+    const chargingCls = w.content.classByKey.get(w.cfg.classKey);
+    this.lastComboRect = chargingCls ? comboIndicatorRect(w, chargingCls, view.cursorX, view.cursorY) : null;
+    this.wasComboCharging = w.warden.active1Charging;
     this.updateDotNumbers(w, view);
   }
 
@@ -715,6 +894,8 @@ export class Renderer {
     this.cones = this.cones.filter((c) => c.life > 0);
     for (const c of this.casts) c.life -= dt;
     this.casts = this.casts.filter((c) => c.life > 0);
+    for (const c of this.comboAfterimages) c.life -= dt;
+    this.comboAfterimages = this.comboAfterimages.filter((c) => c.life > 0);
     for (const b of this.basicImpacts) b.life -= dt;
     this.basicImpacts = this.basicImpacts.filter((b) => b.life > 0);
     for (const [k, v] of [...this.flashes]) {
@@ -761,6 +942,8 @@ export class Renderer {
     this.drawBasicImpacts(view);
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
+    this.drawComboIndicator(w, view);
+    this.drawComboAfterimages(view);
     this.drawSkillHoverRing(w, view);
     this.drawWieldedHoverRing(w, view);
     this.drawHover(w, view);
@@ -780,17 +963,34 @@ export class Renderer {
 
   private drawTiles(w: World, night: boolean): void {
     const ctx = this.ctx;
+    // fb116 (BACKLOG-TERRAIN fb064e, the epic's UI half): `data/terrain.json`
+    // already carries a `color` per kind (architecture rule 4 — no literal
+    // terrain-kind colors belong in this file). `TileType.Border`/`Gate` win
+    // over it unconditionally: `generateTerrain`/`flatTerrain` both seal the
+    // permanent border as `TerrainKind.Rock` (so the pathing/build rules that
+    // read `terrainKind` see a consistent wall everywhere), but the BORDER'S
+    // OWN look predates terrain entirely and Training Grounds' flat arena
+    // must keep rendering exactly as it always has ("no change to the
+    // normal-only arena's frame") — only an Open/Core tile's terrain kind is
+    // ever painted.
+    const terrainCfg = loadTerrain();
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
-        const t = w.grid.tile[w.grid.idx(x, y)];
+        const idx = w.grid.idx(x, y);
+        const t = w.grid.tile[idx];
         let color = (x + y) % 2 === 0 ? (night ? PALETTE.tileNight : PALETTE.tileDay) : PALETTE.tileAlt;
         if (night && (x + y) % 2 !== 0) color = '#1a2029';
         if (t === TileType.Border) color = PALETTE.border;
         else if (t === TileType.Gate) color = PALETTE.gate;
+        else {
+          const kind = w.grid.terrainKind[idx];
+          if (kind !== TerrainKind.Normal) color = terrainTileFill(terrainCfg.tiles[kind]?.color ?? color, x, y);
+        }
         ctx.fillStyle = color;
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
+    this.drawTerrainEdges(w);
 
     // Core / Heartstone.
     const cx = CORE_X * TILE;
@@ -820,6 +1020,60 @@ export class Renderer {
       ctx.fillStyle = frac > 0.4 ? '#5fe08a' : PALETTE.hpFront;
       ctx.fillRect(cx, cy - 8, cw * frac, 5);
     }
+  }
+
+  /**
+   * fb116: a dark outline on every side of a Rock tile that borders a
+   * non-Rock tile — a marching-squares-lite silhouette (4-neighbor edge
+   * detection, not the full diagonal case table) so a scattered rock cluster
+   * reads as a solid obstacle rather than a checkerboard of same-colored
+   * squares. Deliberately keyed on `terrainKind`, not `TileType`: the
+   * permanent arena border is ALSO `TerrainKind.Rock` (see `drawTiles`'
+   * comment), and painting ITS edge would draw a redundant line one tile
+   * inside the border's own already-solid fill on every normal-only arena —
+   * exactly the "no change to the normal-only arena's frame" acceptance line
+   * this item is pinned against — so a neighbor across the border, or the
+   * border tile itself, is never treated as an edge to draw.
+   */
+  private drawTerrainEdges(w: World): void {
+    const grid = w.grid;
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#00000099';
+    ctx.lineWidth = 2;
+    for (let y = 1; y < GRID_H - 1; y++) {
+      for (let x = 1; x < GRID_W - 1; x++) {
+        const idx = grid.idx(x, y);
+        if (grid.tile[idx] !== TileType.Open && grid.tile[idx] !== TileType.Core) continue;
+        if (grid.terrainKind[idx] !== TerrainKind.Rock) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        if (!isInteriorRock(grid, x, y - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + TILE, py);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x, y + 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py + TILE);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x - 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x + 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px + TILE, py);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.lineWidth = 1;
   }
 
   /** SPEC 5.5 phase 3: everything outside the ring is burning. */
@@ -1496,9 +1750,15 @@ export class Renderer {
     const chargeRatio = cap > 0 ? Math.min(1, wd.active1Charge / cap) : 1;
     ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
     if (cls.active1.kind === 'charge_nova') {
+      // fb115: `circleSlashValues` returns the authored (unscaled) radius —
+      // `fireCircleSlash` (classes.ts) wraps it in `classArea(w, authoredRadius)`
+      // == `authoredRadius * w.derived.areaMul` before it ever hits an enemy, so
+      // drawing the bare value here previews a footprint that drifts from the
+      // real one the moment any Area source (an item, a boon) is live. `w.derived`
+      // is public sim state, not a re-derivation of a private helper.
       const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
       ctx.beginPath();
-      ctx.arc(wd.x * TILE, wd.y * TILE, radius * TILE, 0, Math.PI * 2);
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
       ctx.stroke();
     } else if (cls.active1.kind === 'charge_pierce') {
       const dir = normalize(view.cursorX - wd.x, view.cursorY - wd.y);
@@ -1509,6 +1769,60 @@ export class Renderer {
       ctx.moveTo(wd.x * TILE, wd.y * TILE);
       ctx.lineTo((wd.x + ux * len) * TILE, (wd.y + uy * len) * TILE);
       ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb096: the live aim indicator for the merged Dash Slash + mid-charge
+   * Circle Slash combo — `comboIndicatorRect`'s exact rectangle, moving with
+   * the cursor and brightening with hold the same way `drawChargeIndicator`'s
+   * own nova already does, so the two read as one continuous preview rather
+   * than two indicators with different rules.
+   */
+  private drawComboIndicator(w: World, view: ViewState): void {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (!cls) return;
+    const rect = comboIndicatorRect(w, cls, view.cursorX, view.cursorY);
+    if (!rect) return;
+    const ctx = this.ctx;
+    const cap = cls.active1.chargeCapSeconds ?? 3;
+    const chargeRatio = cap > 0 ? Math.min(1, w.warden.active1Charge / cap) : 1;
+    const color = CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff';
+    traceComboRectPath(ctx, rect);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
+    ctx.stroke();
+    ctx.globalAlpha *= 0.15;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb096: the brief fade-out left where the combo indicator was the instant
+   * it merged into a real Dash Slash — `reducedFlash` dims it the same
+   * fraction `drawCasts`'s own fire-moment flash already uses, rather than
+   * removing the cue outright (SPEC-FINAL §11's "respects reduced-flash"
+   * without going silent).
+   */
+  private drawComboAfterimages(view: ViewState): void {
+    if (this.comboAfterimages.length === 0) return;
+    const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    for (const a of this.comboAfterimages) {
+      const t = Math.max(0, a.life / a.maxLife);
+      traceComboRectPath(ctx, a);
+      ctx.strokeStyle = a.color;
+      ctx.fillStyle = a.color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = t * (reduced ? 0.35 : 0.7);
+      ctx.stroke();
+      ctx.globalAlpha *= 0.3;
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
@@ -1844,13 +2158,37 @@ export class Renderer {
    * `circleSlashValues`/the class effect handlers in classes.ts resolve
    * their hit area from, not a live-scaled preview (a charge-scaled nova's
    * live radius is already shown in-combat by `drawChargeIndicator`).
+   *
+   * fb115: "the same authored radius" was true of the SHAPE but not of the
+   * SCALE for most kinds — `AREA_SCALED_ACTIVE_KINDS` below is every `kind`
+   * whose `fire*` handler in `src/sim/classes.ts` wraps this exact field in
+   * `classArea(w, eff.radius)` (an Area-scaled AoE) rather than passing it raw
+   * into a target/structure SEARCH radius (`nearestEnemy`/`nearestStructure`,
+   * which Area never touches) or a placement offset (`ice_wall`) or an
+   * unused placeholder (`dash_line`, `poison_boost`). Scaling the latter set
+   * would trade one drift bug for a new one the opposite way — verified
+   * per-kind against classes.ts rather than guessed:
+   *   scaled:   burst_damage (fireEffect), charge_nova (fireCircleSlash),
+   *             ground_poison (firePoisonBarrel), frost_nova (fireFrostNova),
+   *             recall_totem (fireRecallTotem), clarion_taunt
+   *             (fireClarionTaunt), judgement (fireJudgement), time_mark
+   *             (fireTimeMark), time_lock (fireTimeLock).
+   *   unscaled: charge_pierce (fireDeadeyeDraw's shot LENGTH reuses the
+   *             field, unrelated to Area), repair_heal/death_pact/
+   *             blood_tithe (nearestStructure search), dash_volley
+   *             (nearestEnemy search), chain_lightning (nearestEnemy
+   *             search), raise_skeletons/manifest_spirit (summonRadius
+   *             search, a different field), ice_wall (`radius` is a
+   *             placement-offset fallback, `(eff.radius || 1)`), dash_line/
+   *             poison_boost (field unused, radius: 0).
    */
   private drawSkillHoverRing(w: World, view: ViewState): void {
     if (!view.hoveredSkill) return;
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return;
     const eff = view.hoveredSkill === 'active1' ? cls.active1 : cls.active2;
-    const radius = eff.radius ?? 0;
+    const areaMul = AREA_SCALED_ACTIVE_KINDS.has(eff.kind) ? w.derived.areaMul : 1;
+    const radius = (eff.radius ?? 0) * areaMul;
     if (radius <= 0) return;
     const ctx = this.ctx;
     ctx.strokeStyle = PALETTE.heartstone;
@@ -1930,6 +2268,15 @@ export class Renderer {
       ctx.fillStyle = PALETTE.text;
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`${def.name}  ${towerCost(w, def)}g`, tx * TILE + TILE + 4, ty * TILE + 12);
+      // fb116: `checkBuild` has named a `'terrain'` rejection (distinct from a
+      // structure sitting on the tile, fb078) since main-lane's own item, but
+      // no UI surface said so — a red ghost on a rock/high tile and a red
+      // ghost on an already-built tile looked identical, with no way to tell
+      // "move the cursor" from "this exact spot can never be built on."
+      if (reason !== null) {
+        ctx.fillStyle = '#ffb3b3';
+        ctx.fillText(BUILD_REJECTION_LABELS[reason], tx * TILE + TILE + 4, ty * TILE + 26);
+      }
     }
   }
 

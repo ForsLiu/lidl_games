@@ -477,8 +477,12 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       // of (0,0) is a line every enemy in reach lies on — so the shot pierces
       // nothing rather than everything.
       const hits = dir.x === 0 && dir.y === 0 ? 1 : 1 + prof.pierce;
+      // fb081: Area scales every other shape in this function (aura range,
+      // lob/poison aoe, cone half-angle, blast aoe) and `vswield.ts`'s own
+      // copy of this same beam kind — a bare `LINE_HALF_WIDTH` here was the
+      // one shape SPEC-FINAL §2's "applies to every attack" left behind.
       for (let i = 0; i < prof.projectiles; i++) {
-        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH, dmg, source, hits, fx, {
+        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH * area, dmg, source, hits, fx, {
           primary: t,
         });
         w.emit('shot', x, y, t.x, t.y);
@@ -486,7 +490,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'pierce': {
-      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH);
+      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH * area);
       if (!dir) {
         s.cooldown = 0;
         return;

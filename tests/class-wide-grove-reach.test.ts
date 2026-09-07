@@ -613,6 +613,38 @@ const CONSUMERS: readonly Consumer[] = [
     },
   },
   {
+    // fb081: `fireTower`'s `single` case scaled `LINE_HALF_WIDTH` by `area`
+    // for the first time (previously a bare, unscaled constant) — a fourth
+    // `R_FIRE_TOWER` footprint alongside the Frost aura/Brazier cone/Mortar
+    // splash rows above, mirroring "a wielded line's perpendicular
+    // half-width" below on the character route.
+    site: "an Arrow Spire's line half-width, at its §5.2 pierce milestone",
+    read: R_FIRE_TOWER,
+    route: 'tower',
+    measure: (c, o) => {
+      const w = animist(c, o);
+      const p = placeProbed(w, ARROW);
+      // At pierce 0 the line stops at its primary, so the half-width decides
+      // nothing; the Arrow's §5.2 pierce milestone is the first tier where a
+      // second enemy can be on the line at all.
+      upgradeTo(w, p, tierWhere(c.towerByKey.get(ARROW)!, (prof) => prof.pierce > 0));
+      const range = c.towerByKey.get(ARROW)!.attack!.range;
+      const half = LINE_HALF_WIDTH;
+      // `targetFirst` (combat.ts) picks whichever candidate is furthest along
+      // the path to the Core, not whichever is nearest the tower — so the
+      // on-axis primary sits at the reach's edge (most advanced, the only
+      // sane choice of target) and the width-tested dummy sits *less*
+      // advanced, off-axis, where only the sweep — never the guaranteed
+      // primary strike — can decide whether it is on the line.
+      const primary = dummy(w, p.x + range * 0.9, p.y);
+      const beside = dummy(w, p.x + range * 0.5, p.y + half * RING, 0.01);
+      const before = beside.hp;
+      fireOnce(w, p.s);
+      expect(primary.hp, 'harness fired no arrow volley').toBeLessThan(primary.maxHp);
+      return before - beside.hp;
+    },
+  },
+  {
     site: "the Animist's *Recall Totem* aura radius",
     read: R_CLASS_AREA,
     route: 'character',
@@ -818,6 +850,18 @@ const DEVIATIONS: ReadonlyArray<{ read: string; use: string; anchor: RegExp; why
       'touches. So it changes an observable only when it flips the chosen direction outright, and a ' +
       'probe that forced such a flip would be measuring the direction search rather than the ' +
       'footprint. Declared here so the uncovered use is a decision with a reason attached.',
+  },
+  {
+    // fb081: `fireTower`'s own `pierce` case (a Ballista) passes the same
+    // scaled half-width into the same helper, for the same reason.
+    read: R_FIRE_TOWER,
+    use: "a Ballista's `pierce` kind `bestLineDirection` half-width",
+    anchor: /const dir = bestLineDirection\(w, x, y, range, LINE_HALF_WIDTH \* area\);/,
+    why:
+      'Same shape as the wielded deviation above: the widened half-width only re-scores which ' +
+      'direction the volley is aimed in; the bolts it spawns carry their own geometry through ' +
+      '`spawnProjectile` (`pierce`, combat.ts), which Area never touches. Declared here for the same ' +
+      'reason, on the tower side of the same kind.',
   },
 ];
 
@@ -1076,7 +1120,7 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
     for (const c of towers) {
       expect(c.measure(content), `${c.site} stopped obeying the row that claims it`).toBeGreaterThan(c.measure(noGrove));
     }
-    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(8);
+    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(9);
   });
 
   it('four reads serve both routes, so a `towerArea` key alone cannot close them', () => {
@@ -1223,7 +1267,7 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
       expect(sites, `${name} is not a CONSUMERS row — the exclusion list has drifted`).toContain(name);
     }
     expect(APPLICABLE).toHaveLength(CONSUMERS.length - CLASS_SPECIFIC.length - UNCALIBRATED.length);
-    expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(15);
+    expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(16);
   });
 
   it('the two class-specific rows really are Animist Actives, not something quietly dropped', () => {
