@@ -170,6 +170,25 @@ the merge — never edited from this lane.
       with or extend the fb166 list. None are terrain-owned; none were
       touched.
 
+      **QA's independent pass root-caused five of these further, worth
+      recording so the main lane fixes causes rather than symptoms.** Moving
+      `west`/`north`/`east` themselves (not just adding `south`) changes the
+      terrain a fixed seed produces through `World`'s own `GATES.slice(0,3)`,
+      which ripples past the 21 above into `tests/class-board.ts`'s shared
+      probed board (a different tile/tier entirely, not a coordinate
+      relabel) and from there into 4 more files that read it
+      (`class-passive-liveness`, `fb015-equipment`, `p6b-swordsman`,
+      `p6c-plaguebringer` — already counted in the 21). Two more findings,
+      more precise than "re-measure": `tests/fb077-terrain-wiring.test.ts`'s
+      byte-comparison excludes Gate/Core tiles from the diff but not the
+      Warden's own 3x3 spawn-clear block (`fb065h`'s provenance test already
+      does exclude it) — a pre-existing gap merely exposed by fb156's
+      incidental terrain change at seed 1, whose fix is adding that
+      exclusion, not waiting on `world.ts`; and
+      `tests/p6d-nine-classes.test.ts:505` hardcodes `(10,10)` as open ground
+      for a Cryomancer wall-cast check, which needs a terrain-probed spot
+      instead of a literal now that the default seed's terrain shape moved.
+
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
 parent item is done only when every sub-item below is done. Sub-items that
