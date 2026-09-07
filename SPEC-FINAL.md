@@ -469,20 +469,20 @@ VS upgrade pool per §6.3 · Codex & Tuner · §10.5 terrain generation
 
 | # | Gate |
 |---|---|
-| G1 | Mean victorious run 30–36 min (24+ seeds; means/pass-rates, never medians). |
+| G1 | At T3 (reference tier, p12b): mean victorious run 30–36 min and win rate in [35%,70%] over resolved (non-timeout) seeds, 24+ seeds, means/pass-rates never medians. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share (p12c); T5 win rate in [5%,20%] (p12b). |
 | G2 | Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward. Extends to §10.5 terrain generation: the same seed produces an identical map and terrain hash every time, and the seed+1 degenerate-seed regeneration rule is itself deterministic. |
 | G3 | VS inheritance unit tests incl. §6.1's worked example verbatim. |
 | G4 | Armor edges: +99→99%, clamp above, −90→×1.9, floor −100; DoTs ignore armor; Burning shred lowers it. |
 | G5 | Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. |
 | G6 | Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. |
 | G7 | Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. |
-| G8 | Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥9 of 12 classes (fb013's Time Lord folded in at the same ~73% ratio as the original ≥8 of 11). |
+| G8 | At T3 (reference tier, p12b): every class clears 35–70% win rate (scripted kit bot). Diversity, replacing the old "top damage source differs across ≥9 of 12 classes" clause (BALANCE DIRECTION v2 §D): (i) every class's own-kit VS damage share is ≥35% from TD wave 12 on (p12a's target); (ii) pairwise class-kit fingerprint distance (damage-source/type vector, G22's method) is ≥0.15 for every one of the 66 class pairs. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. |
 | G9 | Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. |
 | G10 | Archer: dps-optimal charge finite (2–6 s); full charge one-shots any non-elite at mid scaling. |
 | G11 | Stormcaller: max chain multiplier ≤ ×3.6. |
 | G12 | Rewards: N TD waves → N equipment; M VS waves → M skill points; orbs nowhere. |
 | G13 | No tower type's VS attack >35% of damage across the winning-build pool; every type solo-viable at T1, none at T3. |
-| G14 | Boss: 20 seeds, scripted-build win rate ≥60% and <100%. |
+| G14 | At T3 (reference tier, p12b): boss, 20 seeds, scripted-build win rate ≥60% and <100%. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. |
 | G15 | Tuner: edit→save→reload round-trip; invalid rejected; edited runs flagged; prod has no endpoint. |
 | G16 | Dev profile fully unlocked in dev; `npm run build` has dev mode off, god mode unreachable. |
 | G17 | Perf: sim budget per simulated minute (host-independent) ⚖; 350 enemies + all weapons ≥60 fps benchmark; 50-run soak, zero exceptions/NaN. |
@@ -491,7 +491,7 @@ VS upgrade pool per §6.3 · Codex & Tuner · §10.5 terrain generation
 | G20 | Every §5 milestone special measurably changes the attack it names (loader-validated). |
 | G21 | Core choice is in RunConfig and hashed; each Core's TD and VS effects have unit tests with §5.5's numbers (incl. the Time decay ring table and a Corpse execute-and-restore worked example). |
 | G22 | Each Core shifts the run fingerprint (damage-source or economy vector) by ≥0.10 vs Stone Heart on the same seed/build. |
-| G23 | Every Core clears T1 at a 35–70% win rate with the scripted bot. |
+| G23 | At T3 (reference tier, p12b): every Core clears 35–70% win rate with the scripted bot. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. |
 
 ## 15. Build order 0→100 (fresh build)
 

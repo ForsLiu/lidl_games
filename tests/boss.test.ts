@@ -13,7 +13,7 @@ import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
 import { tierEnemyHpMul } from '../src/sim/tiers';
-import { cfg, GATE_TIER, runScripted, scaled } from './helpers';
+import { cfg, classifyMargin, GATE_TIER, runScripted, scaled, summarizeMargins } from './helpers';
 
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
 // Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
@@ -564,6 +564,43 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(wins, message).toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.6));
     expect(wins, message).toBeLessThan(seeds.length);
   }); // p10s re-measurement (scripted harness): 20/20 (100%), every seed victory/w18
+
+  // p12d (BACKLOG.md): T1/T5 companion checks alongside — not replacing —
+  // the T3 reference-tier band above, same harness and 20-seed shape,
+  // reusing the bands `tests/p12c-margin.test.ts`'s opt-in sweep first
+  // recorded for this tier/harness combination.
+  describe('G14 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+    const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+    const T1_WIN_BAND = [0.55, 0.9] as const;
+    const T1_MIN_CLOSE_WIN = 0.25;
+    const T5_WIN_BAND = [0.05, 0.2] as const;
+
+    function runAt(tier: number) {
+      return seeds.map((seed) => runScripted(cfg({ seed, cycles: 6, tier, allocated: FULL_TREE }), 'hybrid').report);
+    }
+
+    it('T1: win rate in [55%,90%] with >=25% close-win share', () => {
+      const reports = runAt(1);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+      const rate = wins.length / reports.length;
+      const closeShare = closeWins / reports.length;
+      const detail = `T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+      expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+    });
+
+    it('T5: win rate in [5%,20%]', () => {
+      const reports = runAt(5);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const resolved = reports.filter((r) => r.outcome !== 'running');
+      const rate = wins.length / resolved.length;
+      const detail = `T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds) — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
+    });
+  });
 });
 
 describe('Rift events (SPEC 5.1)', () => {

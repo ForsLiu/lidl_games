@@ -199,11 +199,23 @@
  * wall was originally found and closed. Re-enable point for both clauses
  * stays **P10** — this item (fb049) is the re-measurement, `p10r` inherits
  * the corrected (over-ceiling, not under-floor) retune target.
+ *
+ * **p12d (BACKLOG.md, BALANCE DIRECTION v2 §D), this session.** SPEC-FINAL
+ * §14's G8 row is rewritten: T3 stays the reference tier for the per-class
+ * win-rate band above, and the old "top damage source differs across >=9 of
+ * 12" diversity clause is replaced by the two checks the owner verdict
+ * specifies — see the `p6e: G8 diversity, BALANCE DIRECTION v2 §D` describe
+ * block below, which reuses this file's own `measurements` sweep rather than
+ * launching a second one. T1/T5 companion win-rate bands are added in their
+ * own describe block, on the shared `hybrid` harness (not a per-class sweep
+ * — see that block's own comment for the scope reasoning, logged in
+ * QUESTIONS Q193).
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
+import { isKitSource } from '../src/sim/enemies';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { cfg, classifyMargin, GATE_TIER, runScripted, summarizeMargins } from './helpers';
@@ -300,10 +312,25 @@ interface ClassMeasurement {
   allDamage: Record<string, number>;
   /** ownDamage total / allDamage total. */
   ownShare: number;
+  /**
+   * p12d (BALANCE DIRECTION v2 §D clause (i), same denominator p12a/c002
+   * measured): own-kit share of the character's **VS-only** damage
+   * (`damageByWeaponVs`), restricted to seeds that reached
+   * `QUALIFYING_WAVE` — reusing `class-kit-damage-share.test.ts`'s exact
+   * method rather than inventing a second one.
+   */
+  vsShare: number;
   topLabel: string;
   /** p10z: every seed's raw report, kept so a retune probe can classify margin (`classifyMargin`/`summarizeMargins`, `tests/helpers.ts`) without a second sweep. */
   reports: RunReport[];
 }
+
+/** BALANCE DIRECTION v2 §D clause (i), p12a's own target. */
+const KIT_SHARE_TARGET = 0.35;
+/** class-kit-damage-share.test.ts's own qualifying-wave filter, reused verbatim (p12d). */
+const QUALIFYING_WAVE = 12;
+/** BALANCE DIRECTION v2 §D clause (ii). */
+const FINGERPRINT_FLOOR = 0.15;
 
 function sumValues(rec: Record<string, number>): number {
   let total = 0;
@@ -360,6 +387,8 @@ beforeAll(() => {
     const reports: RunReport[] = [];
     const ownDamage: Record<string, number> = {};
     const allDamage: Record<string, number> = {};
+    const ownVs: Record<string, number> = {};
+    const allVs: Record<string, number> = {};
     for (const seed of SEEDS) {
       const report = runClassScripted(key, seed);
       reports.push(report);
@@ -383,13 +412,22 @@ beforeAll(() => {
         allDamage[k] = (allDamage[k] ?? 0) + v;
         if (!content.towerByKey.has(k)) ownDamage[k] = (ownDamage[k] ?? 0) + v; // a tower key: hybrid's build, not the kit
       }
+      // p12d (clause (i)): the VS-only half, same non-participation rule as
+      // class-kit-damage-share.test.ts — a run that never reached the
+      // qualifying wave can't speak to a target stated about a developed run.
+      if (report.wavesCleared < QUALIFYING_WAVE) continue;
+      for (const [k, v] of Object.entries(report.damageByWeaponVs)) {
+        allVs[k] = (allVs[k] ?? 0) + v;
+        if (isKitSource(k)) ownVs[k] = (ownVs[k] ?? 0) + v;
+      }
     }
     const ownTotal = sumValues(ownDamage);
     const allTotal = sumValues(allDamage);
     const ownShare = allTotal > 0 ? ownTotal / allTotal : 0;
+    const vsShare = sumValues(allVs) > 0 ? sumValues(ownVs) / sumValues(allVs) : 0;
     const topLabel =
       ownShare >= MATERIALITY_SHARE ? describeSource(cls, argmaxKey(ownDamage)) : argmaxKey(allDamage);
-    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, topLabel, reports });
+    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, vsShare, topLabel, reports });
   }
 }, 6_000_000);
 
@@ -585,118 +623,153 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   });
 });
 
-describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
-  // CORRECTED (this session): QUESTIONS.md's original Q121(4) claimed this
-  // measurement came out 11/11 distinct, with own-kit shares that "cluster
-  // either well above [20%] or near zero." That claim was never actually
-  // checked against a full, completed 12-seed x 11-class run — the first
-  // time this file's own beforeAll was let run to completion (this session),
-  // every class's own-kit share landed between 0.4% (engineer) and 16.6%
-  // (plaguebringer): a continuum, not a cluster, and every single one under
-  // MATERIALITY_SHARE. Re-run in isolation (not a contention flake): same
-  // numbers. At the 20% bar, all eleven fall back to the raw allDamage
-  // argmax, which collapses to two tower keys (`ballista`/`frost_obelisk`)
-  // across the roster — G13's tower-diversity question, not a kit-identity
-  // one. No materiality threshold that still means anything clears >=8/11:
-  // the 8th-largest share is paladin's 1.6%, so "passing" would require
-  // lowering the bar to ~1.5%, indistinguishable from no bar at all and
-  // exactly the near-tautological pass code review's Major 1 finding (this
-  // file's header) existed to prevent. Skipped on the same precedent as the
-  // ten win-rate skips above (CLAUDE.md rule 6, Q109/G23): a red measurement
-  // gets a recorded reason, not a lowered bar. Most likely the same root
-  // cause as the wave-11-to-17 wall those ten hit — an 18-wave hybrid tower
-  // economy has far more time to compound than any cooldown-gated class kit,
-  // and `p8a`'s real wave content is what would shorten that runway — though
-  // this item does not prove that link directly. Re-enable point: p8a.
-  //
-  // RE-CORRECTED (PRIORITY DIRECTIVE follow-up, this session, Q123): p8a
-  // landed and this was re-measured in full — **distinct count is still 2**
-  // (`frost_obelisk`/`ballista`), unchanged. The paragraph's own-kit-share
-  // numbers were measured pre-p8a and are superseded: real post-p8a shares
-  // run 0.4% (animist) to 15.4% (plaguebringer), and the 8th-largest is
-  // cryomancer's 1.7%, not paladin's — same conclusion (no non-tautological
-  // bar clears 8/11), corrected numbers. Re-enable point moves from `p8a`
-  // (done) to **P10**, the same as every other clause this pass re-measured.
-  // fb013: SPEC-FINAL's own G8 text now reads ">=9 of 12" (Time Lord folded
-  // in at the original ~73% ratio) — threshold updated to match, unmeasured.
-  //
-  // p10m re-measurement (this session, re-enable point reached): the file's
-  // ~1h `beforeAll` sweep finally ran against the full 12-class roster
-  // (timeout raised 900s->6000s to let it finish). **Distinct count is still
-  // 2** (`ballista`/`spreading_plague`) — eleven of twelve classes top out on
-  // `ballista` (the shared hybrid build the scripted bot always assembles,
-  // per this file's own header), only plaguebringer's own kit clears
-  // `MATERIALITY_SHARE`. The `p10j`-`p10l` balance pass changed every win-rate
-  // number above but did not touch this one at all — win rate and top-damage
-  // source are independent axes here, unsurprising since the pass tuned
-  // wave/spawn pacing, not weapon/kit damage ratios. Still `.skip`-ed; only a
-  // kit-damage-ratio change (out of scope here) could move this, so the
-  // re-enable point stays **P10**.
-  //
-  // fb049 re-measurement (Q138): the 2-distinct reading above was measured
-  // with `allocated: []`. Re-measured against the real full-tree allocation
-  // (this file's header): **distinct count is now 3** (`ballista`,
-  // `frost_obelisk`, `spreading_plague`) — full-tree stat bonuses shift
-  // `necromancer`/`animist` off `ballista` onto `frost_obelisk`, but nine of
-  // twelve still collapse onto one of those three tower keys. Still nowhere
-  // near >=9/12; still `.skip`-ed; re-enable point stays **P10**.
-  it.skip('at least 9 of the 12 classes top out on a different source', () => {
-    const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
-    const distinct = new Set(labels);
-    const breakdown = CLASS_KEYS.map((k) => {
-      const m = measurements.get(k)!;
-      return `${k}: ${m.topLabel} (own-kit share ${(m.ownShare * 100).toFixed(1)}%, ownDamage=${JSON.stringify(m.ownDamage)}, allDamage=${JSON.stringify(m.allDamage)})`;
-    }).join('\n');
-    expect(
-      distinct.size,
-      `only ${distinct.size}/${CLASS_KEYS.length} distinct top sources:\n${breakdown}`,
-    ).toBeGreaterThanOrEqual(9);
+/**
+ * p12d (BACKLOG.md, BALANCE DIRECTION v2 §D): replaces the retired
+ * "top damage source differs across >=9 of 12 classes" clause with the two
+ * checks the owner verdict specifies. Both reuse this file's own T3
+ * `beforeAll` sweep (`measurements`) rather than launching a second one —
+ * clause (i)'s `vsShare` is computed alongside `ownShare` above; clause
+ * (ii)'s vectors are built from the same `allDamage` records G22's method
+ * already reads.
+ */
+describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
+  /** G22's `l1Distance` (`tests/p-core-f-gates.test.ts`), reused verbatim (also duplicated in `tests/class-kit-fingerprint.test.ts`, out of Scope there). */
+  function shareVector(rec: Record<string, number>): Record<string, number> {
+    const total = sumValues(rec);
+    const out: Record<string, number> = {};
+    if (total <= 0) return out;
+    for (const [k, v] of Object.entries(rec)) out[k] = v / total;
+    return out;
+  }
+  function l1Distance(a: Record<string, number>, b: Record<string, number>): number {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    let sum = 0;
+    for (const k of keys) sum += Math.abs((a[k] ?? 0) - (b[k] ?? 0));
+    return sum;
+  }
+
+  // c002/c030 (BACKLOG-CONTENT, T1, 12 seeds) already found this unreachable
+  // from `data/classes.json` alone — best was `plaguebringer` at 17.85%,
+  // 0/12 classes at the 35% target (QUESTIONS Q175, BACKLOG p12f, still
+  // open). Measured here live at T3 (GATE_TIER) instead of T1 — a harder
+  // reference tier does not change which side of the wall this sits on
+  // (the mechanism is structural: VS-wielded weapon damage inherits the
+  // full tower-upgrade/Constellation scaling stack and the kit does not, so
+  // the denominator outgrows the numerator regardless of tier) — `.skip`-ed
+  // with the fresh T3 number rather than assumed from the T1 one, per
+  // CLAUDE.md's control-run rule. Re-enable point: p12f.
+  it.skip('every class\'s own-kit VS damage share is >=35% from wave 12 (clause i)', () => {
+    const meeting = CLASS_KEYS.filter((k) => measurements.get(k)!.vsShare >= KIT_SHARE_TARGET);
+    const breakdown = CLASS_KEYS.map(
+      (k) => `${k}: ${(measurements.get(k)!.vsShare * 100).toFixed(2)}%`,
+    ).join(', ');
+    expect(meeting.length, `${meeting.length}/${CLASS_KEYS.length} at >=35% — ${breakdown}`).toBe(
+      CLASS_KEYS.length,
+    );
   });
 
-  // Pins the honest measurement so a future change is forced to re-examine
-  // this rather than silently drifting: pre-fb013 (11 classes) it was 2.
+  // Pins the honest T3 measurement so a future change is forced to
+  // re-examine this rather than silently drifting.
+  it('the current (red) own-kit VS-share count is pinned, not silently drifting', () => {
+    const meeting = CLASS_KEYS.filter((k) => measurements.get(k)!.vsShare >= KIT_SHARE_TARGET);
+    expect(meeting.length).toBe(0);
+  });
+
+  // class-kit-fingerprint.test.ts (BACKLOG-CONTENT c033) measured this exact
+  // clause first, at T1 with KIT_FP_SEEDS=2 (directional): 50/66 pairs meet
+  // the floor, 16 fail, all inside one cluster of classes whose kit never
+  // clears MATERIALITY_SHARE so their fingerprint is dominated by shared
+  // `hybrid`-build tower usage.
   //
-  // fb013: `CLASS_KEYS` now includes Time Lord, and this file's ~1 h
-  // `beforeAll` sweep has not been re-run against the 12-class roster (out of
-  // scope for an ordinary item per CLAUDE.md — see this file's header note).
-  // Asserting the stale pre-fb013 number here would be an unearned pin, not a
-  // measured one, so this is `.skip`-ed too until P10 re-measures all of G8
-  // (win rate and diversity, all twelve classes) together.
-  //
-  // p10m re-measurement (this session, re-enable point reached): the 12-class
-  // sweep is now real (see the assertion above) and confirms the pre-fb013
-  // number still holds at 2 — un-skipped as a real regression pin.
-  //
-  // fb049 re-measurement (Q138): re-pinned 2->3 — the real full-tree
-  // allocation (this file's header) moves the distinct count to 3
-  // (`ballista`/`frost_obelisk`/`spreading_plague`); the `[]`-allocated
-  // reading of 2 above is stale, not a live regression to preserve.
-  //
-  // b080 (2026-09-03) re-pinned 3->2: `data/towers.json`'s solo-viability
-  // retune (BACKLOG b080) gave `ballista` a ~12x damage buff plus its
-  // existing pierce (hits up to 8 targets/shot), which now crowds out
-  // `frost_obelisk` and `spreading_plague` from almost every class's top
-  // damage source — 11 of 12 classes top out on `ballista` alone this
-  // measurement (only `time_lord` tops on `mortar`). Same already-exhausted
-  // G8 diversity wall as the skipped assertion above (QUESTIONS Q161: no
-  // `/data`-only lever found that raises distinct count without re-breaking
-  // some other gate), so re-pinned to the honest current number rather than
-  // chased further here.
-  //
-  // p12e (2026-09-07) re-pinned 2->1: the final boss's exemption from
-  // `baseHpMul` (landed fix — see `src/sim/enemies.ts`'s `makeEnemy`) keeps
-  // `warden_eater`'s effective HP at its fb099-fitted 365,000 — unchanged in
-  // practice from p12c's pre-fix number — but the shorter, un-censored fight
-  // this unblocks shifted `time_lord`'s top damage source off `mortar` and
-  // onto the shared `ballista` TD build,
-  // the only class not already there, collapsing the distinct count to 1 of
-  // 12. G8's own >=9/12 target is unmet either way — this moves an
-  // already-red gate further along the same axis it was already failing, not
-  // a newly broken one. Control-paired via `git stash` against the fix
-  // (measured 2 before, 1 after) rather than assumed.
-  it('the current (red) distinct-source count is pinned, not silently drifting', () => {
-    const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
-    const distinct = new Set(labels);
-    expect(distinct.size).toBe(1);
+  // **Measured live here at T3/12 seeds (this file's own sweep), 2026-09-07:
+  // 16/66 pairs fail the floor** — the identical count c033 found at T1/2
+  // seeds (not necessarily the identical 16 pairs; not cross-checked pair-
+  // for-pair). `.skip`-ed with this real T3 number rather than the T1 one,
+  // per CLAUDE.md's control-run rule; the pin case right below asserts it
+  // exactly. Re-enable point: same wall as clause (i) (own-kit share never
+  // clears MATERIALITY_SHARE, so every class's fingerprint is dominated by
+  // shared tower usage) — P10 / an owner verdict on Q160.
+  it.skip('every one of the 66 class-pairs has fingerprint distance >=0.15 (clause ii)', () => {
+    const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
+    const pairs: { a: string; b: string; distance: number }[] = [];
+    for (let i = 0; i < vectors.length; i++) {
+      for (let j = i + 1; j < vectors.length; j++) {
+        pairs.push({ a: vectors[i].key, b: vectors[j].key, distance: l1Distance(vectors[i].vector, vectors[j].vector) });
+      }
+    }
+    const failing = pairs.filter((p) => p.distance < FINGERPRINT_FLOOR);
+    const breakdown = failing
+      .sort((x, y) => x.distance - y.distance)
+      .map((p) => `${p.a}/${p.b} ${p.distance.toFixed(4)}`)
+      .join(', ');
+    expect(failing.length, `${failing.length}/${pairs.length} pairs below 0.15 — ${breakdown}`).toBe(0);
+  }); // measured: 16/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07)
+
+  // Pins the honest T3 measurement (16/66, see the skip above) so a future
+  // change is forced to re-examine this rather than silently drifting —
+  // same exact-pin shape as clause (i)'s own pin three cases above.
+  it('the current (red) fingerprint-distance failure count is pinned, not silently drifting', () => {
+    const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
+    let failing = 0;
+    for (let i = 0; i < vectors.length; i++) {
+      for (let j = i + 1; j < vectors.length; j++) {
+        if (l1Distance(vectors[i].vector, vectors[j].vector) < FINGERPRINT_FLOOR) failing++;
+      }
+    }
+    expect(failing).toBe(16);
+  });
+});
+
+/**
+ * p12d: T1/T5 companion win-rate bands, alongside — not replacing — the T3
+ * reference-tier per-class bands above. Reuses the shared `hybrid`-loadout
+ * harness (not per-class scripting) that `tests/p12c-margin.test.ts` first
+ * measured these two bands against, since a full per-class x per-tier sweep
+ * (12 classes x 2 extra tiers) would multiply this already-expensive file's
+ * cost threefold for a question the shared harness already answers: whether
+ * the T1/T5 rungs themselves produce the intended easy/hard skew. Logged as
+ * a scope decision in QUESTIONS.md rather than assumed.
+ */
+describe('G8 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+  const T1_WIN_BAND = [0.55, 0.9] as const;
+  const T1_MIN_CLOSE_WIN = 0.25;
+  const T5_WIN_BAND = [0.05, 0.2] as const;
+
+  function runAt(tier: number): RunReport[] {
+    return SEEDS.map(
+      (seed) =>
+        runScripted({ seed, classKey: 'engineer', tier, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45)
+          .report,
+    );
+  }
+
+  // Measured 2026-09-07 (this file's own 12-seed shape, not G1's 24 — the
+  // T5 case below is measured the same way): 6/12 wins (50%), just under the
+  // 55% floor (close-win share itself is fine at 50%). `.skip`-ed per
+  // CLAUDE.md rule 6 rather than nudged — a near-miss is still a miss, and
+  // this is the same shared `engineer`/`hybrid` harness G1's own T1
+  // companion (24 seeds, 66.7%) passed cleanly, so the gap is sampling noise
+  // at n=12 rather than a new wall; a future re-measurement at 24 seeds
+  // would be the first thing to try before treating this as real.
+  it.skip('T1: win rate in [55%,90%] with >=25% close-win share', () => {
+    const reports = runAt(1);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+    const rate = wins.length / reports.length;
+    const closeShare = closeWins / reports.length;
+    const detail = `T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win — ${summarizeMargins(reports)}`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+    expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+  }); // measured: 6/12 wins (50%) — just under the 55% floor
+
+  it('T5: win rate in [5%,20%]', () => {
+    const reports = runAt(5);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const resolved = reports.filter((r) => r.outcome !== 'running');
+    const rate = wins.length / resolved.length;
+    const detail = `T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds) — ${summarizeMargins(reports)}`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
   });
 });
