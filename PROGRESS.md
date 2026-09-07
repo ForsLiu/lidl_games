@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c034 done, measurement only.**
+  G10 (Archer dps-optimal charge, 2-6s window) and G11 (Stormcaller chain
+  ceiling <=x3.6) were converted to ratio form by `p12a` so a kit re-anchor
+  couldn't break them, but the only verification lived in the out-of-Scope
+  `tests/p6d-nine-classes.test.ts` — never independently re-derived in this
+  lane. Found this item's own acceptance text had guessed G11's formula
+  wrong (`chainCap` instead of the real `chainCap - 1`, read off `p6d`
+  directly — `chainCap` alone would already fail on shipped data, which
+  `p6d` does not). New `tests/class-gate-ratios.test.ts` copies both real
+  formulas from `p6d` and confirms them live under mutation (shipped
+  numbers pass with real margin; `chainCap`/`chargeCapSeconds` raised past
+  the point `p6d` itself would fail turns each check red). No `/data`
+  change — pure `data/classes.json` arithmetic, no sim. code-reviewer
+  approved (one wording nit fixed); qa-playtester independently re-derived
+  both formulas by hand, verified the exponent correction against `p6d`,
+  ran its own mutations, and confirmed the full `tests/class-*.test.ts`
+  glob (21 files, 792 passed) plus `p6d`/`p6b-swordsman` (166/166) green —
+  no bugs filed.
+
 - **2026-09-06 — lane/content: BACKLOG-CONTENT c033 done, measurement only,
   no `/data` tune.** G8's diversity clause was rewritten (BALANCE DIRECTION
   v2 §D) into two checks: own-kit VS share >=35% (already covered, c002/c030)
