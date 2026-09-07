@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12h bisected the pre-p12c G13
+  solo-viability regression to fb077, not the three named-by-date
+  candidates; re-banded, not fixed.** `tests/a4-single-type.test.ts`'s T1
+  clause had been red since before p12c ({arrow_spire 1, ballista 1,
+  ember_brazier 0, frost_obelisk 0, tesla_coil 1, mortar 3, venom_spore 0}
+  of 5, against an authored 5/5/5/5/4/5/4) with no diagnosed cause — three
+  candidates were named by date (fb076's tower retune, fb025's x10 enemy-HP
+  pass, p12a's kit-damage re-anchor). Real control runs (git worktree,
+  `data/*.json` byte-identical across the comparison) exonerate all three:
+  `data/towers.json` is provably unchanged since fb076 authored the exact
+  table this clause was measured against; fb025 predates the regression by a
+  full session and was already fixed by b080; p12a's changes never touch a
+  tower's own damage (its `kitPowerMul` gates strictly on the `class_`
+  source prefix) and its basicAttack.dps buffs help this TD-only probe, not
+  hurt it. **The actual cause is fb077** ("wire generated terrain into every
+  non-practice `World` run", landed the commit immediately after fb076,
+  same session) — `a4probe.ts` never sets a practice flag, so every
+  solo-tower probe run moved from the flat arena fb076 was tuned against to
+  a seeded, obstacle-bearing generated map. Measured: pre-fb077 (1c9546e),
+  T1/seeds 1-2, 7/7 towers 2/2 clears, every run 18/18 waves; post-fb077
+  (967463d), same seeds, every tower down, three of seven collapsing to a
+  wave-3 death. The HEAD-control figure was also reproduced bit-exactly at
+  p12b (23b6f6c). **Re-banded rather than fixed**: fb077 is a real
+  SPEC-FINAL §10.5 feature, not a tuning mistake, and a `/data` retune that
+  holds against variable per-seed terrain is out of this item's scope — the
+  clause stays `.skip`-ed with its already-measured honest numbers, now with
+  the cause on record (`tests/a4-single-type.test.ts`'s p12h paragraph,
+  QUESTIONS Q194). Follow-up filed as BACKLOG p12i. No `/src` or `/data`
+  files changed — only test-file comments and BACKLOG/QUESTIONS/PROGRESS
+  docs. Verification: `npx vitest run tests/a4-single-type.test.ts` (9
+  passed, 7 skipped, unchanged shape) and `npm run test:fast` (270 passed /
+  2 pre-existing failed files — q15/q45 CLI-fuzz scratch-directory bug,
+  confirmed pre-existing per CLAUDE.md's task instructions — 0 new
+  failures). **No independent review**: this session had no Agent/Task
+  subagent access, so there was no real code-reviewer or qa-playtester pass
+  — flagged explicitly rather than self-graded, per the lead session's
+  standing instruction not to self-review and call it independent.
+
 - **2026-09-07 — main lane: BACKLOG p12f's `code-reviewer`/`qa-playtester`
   passes below were self-review, not real — a real pass found and this
   session fixed a genuine Major bug the self-review missed.** The item's

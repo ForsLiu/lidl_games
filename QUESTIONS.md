@@ -847,3 +847,58 @@ Q91 and Q102 corrections if not yet done.
   before/after both recorded, blast-radius check before calling a lever
   narrow); SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §A, QUESTIONS Q175,
   BACKLOG p12f.
+
+- **Q194. [p12h] The pre-p12c G13 solo-viability regression bisected: fb077's
+  terrain wiring, not any of the three named-by-date candidates.** BACKLOG
+  p12h asked why `tests/a4-single-type.test.ts` measured
+  `{arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1,
+  mortar 3, venom_spore 0}` of 5 T1 clears at HEAD, against an authored
+  5/5/5/5/4/5/4 table, well before p12c's own `baseHpMul:20` anchor touched
+  anything. Three candidates were named by date: fb076 (tower retune), fb025
+  (x10 enemy-HP pass), p12a (kit-damage re-anchor). All three are exonerated
+  by direct evidence, not elimination-by-story: fb025 predates the regression
+  by a full session and was already fixed by b080 (2026-09-03, confirmed
+  16/16 green then); `data/towers.json` is provably byte-unchanged since
+  fb076 authored the exact 5/5/5/5/4/5/4 table this clause was measured
+  against (`git log --follow -- data/towers.json` shows no write between
+  fb076 and HEAD), so it cannot be the cause of a regression in the field it
+  authored; p12a's 29 changed values live in `data/classes.json` (class kit
+  damage) and its `src/sim/enemies.ts` changes gate strictly on the `class_`
+  source prefix (`scalesWithKitPower`), which no tower-sourced damage reads —
+  its basicAttack.dps buffs to engineer/pyromancer (the two classes
+  `a4probe.ts` actually probes) are a net help to this TD-only-basic-attack
+  probe (`classBasicAttack` auto-fires TD-only, `run.ts:541`), not a hurt.
+  **The actual cause: fb077** ("wire generated terrain into every
+  non-practice `World` run", 2026-09-04, the very next commit after fb076 in
+  the same session). `a4probe.ts`'s `RunConfig` never sets a practice flag,
+  so every solo-tower probe run went from the open flat arena fb076 was
+  tuned against to a seeded, obstacle-bearing generated map — a change
+  fb077's own acceptance text re-measured G1/G14/G17 against (run length and
+  boss timing "move" with terrain) but never checked against this
+  fast-tier-excluded G13 suite, the same blind spot the whole p12h item
+  exists to close. Control run (git worktree, `data/*.json` byte-identical
+  both sides): commit 1c9546e (pre-fb077) T1/seeds 1-2 = 7/7 towers 2/2
+  clears, 18/18 waves every run; commit 967463d (fb077 applied) same seeds =
+  every tower down, three of seven (ember_brazier/frost_obelisk/venom_spore)
+  collapsing to a wave-3 death. The HEAD-control figure itself was also
+  reproduced bit-exactly by checking out p12b (23b6f6c, `baseHpMul` still at
+  1.0 identity): {arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk
+  0, tesla_coil 1, mortar 3, venom_spore 0} of 5, matching the qa-playtester
+  p12c-session reading exactly. **Chose re-band over fix** (CLAUDE.md rule 5:
+  choose, log, continue): fb077 is a real SPEC-FINAL §10.5 feature landing,
+  not a tuning mistake to revert, and a `data/towers.json` retune that holds
+  against *variable, per-seed* generated terrain (not a fixed HP ladder) is
+  materially more work than this bisection item's own scope — the same
+  reasoning p12c gave for deferring its own re-anchor's assertion rewrite to
+  p12d. The clause stays `.skip`-ed with its already-measured honest numbers;
+  what changed is that the cause is now on record instead of unexplained.
+  Follow-up filed as BACKLOG p12i: either retune solo-tower economy against
+  the terrain-bearing curve, or decide (an inbox-verdict-shaped design call,
+  not a unilateral one, since it changes what G13 measures) that this clause
+  should run on the flat fallback arena instead of real terrain — "does a
+  single tower type break the wave curve" and "does a single tower type
+  survive an adversarial map roll" are different claims. — Reason: measured,
+  not guessed (CLAUDE.md measurement rules: "check a `/data` row's blast
+  radius before calling it narrow," "grep readers, not just writers" — here
+  extended to "grep the commit log, not just the candidate list handed to
+  you"); SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, p12i.

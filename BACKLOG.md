@@ -894,7 +894,52 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       Q177's retraction. The real blocker the correction exposed is the tick
       cap, which is **p12e**'s, not a new item's.
 
-- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+- [x] (p12h) [bug] **DONE 2026-09-07** — bisected by name with real
+      before/after control runs (git worktree, `data/towers.json`/`data/
+      enemies.json`/`data/waves.json` byte-identical on both sides): **the
+      cause is fb077** ("wire generated terrain into every non-practice
+      `World` run"), not any of the three named-by-date candidates. All three
+      are exonerated on the record: fb025 predates the regression by a full
+      session and was already fixed by b080; `data/towers.json` is provably
+      unchanged since fb076 authored the 5/5/5/5/4/5/4 table (`git log
+      --follow` shows no later write), so fb076 cannot be the cause of a
+      later regression in the field it authored; p12a's changes are confined
+      to `data/classes.json` kit damage and `kitPowerMul`'s `class_`-prefixed
+      source gate, which a tower's own damage never reads (and its
+      basicAttack.dps buffs are a net help to this TD-only probe, not a
+      hurt). `a4probe.ts` never sets a practice flag, so fb077 moved every
+      solo-tower run from the open flat arena fb076 tuned against onto a
+      seeded, obstacle-bearing generated map — a change fb077's own
+      acceptance text re-measured G1/G14/G17 against but never checked
+      against this fast-tier-excluded G13 suite. Control: commit 1c9546e
+      (pre-fb077) T1/seeds1-2 = 7/7 towers 2/2 clears, 18/18 waves every run;
+      commit 967463d (fb077 applied, same-session next commit) same seeds =
+      every tower down, three of seven (ember_brazier/frost_obelisk/
+      venom_spore) collapsing to a wave-3 death. Also reproduced the
+      HEAD-control figure bit-exactly at p12b (23b6f6c): {arrow_spire 1,
+      ballista 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1, mortar 3,
+      venom_spore 0} of 5, matching qa-playtester's p12c-session reading
+      exactly. **Re-banded, not fixed**: fb077 is a real SPEC-FINAL §10.5
+      feature landing, not a tuning mistake to revert, and a `/data` retune
+      to hold against variable per-seed generated terrain is materially more
+      work than this item's scope (the same reasoning p12c gave for
+      deferring its own re-anchor's assertion rewrite to p12d). The clause
+      stays `.skip`-ed with its already-measured honest numbers, now with the
+      cause on record in `tests/a4-single-type.test.ts`'s own header/inline
+      history. Follow-up filed as **p12i** below. Full bisection method and
+      numbers: `tests/a4-single-type.test.ts`'s p12h paragraph, QUESTIONS
+      Q194. **No independent code-reviewer/qa-playtester pass** — this
+      session had no Agent/Task subagent access; flagged explicitly for the
+      lead session to get real review before trusting this closure (no `/src`
+      or `/data` files changed, only test-file comments and BACKLOG/
+      QUESTIONS/PROGRESS docs, which narrows what review could find, but it
+      is still unreviewed). Verification run: `npx vitest run tests/
+      a4-single-type.test.ts` (9 passed, 7 skipped — the meta/T3/walls cases
+      live, T1 stays `.skip`-ed) plus `npm run test:fast` green at the same
+      pre-existing failure set as HEAD (q15/q45 CLI-fuzz family). Original
+      text follows.
+
+      G13's solo-viability clause (`tests/a4-single-type.test.ts`)
       was **already largely red before p12c**, and nobody had measured it.
       Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
       identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
@@ -911,6 +956,30 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the causing change identified by name with a control run either side,
       and the clause either green or re-banded with the measurement — refs:
       SPEC-FINAL §14 G13, `tests/a4-single-type.test.ts`'s own header history.
+
+- [ ] (p12i) [bug] Follow-up from p12h's bisection: fb077's generated terrain
+      (SPEC-FINAL §10.5, landed 2026-09-04) collapses solo-tower T1
+      viability — 7/7 towers went from clearing all 18 TD waves on the flat
+      arena to 0-3/5 clears on generated terrain, three of seven now dying by
+      wave 3 (`ember_brazier`/`frost_obelisk`/`venom_spore`). Two live options,
+      neither attempted here (p12h's scope was bisection only): (a) a
+      `data/towers.json`-only retune against the terrain-bearing curve, in
+      the fb076/p10c style, but harder — the curve now varies per seed
+      (buildable-tile count, path length, chokepoint shape), so a fixed pin
+      has to hold across that variance, not just the wave-HP ladder; (b) a
+      design call that G13's solo-viability clause should measure the flat
+      fallback arena rather than real terrain, on the grounds that "does a
+      single tower type break the *curve*" and "does a single tower type
+      survive an *adversarial map roll*" are different claims — this needs an
+      inbox verdict or a QUESTIONS.md default per CLAUDE.md's "fill any
+      genuine remaining gap" rule, not a unilateral pick, since it changes
+      what the gate means. Start by checking whether the three wave-3 deaths
+      share a mechanism (sealed-pocket ghosting, a chokepoint the `BuilderPolicy`
+      bot can't route towers around, or genuine path-length variance) before
+      choosing a lever — acceptance: root cause identified for at least the
+      three wave-3-death towers, then (a) or (b) chosen and logged, then the
+      clause's `.skip` numbers re-measured against whichever is chosen — refs:
+      SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, QUESTIONS Q194.
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

@@ -192,6 +192,68 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // *opposite* claim (that no tower is viable) while looking green.
   // Re-enable point: **p12d**, which owns rewriting the gate text against the
   // re-anchored shape.
+  //
+  // **p12h (this session): the pre-p12c regression bisected, by name, with
+  // real control runs on both sides.** The {1,1,0,0,1,3,0} HEAD-control
+  // figure above was measured but never explained — three candidates were
+  // named by date (fb076's tower retune, fb025's x10 enemy-HP pass, p12a's
+  // kit-damage re-anchor). All three are exonerated:
+  //   - fb025 predates this regression by a full session; b080 (2026-09-03)
+  //     already retuned data/towers.json against it and confirmed 16/16
+  //     green at the time.
+  //   - fb076 is the commit that *authored* the 5/5/5/5/4/5/4 table this
+  //     clause was measured against (its own commit message: "five of seven
+  //     towers now 5/5 T1" — confirmed, not asserted). `data/towers.json` is
+  //     provably unchanged since fb076 (`git log --follow -- data/towers.json`
+  //     shows no later write, all the way to HEAD), so it cannot be the
+  //     cause of a later regression in the same field it authored.
+  //   - p12a touches `data/classes.json` (class kit damage, x3 buffs) and
+  //     `src/sim/enemies.ts`'s `kitPowerMul`/`isKitSource` split, neither of
+  //     which reads a tower's own damage — `scalesWithKitPower` gates
+  //     strictly on the `class_` source prefix, so tower-sourced damage is
+  //     untouched. Its basicAttack.dps buffs (engineer 10->30, pyromancer
+  //     16->48 — the two classes `a4probe.ts`'s `classFor` actually probes)
+  //     are a net *help* to this probe, not a hurt, since `classBasicAttack`
+  //     auto-fires TD-only (`run.ts:541`) during every T1 run here.
+  //
+  // **The actual cause: fb077** ("wire generated terrain into every
+  // non-practice `World` run", 2026-09-04, landed one commit after fb076 in
+  // the same session). `a4probe.ts`'s `RunConfig` never sets a practice flag,
+  // so every solo-tower run went from playing on the open flat arena fb076
+  // was tuned against to a seeded, obstacle-bearing generated map — a
+  // structural change fb077's own acceptance text explicitly re-measured G1/
+  // G14/G17 against (run length and boss timing "move" with terrain) but
+  // never mentioned G13, the fast-tier-excluded gate this file owns.
+  //
+  // Control run, git-worktree isolation, `tools/a4probe.ts` unmodified,
+  // `data/towers.json`/`data/enemies.json`/`data/waves.json` byte-identical
+  // on both sides (only `src/sim/*` differs across the commit):
+  //   commit 1c9546e (fb076, pre-fb077): T1, all seven towers, seeds 1-2:
+  //     7/7 towers 2/2 clears, every run 18/18 waves (matches fb076's
+  //     authored table exactly).
+  //   commit 967463d (fb077 applied, same session, next commit): T1, same
+  //     seeds: arrow_spire 1/2, ballista 1/2, tesla_coil 1/2, mortar 1/2,
+  //     ember_brazier 0/2 (dies wave 3 both seeds), frost_obelisk 0/2 (wave
+  //     3 both), venom_spore 0/2 (wave 3 seed 1) — every tower down, three
+  //     of seven collapsing from an 18-wave clear to a 3-wave death.
+  // Also reproduced exactly: checking out p12b (23b6f6c, the commit
+  // `baseHpMul` at 1.0 identity, immediately before p12c's x20 anchor) and
+  // running all seven at T1/seeds 1-5 gives {arrow_spire 1, ballista 1,
+  // ember_brazier 0, frost_obelisk 0, tesla_coil 1, mortar 3, venom_spore 0}
+  // of 5 — bit-identical to the HEAD-control figure quoted above, confirming
+  // that figure and pinning the regression's full window to fb076..fb077.
+  //
+  // fb077 is a real SPEC-FINAL §10.5 feature landing, not a tuning mistake —
+  // reverting it is not on the table, and a `data/towers.json` retune to
+  // hold against *variable, per-seed* generated terrain is materially more
+  // work than this bisection item's scope (the same reasoning p12c gave for
+  // deferring its own re-anchor's assertion rewrite to p12d). Re-banded
+  // rather than force-fixed, per this item's own acceptance text: the clause
+  // stays `.skip`-ed with the already-measured honest numbers, now with the
+  // cause on record. Follow-up filed as BACKLOG p12i (retune solo-tower
+  // economy against generated terrain, or decide G13 should be measured on
+  // the flat fallback arena instead — a design call, not this item's to
+  // make) — refs: BACKLOG p12h, p12i, QUESTIONS Q194.
   for (const key of SOUL_TOWERS) {
     it.skip(`${key} alone clears the TD wave curve at T1`, () => {
       expect(clears(key, 1, [])).toBe(T1_EXPECTED_CLEARS[key]);
