@@ -912,8 +912,11 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       seeded, obstacle-bearing generated map — a change fb077's own
       acceptance text re-measured G1/G14/G17 against but never checked
       against this fast-tier-excluded G13 suite. Control: commit 1c9546e
-      (pre-fb077) T1/seeds1-2 = 7/7 towers 2/2 clears, 18/18 waves every run;
-      commit 967463d (fb077 applied, same-session next commit) same seeds =
+      (fb077's immediate parent — four commits after fb076 itself, 05becf2;
+      none of the intervening fb093/fb094/fb095/feedback-filing commits touch
+      towers, enemies, waves or `a4probe.ts`, so this is still the correct
+      isolation point) T1/seeds1-2 = 7/7 towers 2/2 clears, 18/18 waves every
+      run; commit 967463d (fb077 applied, the very next commit) same seeds =
       every tower down, three of seven (ember_brazier/frost_obelisk/
       venom_spore) collapsing to a wave-3 death. Also reproduced the
       HEAD-control figure bit-exactly at p12b (23b6f6c): {arrow_spire 1,

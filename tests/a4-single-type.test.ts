@@ -217,8 +217,9 @@ describe('A4 every tower type is viable, none is dominant', () => {
   //     auto-fires TD-only (`run.ts:541`) during every T1 run here.
   //
   // **The actual cause: fb077** ("wire generated terrain into every
-  // non-practice `World` run", 2026-09-04, landed one commit after fb076 in
-  // the same session). `a4probe.ts`'s `RunConfig` never sets a practice flag,
+  // non-practice `World` run", 2026-09-04, landed the same day as fb076,
+  // several unrelated commits later). `a4probe.ts`'s `RunConfig` never sets a
+  // practice flag,
   // so every solo-tower run went from playing on the open flat arena fb076
   // was tuned against to a seeded, obstacle-bearing generated map — a
   // structural change fb077's own acceptance text explicitly re-measured G1/
@@ -228,11 +229,14 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // Control run, git-worktree isolation, `tools/a4probe.ts` unmodified,
   // `data/towers.json`/`data/enemies.json`/`data/waves.json` byte-identical
   // on both sides (only `src/sim/*` differs across the commit):
-  //   commit 1c9546e (fb076, pre-fb077): T1, all seven towers, seeds 1-2:
-  //     7/7 towers 2/2 clears, every run 18/18 waves (matches fb076's
-  //     authored table exactly).
-  //   commit 967463d (fb077 applied, same session, next commit): T1, same
-  //     seeds: arrow_spire 1/2, ballista 1/2, tesla_coil 1/2, mortar 1/2,
+  //   commit 1c9546e (fb077's immediate parent — four commits after fb076
+  //     itself, 05becf2; none of the intervening fb093/fb094/fb095/
+  //     feedback-filing commits touch towers, enemies, waves or a4probe.ts,
+  //     so this is still the correct isolation point): T1, all seven towers,
+  //     seeds 1-2: 7/7 towers 2/2 clears, every run 18/18 waves (matches
+  //     fb076's authored table exactly).
+  //   commit 967463d (fb077 applied, the very next commit after 1c9546e): T1,
+  //     same seeds: arrow_spire 1/2, ballista 1/2, tesla_coil 1/2, mortar 1/2,
   //     ember_brazier 0/2 (dies wave 3 both seeds), frost_obelisk 0/2 (wave
   //     3 both), venom_spore 0/2 (wave 3 seed 1) — every tower down, three
   //     of seven collapsing from an 18-wave clear to a 3-wave death.

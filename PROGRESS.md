@@ -20,28 +20,38 @@
   tower's own damage (its `kitPowerMul` gates strictly on the `class_`
   source prefix) and its basicAttack.dps buffs help this TD-only probe, not
   hurt it. **The actual cause is fb077** ("wire generated terrain into every
-  non-practice `World` run", landed the commit immediately after fb076,
-  same session) — `a4probe.ts` never sets a practice flag, so every
+  non-practice `World` run", landed the same day as fb076, several unrelated
+  commits later) — `a4probe.ts` never sets a practice flag, so every
   solo-tower probe run moved from the flat arena fb076 was tuned against to
-  a seeded, obstacle-bearing generated map. Measured: pre-fb077 (1c9546e),
-  T1/seeds 1-2, 7/7 towers 2/2 clears, every run 18/18 waves; post-fb077
-  (967463d), same seeds, every tower down, three of seven collapsing to a
-  wave-3 death. The HEAD-control figure was also reproduced bit-exactly at
-  p12b (23b6f6c). **Re-banded rather than fixed**: fb077 is a real
-  SPEC-FINAL §10.5 feature, not a tuning mistake, and a `/data` retune that
-  holds against variable per-seed terrain is out of this item's scope — the
-  clause stays `.skip`-ed with its already-measured honest numbers, now with
-  the cause on record (`tests/a4-single-type.test.ts`'s p12h paragraph,
-  QUESTIONS Q194). Follow-up filed as BACKLOG p12i. No `/src` or `/data`
-  files changed — only test-file comments and BACKLOG/QUESTIONS/PROGRESS
-  docs. Verification: `npx vitest run tests/a4-single-type.test.ts` (9
-  passed, 7 skipped, unchanged shape) and `npm run test:fast` (270 passed /
-  2 pre-existing failed files — q15/q45 CLI-fuzz scratch-directory bug,
-  confirmed pre-existing per CLAUDE.md's task instructions — 0 new
-  failures). **No independent review**: this session had no Agent/Task
-  subagent access, so there was no real code-reviewer or qa-playtester pass
-  — flagged explicitly rather than self-graded, per the lead session's
-  standing instruction not to self-review and call it independent.
+  a seeded, obstacle-bearing generated map. Measured: pre-fb077 (1c9546e,
+  fb077's immediate parent — four commits after fb076 itself, 05becf2, none
+  of which touch towers/enemies/waves/`a4probe.ts`, so the isolation still
+  holds), T1/seeds 1-2, 7/7 towers 2/2 clears, every run 18/18 waves;
+  post-fb077 (967463d, the very next commit), same seeds, every tower down,
+  three of seven collapsing to a wave-3 death. The HEAD-control figure was
+  also reproduced bit-exactly at p12b (23b6f6c). **Re-banded rather than
+  fixed**: fb077 is a real SPEC-FINAL §10.5 feature, not a tuning mistake,
+  and a `/data` retune that holds against variable per-seed terrain is out
+  of this item's scope — the clause stays `.skip`-ed with its already-
+  measured honest numbers, now with the cause on record
+  (`tests/a4-single-type.test.ts`'s p12h paragraph, QUESTIONS Q194).
+  Follow-up filed as BACKLOG p12i. No `/src` or `/data` files changed — only
+  test-file comments and BACKLOG/QUESTIONS/PROGRESS docs. Verification:
+  `npx vitest run tests/a4-single-type.test.ts` (9 passed, 7 skipped,
+  unchanged shape) and `npm run test:fast` (270 passed / 2 pre-existing
+  failed files — q15/q45 CLI-fuzz scratch-directory bug, confirmed
+  pre-existing per CLAUDE.md's task instructions — 0 new failures).
+  **Review**: the implementing session had no Agent/Task subagent access and
+  flagged that explicitly rather than self-grading; a real independent
+  code-reviewer then ran and found the bisection, numbers, and re-band
+  decision all correct, but one Major citation error — `1c9546e` was
+  mislabeled "fb076"/"landed immediately after fb076" in all four files,
+  when it is actually fb077's parent, four unrelated commits later (fb076 is
+  05becf2). The underlying conclusion doesn't change (none of the four
+  intervening commits touch the relevant surfaces), but the wrong commit
+  label would have misdirected a future session reading "what did fb076
+  change" off this citation — corrected in this same commit's follow-up
+  across all four files.
 
 - **2026-09-07 — main lane: BACKLOG p12f's `code-reviewer`/`qa-playtester`
   passes below were self-review, not real — a real pass found and this

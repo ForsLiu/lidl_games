@@ -869,16 +869,21 @@ Q91 and Q102 corrections if not yet done.
   `a4probe.ts` actually probes) are a net help to this TD-only-basic-attack
   probe (`classBasicAttack` auto-fires TD-only, `run.ts:541`), not a hurt.
   **The actual cause: fb077** ("wire generated terrain into every
-  non-practice `World` run", 2026-09-04, the very next commit after fb076 in
-  the same session). `a4probe.ts`'s `RunConfig` never sets a practice flag,
-  so every solo-tower probe run went from the open flat arena fb076 was
-  tuned against to a seeded, obstacle-bearing generated map — a change
-  fb077's own acceptance text re-measured G1/G14/G17 against (run length and
-  boss timing "move" with terrain) but never checked against this
-  fast-tier-excluded G13 suite, the same blind spot the whole p12h item
-  exists to close. Control run (git worktree, `data/*.json` byte-identical
-  both sides): commit 1c9546e (pre-fb077) T1/seeds 1-2 = 7/7 towers 2/2
-  clears, 18/18 waves every run; commit 967463d (fb077 applied) same seeds =
+  non-practice `World` run", 2026-09-04, landed the same day as fb076,
+  several unrelated commits later — not the "very next commit": fb076 is
+  05becf2, and four intervening commits (fb093/fb094/fb095/a feedback-filing
+  commit) sit between it and fb077's own parent, 1c9546e; none of them touch
+  towers, enemies, waves or `a4probe.ts`, so the isolation still holds).
+  `a4probe.ts`'s `RunConfig` never sets a practice flag, so every solo-tower
+  probe run went from the open flat arena fb076 was tuned against to a
+  seeded, obstacle-bearing generated map — a change fb077's own acceptance
+  text re-measured G1/G14/G17 against (run length and boss timing "move"
+  with terrain) but never checked against this fast-tier-excluded G13 suite,
+  the same blind spot the whole p12h item exists to close. Control run (git
+  worktree, `data/*.json` byte-identical both sides): commit 1c9546e
+  (fb077's immediate parent) T1/seeds 1-2 = 7/7 towers 2/2 clears, 18/18
+  waves every run; commit 967463d (fb077 applied, the very next commit after
+  1c9546e) same seeds =
   every tower down, three of seven (ember_brazier/frost_obelisk/venom_spore)
   collapsing to a wave-3 death. The HEAD-control figure itself was also
   reproduced bit-exactly by checking out p12b (23b6f6c, `baseHpMul` still at
