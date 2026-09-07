@@ -94,17 +94,25 @@ const alongLine = (w: World) =>
 const cluster = (w: World) => Array.from({ length: TOTAL }, (_, i) => pin(w, w.warden.x + 0.2 + i * 0.08, w.warden.y));
 
 /**
- * Enemies strung out along +X, spaced wide enough (2.5 tiles) that Electric's
- * own inherent small-AoE splash (`data/damagetypes.json`'s electric radius,
- * 0.8 tiles, `damagetypes.ts`) from one chain jump landing on its primary
- * target cannot also reach the NEXT probe in line — found live while writing
- * this file: `cluster`'s tight spacing let each of `chain_lightning`'s six
- * primary jumps' own splash bleed onto neighbouring probes, producing a
- * bell-curve-shaped reading (rise then fall) that had nothing to do with the
- * per-jump growth this kind's damage formula actually applies, and read as a
- * false decay. Wide spacing isolates the primary-jump-only signal.
+ * Enemies strung out along +X, spaced wide enough that Electric's own
+ * inherent small-AoE splash (`damagetypes.ts`) from one chain jump landing
+ * on its primary target cannot also reach the NEXT probe in line — found
+ * live while writing this file: `cluster`'s tight spacing let each of
+ * `chain_lightning`'s six primary jumps' own splash bleed onto neighbouring
+ * probes, producing a bell-curve-shaped reading (rise then fall) that had
+ * nothing to do with the per-jump growth this kind's damage formula
+ * actually applies, and read as a false decay. Wide spacing isolates the
+ * primary-jump-only signal. Read live off `content.damageTypes` (4x the
+ * electric radius, currently 0.8 tiles -> 3.2 tiles spacing) rather than a
+ * bare literal, so a future balance retune of that radius (main-lane's
+ * BACKLOG.md, not this lane's to own) cannot silently erode the margin —
+ * confirmed live: were it to, the kind-by-kind mismatch test below would
+ * still redden rather than pass silently, but deriving it avoids that
+ * cross-lane surprise in the first place.
  */
-const wideLine = (w: World) => Array.from({ length: TOTAL }, (_, i) => pin(w, w.warden.x + 0.6 + i * 2.5, w.warden.y));
+const ELECTRIC_SPLASH_RADIUS = content.damageTypeByKey.get('electric')?.radius ?? 0;
+const wideLine = (w: World) =>
+  Array.from({ length: TOTAL }, (_, i) => pin(w, w.warden.x + 0.6 + i * ELECTRIC_SPLASH_RADIUS * 4, w.warden.y));
 
 const markup = (classKey: string, which: 'active1' | 'active2') =>
   activeSkillMarkup(content.classByKey.get(classKey)!, which);
@@ -127,7 +135,7 @@ function genericFire(command: 'class_active' | 'class_active2') {
 }
 
 /**
- * The six kinds that need special arming to fire at all — a firing recipe,
+ * The seven kinds that need special arming to fire at all — a firing recipe,
  * not a decay/flat classification (see this file's own header comment,
  * point 2). Every other shipped kind uses `genericFire` below.
  */
@@ -269,7 +277,7 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     expect(kinds.size).toBeGreaterThan(0);
   });
 
-  it('the six special-recipe kinds actually measure real, nonzero damage (the recipe genuinely fires them)', () => {
+  it('the seven special-recipe kinds actually measure real, nonzero damage (the recipe genuinely fires them)', () => {
     // A recipe that silently failed to arm its kind would still read
     // "flat" (0 = 0 = ... = 0) and pass the measurement check below for the
     // wrong reason — this pins that each one is a real, non-degenerate
