@@ -67,7 +67,7 @@ const EXPECTED_ITEM_MODS: Record<string, Record<string, number>> = {
   bleeding_ring: { atkFlat: 2, armor: 1, leech: 0.0001, bleedLifesteal: 1 },
   normal_necklace: { maxHp: 1, atkFlat: 1, armor: 1, xpGain: 0.2, towerCost: -0.2 },
   builders_necklace: { maxHp: 1, armor: 2, towerAtkFlat: 1 },
-  normal_bracelet: { maxHp: 1, atkFlat: 1, armor: 1, area: 0.1 },
+  normal_bracelet: { maxHp: 1, atkFlat: 1, armor: 1, area: 0.1, towerArea: 0.1 },
   sniper_bracelet: { maxHp: 2, atkFlat: 1, towerRange: 0.1, charRange: 0.1 },
 };
 
@@ -504,9 +504,10 @@ describe("fb015 (§7) Builder's Necklace: all towers +1 flat attack, boostable b
 });
 
 describe('fb015 (§7) bracelets: character AND tower area/range +10%', () => {
-  it('Normal Bracelet raises areaMul, which already covers both character and tower area', () => {
+  it('Normal Bracelet raises areaMul and towerAreaMul independently', () => {
     const w = worldWith({ equipment: ['normal_bracelet'] });
     expect(w.derived.areaMul).toBeCloseTo(1.1, 5);
+    expect(w.derived.towerAreaMul).toBeCloseTo(1.1, 5);
   });
 
   it('Sniper Bracelet raises both towerRangeMul and the character-only charRangeMul', () => {

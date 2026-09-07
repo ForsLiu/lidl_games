@@ -1125,23 +1125,26 @@ const LEDGER: readonly Figure[] = [
     clause: 'Wide Grove (tower passive)',
     figure: 'all towers +10% area',
     spec: 0.1,
-    path: ['towerPassive', 'mods', 'area'],
+    path: ['towerPassive', 'mods', 'towerArea'],
     behaviour: {
       coveredBy: 'tests/class-tower-passive-liveness.test.ts',
       anchor: /Animist \*Wide Grove\* — a spore's splash covers more ground/,
       why:
-        "**A named reach divergence, not a clean row.** §4.2 says 'all towers', and the key is " +
-        'the global `area`: `c013` enumerates every consumer it reaches and `c024` measures the ' +
-        'Time Lord twin. The pointer covers the tower half the sentence does claim; the rest is ' +
-        "those two items' measurement, not a second one here.",
+        "**A named reach divergence, closed by fb083, not a clean row from the start.** §4.2 says " +
+        "'all towers', and the key used to be the global `area`: `c013` enumerated every consumer " +
+        "it reached and `c024` measured the Time Lord twin. fb083 gave the key its own `towerArea` " +
+        "slot, which `c013`'s own file now measures against — eleven of twelve non-tower leaks " +
+        'closed, one (the Manifest spirit) left open by design, and the two tower-route footprints ' +
+        "(Electric, Burning) that fb083's first landing briefly starved on both routes closed too, " +
+        "via a follow-up `isTowerSource` check. The pointer covers the tower half the sentence " +
+        "claims; the rest is c013/c024's measurement, not a second one here.",
     },
     status: { kind: 'match' },
     note:
-      'The value matches. The *key* is the global `area` stat for want of a `towerArea` one — a ' +
-      'location question, not a drift question, and an owner-approved deviation (QUESTIONS Q120 ' +
-      'item 5, flagged for the P10 pass) rather than an open bug. Restated by c009 and sized by ' +
-      'c013, whose `tests/class-wide-grove-reach.test.ts` measures all twenty footprints the ' +
-      'global key reaches.',
+      'The value matches, and the *key* is a tower-only `towerArea` now — fb083 closed the ' +
+      'location question QUESTIONS Q120 item 5 approved as a deferral (item 5, flagged for the P10 ' +
+      'pass). Restated by c009 and sized by c013, whose `tests/class-wide-grove-reach.test.ts` ' +
+      'measures the fix against all twenty-one footprints the global key used to reach.',
   },
 
   /* ------------------------------------------------------ §4.2 Paladin */
@@ -1456,16 +1459,20 @@ const LEDGER: readonly Figure[] = [
     path: ['towerPassive', 'bonusAoeMul'],
     status: { kind: 'match' },
     note:
-      '**The second of the two reach divergences `c027` exists because of, and the larger one.** The ' +
-      'figure is right and its *key* is not a `mods` key at all — `bonusAoeMul` is a required field ' +
-      'of the `chronal_surge` kind — so `applyChronalSurge` (`run.ts`) spends it as ' +
-      "`stats.add(source, 'area', ...)`, the **global** stat, on the line after a `towerRange` " +
-      'sibling. §4.2 says "all towers"; `area` is read by `towers.ts`, `vswield.ts`, ' +
-      '`damagetypes.ts`, `enemies.ts` and, since `c001`, every class Active. `c024` measures it — ' +
-      '19 consumer rows flip under a main-lane `towerArea` fix that touches `run.ts:817` alone, and ' +
-      "the surge compounds where the Animist's flat +10% (`c013`) does not. Recorded here rather " +
-      'than left as a clean-looking row, which is exactly how this one went unnoticed after c013 ' +
-      'found its twin.',
+      '**The second of the two reach divergences `c027` exists because of, and the larger one — ' +
+      'closed by fb083, same as the first.** The figure is right and its *key* was not a `mods` key ' +
+      'at all — `bonusAoeMul` is a required field of the `chronal_surge` kind — so `applyChronalSurge` ' +
+      "(`run.ts`) used to spend it as `stats.add(source, 'area', ...)`, the **global** stat, on the " +
+      'line after a `towerRange` sibling. §4.2 says "all towers"; the global `area` key was read by ' +
+      '`towers.ts`, `vswield.ts`, `damagetypes.ts`, `enemies.ts` and, since `c001`, every class ' +
+      "Active. fb083 (`run.ts:875`) moved the line to `stats.add(source, 'towerArea', ...)`, and " +
+      "`c024` measures the fix against the same footprints it measured the bug against — the surge " +
+      "still compounds where the Animist's flat +10% (`c013`) does not, and the two tower-route " +
+      "footprints (Electric, Burning) that briefly stopped widening on *both* classes after fb083's " +
+      "first landing — a gap `c013`/`c024` both named — are closed too, via the same follow-up " +
+      "`isTowerSource` check `c013`'s own file measures. Recorded here rather than left as a " +
+      'clean-looking row, which is exactly how the underlying bug went unnoticed after c013 found ' +
+      "its twin the first time.",
   },
 ];
 
@@ -2157,13 +2164,14 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
     }
   });
 
-  it('the two known reach divergences are named on their rows, not left silent', () => {
+  it('the two known reach divergences — now closed by fb083 — are named on their rows, not left silent', () => {
     // c013 and c024 are the two cases this whole item exists because of: a
-    // figure that is right, on a key whose reach is wider than §4's sentence.
-    // Neither is fixable from this lane (`statkeys.ts` has no `towerArea`), so
-    // the requirement is that the rows *say so* — a silent correct-looking row
-    // is exactly what let the second one go unnoticed after the first.
-    const grove = MODS_ROWS.find((f) => f.cls === 'animist' && f.path![2] === 'area')!;
+    // figure that was right, on a key whose reach was wider than §4's
+    // sentence. Neither was fixable from this lane (`statkeys.ts` had no
+    // `towerArea`); fb083 added it and moved both rows, but the requirement is
+    // unchanged — the rows *say so* rather than reading clean and silent,
+    // which is exactly what let the second one go unnoticed after the first.
+    const grove = MODS_ROWS.find((f) => f.cls === 'animist' && f.path![2] === 'towerArea')!;
     expect(grove.behaviour!.why, "Wide Grove's row does not name c013/c024").toMatch(/c013[\s\S]*c024|c024[\s\S]*c013/);
     // The Time Lord twin is not a `mods` row at all — `bonusAoeMul` is a
     // required field of the `chronal_surge` kind — so it cannot carry a

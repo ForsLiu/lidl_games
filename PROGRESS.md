@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb083 done.** A new tower-only Area stat key,
+  `towerArea`/`derived.towerAreaMul` (`statkeys.ts`/`stats.ts`), closes the
+  global-`area` leak c013/c024 measured: the Animist's Wide Grove ("all
+  towers +10% area") and Time Lord's Chronal Surge (+10% every
+  `waveInterval` TD waves, uncapped — areaMul 3.203 at a seed-2 `cycles: 6`
+  run's end) both re-authored onto it, and no longer widen the caster's own
+  class Actives or VS-wielded attacks. `towers.ts`'s
+  `effectiveTowerRange`/`effectiveTowerAoe` gained a caller-chosen
+  `route: 'tower' | 'character'` parameter (default `'tower'`; `vswield.ts`'s
+  four wielded-attack call sites pass `'character'` explicitly per §6.1;
+  tower-cloned summons — Pop Turret, Manifest Spirit via
+  `towerSummonProfile` — stay on the default, QUESTIONS Q195). Two more
+  shared reads couldn't take that parameter — Electric's inherent AoE
+  (`damagetypes.ts`) and Burning's splash (`enemies.ts`'s `tickDotSplash`)
+  only ever receive a `source: string` — so a first pass left them starved
+  (neither route reached them). Fixed with a new exported
+  `isTowerSource(w, source)` helper beside the existing `dotPotency`,
+  reusing its exact `!w.huntsWarden && w.content.towerByKey.has(source)`
+  idiom (QUESTIONS Q196), so a real tower's Electric/Burning hit reads
+  `towerAreaMul` again, a class Active's/Core's does not, and a tower's
+  attack during VS correctly stays on the character route. Also closed:
+  `data/equipment.json`'s Normal Bracelet authored only `area: 0.1` despite
+  promising "character and tower area +10%", silently dead on its tower half
+  the moment Wide Grove moved off that key — given `towerArea: 0.1`
+  alongside, mirroring Sniper Bracelet's `towerRange`/`charRange` split.
+  code-reviewer **APPROVE**, no findings (traced every `effectiveTowerAoe`
+  caller and `isTowerSource`'s VS-phase guard, confirmed the split complete
+  via the wide-grove-reach file's regex completeness guards); qa-playtester
+  **PASS** on all six acceptance criteria, independently probing the engine
+  rather than trusting the shipped tests — one pre-existing,
+  fb083-unrelated `q15`/`q45` CLI-fuzz environment failure noted (repros on
+  the pre-fb083 commit) and one doc nit fixed inline (`content.ts`'s Chronal
+  Surge comment). `npx tsc --noEmit` clean; the 12-file targeted suite this
+  item touches 634/634; `q7-data-fuzz` regenerated and green (new
+  `equipment.items[].mods.towerArea` census row) — refs: SPEC-FINAL §2,
+  §4.2, QUESTIONS Q163/Q195/Q196, BACKLOG-CONTENT.md c013/c024/c036.
 - **2026-09-07 — BACKLOG fb082 done.** `updateAreas`'s poison branch
   (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
   (the pre-existing `GroundArea.acc` field, declared since the type was

@@ -357,7 +357,7 @@
       "towerPassive": {
         "name": "Wide Grove",
         "description": "All towers +10% area.",
-        "mods": { "area": 0.10 }
+        "mods": { "towerArea": 0.10 }
       }
     },
     {

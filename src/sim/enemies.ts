@@ -811,10 +811,21 @@ export interface DotOptions {
  */
 function dotPotency(w: World, type: string, source: string): number {
   if (type === 'burning') return w.derived.burnDamageMul * w.derived.ailmentMul;
-  if (type === 'poison' && !w.huntsWarden && w.content.towerByKey.has(source)) {
+  if (type === 'poison' && isTowerSource(w, source)) {
     return w.derived.towerPoisonDamageMul * w.derived.ailmentMul;
   }
   return w.derived.ailmentMul;
+}
+
+/**
+ * fb083: whether `source` is a real tower's own Act I attack, as opposed to a
+ * class Active, a Core attack, or a tower effect firing during VS (where
+ * `huntsWarden` makes every attack a *character* attack regardless of who
+ * fired it — see the poison-trail note above). Callers use this to pick
+ * `towerAreaMul`/`towerPoisonDamageMul` over the character-scoped equivalent.
+ */
+export function isTowerSource(w: World, source: string): boolean {
+  return !w.huntsWarden && w.content.towerByKey.has(source);
 }
 
 /**
@@ -1066,8 +1077,11 @@ interface SplashAccum {
  * re-applied itself to its neighbours would cascade across the horde.
  */
 function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum): void {
-  // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
-  const r = (acc.radius + w.derived.burnSpread) * w.derived.areaMul;
+  // `burnSpread` is a point bonus on the radius; `area`/`towerArea` scales
+  // every effect (§2) — fb083 splits the two, so a tower's own Burning
+  // splash (Ember Brazier) reads the tower-scoped multiplier.
+  const areaMul = isTowerSource(w, acc.source) ? w.derived.towerAreaMul : w.derived.areaMul;
+  const r = (acc.radius + w.derived.burnSpread) * areaMul;
   const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
   for (let i = 0; i < list.length; i++) {
     const n = list[i];

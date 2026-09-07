@@ -292,8 +292,8 @@ export function wieldedPierceFor(a: TowerAttack, prof: AttackProfile): number {
  * splash-tuning constants a second time. 0 for every other kind.
  */
 export function wieldedAoeFor(w: World, def: TowerDef, a: TowerAttack): number {
-  if (a.kind === 'lob') return effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL;
-  if (a.kind === 'poison') return effectiveTowerAoe(w, def);
+  if (a.kind === 'lob') return effectiveTowerAoe(w, def, 'character') * WIELD_LOB_AOE_MUL;
+  if (a.kind === 'poison') return effectiveTowerAoe(w, def, 'character');
   return 0;
 }
 
@@ -484,7 +484,7 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         damage: dmg,
         // p10j: a wielded lob's blast is wider than its TD blast — the
         // Warden has no lane of towers behind it to protect from splash.
-        aoe: effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL,
+        aoe: effectiveTowerAoe(w, def, 'character') * WIELD_LOB_AOE_MUL,
         source,
         fx,
         // §5.2 Mortar @3: "shells leave a burning patch" — mirrors
@@ -502,7 +502,7 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       // TD volley does.
       const targets = nearestEnemies(w, x, y, range, prof.projectiles + WIELD_POISON_TARGET_BONUS);
       if (targets.length === 0) return false;
-      const splash = effectiveTowerAoe(w, def);
+      const splash = effectiveTowerAoe(w, def, 'character');
       for (const t of targets) {
         if (splash > 0) {
           applyAoE(w, t.x, t.y, splash, dmg, source, fx, { primary: t, damage: { fromX: x, fromY: y } });

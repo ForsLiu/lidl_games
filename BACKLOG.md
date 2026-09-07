@@ -4233,20 +4233,52 @@ generation-rule boundary.
       authored in `/data` (per-area `tickSeconds`), 1 s for the barrel; TTK
       re-measured so the barrel's DPS is unchanged at the new cadence —
       refs: SPEC-FINAL §4.1, §8 statuses.
-- [ ] (fb083) [feat] there is no tower-only Area stat key, so two tower
-      passives are authored with the *global* `area` key and — since c001
-      routed Area into the kits — widen the caster's own Actives: the
-      Animist's "All towers +10% area" (so the Animist has no `areaMul === 1`
-      baseline at all) and Time Lord's Chronal Surge (+10% every 2 TD waves,
-      **uncapped**: areaMul 3.203 at the end of a seed-2 `cycles: 6` run, of
-      which +90% is Chronal Surge — Time's r7 mark becomes a 22-tile pulse on
-      a 36x20 board). Acceptance: `towerArea` in `statkeys.ts`/`stats.ts`
-      read by `towers.ts`'s aura/lob/poison radii; both passives re-authored
-      onto it in `data/classes.json`; `tests/class-area-stat.test.ts`'s
-      Animist exception retired; a cap or a pin for Chronal Surge's total
-      recorded in BALANCE.md. Owner-vetoable (a "towers" passive that also
-      buffs the kit may be intended) — refs: SPEC-FINAL §2, §4.2, QUESTIONS
-      Q163.
+- [x] (fb083) [feat] **DONE 2026-09-07** — a new tower-only Area stat key,
+      `towerArea`/`derived.towerAreaMul` (`statkeys.ts`/`stats.ts`), closes the
+      global-`area` leak c013/c024 measured: the Animist's Wide Grove ("all
+      towers +10% area") and Time Lord's Chronal Surge (+10% every
+      `waveInterval` TD waves, uncapped — areaMul 3.203 at a seed-2 `cycles: 6`
+      run's end) both re-authored onto it (`data/classes.json`,
+      `applyChronalSurge` in `run.ts`), and no longer widen the caster's own
+      class Actives or VS-wielded attacks. `towers.ts`'s
+      `effectiveTowerRange`/`effectiveTowerAoe` gained a caller-chosen
+      `route: 'tower' | 'character'` parameter (default `'tower'`;
+      `vswield.ts`'s four wielded-attack call sites pass `'character'`
+      explicitly, per §6.1's "treated as character attacks"; tower-cloned
+      summons — Engineer's Pop Turret, the Animist's own Manifest spirit via
+      `towerSummonProfile` — stay on the default, QUESTIONS Q195).
+      **Two more shared reads couldn't take that parameter** — Electric's
+      inherent AoE (`damagetypes.ts`'s `applyDamageType`) and Burning's splash
+      (`enemies.ts`'s `tickDotSplash`) only ever receive a `source: string`,
+      not a caller-chosen route — so a first pass left them starved (neither
+      route reached them once Wide Grove moved off the global key). Fixed
+      with a new exported `isTowerSource(w, source)` helper next to the
+      existing `dotPotency`, reusing its exact `!w.huntsWarden &&
+      w.content.towerByKey.has(source)` idiom (QUESTIONS Q196) so a real
+      tower's own Electric/Burning hit reads `towerAreaMul` again while a
+      class Active's/Core's does not, and a tower's attack during VS
+      (`huntsWarden`) correctly stays on the character route. Also closed:
+      `data/equipment.json`'s Normal Bracelet authored only `area: 0.1`
+      despite its own "character and tower area +10%" desc, silently killing
+      its tower half the moment Wide Grove moved off that key — given
+      `towerArea: 0.1` alongside, mirroring Sniper Bracelet's existing
+      `towerRange`/`charRange` split.
+      **code-reviewer**: APPROVE, no findings (traced every caller of
+      `effectiveTowerAoe`/`isTowerSource`, confirmed no VS-phase tower attack
+      can reach `isTowerSource`'s guard incorrectly, confirmed the split is
+      complete via the wide-grove-reach file's own regex completeness
+      guards). **qa-playtester**: PASS on all six acceptance criteria,
+      independently probing the engine rather than trusting the shipped
+      tests (Wide Grove/Chronal Surge tower-only widening, the Electric/
+      Burning route fix, the VS carve-out both directions, Normal Bracelet's
+      multiplicative x1.21 stack with Wide Grove) — one pre-existing,
+      fb083-unrelated `q15`/`q45` CLI-fuzz environment failure noted (repros
+      identically on the pre-fb083 commit) and one doc-only nit
+      (`content.ts`'s Chronal Surge comment, fixed here). Verification:
+      `npx tsc --noEmit` clean; the 12-file targeted suite this item touches
+      634/634; full `q7-data-fuzz` regenerated and green (new
+      `equipment.items[].mods.towerArea` census row) — refs: SPEC-FINAL §2,
+      §4.2, QUESTIONS Q163/Q195/Q196, BACKLOG-CONTENT.md c013/c024/c036.
 - [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
       (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
       rather than a class-key check") cannot be built from the content lane.
