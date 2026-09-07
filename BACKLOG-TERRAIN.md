@@ -1419,6 +1419,27 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       identical to fb156's own — the same 21 out-of-scope files, none new —
       confirming this item touched nothing beyond its own lines.
 
+**Queue empty as of 2026-09-07.** fb166, fb156 and fb065i are done, each
+code-reviewed and QA-playtested (Full tier). Every item left in the Queue —
+fb064c, fb064d, fb064e, fb064f — needs files outside this lane's Scope
+(`cores.ts`, `enemies.ts`, `render/canvas.ts`, `ui/selection.ts`, the UI lane,
+or the main lane's Tuner) and was already marked so when fb064 was split on
+2026-09-03; nothing this session did changed that. The main-lane generation
+rule (BACKLOG.md's, which this file's header says it inherits) would next
+call for a sweep + `handoff-metrics` diff against the §14 gates and five new
+generated items — not run this session. Two reasons: the sweep's own
+precedent in this file's Log (fb065g) already found it cannot see terrain's
+effect while `World`'s gate wiring is broken, which this session's fb156 work
+confirmed is still broken (`GATES.slice(0, 3)`, logged above) — a sweep run
+now would measure the same nothing fb065g's did before `fb077` wired terrain
+in at all; and three items in a row each carrying the full weight of a
+grid-size or gate-count change (a ~20-file re-measurement, twice, one lane
+generation's worth of scope each) is a natural place to hand back to a fresh
+read of the lane rather than keep inventing scope alone. Logged rather than
+generated, per working rule 5 ("never stop to ask a design question; choose,
+log, continue") — this is the choice, stated plainly for whoever reads this
+file next.
+
 ## Log
 
 - (2026-09-06, fb166, code-reviewer finding) `terrain-core-placement.test.ts`'s
