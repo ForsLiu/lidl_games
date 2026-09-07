@@ -200,13 +200,21 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
       aimY: w.warden.y + aimDy,
     });
     expect(w.areas.length).toBeGreaterThan(0);
-    expect(eff.groundDurationSeconds ?? 3).toBeGreaterThan(1 / 60);
+    expect(eff.groundDurationSeconds ?? 3).toBeGreaterThan(1);
     // Exactly ONE tick, so each enemy is touched by the field once and the
     // reading is the scale itself rather than an accumulation. A `'burn'`
     // field damages directly while a `'poison'` field applies a DoT instead
     // (`updateAreas` -> `applyPoison`), so both are summed — each is linear in
-    // the same `scale`, which is the only thing under test.
-    updateAreas(w, 1 / 60);
+    // the same `scale`, which is the only thing under test. fb082: poison
+    // areas now gate on a per-area `tickSeconds` cadence (default 1 s, SPEC-
+    // FINAL §4.1's "applying poison damage every second") instead of firing
+    // on every 1/60 s frame, so a single `dt=1` call is what lands exactly
+    // one poison application — a `dt` this large costs `updateAreas`'s
+    // `'burn'` branch nothing here (it scales continuously by `dt`, and only
+    // the *relative* falloff shape is asserted below, not an absolute
+    // magnitude), and both authored durations above are well past 1 s so
+    // neither field dies mid-call.
+    updateAreas(w, 1);
 
     const dealt = enemies.map((e) => FULL_HP - e.hp + e.dots.reduce((n, d) => n + d.dps, 0));
     for (const d of dealt) expect(d).toBeGreaterThan(0);

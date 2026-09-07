@@ -777,3 +777,36 @@ Q91 and Q102 corrections if not yet done.
   `fb013-timelord.test.ts` depend on an execute overkilling a near-dead
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
+
+- **Q193. [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` and a
+  repo-relative `replays/` directory respectively, so the owner's real
+  `npm run dev` writes exactly where the feedback text says while every test
+  injects a temp directory (`tests/fb139-bug-report-plugin.test.ts`,
+  `tests/fb139-bug-report-replay.test.ts`) and never touches either path. —
+  Reason: CLAUDE.md's gap rule (fill with the most spec-consistent default
+  and log it) — the alternative, silently substituting a different directory
+  for the default, would mean the owner's own dev server never actually
+  writes where the order says. — (owner verdict: pending)
+
+- **Q194. [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+  appended, written from `feedback/processed/20260903-121255-feature-terrain-
+  generation.md` verbatim plus the `lane/terrain` design decisions already
+  logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
+  and merged by `lane/terrain` before SPEC-FINAL's own §16 reconcile folded
+  Q162/Q171's decisions into QUESTIONS.md, but nobody had appended the
+  section SPEC-FINAL's own §14 G2/§13 references presuppose — §10 still read
+  the pre-terrain fixed 36×20/3-gate map. This item's whole content is the
+  owner's own feedback file plus decisions already owner-approved at Q162/
+  Q171; nothing new is chosen here beyond where the append lands (as §10.5,
+  the id the feedback file itself names) and folding G2's wording/§13's
+  totals to match, both explicitly asked for in the BACKLOG item's
+  acceptance text. — Reason: CLAUDE.md's gap rule and working rule 5 (never
+  stop to ask, choose and log) — the section is marked `[designer-fill]`
+  itself per its own owner-feature tag, so the owner may still veto or
+  reshape it via a later inbox verdict. — (owner verdict: pending)
