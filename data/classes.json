@@ -52,7 +52,8 @@
         "cooldownSeconds": 7,
         "radius": 3,
         "damage": 24,
-        "groundDurationSeconds": 5
+        "groundDurationSeconds": 5,
+        "groundTickSeconds": 1
       },
       "active2": {
         "name": "Poison Boost",
@@ -356,7 +357,7 @@
       "towerPassive": {
         "name": "Wide Grove",
         "description": "All towers +10% area.",
-        "mods": { "area": 0.10 }
+        "mods": { "towerArea": 0.10 }
       }
     },
     {

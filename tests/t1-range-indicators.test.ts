@@ -15,6 +15,13 @@
  * expression and the fixed one agree. QA re-inserted the original bug and every
  * test still passed. So every canvas case below runs on a deliberately skewed
  * world and asserts against the shared helper, never against a literal.
+ *
+ * fb083 (§2, §4.2, Q163): the tower-side helpers this file exercises
+ * (`effectiveTowerRange`'s aura branch, `effectiveTowerAoe`'s default route,
+ * `fireTower`'s own `area` alias) read the new tower-only `towerAreaMul` now,
+ * not the global `areaMul` every class Active/wielded attack still reads —
+ * so every skewed world and every direct `w.derived...` write below sets
+ * `towerAreaMul`, the stat this file's own subject actually consumes.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -106,7 +113,9 @@ function skewedWorld(key = 'ballista'): { w: World; tx: number; ty: number } {
     if (!upgradeTower(w, tx, ty)) break;
   }
   w.derived.towerRangeMul = 1.25;
-  w.derived.areaMul = 1.5;
+  // fb083: the tower-side ghost/ring helpers read `towerAreaMul`, not the
+  // global `areaMul` — see the header's own note about this file's baseline.
+  w.derived.towerAreaMul = 1.5;
   return { w, tx, ty };
 }
 
@@ -120,7 +129,7 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
   it('matches the sim for every attacking tower at every tier, with stats live', () => {
     const w = new World(cfg());
     w.derived.towerRangeMul = 1.25;
-    w.derived.areaMul = 1.5;
+    w.derived.towerAreaMul = 1.5;
     for (const def of content.towers.towers) {
       const a = def.attack;
       if (!a) continue;
@@ -132,9 +141,9 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
           expect(upgradeTower(w, tx, ty), `${def.key} -> T${tier}`).toBe(true);
         }
         // `fireTower` transforms the targeting radius per kind: an aura pulses
-        // over `range * areaMul`, everything else uses it as-is.
+        // over `range * towerAreaMul`, everything else uses it as-is.
         const targeting = towerRange(w, s, a.range);
-        const expected = a.kind === 'aura' ? targeting * w.derived.areaMul : targeting;
+        const expected = a.kind === 'aura' ? targeting * w.derived.towerAreaMul : targeting;
         expect(effectiveTowerRange(w, def, s.tier), `${def.key} T${tier}`).toBeCloseTo(expected, 10);
       }
       w.removeStructure(s);
@@ -142,13 +151,13 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
   });
 
   it('an aura tower reports the radius it actually pulses over', () => {
-    // The bug: the helper omitted the aura's areaMul, hiding a third of a Frost
-    // Obelisk's coverage for anyone carrying an Area stat.
+    // The bug: the helper omitted the aura's areaMul (now towerAreaMul, fb083),
+    // hiding a third of a Frost Obelisk's coverage for anyone carrying an Area stat.
     const w = new World(cfg());
     const def = content.towerByKey.get('frost_obelisk')!;
     expect(def.attack!.kind).toBe('aura');
     const plain = effectiveTowerRange(w, def);
-    w.derived.areaMul = 1.5;
+    w.derived.towerAreaMul = 1.5;
     expect(effectiveTowerRange(w, def)).toBeCloseTo(plain * 1.5, 10);
   });
 
@@ -156,7 +165,7 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
     const w = new World(cfg());
     const def = content.towerByKey.get('ballista')!;
     const plain = effectiveTowerRange(w, def);
-    w.derived.areaMul = 2;
+    w.derived.towerAreaMul = 2;
     expect(effectiveTowerRange(w, def)).toBeCloseTo(plain, 10);
   });
 
@@ -200,7 +209,7 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
     const w = new World(cfg());
     const def = content.towerByKey.get('mortar')!;
     const plain = effectiveTowerAoe(w, def);
-    w.derived.areaMul = 2;
+    w.derived.towerAreaMul = 2;
     expect(effectiveTowerAoe(w, def)).toBeCloseTo(plain * 2, 10);
   });
 
@@ -223,7 +232,7 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
       ...mortar,
       attack: { ...mortar.attack!, aoe: undefined },
     } as unknown as typeof mortar;
-    expect(effectiveTowerAoe(w, withoutAoe)).toBeCloseTo(1.5 * w.derived.areaMul, 10);
+    expect(effectiveTowerAoe(w, withoutAoe)).toBeCloseTo(1.5 * w.derived.towerAreaMul, 10);
   });
 
   it('is zero for towers with no attack at all', () => {

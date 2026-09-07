@@ -86,10 +86,10 @@ const WINDOWS: readonly Window[] = [
   {
     file: 'class-wide-grove-reach.test.ts',
     site: "a Mortar's shell splash, as the shell really detonates it",
-    formula: 'BUILD_TX + 0.5 + mortar.attack.range * 0.95 + mortar.attack.aoe * RING (RING = 1 + animist towerPassive.mods.area / 2)',
+    formula: 'BUILD_TX + 0.5 + mortar.attack.range * 0.95 + mortar.attack.aoe * RING (RING = 1 + animist towerPassive.mods.towerArea / 2)',
     reachX: (b) => {
       const mortar = content.towerByKey.get('mortar')!.attack!;
-      const wideGrove = content.classByKey.get('animist')!.towerPassive.mods.area!;
+      const wideGrove = content.classByKey.get('animist')!.towerPassive.mods.towerArea!;
       const ring = 1 + wideGrove / 2;
       return b.BUILD_TX + 0.5 + mortar.range * 0.95 + mortar.aoe! * ring;
     },
