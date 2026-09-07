@@ -804,3 +804,25 @@ Q91 and Q102 corrections if not yet done.
   as one designer-fill section reusing those decisions verbatim*, not the
   decisions themselves, which stand regardless of this entry's own verdict.
 
+- **Q194. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch).
+

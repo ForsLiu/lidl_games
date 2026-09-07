@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb081 done: `lineHit`'s broadphase margin bug fixed,
+  plus the `towers.ts`/`vswield.ts` line-width Area-scaling inconsistency
+  decided.** `src/sim/combat.ts`'s `lineHit` queried a broadphase circle of
+  radius `range * 0.5 + 2` before its exact per-enemy hit test — a margin
+  sized for the days when every caller's `halfWidth` was a small fixed
+  constant. Once c001 made several callers scale `halfWidth` by
+  `w.derived.areaMul` (§2 Area), a wide enough line's rectangle no longer fit
+  inside that circle: past roughly areaMul 4 for Dash Slash specifically, the
+  circle saturated into a lens and enemies the exact per-enemy test would
+  have accepted stopped being queried at all (BACKLOG-CONTENT.md c001 Log
+  measured `dash_line` at areaMul 4, `dash_heal` at 5, `charge_pierce` at 21
+  as the first-miss thresholds; `boon:reach` is uncapped in
+  `data/vsupgrades.json`, so a long VS run reaches this live, not just
+  latently). Confirmed bug per CLAUDE.md rule 3: `tests/fb081-linehit-
+  broadphase.test.ts`'s first two cases are the failing-first regression,
+  verified red by stashing the source fix and re-running (both failed with
+  the exact predicted symptom) before landing the fix, `range * 0.5 +
+  halfWidth + 2` — mirrors the identical hand-rolled copy already fixed in
+  `classes.ts`'s `fireCrimsonRush`, pinned by `tests/class-area-stat.test.ts`.
+  The acceptance criteria's second half — decide the `towers.ts` (unscaled
+  `LINE_HALF_WIDTH`) vs `vswield.ts`/`classes.ts` (`LINE_HALF_WIDTH * area`)
+  inconsistency — turned out to have two different correct answers, not one:
+  `towers.ts`'s `single` kind resolves its beam via a direct `lineHit` call
+  the instant it fires, the identical shape `vswield.ts`/`classes.ts` already
+  scale, so it is now aligned; `towers.ts`'s `pierce` kind spawns a
+  travelling bolt whose actual footprint is resolved later by
+  `updateProjectiles`'s fixed-radius (0.45) point collision, not a line at
+  all by then, so `LINE_HALF_WIDTH` there only steers `bestLineDirection`'s
+  aim heuristic (which direction packs the most enemies into an assumed
+  corridor before the bolt is even spawned) — scaling it would bias that
+  choice without widening what the bolt can hit, so it is pinned unscaled
+  with an inline comment instead. Logged as QUESTIONS **Q194**
+  (owner-vetoable if a real line-shaped `pierce` footprint is ever wanted —
+  a larger change touching `updateProjectiles` itself). code-reviewer:
+  APPROVE, with one Minor kept as a logged follow-up rather than fixed inline
+  — `vswield.ts`'s own wielded `pierce` case still scales the identical aim
+  heuristic by `area`, the same reasoning the new `towers.ts` comment gives
+  for *not* scaling it, but that call predates fb081, is shipped
+  player-facing behaviour with no bug report against it, and changing it
+  silently would be scope creep on a bug-fix item — documented at the call
+  site and filed as **fb081b** instead. `npm run test:fast`: 4075 passed,
+  only the two known pre-existing, unrelated fb119 failures.
+
 - **2026-09-07 — BACKLOG fb080 done: `data/terrain.json` wired into every
   data tool it was missing from.** `tools/fuzz-data.ts`'s `DATA_FILES` gained
   `'terrain'` (now 15 files). `tests/q7-data-fuzz.test.ts` gained a `terrain`

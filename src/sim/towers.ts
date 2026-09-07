@@ -477,8 +477,13 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       // of (0,0) is a line every enemy in reach lies on — so the shot pierces
       // nothing rather than everything.
       const hits = dir.x === 0 && dir.y === 0 ? 1 : 1 + prof.pierce;
+      // fb081: this beam's footprint is resolved the same instant as a
+      // `vswield.ts`/`classes.ts` line (a direct `lineHit` call, not a
+      // travelling projectile), so it scales with Area the same way theirs
+      // already do — the old unscaled constant was the one outlier, not a
+      // deliberate exception.
       for (let i = 0; i < prof.projectiles; i++) {
-        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH, dmg, source, hits, fx, {
+        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH * area, dmg, source, hits, fx, {
           primary: t,
         });
         w.emit('shot', x, y, t.x, t.y);
@@ -486,6 +491,14 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'pierce': {
+      // Unlike `single` above, this kind's actual hit footprint is a
+      // travelling bolt colliding via a fixed-radius point check
+      // (`updateProjectiles`, `combat.ts`) — there is no line-shaped
+      // footprint left to scale by the time it resolves. `LINE_HALF_WIDTH`
+      // here only steers `bestLineDirection`'s aim heuristic (which
+      // direction packs the most enemies into an assumed corridor); scaling
+      // it would bias that heuristic without widening what the bolt can
+      // actually hit, so it stays unscaled deliberately (fb081).
       const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH);
       if (!dir) {
         s.cooldown = 0;
