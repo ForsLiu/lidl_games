@@ -2047,20 +2047,24 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
  * `derived.attackSpeedMul` a non-Swordsman actually runs on, with the factors
  * read back out of §7's own text rather than retyped.
  */
+/**
+ * An item's (or several items') contribution to `attackSpeedMul`, **against a
+ * no-equipment control of the same class**. Neither `engineer` nor
+ * `swordsman` authors `attackSpeed` today, so the absolute figure happens to
+ * equal the ratio — but class kits are ⚖-tunable, and a class retune must not
+ * redden an *equipment* ledger. CLAUDE.md's control-run rule, applied to an
+ * assertion rather than to a sweep. Module-scope (not `c012`'s original
+ * describe-local placement) so `c035`'s joint describe block below can share
+ * it rather than duplicating it.
+ */
+function equipmentAttackSpeedFactor(classKey: string, items: string | readonly string[]): number {
+  const equipment = Array.isArray(items) ? items : [items];
+  const control = new World(cfg({ classKey, equipment: [] }));
+  const withItems = new World(cfg({ classKey, equipment }));
+  return withItems.derived.attackSpeedMul / control.derived.attackSpeedMul;
+}
+
 describe('c012 — the two §7 figures stated as a composition', () => {
-  /**
-   * The item's contribution to `attackSpeedMul`, **against a no-equipment
-   * control of the same class**. Neither `engineer` nor `swordsman` authors
-   * `attackSpeed` today, so the absolute figure happens to equal the ratio —
-   * but class kits are ⚖-tunable, and a class retune must not redden an
-   * *equipment* ledger. CLAUDE.md's control-run rule, applied to an assertion
-   * rather than to a sweep.
-   */
-  function equipmentAttackSpeedFactor(classKey: string, item: string): number {
-    const control = new World(cfg({ classKey, equipment: [] }));
-    const withItem = new World(cfg({ classKey, equipment: [item] }));
-    return withItem.derived.attackSpeedMul / control.derived.attackSpeedMul;
-  }
 
   it('Sleeve Sword on a non-Swordsman composes to §7’s 1.2x1.2', () => {
     const quoted = /\(so ([\d.]+)×([\d.]+)\)/.exec(specRowFor('sleeve_sword').effect);
@@ -2097,6 +2101,265 @@ describe('c012 — the two §7 figures stated as a composition', () => {
       ).toBeCloseTo(column, 10);
     }
   });
+
+  /**
+   * c035 — the three Swordsman-locked fallbacks proven **jointly**, not only
+   * individually. Every combined-equip case anywhere in the suite
+   * (`tests/fb015-equipment.test.ts`) equips one item at a time; the only
+   * multi-equip case is `classKey: 'swordsman'`, the in-class synergy — never
+   * the off-class fallback. §2's stacking rule says each equipped item is its
+   * own source and sources multiply, so a non-Swordsman wearing Sleeve Sword
+   * *and* Swordsman Armor should read `1.2×1.2 × 1.1×1.5 = 1.44 × 1.65 =
+   * 2.376`; a real bug shape this cannot see today (an accidental
+   * last-write-wins on `attackSpeed` instead of a running product) would pass
+   * every existing single-item test.
+   */
+  function equipmentAttackSpeedFactorMulti(classKey: string, items: readonly string[]): number {
+    const control = new World(cfg({ classKey, equipment: [] }));
+    const withItems = new World(cfg({ classKey, equipment: [...items] }));
+    return withItems.derived.attackSpeedMul / control.derived.attackSpeedMul;
+  }
+
+  /** Same shape, for the move-speed fallback (`swordsman_shoes`, §7's x1.1). */
+  function equipmentMoveSpeedFactorMulti(classKey: string, items: readonly string[]): number {
+    const control = new World(cfg({ classKey, equipment: [] }));
+    const withItems = new World(cfg({ classKey, equipment: [...items] }));
+    return withItems.derived.moveSpeed / control.derived.moveSpeed;
+  }
+
+  it('c035: Sleeve Sword + Swordsman Armor together, on a non-Swordsman, compose to the product of both §7 figures', () => {
+    for (const classKey of ['engineer', 'cryomancer']) {
+      const sleeveOnly = equipmentAttackSpeedFactor(classKey, 'sleeve_sword');
+      const armorOnly = equipmentAttackSpeedFactor(classKey, 'swordsman_armor');
+      expect(
+        equipmentAttackSpeedFactorMulti(classKey, ['sleeve_sword', 'swordsman_armor']),
+        `${classKey}: two independent §7 sources multiply (1.44 x 1.65 = 2.376), not add or overwrite`,
+      ).toBeCloseTo(sleeveOnly * armorOnly, 10);
+    }
+  });
+
+  it('c035: all three Swordsman-locked items together, on a non-Swordsman, carry both the attack-speed product and the shoes’ movement fallback at once', () => {
+    const classKey = 'engineer';
+    const items = ['sleeve_sword', 'swordsman_armor', 'swordsman_shoes'] as const;
+    const sleeveOnly = equipmentAttackSpeedFactor(classKey, 'sleeve_sword');
+    const armorOnly = equipmentAttackSpeedFactor(classKey, 'swordsman_armor');
+    const shoesAtkSpdOnly = equipmentAttackSpeedFactor(classKey, 'swordsman_shoes');
+    expect(
+      equipmentAttackSpeedFactorMulti(classKey, items),
+      'three independent §7 sources multiply — Sleeve Sword, Swordsman Armor and Swordsman Shoes’ own atk-speed column',
+    ).toBeCloseTo(sleeveOnly * armorOnly * shoesAtkSpdOnly, 10);
+
+    const shoesMoveOnly = equipmentMoveSpeedFactorMulti(classKey, ['swordsman_shoes']);
+    expect(
+      equipmentMoveSpeedFactorMulti(classKey, items),
+      'the shoes’ movement contribution still applies wearing all three, and nothing else in the trio touches movement',
+    ).toBeCloseTo(shoesMoveOnly, 10);
+    // §7's own Move column (×2, unconditional) and the fallback figure
+    // (×1.1, non-Swordsman only) are two independent sources that multiply —
+    // read off the ledger row above rather than retyped, so a retune of
+    // either moves this test too. Swordsman's own column-only reading (no
+    // fallback) is the baseline that isolates the fallback's own factor,
+    // the same device the attack-speed block above uses.
+    const shoesFallbackQuoted = /×([\d.]+) movement/.exec(specRowFor('swordsman_shoes').effect);
+    expect(shoesFallbackQuoted, '§7 no longer states Swordsman Shoes’ movement fallback').not.toBeNull();
+    const columnOnly = equipmentMoveSpeedFactorMulti('swordsman', ['swordsman_shoes']);
+    expect(columnOnly, "§7's Move column for Swordsman Shoes is x2").toBeCloseTo(specRowFor('swordsman_shoes').cells.move, 10);
+    expect(
+      shoesMoveOnly,
+      'non-Swordsman move factor = the unconditional column x the classFallback figure',
+    ).toBeCloseTo(columnOnly * Number(shoesFallbackQuoted![1]), 10);
+  });
+
+  it('c035: proven live, not vacuous — a mutated single-item factor changes the joint product by the same factor', () => {
+    // A same-shape control the way c022/c028's devices insist on: this isn't
+    // asserting "some number changed", it is asserting the multi-item helper
+    // actually composes the single-item ones rather than reading a cached or
+    // unrelated figure. Perturbing one single-item reading and re-deriving
+    // the expected joint value must track it.
+    const classKey = 'engineer';
+    const sleeveOnly = equipmentAttackSpeedFactor(classKey, 'sleeve_sword');
+    const armorOnly = equipmentAttackSpeedFactor(classKey, 'swordsman_armor');
+    const perturbed = sleeveOnly * 1.05;
+    const joint = equipmentAttackSpeedFactorMulti(classKey, ['sleeve_sword', 'swordsman_armor']);
+    expect(joint).not.toBeCloseTo(perturbed * armorOnly, 6);
+    expect(joint).toBeCloseTo(sleeveOnly * armorOnly, 10);
+  });
+});
+
+/**
+ * c035 — the three Swordsman-locked items' off-class fallbacks, proven
+ * *jointly* rather than one at a time. `equipmentAttackSpeedFactor` above
+ * proves `sleeve_sword` alone composes to 1.2×1.2 and `swordsman_armor` alone
+ * to 1.1×1.5, and `tests/fb015-equipment.test.ts` (out of this lane's Scope)
+ * loops every `classFallback` item with exactly one equipped — but nothing
+ * anywhere equips two or three of `sleeve_sword`/`swordsman_armor`/
+ * `swordsman_shoes` together on a *non*-Swordsman (the one existing combined
+ * case, `fb015.test.ts`'s `['sleeve_sword', 'swordsman_shoes']`, is on the
+ * default `swordsman` class — the in-class synergy, not the off-class
+ * fallback these three items also carry). `Stats.factor` (`stats.ts`)
+ * multiplies every source in sorted-key order regardless of which item it
+ * came from, so the mechanism itself does not care how many items are
+ * equipped — but a per-item stacking bug (e.g. a last-write-wins bag keyed
+ * by stat rather than by source) would still pass every single-item test
+ * here and only show up once two sources land on the same stat at once.
+ */
+describe('c035 — the three Swordsman-locked items compose jointly, not just one at a time', () => {
+  /** `equipmentAttackSpeedFactor`'s `moveSpeedPct` twin, for Swordsman Shoes' movement fallback. */
+  function equipmentMoveSpeedFactor(classKey: string, items: string | readonly string[]): number {
+    const equipment = Array.isArray(items) ? items : [items];
+    const control = new World(cfg({ classKey, equipment: [] }));
+    const withItems = new World(cfg({ classKey, equipment }));
+    return withItems.derived.moveSpeed / control.derived.moveSpeed;
+  }
+
+  it('Sleeve Sword + Swordsman Armor on a non-Swordsman compose to (1.2x1.2) x (1.1x1.5) = 2.376', () => {
+    // Each item's own §7 column composes with the other's — not with its own
+    // fallback overwriting the first item's, and not the two fallbacks
+    // averaging or replacing one another. Read as two independently-verified
+    // per-item factors multiplied together, so a retune to either item's
+    // authored numbers moves this row with it rather than silently drifting.
+    const sleeveAlone = equipmentAttackSpeedFactor('engineer', 'sleeve_sword');
+    const armorAlone = equipmentAttackSpeedFactor('engineer', 'swordsman_armor');
+    const both = equipmentAttackSpeedFactor('engineer', ['sleeve_sword', 'swordsman_armor']);
+    expect(both, 'the two items\' factors did not multiply — a stacking bug would read additive or last-write-wins here').toBeCloseTo(
+      sleeveAlone * armorAlone,
+      10,
+    );
+    expect(both).toBeCloseTo(2.376, 10);
+  });
+
+  it('all three items on a non-Swordsman compose the attack-speed product and carry the shoes\' movement fallback at once', () => {
+    const items = ['sleeve_sword', 'swordsman_armor', 'swordsman_shoes'] as const;
+    const atkSpeed = equipmentAttackSpeedFactor('cryomancer', items);
+    // Swordsman Shoes has no classFallback on `attackSpeed` (only its own
+    // column contributes there), so the three-item product is the
+    // two-item product above times the shoes' own AtkSpd column alone.
+    const shoesOwnAtkSpeed = specRowFor('swordsman_shoes').cells.atkspd;
+    expect(atkSpeed).toBeCloseTo(2.376 * shoesOwnAtkSpeed, 10);
+
+    // And simultaneously — same World, same equip list — the shoes' own
+    // Move column and its classFallback both land on `moveSpeedPct`, which
+    // composes exactly as `attackSpeed` does (the same `Stats.factor`).
+    // Unlike the two atk-speed items, §7 states the shoes' movement fallback
+    // as a single factor (`ledger row: "if not Swordsman: x1.1 movement"`,
+    // no "(so X×Y)" composite quote for this one), so both halves are read
+    // off `/data` directly rather than parsed out of a product that isn't
+    // stated in prose.
+    const moveSpeed = equipmentMoveSpeedFactor('cryomancer', items);
+    const shoes = content.equipment.items.find((i) => i.key === 'swordsman_shoes')!;
+    const shoesOwnMove = 1 + shoes.mods.moveSpeedPct!;
+    const shoesFallbackMove = 1 + shoes.classFallback!.mods.moveSpeedPct!;
+    expect(specRowFor('swordsman_shoes').cells.move, 'the ledger\'s Move column drifted from /data').toBeCloseTo(
+      shoesOwnMove,
+      10,
+    );
+    expect(moveSpeed).toBeCloseTo(shoesOwnMove * shoesFallbackMove, 10);
+    expect(moveSpeed).toBeCloseTo(2 * 1.1, 10);
+  });
+
+  it('the joint case still withholds every fallback from the Swordsman itself, with all three equipped at once', () => {
+    const items = ['sleeve_sword', 'swordsman_armor', 'swordsman_shoes'] as const;
+    const atkSpeed = equipmentAttackSpeedFactor('swordsman', items);
+    const expectedAtkSpeed =
+      specRowFor('sleeve_sword').cells.atkspd * specRowFor('swordsman_armor').cells.atkspd * specRowFor('swordsman_shoes').cells.atkspd;
+    expect(atkSpeed, 'a Swordsman wearing all three got a fallback that should only apply off-class').toBeCloseTo(
+      expectedAtkSpeed,
+      10,
+    );
+    const moveSpeed = equipmentMoveSpeedFactor('swordsman', items);
+    expect(moveSpeed, 'a Swordsman got the shoes’ off-class movement fallback').toBeCloseTo(
+      specRowFor('swordsman_shoes').cells.move,
+      10,
+    );
+  });
+});
+
+/**
+ * c035 — the three Swordsman-locked items' off-class fallbacks, proven
+ * *jointly* rather than one at a time. `equipmentAttackSpeedFactor` above
+ * proves `sleeve_sword` alone composes to 1.2×1.2 and `swordsman_armor` alone
+ * to 1.1×1.5, and `tests/fb015-equipment.test.ts` (out of this lane's Scope)
+ * loops every `classFallback` item with exactly one equipped — but nothing
+ * anywhere equips two or three of `sleeve_sword`/`swordsman_armor`/
+ * `swordsman_shoes` together on a *non*-Swordsman (the one existing combined
+ * case, `fb015.test.ts`'s `['sleeve_sword', 'swordsman_shoes']`, is on the
+ * default `swordsman` class — the in-class synergy, not the off-class
+ * fallback these three items also carry). `Stats.factor` (`stats.ts`)
+ * multiplies every source in sorted-key order regardless of which item it
+ * came from, so the mechanism itself does not care how many items are
+ * equipped — but a per-item stacking bug (e.g. a last-write-wins bag keyed
+ * by stat rather than by source) would still pass every single-item test
+ * here and only show up once two sources land on the same stat at once.
+ */
+describe('c035 — the three Swordsman-locked items compose jointly, not just one at a time', () => {
+  /** `equipmentAttackSpeedFactor`'s `moveSpeedPct` twin, for Swordsman Shoes' movement fallback. */
+  function equipmentMoveSpeedFactor(classKey: string, items: string | readonly string[]): number {
+    const equipment = Array.isArray(items) ? items : [items];
+    const control = new World(cfg({ classKey, equipment: [] }));
+    const withItems = new World(cfg({ classKey, equipment }));
+    return withItems.derived.moveSpeed / control.derived.moveSpeed;
+  }
+
+  it('Sleeve Sword + Swordsman Armor on a non-Swordsman compose to (1.2x1.2) x (1.1x1.5) = 2.376', () => {
+    // Each item's own §7 column composes with the other's — not with its own
+    // fallback overwriting the first item's, and not the two fallbacks
+    // averaging or replacing one another. Read as two independently-verified
+    // per-item factors multiplied together, so a retune to either item's
+    // authored numbers moves this row with it rather than silently drifting.
+    const sleeveAlone = equipmentAttackSpeedFactor('engineer', 'sleeve_sword');
+    const armorAlone = equipmentAttackSpeedFactor('engineer', 'swordsman_armor');
+    const both = equipmentAttackSpeedFactor('engineer', ['sleeve_sword', 'swordsman_armor']);
+    expect(both, 'the two items\' factors did not multiply — a stacking bug would read additive or last-write-wins here').toBeCloseTo(
+      sleeveAlone * armorAlone,
+      10,
+    );
+    expect(both).toBeCloseTo(2.376, 10);
+  });
+
+  it('all three items on a non-Swordsman compose the attack-speed product and carry the shoes\' movement fallback at once', () => {
+    const items = ['sleeve_sword', 'swordsman_armor', 'swordsman_shoes'] as const;
+    const atkSpeed = equipmentAttackSpeedFactor('cryomancer', items);
+    // Swordsman Shoes has no classFallback on `attackSpeed` (only its own
+    // column contributes there), so the three-item product is the
+    // two-item product above times the shoes' own AtkSpd column alone.
+    const shoesOwnAtkSpeed = specRowFor('swordsman_shoes').cells.atkspd;
+    expect(atkSpeed).toBeCloseTo(2.376 * shoesOwnAtkSpeed, 10);
+
+    // And simultaneously — same World, same equip list — the shoes' own
+    // Move column and its classFallback both land on `moveSpeedPct`, which
+    // composes exactly as `attackSpeed` does (the same `Stats.factor`).
+    // Unlike the two atk-speed items, §7 states the shoes' movement fallback
+    // as a single factor (`ledger row: "if not Swordsman: x1.1 movement"`,
+    // no "(so X×Y)" composite quote for this one), so both halves are read
+    // off `/data` directly rather than parsed out of a product that isn't
+    // stated in prose.
+    const moveSpeed = equipmentMoveSpeedFactor('cryomancer', items);
+    const shoes = content.equipment.items.find((i) => i.key === 'swordsman_shoes')!;
+    const shoesOwnMove = 1 + shoes.mods.moveSpeedPct!;
+    const shoesFallbackMove = 1 + shoes.classFallback!.mods.moveSpeedPct!;
+    expect(specRowFor('swordsman_shoes').cells.move, 'the ledger\'s Move column drifted from /data').toBeCloseTo(
+      shoesOwnMove,
+      10,
+    );
+    expect(moveSpeed).toBeCloseTo(shoesOwnMove * shoesFallbackMove, 10);
+    expect(moveSpeed).toBeCloseTo(2 * 1.1, 10);
+  });
+
+  it('the joint case still withholds every fallback from the Swordsman itself, with all three equipped at once', () => {
+    const items = ['sleeve_sword', 'swordsman_armor', 'swordsman_shoes'] as const;
+    const atkSpeed = equipmentAttackSpeedFactor('swordsman', items);
+    const expectedAtkSpeed =
+      specRowFor('sleeve_sword').cells.atkspd * specRowFor('swordsman_armor').cells.atkspd * specRowFor('swordsman_shoes').cells.atkspd;
+    expect(atkSpeed, 'a Swordsman wearing all three got a fallback that should only apply off-class').toBeCloseTo(
+      expectedAtkSpeed,
+      10,
+    );
+    const moveSpeed = equipmentMoveSpeedFactor('swordsman', items);
+    expect(moveSpeed, 'a Swordsman got the shoes’ off-class movement fallback').toBeCloseTo(
+      specRowFor('swordsman_shoes').cells.move,
+      10,
+    );
+  });
 });
 
 /**
@@ -2125,8 +2388,19 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
       // it can pass. (Caught by this file's own first run.)
       const points = /HP (-?\d+(?:\.\d+)?) \/ Atk (-?\d+(?:\.\d+)?) \/ Def (-?\d+(?:\.\d+)?)/.exec(desc);
       expect(points, `${item.key}: desc states no "HP a / Atk b / Def c" line`).not.toBeNull();
-      expect(Number(points![1]), `${item.key}: §7's HP is ${row.cells.hp}`).toBeCloseTo(row.cells.hp, 10);
-      expect(Number(points![2]), `${item.key}: §7's Atk is ${row.cells.atk}`).toBeCloseTo(row.cells.atk, 10);
+      // fb164: `numberScale` divides every HP/damage-denominated stat at
+      // load, and the desc now quotes the *loaded* magnitude (what the sim
+      // actually runs on) rather than restating §7's authored figure — the
+      // same narrowing `tests/class-descriptions.test.ts`'s c015 ledger
+      // documents for `flameDps`. HP (`maxHp`) and Atk (`atkFlat`) are both
+      // scaled; Def (`armor`) is not.
+      const hpFactor = STAT_SCALED.maxHp ? content.modifiers.numberScale : 1;
+      const atkFactor = STAT_SCALED.atkFlat ? content.modifiers.numberScale : 1;
+      expect(Number(points![1]), `${item.key}: §7's HP is ${row.cells.hp}`).toBeCloseTo(row.cells.hp * hpFactor, 10);
+      expect(Number(points![2]), `${item.key}: §7's Atk is ${row.cells.atk}`).toBeCloseTo(
+        row.cells.atk * atkFactor,
+        10,
+      );
       expect(Number(points![3]), `${item.key}: §7's Def is ${row.cells.def}`).toBeCloseTo(row.cells.def, 10);
 
       // The two `×n` columns are read out of the desc's **stats clause** only
@@ -2175,7 +2449,20 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
       // the file this ledger exists to audit.
       const desc = norm(String(item.desc));
       for (const f of rows) {
-        const want = f.descQuote ?? norm(f.quote!);
+        let want = f.descQuote ?? norm(f.quote!);
+        // fb164: a scaled stat's desc now quotes the loaded (post-
+        // `numberScale`) magnitude, not §7's authored one — the same
+        // narrowing the HP/Atk check above applies, extended to Effect
+        // quotes. Rebuilds the expected substring with the quote's own
+        // numeral scaled, rather than loosening the containment check.
+        if (f.stat && STAT_SCALED[f.stat as StatKey] && f.fromQuote) {
+          const m = f.fromQuote.pattern.exec(want);
+          expect(m, `${id(f)}: fromQuote pattern does not match "${want}"`).not.toBeNull();
+          const scaled = Number(m![1]) * content.modifiers.numberScale;
+          const numStart = m![0].indexOf(m![1]);
+          const scaledMatch = m![0].slice(0, numStart) + String(scaled) + m![0].slice(numStart + m![1].length);
+          want = want.slice(0, m!.index) + scaledMatch + want.slice(m!.index + m![0].length);
+        }
         expect(desc, `${id(f)}: the desc does not state §7's "${f.quote}"`).toContain(want);
         // `descQuote` is the one hand-typed expectation left in this file, and
         // QA showed it was unconstrained: change the desc to "Halves Dash Slash

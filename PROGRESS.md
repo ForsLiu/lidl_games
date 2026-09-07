@@ -62,6 +62,431 @@
   text ("36×20 tiles, 3 gates") is now stale relative to fb166/fb156, both
   owner-ordered amendments to that same section.
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
+  closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
+  session should run the generation rule again before executing further).
+  `sniper_bracelet` (`towerRange +10%`) and Archer's *Ranger's Eye* write the
+  same stat key; so do `normal_bracelet` (`area +10%`) and Animist's *Wide
+  Grove*. Proven individually, never together — a plausible additive-collapse
+  bug would pass both single-source tests and silently read +20% instead of
+  the correct x1.21. New `c036` describe block in
+  `tests/class-tower-passive-liveness.test.ts` measures both combos four ways
+  (base/class-only/item-only/combined) through the real `effectiveTowerRange`/
+  `effectiveTowerAoe`, confirming x1.21 for both. Verified by mutation (a
+  deliberate additive-collapse rewrite of `Stats.factor()`, reverted, reddens
+  both rows at exactly 1.20 vs 1.21). code-reviewer approved with no findings;
+  qa-playtester ran two further mutations and a cross-contamination check —
+  no bugs filed. Full `tests/class-*.test.ts` glob (21 files, 794 passed) and
+  `npx tsc --noEmit` green.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c035 done, no bug found.**
+  Three Swordsman-locked equipment items (`sleeve_sword`, `swordsman_armor`,
+  `swordsman_shoes`) each carry an off-class `classFallback`, and SPEC-FINAL
+  §2 says equipped items are separate sources that multiply — proven
+  individually per item, but nothing had equipped two or three together on a
+  non-Swordsman, where a stacking bug (e.g. last-write-wins instead of a
+  running product) would slip past every single-item test. New `c035`
+  describe block in `tests/equip-spec-numbers.test.ts`: two items on an
+  Engineer compose to 1.44x1.65=2.376; all three on a Cryomancer compose the
+  attack-speed product (2.6136) and the movement factor (2.2) simultaneously
+  in the same World; all three on the Swordsman withhold every fallback.
+  Verified by mutation (a deliberate last-write-wins rewrite of
+  `Stats.factor()`, reverted, reddens exactly the new tests). code-reviewer
+  approved (one Nit); qa-playtester independently reproduced every number by
+  hand and ran its own additional mutations — no bugs filed. Full
+  `tests/equip-*` glob (5 files, 176 passed) and `npx tsc --noEmit` green.
+
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c034 done, measurement only.**
+  G10 (Archer dps-optimal charge, 2-6s window) and G11 (Stormcaller chain
+  ceiling <=x3.6) were converted to ratio form by `p12a` so a kit re-anchor
+  couldn't break them, but the only verification lived in the out-of-Scope
+  `tests/p6d-nine-classes.test.ts` — never independently re-derived in this
+  lane. Found this item's own acceptance text had guessed G11's formula
+  wrong (`chainCap` instead of the real `chainCap - 1`, read off `p6d`
+  directly — `chainCap` alone would already fail on shipped data, which
+  `p6d` does not). New `tests/class-gate-ratios.test.ts` copies both real
+  formulas from `p6d` and confirms them live under mutation (shipped
+  numbers pass with real margin; `chainCap`/`chargeCapSeconds` raised past
+  the point `p6d` itself would fail turns each check red). No `/data`
+  change — pure `data/classes.json` arithmetic, no sim. code-reviewer
+  approved (one wording nit fixed); qa-playtester independently re-derived
+  both formulas by hand, verified the exponent correction against `p6d`,
+  ran its own mutations, and confirmed the full `tests/class-*.test.ts`
+  glob (21 files, 792 passed) plus `p6d`/`p6b-swordsman` (166/166) green —
+  no bugs filed.
+
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c033 done, measurement only,
+  no `/data` tune.** G8's diversity clause was rewritten (BALANCE DIRECTION
+  v2 §D) into two checks: own-kit VS share >=35% (already covered, c002/c030)
+  and pairwise class-kit fingerprint distance >=0.15 for all 66 class pairs,
+  reusing G22's method — never measured before. New
+  `tests/class-kit-fingerprint.test.ts` reuses G22's `damageShareVector`/
+  `l1Distance` (copied from the out-of-Scope `tests/p-core-f-gates.test.ts`)
+  and `class-kit-damage-share.test.ts`'s exact scripted-kit runner, gated
+  behind an opt-in env var so the normal suite only runs a trivial invariant.
+  Measured (`KIT_FP_SEEDS=2`, 24 full T1 runs, ~10.5 min): **50/66 pairs pass
+  the floor**, 16 fail, clustering around 8 classes for the same reason
+  clause (i) fails — every class's whole-run fingerprint is dominated by
+  shared tower usage (near-unanimous `mortar` top source) rather than by its
+  own kit. No `/data` tune applied: the failing set has no single safe lever,
+  and verifying one would need a win-rate re-run outside this item's Scope —
+  logged for the main-lane `p12d` instead, per CLAUDE.md rule 6 ("never force
+  a fragile tune"). code-reviewer approved with no Critical/Major findings
+  (verified the reused formulas/runner byte-for-byte by diff).
+  qa-playtester independently re-ran the full sweep and got an exact match to
+  4 decimal places, plus a vacuity check confirming non-degenerate vectors —
+  no bugs filed. Full `tests/class-*.test.ts` glob (20 files, 785 passed) and
+  `npx tsc --noEmit` green.
+
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
+  `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
+  compounds on any `class_`-prefixed `damageEnemy` source, deliberately
+  excluding `spreading_plague`; nobody in this lane had audited that every
+  kit damage call site actually carries a recognised bucket, or measured the
+  curve landing end to end. Found the item's own "~48 sources" premise
+  overstated — every kit mechanism routes through just five generic buckets
+  (`class_active`/`class_active2`/`class_passive`/`class_summon`/
+  `class_basic`) across ~13 call sites, not 48 per-Active strings — so
+  `tests/class-kit-power-reach.test.ts` does two things instead: a
+  single-pass tokenizer sweeps `classes.ts` for every class/plague-shaped
+  string literal outside a comment and asserts the set is exactly the five
+  buckets (catches a typo or missing prefix at any call site, present or
+  future, without knowing where it lives), and a live-fire proof fires one
+  real mechanism per bucket at `wavesCleared` 0 and 18 and asserts the
+  hp-loss ratio equals the real `kitPowerMul(18)`, plus both named flat
+  exceptions (Spreading Plague's transfer, Poison Boost's in-place doubling)
+  asserted unscaled. Verified by mutation throughout (disabling the curve,
+  excluding a bucket, typo'ing a source, faking scaling into Poison Boost —
+  each caught by exactly the row that should). code-reviewer's Major (the
+  acceptance's named Poison Boost exception was missing from the first
+  draft) and Minor (the two-pass comment-stripper could be fooled by a `//`
+  comment containing a literal `/*`) findings are both fixed, the latter by
+  replacing the regex strip with a proper tokenizer; qa-playtester's finding
+  (the tokenizer missed template-literal/double-quoted sources) is fixed
+  too, each with a regression test pinning the exact repro. Full
+  `tests/class-*.test.ts` glob (19 files, 783 tests) and `npx tsc --noEmit`
+  green. No engine or `/data` change.
+
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c029 done, measurement only.**
+  `c014`'s shared `tests/class-board.ts` module promises every `class-*`
+  liveness file a legal, footprint-clear Warden spot, bounded by
+  `EAST_REACH`/`SOUTH_REACH` — but that bound covers the module's own terrain
+  check, not an importer's actual reach, and the static scan that verifies it
+  only reads literal `WX + <number>` source text. Swept every
+  `tests/class-*.test.ts` file for board-relative reaches computed at runtime
+  instead (a tower's authored range/aoe, or a skill card's rank-scaled
+  budget) and found three: `class-wide-grove-reach.test.ts`'s Mortar-shell-
+  splash consumer, and `class-line-bonus.test.ts`'s `archer_pierce_cap` and
+  `stormcaller_jump_cap` rows. Confirmed by editing `PROBE_ORIGIN` directly and
+  running the *real* files: shifting to `25,12` or `30,15` (both still legal,
+  footprint-clear boards per `c014`'s own shifted-origin suite) runs these
+  windows off the east edge near the Core's column, even though each window's
+  reach is smaller than the nominal `EAST_REACH`. New
+  `tests/class-board-windows.test.ts` replicates the three formulas
+  independently off the same `/data` reads and asserts a red/green survival
+  table across 5 origins, so the dependency is a declared, asserted fact
+  rather than a silent one; `tests/class-board.ts`'s header no longer claims
+  every importer moves with the board unconditionally. No engine or `/data`
+  change. code-reviewer approved (no Critical/Major; two Minor/Nit notes
+  logged in BACKLOG-CONTENT.md's c029 entry). qa-playtester independently
+  reproduced the real-file failures, verified the formulas match the real
+  sites byte-for-byte, and ran the full `tests/class-*.test.ts` glob plus
+  `npm run test:fast` green apart from the pre-existing, unrelated `q15`/`q45`
+  `tools/fuzz-command-domain` scratch-directory module-resolution failures
+  (confirmed present on unmodified HEAD via `git stash`). This closed out
+  BACKLOG-CONTENT.md's `c001`-`c031` queue (all Done/Skipped/Blocked); the
+  generation rule ran again and appended `c032`-`c036`.
+
+- **2026-09-06 — fb163: the two-economy owner call, decided (a) — no code or
+  `/data` change.** fb163 asked for a verdict among (a) keep one factor and
+  accept the coarse character sheet, (b) a second scale factor plus named
+  conversion constants at five crossing points (lifesteal, Blood Tithe,
+  Wrath, the Corpse store, Vampire Heart), or (c) leave the sim alone and
+  format large numbers compactly in the HUD. Checked (c) first: the display
+  layer already comma-groups every DPS-panel total (`formatDamage`/
+  `formatDps`, `hud.ts`) and rounds/decimals floating combat numbers
+  (`damageText`, `canvas.ts`) — nothing left to add there. (b) is a
+  multi-day balance-revalidation effort that would re-open every sentence
+  fb164 just re-anchored, for a purely cosmetic gain. Chose (a): the single
+  `numberScale` (0.1) stays as fb153a shipped it; the "single-digit early
+  hits" sub-clause is accepted as unmet (its main "single/double-digit on
+  typical hits" clause is met). Logged as QUESTIONS Q191. No tests to run —
+  no code changed.
+
+- **2026-09-06 — fb162: `damageEnemy`'s ledgers now book what landed, not what
+  was banked.** `src/sim/enemies.ts`'s single damage choke point clamps
+  `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/the Corpse
+  Core's `corpseStore` to `Math.min(dmg, hpBeforeHit)`, the same Q91 clamp
+  already applied to lifesteal a few lines below. `e.hp -=`, the visual hit
+  popup and the function's own return value stay the raw hit (nothing reads
+  the return value downstream). Two `tests/p-core-d-corpse.test.ts` cases that
+  had pinned the old "full amount, not what landed" behaviour as intended were
+  corrected; `tests/fb162-dot-kill-overkill.test.ts` (5 tests, confirmed
+  failing pre-fix) covers a direct overkill, an exact-kill, a DoT kill on a
+  1-hp carrier under fb152's cadence, a Burning splash-neighbour overkill and
+  a Corpse-store overkill. code-reviewer: no Critical/Major (one Minor,
+  documented). qa-playtester: adversarial multi-kill/chained-explode/
+  re-entrancy/exact-zero probes all correct, damage-share sanity re-measured,
+  no bugs filed.
+
+- **2026-09-06 — fb164: player-facing prose re-anchored to fb153a's
+  `numberScale`.** fb153a's 0.1 scale divided every authored HP/damage
+  magnitude at load but left the hand-typed sentences beside them unscaled, so
+  the game told players numbers the sim didn't run on (vitality's "+15 Max
+  HP" granting 1.5; Bleeding's "1 damage per second" dealing 0.1). Took the
+  "match the loaded value" branch of the acceptance's disjunction rather than
+  building a new derive-at-render templating layer across the UI (logged as
+  future work in QUESTIONS.md): every affected sentence in
+  `data/damagetypes.json`, `data/vsupgrades.json`, `data/equipment.json`
+  (all 12 items), `data/tree.json`, `data/cores.json` (including the tricky
+  forward-scaling `overhealGoldRatio` ratios and the Time core's decay
+  coefficient), `data/modifiers.json`, `data/quests.json` and one
+  `data/classes.json` sentence (pyromancer's Contagious Flame) was hand-edited
+  to the post-scale figure. `tests/class-descriptions.test.ts`'s `readLoaded`
+  stopped un-scaling (it now reads `loadContent()` straight, per the item's
+  acceptance), with its "loader and raw document agree" check re-deriving the
+  one scaled claim's expected value through `numberScale` instead of assuming
+  parity. New `tests/fb164-prescale-prose.test.ts` (26 tests) pins every fixed
+  sentence's number against the live loaded value via regex extraction, so a
+  future retune that moves a field without moving its sentence reddens here.
+  Two pre-existing tests also assumed the pre-rescale prose:
+  `tests/equip-spec-numbers.test.ts`'s c012 desc-vs-§7 checks now scale
+  `maxHp`/`atkFlat` (not `armor`) before comparing, and its Effect-quote check
+  rebuilds the expected substring's numeral for a scaled stat rather than
+  loosening the containment check. code-reviewer: no Critical/Major (one
+  cosmetic alignment nit in `modifiers.json`, fixed). Full `npm run test:fast`
+  green after both fixes.
+
+- **2026-09-06 — Integrator merge: fb162 landed twice in parallel, master's
+  shape kept.** `claude/admiring-cray-lj5pov` independently fixed the same
+  fb162 overkill-ledger bug with a narrower `bankedTick` opt (clamping only
+  fb152's own bank-flush sites, leaving Time Lord's/Corpse's designed-overkill
+  executes booking their full raw amount) — a real semantic conflict with
+  the `dmgBooked` shape already merged from master (which clamps every hit
+  unconditionally), not just a textual one. Per the merge's own "master wins
+  on shared sim core" rule, kept master's unconditional clamp, removed the
+  now-dead `bankedTick` opt and its two call sites (`tickDot`/
+  `tickDotSplash`), and dropped that branch's `tests/fb162-dot-overkill
+  .test.ts` (6 cases), which pinned the discarded narrower behavior and would
+  otherwise regress against master's already-shipped, already-tested
+  (`tests/fb162-dot-kill-overkill.test.ts`) semantics. No further code change;
+  `npm run test:fast` re-run clean apart from the pre-existing container-only
+  q15/q45 failures.
+
+- **2026-09-06 — BACKLOG-UI fb114: found already fixed, not re-implemented.**
+  qa-playtester's real-Chromium fold test (`tests/b036-help-fold.test.ts`)
+  was filed as deterministically red on master, reported independently by
+  two lanes. Per the measurement rules ("a deferral is a measurement with
+  an expiry date"), re-ran it before touching anything: green on this
+  branch, and green 3/3 in an isolated `git worktree` of current
+  `origin/master` (`513f718`) at the exact repro scenario. Master has moved
+  since the item was filed and whatever pushed `.sw-help`'s bottom edge past
+  1080px is no longer reproducible. Marked done with no code change, same
+  treatment BACKLOG f002 got on 2026-08-25 for the same reason — checked,
+  not missed.
+
+- **2026-09-06 — BACKLOG-UI fb160 skipped (needs new main-lane sim state,
+  logged); fb150 done: Dash Slash's misleading merge wording fixed.**
+
+  fb160 (DPS panel bars segmented by damage type per source) needs a
+  `damage[source][type]` ledger to reconcile its bars against, per its own
+  acceptance line. `World` only carries two flat 1D accumulators
+  (`damageByWeapon`, `damageByType`), credited independently at the same
+  choke point (`sim/enemies.ts`'s `damageEnemy`) — no combined matrix
+  exists. Checked whether the UI lane could derive one itself from an
+  already-exposed event stream (the pattern fb060's DoT aggregation used
+  against `w.fx`, which the lane's own Scope explicitly allows): it can't —
+  `w.fx`'s `hit:<type>` events carry `{k, x, y, a, b}` with no source field
+  at all, so the source half of the matrix isn't exposed anywhere this lane
+  can read. Building it needs a new accumulator or an enriched emitted
+  event, both `src/sim/**` edits outside this lane's Scope. Logged in
+  BACKLOG-UI.md's Log section for the main-lane merge rather than shipping
+  an unsegmented "totals only" panel that would miss the item's actual
+  point and leave its own acceptance test unwritable regardless.
+
+  fb150 (qa-playtester, filed during fb112 verification): Dash Slash's old
+  wording ("the charge's own range and damage merge into this one hit")
+  read as "you keep the nova's coverage too", but `fireDashSlash`
+  (`sim/classes.ts`) spends the charge into extra LINE length
+  (`hitRange = dashRange + mergedRadius`) and adds its damage to that one
+  line hit — the nova itself never fires on this path, so a player relying
+  on the old text could hold a full charge, aim forward, and whiff
+  completely against a threat behind or beside them, paying a full Active1
+  cooldown for nothing. Reworded to say exactly that. The new
+  `tests/ui-fb150-dash-slash-merge-wording.test.ts` (3 tests) drives the
+  real sim as its own mechanism (the same posture the existing
+  `ui-fb112-dash-slash-width.test.ts` already takes for this same
+  sentence): a full-charge Circle Slash released normally hits a husk
+  behind AND one beside the Warden (real nova coverage); merging that same
+  charge into a forward Dash Slash hits neither, while still consuming the
+  charge; plus a string check that the misleading wording is gone.
+
+  `npm run test:fast`: only the pre-existing container-only q15/q45
+  failures.
+
+- **2026-09-06 — code-reviewer's fb158/fb157-qa-fix pass (REQUEST-CHANGES,
+  no Critical/Major correctness bugs) fixed; BACKLOG-UI fb159: floating
+  damage numbers scale with their own value.**
+
+  code-reviewer confirmed the fb157 qa-fix and fb158 correct (all 7
+  `attackKind` shapes pairwise distinct, the hover-equals-selected ring
+  guard sound, architecture rule 3 respected) but flagged one Major: the two
+  qa-playtester-confirmed fb157 bugs (left-dock/Build-rail collision,
+  `modalOpen` still blocking) had landed with no regression test, against
+  CLAUDE.md's explicit "confirmed bugs get a failing regression test" rule.
+  Fixed by adding a `describe` block to `tests/ui-input.test.ts` mirroring
+  fb051's own DPS-panel dock tests: right-edge docking (not `.sw-dock-left`),
+  `modalOpen === false` with the canvas still clickable, the bottom bar and
+  a real spawned boss's banner staying visible in both Act I and Act II, the
+  right info rail collapsing to match, and the DPS/VS mutual-exclusion still
+  holding now that they share an edge. Two Minor findings also fixed: an
+  `.sw-atk-icon-filled` DOM class with no CSS rule of its own (added an
+  explicit no-op rule so a future change to the base class can't silently
+  stop it looking filled), and the attack-kind icon's fixed offset
+  overlapping the poison DoT dot by ~0.8px at the icon's largest ("big")
+  radius — nudged from `(+5,-4.5)` to `(+7,-7)`, with a geometry test
+  locking in the clearance rather than just the new numbers. A third Minor
+  (no test for the hover-equals-selected no-double-draw case) also got one.
+
+  BACKLOG-UI fb159 (owner feedback `ui-damage-font-scaling`): floating
+  damage numbers now scale with their own value — `base + k*log10(value)`,
+  clamped, bold at 1000+ — instead of a fixed 12px. `FloatingNumber` gained a
+  `value` field every push site in `canvas.ts` supplies; crit/execute's
+  existing `executeFontScale` (data-driven, `data/damagetypes.json`) still
+  multiplies on top rather than being replaced, and the DoT aggregate tick
+  (fb060) renders at 80% of the same value-based size instead of a flat,
+  value-blind fraction of the old fixed size. The formula's own five
+  constants stay a literal in `render/theme.ts` rather than `/data` — the
+  item's acceptance line asks for `/data`, which is out of this lane's
+  Scope, so the gap is logged in BACKLOG-UI.md's Log section for the
+  main-lane merge rather than silently left non-compliant.
+  `tests/fb159-damage-font-scaling.test.ts` (10 tests) covers monotonicity
+  (named anchors and a dense sweep), the clamp, the bold threshold, a
+  fontScale multiplier compounding on the clamp, and three real end-to-end
+  renders; also hand-verified (not just re-run) that two pre-existing tests
+  whose assertions depended on the old fixed-size behavior
+  (`render-fb060-dot-tick-numbers.test.ts`, `fb005-damage-colors.test.ts`)
+  still hold arithmetically under the new formula.
+
+  `npm run test:fast` after all of the above: only the pre-existing
+  container-only q15/q45 module-resolution failures.
+
+- **2026-09-06 — BACKLOG-UI fb157 follow-up: qa-playtester's real-browser pass
+  found the left-docked character panel colliding with the Build rail, plus
+  two stale "still a full-stage modal" gates — both fixed; and BACKLOG-UI
+  fb158: enemy attack-kind icons, range rings, and Codex parity.**
+
+  qa-playtester (dispatched per CLAUDE.md's Full-tier rule, still owed after
+  fb157 landed to satisfy the working-tree hook) drove a real Chromium
+  browser rather than trusting jsdom, and found what jsdom cannot see:
+  docking the character panel to the stage's **left** edge put it directly
+  on top of `.sw-rail-left` (the pre-existing Build rail, fb065), reading as
+  the exact "blocks the screen" defect fb157 exists to fix, just relocated —
+  `document.elementFromPoint()` over a Build-rail button resolved to the
+  character card instead. It also found `Hud.modalOpen` (hud.ts) still
+  listed the character panel among the "full-stage overlay" gates from when
+  it was a `.sw-modal`, so opening it hid `#sw-bottombar` and any live boss
+  banner outright — the opposite of fb051's already-established rule that a
+  docked, non-blocking panel leaves gameplay visible underneath.
+
+  Both are fixed by finishing the move fb157 started rather than inventing
+  something new: the character panel now docks to the same **right** edge
+  the DPS/VS panels already use (no more `.sw-dock-left`), sharing their
+  existing mutual-exclusion (`toggleCharacterPanel`/`toggleDpsPanel`/
+  `toggleVsPanel` already closed each other; that behavior was a latent bug
+  while the panels didn't share space and is correct now that they do).
+  `railAutoCollapsed()` (hud.ts), which already collapses `.sw-rail-right`
+  while a DPS/VS panel is open or docked, now also checks `charPanelOpen` —
+  the exact belt-and-suspenders pattern fb076 already built for the other
+  two, called every `update()` tick with no new wiring needed. `modalOpen`
+  dropped its `!this.charPanelEl.hidden` clause, and the three stale doc
+  comments that called the character panel a blocking overlay
+  (`renderBossBar`, `renderBottomBar`, `renderOnboarding`) now say what
+  fb051 already says about DPS/VS. `tests/fb157-character-panel-compact
+  .test.ts` and the rest of the fb157 suite stayed green throughout (none of
+  them asserted the left-docking side, only open/close/content behavior).
+
+  BACKLOG-UI fb158 (owner feedback `ui-enemy-attack-indicators`, render
+  half; unblocked once main-lane fb155 shipped `EnemyDef.attackKind`/
+  `attackRange`/`specialRange`): every enemy now always shows a small
+  shape-and-color attack-kind marker beside its HP bar (`canvas.ts`'s
+  `drawAttackKindIcon`), and hovering or selecting one rings its
+  `attackRange` (`drawEnemyAttackRing`) — a **selected** elite/boss
+  additionally rings its `specialRange`, dashed, never on mere hover. The
+  icon's shape (filled-vs-ring, one of two radii, one of two opacities) is a
+  single source of truth (`attackKindIconShape`, `render/theme.ts`) shared
+  by the canvas marker and a new DOM icon (`src/ui/enemy-info.ts`), which
+  also builds the one-line "Melee, 0.8 tiles" description both the in-run
+  enemy panel (`hud.ts`'s `enemyInfoMarkup`, a new Attack row) and a new
+  Codex `renderDetail` on the `enemies` collection show — so a selected
+  enemy's panel and its Codex page can never disagree. Every number is read
+  straight off `EnemyDef`, never re-derived from `traits`.
+  `tests/fb158-enemy-attack-indicators.test.ts` (10 tests) covers the
+  acceptance line directly, including a real (non-elite) `bomber`'s
+  authored-but-unused `specialRange` never ringing, to prove the elite/boss
+  gate is load-bearing and not just "if specialRange exists."
+
+  `npm run test:fast` after both: only the pre-existing container-only
+  q15/q45 module-resolution failures (confirmed unrelated, documented across
+  many prior sessions).
+
+- **2026-09-06 — BACKLOG-UI fb157: the in-run character panel is a compact,
+  corner-docked card instead of a full-screen modal.** Owner feedback
+  `ui-character-panel-compact` (top priority): the old panel was a
+  `.sw-modal`-style full-stage backdrop with a scrolling card that could push
+  content past the 1080p fold. It now docks to the stage's left edge
+  (`.sw-dock.sw-dock-left`, style.css — the same anchored-corner pattern the
+  DPS/VS panels already used on the right), closes from a new top-right
+  `.sw-panelclose` button or Esc (unchanged: `Hud.openModal()` already
+  force-closes every sibling overlay, including this one, before showing the
+  pause card), and is small enough with Details collapsed that no scrolling
+  is needed in practice (the old `max-height: 86vh; overflow-y: auto` stays
+  as a safety net, not the normal path).
+
+  Two sections were cut, not just restyled, because the item explicitly asks
+  for it: the class active/passive ability text (already duplicated by the
+  bottom bar's own fb026 hover tooltips) and the mid-run equip/unequip UI
+  fb023 built (equipment can only change in the Hub now — the `equip_item`
+  sim Command itself is untouched and still reachable by bots/replays,
+  architecture rule 3; only this panel's click wiring to it is gone). A new
+  `importantStatsMarkup` (`hud.ts`) always shows HP current/max, Attack,
+  Attack Speed, Defense, Movement Speed, Range, Life Regen and Lifesteal,
+  reusing the exact `w.derived` formulas `wardenInfoMarkup` (the T2
+  click-select panel) already reads — the two surfaces can't disagree about
+  what "Range" or "Defense" mean. Everything else a stat carries (area, CDR,
+  pickup, luck, every stat's own per-source multiplier breakdown, boons
+  taken) moved into a closed-by-default `<details class="sw-chardetails">`.
+
+  Reversing fb023's mid-run-equip feature meant retiring, not deleting, its
+  test coverage: `tests/fb023-midrun-equip.test.ts`'s UI describe block now
+  asserts the read-only replacement (no `data-runeqslot`/`data-runitem`, a
+  tooltip naming the Hub) instead of the click-to-swap behaviour it used to
+  drive. Same treatment for the three `fb022-info-surfacing.test.ts`
+  regressions that measured live-resolved cooldown/damage/DPS numbers through
+  the panel's old ability section — they now measure the same formulas
+  through `classAbilitiesMarkup`/`classLiveContext` directly, which is where
+  that logic actually lives now (the bottom bar's hover tooltip already
+  covers the "remapped key shows in this text" angle from
+  `ui-fb107-keyhints-follow-remap.test.ts`, so that file's redundant
+  character-panel-specific case was removed rather than rewritten).
+  `tests/fb028-effect-text.test.ts` lost the one case asserting an
+  owned-but-unequipped item's tooltip in the (now-gone) stash list.
+
+  `tests/fb157-character-panel-compact.test.ts` (8 tests) is the acceptance
+  test the item itself asks for: the vitals set matches `w.derived` (and
+  switches to `longestWieldedRange` once VS starts, same as
+  `wardenInfoMarkup`), the Details `<details>` renders closed
+  (no `open` attribute) with its contents matching `characterPanelData`,
+  area/CDR/pickup/luck stay out of the compact vitals row, equipment renders
+  with no click attributes and a Hub-pointing tooltip, and both the close
+  button and a real `Escape` keydown (driven through the actual
+  `makeKeyDownHandler` → `Hud.setPaused` path `main.ts` wires) close the
+  panel. `npm run test:fast`: only the pre-existing container-only q15/q45
+  failures (module-resolution flake, unrelated — documented across many
+  prior sessions). code-reviewer and qa-playtester were dispatched but still
+  in flight when this landed to satisfy the working-tree hook; their
+  findings land as a follow-up with a regression test if anything is filed.
+
 - **2026-09-06 — fb161's code review moved the ground-fire bank off the field
   and onto the Warden, and CI is green on the whole branch.** Run
   [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)

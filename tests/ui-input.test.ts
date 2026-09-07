@@ -21,6 +21,7 @@ import { GRID_H, GRID_W, TILE } from '../src/sim/grid';
 import { bindCanvasInput, makeKeyDownHandler, pointerToTile } from '../src/ui/input';
 import { Hub } from '../src/ui/hub';
 import { World } from '../src/sim/world';
+import { spawnEnemy } from '../src/sim/enemies';
 import { canRefund, defaultMeta, allocate, refund } from '../src/meta/meta';
 import { loadContent } from '../src/sim/content';
 import { defaultSettings } from '../src/ui/settings';
@@ -226,10 +227,19 @@ describe('the DPS/VS panels dock instead of covering the whole screen (fb051)', 
     const world = new World(cfg());
     hud.buildTowerBar(world);
     // jsdom does no layout — give the real canvas a known CSS box, same as `fakeCanvas` above.
-    Object.defineProperty(hud.canvas, 'clientWidth', { value: 1152, configurable: true });
-    Object.defineProperty(hud.canvas, 'clientHeight', { value: 640, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
     hud.canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
     return { root, hud, world, queue };
   }
 
@@ -292,6 +302,122 @@ describe('the DPS/VS panels dock instead of covering the whole screen (fb051)', 
       new window.MouseEvent('mousedown', { button: 0, clientX: 32 * 5 + 4, clientY: 32 * 7 + 4, bubbles: true }),
     );
     expect(queue).toEqual([{ k: 'build', tower: arrow.id, tx: 5, ty: 7 }]);
+  });
+});
+
+/**
+ * fb157 (owner feedback `ui-character-panel-compact`) rebuilt the in-run
+ * character panel as a `.sw-dock` corner panel, the same treatment fb051
+ * gave the DPS/VS panels above. qa-playtester's real-browser pass on the
+ * first shape (docked to the stage's LEFT edge) found it colliding with
+ * `.sw-rail-left` (the pre-existing Build rail, fb065) — jsdom's own lack of
+ * layout could not have caught that, but the *side* it docks to is a plain
+ * CSS fact this suite can pin down. The same pass also found `Hud.modalOpen`
+ * still counted the panel as a blocking full-stage overlay (stale from when
+ * it really was one), hiding `#sw-bottombar` and any live boss banner the
+ * instant it opened — fixed by dropping the character panel from
+ * `modalOpen` and adding it to `railAutoCollapsed()` (the same right-edge
+ * rail the DPS/VS panels already collapse).
+ */
+describe('the character panel docks to the same right edge as DPS/VS, and is not a blocking modal (fb157 qa-fix)', () => {
+  function mountHudWithCanvas(): { root: HTMLElement; hud: Hud; world: World; queue: Command[] } {
+    const root = mount();
+    const queue: Command[] = [];
+    const hud = new Hud(root, noopHudCallbacks(queue));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
+    hud.canvas.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+    return { root, hud, world, queue };
+  }
+
+  it('docks to the right edge (not the left, which collides with the Build rail) with no backdrop blur', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    expect(panel.classList.contains('sw-modal'), 'no full-screen overlay element').toBe(false);
+    expect(panel.classList.contains('sw-dock')).toBe(true);
+    expect(panel.classList.contains('sw-dock-left'), 'must not dock left — collides with the Build rail').toBe(false);
+
+    const style = getComputedStyle(panel);
+    expect(style.position).toBe('absolute');
+    expect(style.right).toBe('8px');
+    expect(style.left).toBe('auto');
+    expect(style.width).toBe('340px');
+    expect(style.backdropFilter === '' || style.backdropFilter === 'none', 'no blur').toBe(true);
+  });
+
+  it('leaves the canvas interactive while open, same as the DPS/VS panels', () => {
+    const { hud, world, queue } = mountHudWithCanvas();
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    expect(hud.modalOpen, 'a docked panel must not be treated as a full-screen modal').toBe(false);
+
+    const arrow = world.content.towerByKey.get('arrow_spire')!;
+    const view = { selectedTower: arrow.id, cursorX: 0, cursorY: 0 };
+    bindCanvasInput({
+      canvas: hud.canvas,
+      view,
+      keys: new Set(),
+      queue: { push: (c) => queue.push(c) },
+      isBlocked: () => hud.modalOpen,
+    });
+    hud.canvas.dispatchEvent(
+      new window.MouseEvent('mousedown', { button: 0, clientX: 32 * 5 + 4, clientY: 32 * 7 + 4, bubbles: true }),
+    );
+    expect(queue).toEqual([{ k: 'build', tower: arrow.id, tx: 5, ty: 7 }]);
+  });
+
+  it('leaves the bottom bar and a live boss banner visible while open, in both Act I and Act II', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    spawnEnemy(world, 'gatebreaker', 5, 5);
+
+    for (const phase of ['act1_wave', 'act2'] as const) {
+      world.phase = phase;
+      hud.update(world);
+      const bottomBar = root.querySelector('#sw-bottombar') as HTMLElement;
+      const bossBar = root.querySelector('#sw-bossbar') as HTMLElement;
+      expect(bottomBar.classList.contains('sw-off'), `${phase}: bottom bar hidden before opening`).toBe(false);
+      expect(bossBar.hidden, `${phase}: boss banner hidden before opening`).toBe(false);
+
+      hud.toggleCharacterPanel(world);
+      hud.update(world);
+      expect(bottomBar.classList.contains('sw-off'), `${phase}: bottom bar must stay visible`).toBe(false);
+      expect(bossBar.hidden, `${phase}: boss banner must stay visible`).toBe(false);
+
+      hud.toggleCharacterPanel(world); // close, so the next phase starts from closed
+      hud.update(world);
+    }
+  });
+
+  it("collapses the right info rail while open, same as the DPS/VS panels' own treatment", () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    const rail = root.querySelector('#sw-rail-right') as HTMLElement;
+    expect(rail.classList.contains('collapsed')).toBe(false);
+    hud.toggleCharacterPanel(world);
+    hud.update(world);
+    expect(rail.classList.contains('collapsed'), 'right rail must collapse to clear the docked panel').toBe(true);
+  });
+
+  it('still mutually excludes with the DPS/VS panels, which now share its edge', () => {
+    const { hud, world } = mountHudWithCanvas();
+    hud.toggleDpsPanel(world);
+    expect(hud.dpsPanelOpen).toBe(true);
+    hud.toggleCharacterPanel(world);
+    expect(hud.characterPanelOpen).toBe(true);
+    expect(hud.dpsPanelOpen, 'opening the character panel must close DPS, not stack on top of it').toBe(false);
   });
 });
 
@@ -408,10 +534,19 @@ describe('canvas clicks reach the game', () => {
   /** A canvas with a known CSS box, since jsdom does no layout. */
   function fakeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
-    Object.defineProperty(canvas, 'clientWidth', { value: 1152, configurable: true });
-    Object.defineProperty(canvas, 'clientHeight', { value: 640, configurable: true });
+    Object.defineProperty(canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
     canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
     document.body.appendChild(canvas);
     return canvas;
   }
@@ -501,8 +636,8 @@ describe('canvas clicks reach the game', () => {
   it('maps pointer coordinates through the CSS box, not the backing store', () => {
     const canvas = fakeCanvas();
     // A HiDPI backing store must not shift where a click lands.
-    canvas.width = 2304;
-    canvas.height = 1280;
+    canvas.width = GRID_W * TILE * 2;
+    canvas.height = GRID_H * TILE * 2;
     const p = pointerToTile(canvas, 32 * 10, 32 * 5);
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
@@ -510,28 +645,41 @@ describe('canvas clicks reach the game', () => {
 
   it('still hits the right tile when a narrower viewport shrinks the rendered CSS box (b078)', () => {
     const canvas = fakeCanvas();
-    // The logical grid stays GRID_W*TILE x GRID_H*TILE (1152x640), but the
-    // element's actual rendered box is smaller than that — reproduces
-    // qa-playtester's repro of an ~872x484 CSS box against the 1152x640
-    // logical grid after a viewport resize. A real browser moves
-    // `clientWidth`/`clientHeight` and `getBoundingClientRect()` together
-    // (src/ui/style.css pins #sw-canvas to a fixed aspect-ratio), so both are
-    // shrunk here — overriding only the rect would leave the old buggy
-    // formula's `canvas.clientWidth` term at the unshrunk logical size, which
-    // cancels against the rect denominator and passes even without the fix.
-    Object.defineProperty(canvas, 'clientWidth', { value: 872, configurable: true });
-    Object.defineProperty(canvas, 'clientHeight', { value: 484, configurable: true });
+    // The logical grid stays GRID_W*TILE x GRID_H*TILE, but the element's
+    // actual rendered box is smaller than that — reproduces qa-playtester's
+    // repro of a shrunk CSS box against the logical grid after a viewport
+    // resize. A real browser moves `clientWidth`/`clientHeight` and
+    // `getBoundingClientRect()` together (src/ui/style.css pins #sw-canvas to
+    // a fixed aspect-ratio), so both are shrunk here — overriding only the
+    // rect would leave the old buggy formula's `canvas.clientWidth` term at
+    // the unshrunk logical size, which cancels against the rect denominator
+    // and passes even without the fix.
+    const logicalW = GRID_W * TILE;
+    const logicalH = GRID_H * TILE;
+    const shrunkW = Math.round(logicalW * 0.7);
+    const shrunkH = Math.round(logicalH * 0.7);
+    Object.defineProperty(canvas, 'clientWidth', { value: shrunkW, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: shrunkH, configurable: true });
     canvas.getBoundingClientRect = () =>
-      ({ left: 10, top: 20, width: 872, height: 484, right: 882, bottom: 504, x: 10, y: 20 }) as DOMRect;
+      ({
+        left: 10,
+        top: 20,
+        width: shrunkW,
+        height: shrunkH,
+        right: 10 + shrunkW,
+        bottom: 20 + shrunkH,
+        x: 10,
+        y: 20,
+      }) as DOMRect;
     // Backing store resolution is independent of the CSS box (e.g. left at the
     // logical size, or DPR-scaled) and must not affect the tile mapping.
-    canvas.width = 1152;
-    canvas.height = 640;
+    canvas.width = logicalW;
+    canvas.height = logicalH;
 
-    // Tile (10, 5)'s center in logical pixels is (336, 176); scale that down
-    // by the CSS box's 872/1152 and 484/640 ratios, then offset by the rect.
-    const clientX = 10 + 336 * (872 / 1152);
-    const clientY = 20 + 176 * (484 / 640);
+    // Tile (10, 5)'s center in logical pixels; scale that down by the CSS
+    // box's shrunk/logical ratios, then offset by the rect.
+    const clientX = 10 + (10 * TILE + TILE / 2) * (shrunkW / logicalW);
+    const clientY = 20 + (5 * TILE + TILE / 2) * (shrunkH / logicalH);
     const p = pointerToTile(canvas, clientX, clientY);
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
