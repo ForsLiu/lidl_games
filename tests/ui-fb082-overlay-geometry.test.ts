@@ -89,10 +89,10 @@ describe('fb082: overlay anchor geometry tracks the letterboxed canvas, not the 
 
     hud.update(w);
 
-    // aspect = 36/20 = 1.8; height-bound: cssW = round(min(4000, 300*1.8)) = 540, cssH = 300.
+    // aspect = 56/32 = 1.75; height-bound: cssW = round(min(4000, 300*1.75)) = 525, cssH = 300.
     expect(cvVars(root)).toEqual({
-      left: '1730px',
-      right: '1730px',
+      left: '1737.5px',
+      right: '1737.5px',
       top: '0px',
       bottom: '0px',
       cx: '2000px',
@@ -108,12 +108,12 @@ describe('fb082: overlay anchor geometry tracks the letterboxed canvas, not the 
 
     hud.update(w);
 
-    // width-bound: cssW = round(min(900, 1000*1.8)) = 900, cssH = 900/1.8 = 500.
+    // width-bound: cssW = round(min(900, 1000*1.75)) = 900, cssH = 900/1.75 = 514.2857...
     expect(cvVars(root)).toEqual({
       left: '0px',
       right: '0px',
-      top: '250px',
-      bottom: '250px',
+      top: '242.85714285714283px',
+      bottom: '242.85714285714283px',
       cx: '450px',
     });
   });
@@ -156,11 +156,11 @@ describe('fb082: overlay anchor geometry tracks the letterboxed canvas, not the 
     hud.buildTowerBar(w);
     stubStageSize(root, 4000, 300);
     hud.update(w);
-    expect(cvVars(root).left).toBe('1730px');
+    expect(cvVars(root).left).toBe('1737.5px');
 
     stubStageSize(root, 900, 1000);
     hud.update(w);
     expect(cvVars(root).left).toBe('0px');
-    expect(cvVars(root).top).toBe('250px');
+    expect(cvVars(root).top).toBe('242.85714285714283px');
   });
 });
