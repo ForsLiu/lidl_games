@@ -22,6 +22,24 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-07 (fb080): `data/terrain.json` joins the census —
+ * the fifteenth file, reached by `content.ts` indirectly through
+ * `terrain/config.ts`'s `TERRAIN_RAW` rather than a direct import (that
+ * module's own doc comment names the reason: keeping the fourteen-file
+ * import-seam pin meaningful for the files content.ts imports literally,
+ * while still letting terrain fuzz through the same `vi.mock` seam —
+ * `tests/q7-data-fuzz.test.ts`'s "mocks exactly the files..." case now
+ * asserts both halves). All of terrain's numeric/enum fields accept the
+ * same unguarded `negative`/`zero`/`fractional`/`flip-bool`/`to-string`
+ * shapes every other bare `num`/`bool`/`string` field in this table
+ * already does — not a new class of hole, the pre-existing b013 pattern
+ * extended to a fifteenth file. `terrain.tiles[].key` is `checked` in
+ * REF_VERDICTS (the schema pins the four tile rows to a fixed enum, unlike
+ * `highGround.families[].key`, which is free text — `open`). No INEFFECTIVE
+ * entries: every zero-able terrain field's authored value is nonzero.
+ * ACCEPTED and REF_VERDICTS both gained terrain's rows; INEFFECTIVE
+ * unchanged.
+ *
  * Regenerated 2026-09-03 (fb053): `data/warden.json`'s `dashDistance` was
  * replaced by `dashSpeedMul` (dash distance now falls out of speed x
  * duration instead of being an authored fixed distance) — same bare `num`
@@ -401,24 +419,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'cores.cores[].upgrade.steps[].storeRatio': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerLifestealBonus': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerOverhealConverts': ['negative', 'zero', 'fractional', 'drop-key'],
-  // fb155 closed 23 holes rather than opening any: the enemy attack-registry
-  // agreement rules (`loadContent`) now refuse a mutation of `radius`,
-  // `explodeRadius`, `healRadius`, `buffRadius`, `stompRadius` or
-  // `spawns.contactPadding` that leaves an authored `attackRange` disagreeing
-  // with the reach the sim swings, and `attackRange` itself is required and
-  // positive. The special-reach rule closed six more the same way — dropping or
-  // renaming `buffRadius`/`explodeRadius`/`stompRadius` now leaves a published
-  // `specialRange` with nothing behind it, and the fallback-to-the-code-default
-  // above rather than annotated. `healRadius` keeps its two: dropping it alone
-  // leaves the Mender coherent at the code's own `?? 3` default. `coreDamage`
-  // lost its `negative`/`zero` the day a melee row had to deal contact damage.
-  // fb152: the DoT tick cadence. `negative`/`zero` are rejected (`num.positive()`),
-  // and `fractional` is accepted because the authored value *is* fractional
-  // (0.25) — a cadence has no integrality to violate. `drop-key`/`rename-key`
-  // are the same optional-with-a-default back-compat shape `executeFontScale`
-  // below already has: a file predating this item still parses, at the default.
-  'damagetypes.dotTickInterval': ['fractional', 'drop-key', 'rename-key'],
   'damagetypes.colorblindExecuteColor': ['to-string', 'drop-key', 'rename-key'],
+  'damagetypes.dotTickInterval': ['fractional', 'drop-key', 'rename-key'],
   'damagetypes.executeColor': ['to-string', 'drop-key', 'rename-key'],
   'damagetypes.executeFontScale': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'damagetypes.statuses.frost.attackSpeed': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -450,6 +452,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'dev.unlockAllClasses': ['flip-bool'],
   'dev.unlockAllCores': ['flip-bool'],
   'dev.unlockAllTiers': ['flip-bool'],
+  'enemies.baseHpMul': ['fractional'],
   'enemies.enemies[].attackDamage': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].attackInterval': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].bounty': ['negative', 'zero', 'fractional'],
@@ -464,11 +467,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'enemies.enemies[].flatReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].frontReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].gem': ['negative', 'zero', 'fractional'],
-  'enemies.enemies[].healRate': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  // fb155: dropping `healRadius` alone still loads — the agreement rule falls
-  // back to the same `?? 3` the sim uses, so the row stays coherent. It is
-  // refused as soon as the published range disagrees with that default.
   'enemies.enemies[].healRadius': ['drop-key', 'rename-key'],
+  'enemies.enemies[].healRate': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].hp': ['fractional'],
   'enemies.enemies[].id': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].name': ['to-string', 'empty-string'],
@@ -511,25 +511,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].name': ['to-string', 'empty-string'],
   'equipment.slots': ['dupe-element'],
-  // p12c: `baseHpMul` is a multiplier, so a fractional value is valid by
-  // design — it is the identity at 1.0 and the shipped value is 20. The
-  // schema's own `.positive()` refuses the unpayable cases (zero, negative).
-  'enemies.baseHpMul': ['fractional'],
-  // p12b: the tier ladder's three scalars are multipliers, so a fractional
-  // value is *valid* by design (the shipped ladder is 4.0/1.9/1.7). The one
-  // thing that would be unpayable — a value under 1, which inverts the ladder
-  // and would ship a T5 easier than T1 — is refused by `validateTierLadder`
-  // at load, one layer above the schema this census fuzzes.
-  // fb153a: the global HP/damage rescale. `negative`/`zero` are rejected
-  // (`num.positive()`), `fractional` is accepted because the shipped value *is*
-  // fractional (0.1) — a scale has no integrality to violate — and
-  // `drop-key`/`rename-key` are the optional-with-a-default back-compat shape
-  // every other field of this kind here has: a file predating the item loads at
-  // the 1.0 identity.
-  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
-  'modifiers.tierBudgetPerStep': ['fractional'],
-  'modifiers.tierCoreDamagePerStep': ['fractional'],
-  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.modifiers': ['drop-element'],
   'modifiers.modifiers[].desc': ['to-string', 'empty-string'],
   'modifiers.modifiers[].effect.bossHp': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -547,6 +528,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'modifiers.modifiers[].key': ['to-string', 'empty-string'],
   'modifiers.modifiers[].name': ['to-string', 'empty-string'],
   'modifiers.modifiers[].rewardBonus': ['negative', 'zero', 'fractional'],
+  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
+  'modifiers.tierBudgetPerStep': ['fractional'],
+  'modifiers.tierCoreDamagePerStep': ['fractional'],
+  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.tierRewardPerStep': ['negative', 'zero', 'fractional'],
   'quests.quests[].desc': ['to-string', 'empty-string'],
   'quests.quests[].metric': ['to-string', 'empty-string'],
@@ -615,6 +600,27 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.weightsByMinute[].weights.swarm_rat': ['negative', 'zero', 'fractional', 'drop-key'],
   'spawns.weightsByMinute[].weights.warlock': ['negative', 'zero', 'fractional', 'drop-key'],
   'spawns.weightsByMinute[].weights.wraith': ['negative', 'zero', 'fractional', 'drop-key'],
+  'terrain.blob.spread': ['zero'],
+  'terrain.constraints.maxGateDetour': ['fractional'],
+  'terrain.constraints.minBuildableNormalFrac': ['zero'],
+  'terrain.constraints.minCoreLegalFrac': ['zero', 'fractional'],
+  'terrain.constraints.minGateReachFrac': ['zero'],
+  'terrain.constraints.minWalkableFrac': ['zero'],
+  'terrain.coreGateClearance': ['zero'],
+  'terrain.corridorJitter': ['zero', 'fractional'],
+  'terrain.density.high': ['zero', 'fractional'],
+  'terrain.density.jitter': ['zero', 'fractional'],
+  'terrain.density.rock': ['zero', 'fractional'],
+  'terrain.density.rough': ['zero', 'fractional'],
+  'terrain.gateClearRadius': ['zero'],
+  'terrain.highContestRadius': ['zero'],
+  'terrain.highGround.families': ['drop-element'],
+  'terrain.highGround.families[].attacksHigh': ['flip-bool'],
+  'terrain.highGround.families[].key': ['to-string'],
+  'terrain.highGround.families[].surfacesHigh': ['flip-bool'],
+  'terrain.highGround.families[].traits[]': ['to-string'],
+  'terrain.plazaRadius': ['zero'],
+  'terrain.tiles[].color': ['to-string'],
   'towers.aoeFalloff': ['negative', 'zero', 'fractional'],
   'towers.aoeFalloffFloor': ['negative', 'zero', 'fractional'],
   'towers.aoeFullTargets': ['negative', 'zero', 'fractional'],
@@ -788,9 +794,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'vsupgrades.statBoons[].maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.statBoons[].name': ['to-string', 'empty-string'],
   'vsupgrades.statBoons[].perRank': ['negative', 'zero', 'fractional'],
-  // fb041: `uncapped` is an optional boolean (same shape fb011 gave
-  // `boons.boons[].uncapped`) — flipping/dropping/renaming it still loads,
-  // it just changes whether the boon keeps appearing past `maxRank`.
   'vsupgrades.statBoons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'vsupgrades.typeMastery.maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.typeMastery.perRank': ['negative', 'zero', 'fractional'],
@@ -891,16 +894,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'damagetypes.types[].key': 'partial',
   'damagetypes.types[].name': 'open',
   'damagetypes.types[].refresh': 'checked',
-
-  // fb155: the attack registry's kind is a closed enum the loader also
-  // cross-checks against the row's own traits, so it is `checked` like `grade`.
   'enemies.enemies[].attackKind': 'checked',
   'enemies.enemies[].grade': 'checked',
   'enemies.enemies[].key': 'partial',
   'enemies.enemies[].name': 'open',
-  // fb155: the attack-registry rules read this array to decide the row's kind,
-  // so renaming a trait that decides one now throws at load while renaming a
-  // trait that decides nothing still does not — partially checked.
   'enemies.enemies[].traits[]': 'partial',
   'equipment.items[].classFallback.notClassKey': 'checked',
   'equipment.items[].desc': 'open',
@@ -922,6 +919,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'quests.quests[].name': 'open',
   'quests.quests[].reward.kind': 'partial',
   'quests.quests[].reward.value': 'partial',
+  'terrain.highGround.families[].key': 'open',
+  'terrain.highGround.families[].traits[]': 'open',
+  'terrain.tiles[].color': 'open',
+  'terrain.tiles[].key': 'checked',
   'towers.towers[].attack.kind': 'checked',
   'towers.towers[].desc': 'open',
   'towers.towers[].key': 'partial',

@@ -42,10 +42,12 @@ import { join } from 'node:path';
 /* ------------------------------------------------------------------- data */
 
 /**
- * Exactly the fourteen files `src/sim/content.ts` imports (p7d retired
- * `relics.json` along with the affix table it held). Kept as a literal
+ * Exactly the fifteen files `src/sim/content.ts` imports (p7d retired
+ * `relics.json` along with the affix table it held; BACKLOG fb080 added
+ * `terrain`, reached through `terrain/config.ts`'s `TERRAIN_RAW` rather than
+ * a direct import — see that module's own doc comment). Kept as a literal
  * rather than a `readdir` so a *new* `/data` file that nothing loads shows up as
- * a mismatch in the test's "the fourteen files are the ones the loader reads"
+ * a mismatch in the test's "the fifteen files are the ones the loader reads"
  * pin, instead of being fuzzed against a loader that never reads it.
  */
 export const DATA_FILES = [
@@ -59,6 +61,7 @@ export const DATA_FILES = [
   'modifiers',
   'quests',
   'spawns',
+  'terrain',
   'towers',
   'tree',
   'warden',

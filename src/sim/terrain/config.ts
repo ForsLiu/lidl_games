@@ -203,7 +203,8 @@ const highGroundFamilySchema = z
   })
   .strict();
 
-const schema = z
+/** BACKLOG fb080: exported so the Tuner's save endpoint (`src/sim/content.ts`'s `TUNER_FILES`) validates against the exact same schema `loadTerrain`/`parseTerrain` do, the same one-registry-for-both shape every other Tuner-editable file already uses. */
+export const TerrainFileSchema = z
   .object({
     tiles: z.array(tileSchema).length(TERRAIN_KEYS.length),
     // fb064l: `jitter` is the half-width of the per-seed band each density is
@@ -563,7 +564,7 @@ function checkHighGround(
   }
 }
 
-export type TerrainConfig = z.infer<typeof schema>;
+export type TerrainConfig = z.infer<typeof TerrainFileSchema>;
 export type TerrainTileDef = TerrainConfig['tiles'][number];
 export type HighGroundFamily = TerrainConfig['highGround']['families'][number];
 
@@ -589,7 +590,7 @@ export function loadTerrain(): TerrainConfig {
 
 /** Validate an arbitrary object as a terrain config (tests, Tuner previews). */
 export function parseTerrain(value: unknown): TerrainConfig {
-  return schema.parse(value);
+  return TerrainFileSchema.parse(value);
 }
 
 function deepFreeze<T>(value: T): T {

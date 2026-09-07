@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — BACKLOG fb080 done: `data/terrain.json` wired into every
+  data tool it was missing from.** `tools/fuzz-data.ts`'s `DATA_FILES` gained
+  `'terrain'` (now 15 files). `tests/q7-data-fuzz.test.ts` gained a `terrain`
+  holder and `vi.mock('../data/terrain.json', ...)`; its "mocks exactly the
+  files content.ts imports" test now also asserts the indirect seam, since
+  `content.ts` reaches terrain through `TERRAIN_RAW` from `./terrain/config`
+  rather than a literal `data/terrain.json` import — added a second regex
+  assertion for that path instead of loosening the strict direct-import
+  check for the other 14 files. `tests/q7-loader-holes.ts` regenerated via
+  `Q7_RECORD=1`: ACCEPTED gained 25 terrain rows, REF_VERDICTS gained 4,
+  INEFFECTIVE unchanged (no terrain zero-value field lacks mutation
+  coverage) — code-reviewer independently re-ran the regeneration and
+  confirmed the result byte-identical. `src/sim/terrain/config.ts` exported
+  its private schema as `TerrainFileSchema`; `src/sim/content.ts` imports it
+  and adds a `TUNER_FILES` entry (`{ key: 'terrain', fileName: 'terrain.json',
+  schema: TerrainFileSchema }`, no `contentField` — matching `warden`'s entry
+  by the same reasoning: the cross-check of `highGround.families[].traits`
+  against enemy traits is deliberately test-only per `config.ts`'s own
+  comment, not a loader rule). `tests/p9c-tuner-save.test.ts` gained a valid-
+  edit round-trip and an out-of-range-density rejection test for `terrain`,
+  spot-checking Save actually validates through `parseTerrain` rather than
+  trusting the "accepts every real unedited file" case alone.
+  `tools/mutation-probe.ts` gained `terrain-generate-ignore-rock-density`: no
+  prior historical bug existed to revert for this file (unlike the array's
+  other entries), so this injects a representative fresh defect — silently
+  discounting `density.rock` by 0.3x — hand-verified red against
+  `tests/terrain-generation.test.ts`'s density-tracking case, then restored
+  and reconfirmed green. The automated `tests/q14-mutation-smoke.test.ts`
+  harness's `realFileUntouched` check fails on this new entry because
+  `mutation-probe.ts`'s `gitDiffClean()` checks the whole repo rather than a
+  pathspec, and this session carried unrelated uncommitted changes
+  throughout; confirmed this is pre-existing and unrelated to the new entry
+  by running an existing, long-established entry
+  (`meta-drop-skillpoints-on-serialize`) through the same harness and getting
+  an identical failure — the hand-verification above stands in for it.
+  code-reviewer: APPROVE, zero findings across four independent checks (the
+  q7 regeneration, the indirect-import assertion's continued strictness for
+  the other 14 files, the `gitDiffClean()` limitation's genuineness, and the
+  TUNER_FILES entry's missing `contentField`). Light tier is not quite right
+  here (this touches `/data`-adjacent tooling, not a balance value, but
+  changes `src/sim/content.ts` and `src/sim/terrain/config.ts`), so it ran
+  effectively full-tier via code-reviewer only, matching CLAUDE.md's
+  "data-only change that isn't a balance value" carve-out. `npm run
+  test:fast`: 4071 passed, only the one known pre-existing, unrelated fb119
+  failure. BACKLOG-TERRAIN fb064f's terrain Tuner page can now build on this.
+
 - **2026-09-07 — BACKLOG fb079 done: SPEC-FINAL.md gained §10.5 (terrain
   generation), reconciling the spec document with code `lane/terrain` had
   already built, merged and shipped weeks earlier.** No code changed — this

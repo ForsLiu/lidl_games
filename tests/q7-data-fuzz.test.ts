@@ -67,7 +67,7 @@ import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
 const holders = vi.hoisted(() => {
   const names = [
     'vsupgrades', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
-    'modifiers', 'quests', 'spawns', 'towers', 'tree', 'warden', 'waves',
+    'modifiers', 'quests', 'spawns', 'terrain', 'towers', 'tree', 'warden', 'waves',
   ];
   const h: Record<string, Record<string, unknown>> = {};
   for (const n of names) h[n] = {};
@@ -84,6 +84,7 @@ vi.mock('../data/equipment.json', () => ({ default: holders.equipment }));
 vi.mock('../data/modifiers.json', () => ({ default: holders.modifiers }));
 vi.mock('../data/quests.json', () => ({ default: holders.quests }));
 vi.mock('../data/spawns.json', () => ({ default: holders.spawns }));
+vi.mock('../data/terrain.json', () => ({ default: holders.terrain }));
 vi.mock('../data/towers.json', () => ({ default: holders.towers }));
 vi.mock('../data/tree.json', () => ({ default: holders.tree }));
 vi.mock('../data/warden.json', () => ({ default: holders.warden }));
@@ -245,10 +246,19 @@ describe('q7 — the /data import seam', () => {
     expect(r.error.length).toBeGreaterThan(0);
   });
 
-  it('mocks exactly the files src/sim/content.ts imports', () => {
+  it('mocks exactly the files src/sim/content.ts imports (directly or, for terrain, through terrain/config.ts)', () => {
     const src = readFileSync('src/sim/content.ts', 'utf8');
     const imported = new Set<string>();
     for (const m of src.matchAll(/from '\.\.\/\.\.\/data\/([a-z]+)\.json'/g)) imported.add(m[1]);
+    // BACKLOG fb080: `terrain` is the one file content.ts reaches indirectly
+    // — `TERRAIN_RAW` from `./terrain/config`, not a direct `data/terrain.json`
+    // import (that module's own doc comment names the reason: keeping the
+    // import-seam pin meaningful for the other fourteen files while still
+    // letting terrain fuzz through the same `vi.mock` seam). Checked as its
+    // own clause rather than widening the regex above, so a *literal* import
+    // of some other file still has to show up the direct way.
+    expect(src).toMatch(/import\s*\{[^}]*\bTERRAIN_RAW\b[^}]*\}\s*from\s*'\.\/terrain\/config'/);
+    imported.add('terrain');
     expect([...imported].sort()).toEqual([...DATA_FILES].sort());
   });
 

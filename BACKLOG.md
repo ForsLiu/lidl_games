@@ -4118,7 +4118,52 @@ generation-rule boundary.
       file; MIGRATION.md §8 notes the addition. Log the append in
       QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
       §10, §14 G2, §17. **Amended at the 2026-09-04 merge:** §10.5 must also cover the lane's later decisions (Q171) — Core placement rules and the suggested anchor, the high-ground families and the no-boss-family rule, the character-passage flag, the seed domain, the approach band (`maxGateDetour`) beside fb064a's bands, the uncontested-high repair, and the run-gate-list threading.
-- [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
+- [x] (fb080) [polish] **DONE 2026-09-07** — `data/terrain.json` wired into
+      every data tool. `tools/fuzz-data.ts`'s `DATA_FILES` gained `'terrain'`
+      (now 15 files). `tests/q7-data-fuzz.test.ts` gained a `terrain` holder
+      and a `vi.mock('../data/terrain.json', ...)`; the "mocks exactly the
+      files content.ts imports" test now also asserts the indirect seam
+      (`content.ts` imports `TERRAIN_RAW` from `./terrain/config`, not a
+      literal `data/terrain.json` import) rather than loosening the direct-
+      import regex for the other 14 files. `tests/q7-loader-holes.ts`
+      regenerated via `Q7_RECORD=1`: ACCEPTED gained 25 terrain rows,
+      REF_VERDICTS gained 4, INEFFECTIVE unchanged (no terrain zero-value
+      field lacks mutation coverage) — code-reviewer independently re-ran the
+      regeneration and confirmed byte-identical. `src/sim/terrain/config.ts`
+      exported its private schema as `TerrainFileSchema`; `src/sim/content.ts`
+      imports it and adds a `TUNER_FILES` entry (`{ key: 'terrain', fileName:
+      'terrain.json', schema: TerrainFileSchema }`, no `contentField` — same
+      shape as `warden`'s entry — since the cross-check of
+      `highGround.families[].traits` against enemy traits is deliberately
+      test-only per `config.ts`'s own comment, not a loader rule). Tuner
+      save round-trip spot-checked in `tests/p9c-tuner-save.test.ts`: a valid
+      density edit round-trips, and a density outside 0..1 is rejected with
+      nothing written. `tools/mutation-probe.ts` gained a fresh
+      `terrain-generate-ignore-rock-density` entry (there was no prior
+      historical defect to revert for this file, unlike the array's other
+      entries, so this injects a representative one — silently discounting
+      `density.rock` by 0.3x — hand-verified red against
+      `tests/terrain-generation.test.ts`'s density-tracking case, then
+      restored and re-confirmed green). Note: the automated
+      `tests/q14-mutation-smoke.test.ts` harness's `realFileUntouched` check
+      fails for this new entry because `mutation-probe.ts`'s `gitDiffClean()`
+      runs with no pathspec (whole-repo, not file-scoped) and this session had
+      unrelated uncommitted changes throughout — confirmed pre-existing and
+      unrelated by running an existing, long-established entry
+      (`meta-drop-skillpoints-on-serialize`) through the same harness and
+      getting an identical failure; verified this entry's mutation is correct
+      by hand instead (backup/apply/confirm-red/restore/confirm-green).
+      code-reviewer: APPROVE, zero Critical/Major/Minor findings (verified the
+      q7 regeneration byte-identical, the indirect-import assertion still
+      strict for the other 14 files, the `gitDiffClean()` limitation genuine
+      and not specific to this change, and the TUNER_FILES entry's missing
+      `contentField` correct by precedent). `npm run test:fast`: 4071 passed,
+      only the pre-existing unrelated fb119 failure (`tools/fuzz-command-
+      domain` module resolution under `bench/.tmp`, tracked separately).
+      BACKLOG-TERRAIN fb064f's terrain Tuner page can now build on this.
+      Original text follows.
+
+      `data/terrain.json` is unknown to every data tool:
       `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
       `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
       `TERRAIN_RAW` precisely so q7's import-seam pin stays honest until this

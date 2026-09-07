@@ -28,7 +28,7 @@ import equipmentRaw from '../../data/equipment.json';
 // `data/terrain.json`; it is reached here so `contentHash()` covers it
 // (architecture rule 2) and so an unpayable file fails at `loadContent()`.
 // Not `TerrainDef`/`TerrainSchema` below, which are a *tower's* terrain effect.
-import { TERRAIN_RAW as mapTerrainRaw, loadTerrain } from './terrain/config';
+import { TERRAIN_RAW as mapTerrainRaw, TerrainFileSchema, loadTerrain } from './terrain/config';
 
 /**
  * b013/E3: every `/data` number goes through this one alias, so "refuses a
@@ -1969,6 +1969,11 @@ export const TUNER_FILES: TunerFileEntry[] = [
   { key: 'cores', fileName: 'cores.json', schema: CoresFileSchema, contentField: 'cores' },
   { key: 'equipment', fileName: 'equipment.json', schema: EquipmentFileSchema, contentField: 'equipment' },
   { key: 'warden', fileName: 'warden.json', schema: WardenFileSchema },
+  // BACKLOG fb080: no `contentField` — like `warden`, terrain has no
+  // cross-file key references for `loadContent(overrides)`'s dry-run to
+  // check (`highGround.families[].traits` is matched against enemy trait
+  // names, but that's a test's job, not a loader rule — Q171 item 2).
+  { key: 'terrain', fileName: 'terrain.json', schema: TerrainFileSchema },
 ];
 
 /**
