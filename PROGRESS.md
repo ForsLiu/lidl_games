@@ -5,6 +5,63 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — lane/terrain: the owner's bigger-map order shipped (fb166,
+  fb156), a terrain dump now fingerprints its config (fb065i), and Grid's
+  constructor accepts a custom gate list (fb177).** Four items, each full- or
+  light-tier reviewed per CLAUDE.md's subagent protocol before commit.
+
+  **fb166** flips the default grid 36x20 -> 56x32 (`src/sim/grid.ts`'s
+  `GRID_W`/`GRID_H`, the lane's only two-line edit there for this item).
+  `data/terrain.json` needed zero retuning — every owner band, density, blob
+  and radius value fitted for 36x20 still holds at 56x32, verified over
+  1000+-seed sweeps rather than assumed. All 12 lane-owned `tests/terrain*`
+  suites re-fit with honestly regenerated goldens (band ledger, cost ledger
+  included). Found and logged for main-lane, not patched here: `GATES.east`
+  and `world.ts`'s Fourth Gate literal are absolute coordinates that landed on
+  interior tiles instead of the border at the new size (a live gameplay bug —
+  roughly a third of Act I spawns now enter closer to the Core on one lane,
+  not just a cosmetic dump mismatch as first filed); `data/towers.json`'s
+  breach cost no longer outprices the longest possible walkable detour at the
+  new grid area (a SPEC-FINAL §10/G7 invariant, not a coordinate issue).
+
+  **fb156** ships `src/sim/terrain/gates.ts`'s `jitterGates(seed)`: one gate
+  per edge (W/N/E/S), seed-jittered along the edge from a dedicated
+  `${TERRAIN_STREAM}:gates` RNG substream, per the owner's "4 spawn gates...
+  jittered along the edge instead of 3" order. Ships as a callable tool rather
+  than flipping `generateTerrain`'s own default gate list (every call site
+  already accepts an explicit list; nothing in `src/` calls it without one) —
+  the live-wiring gap (`world.ts:588`'s `GATES.slice(0,3)`) is logged for
+  main-lane's `fb154`. `MODIFIER_GATES` renamed `'south'` -> `'south2'` and
+  repositioned off fb166's dead interior tile, since the new base gate now
+  legitimately owns the `'south'` key.
+
+  **fb065i**: a terrain dump carries a `cfgFingerprint` (8-hex fold of every
+  `TerrainConfig` field via the existing `Hasher`) on its `bands` line;
+  `parseTerrainDump` reports a mismatch against the config it's read next to
+  (`TerrainDump.configStale`) rather than throwing, so a stale dump stays
+  readable — closing the gap `describe.ts`'s own header named since fb064k.
+
+  **fb177** (generated this session — the Queue's remaining items, fb064c/d,
+  all need only out-of-scope files, so CLAUDE.md's generation rule fired):
+  `Grid`'s constructor takes an optional `gates` parameter so a caller can
+  bake a custom list (`jitterGates` output included) instead of only the
+  static default, closing the one piece of fb156's wiring gap that was
+  squarely this lane's hook file. Does not wire `jitterGates` into `World`
+  (still `fb154`'s job). Caught and fixed before commit: this session's own
+  5-item generation batch collided its ids (fb167-fb171) with unrelated live
+  items in `BACKLOG-UI.md`/`BACKLOG.md` — the generation step checked only
+  this file's own last id instead of the global id space, the same failure
+  `BACKLOG-UI.md`'s history already records once. Renumbered fb177-fb181
+  before anything referencing the old numbers was committed.
+
+  Five new items queued for the next terrain-lane pass: fb178 (jitter the
+  5th tier-modifier gate too, for consistency), fb179/fb180 (re-verify two
+  measurements fb166 disclosed as not-reverified), fb181 (a regression test
+  for the `GATES.east`/border bug fb166 and fb156 both found live). Also
+  logged, out of every lane's Scope to execute: `SPEC-FINAL.md` §10's own
+  text ("36×20 tiles, 3 gates") is now stale relative to fb166/fb156, both
+  owner-ordered amendments to that same section.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT c036 done, no bug found. This
   closes out the c001-c036 queue** (all Done/Skipped/Blocked — the next
   session should run the generation rule again before executing further).

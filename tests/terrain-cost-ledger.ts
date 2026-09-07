@@ -225,7 +225,15 @@ export const MEASURED = {
    * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
    * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
    * spread *within* one is why nothing here is asserted tighter than a
-   * same-run ratio. */
+   * same-run ratio.
+   *
+   * fb166: one reading at 56x32, on this host, ~67.0k — inside the old
+   * grid's own idle spread rather than the ~2.5x rise the tile-count ratio
+   * alone would suggest. Both `attempt()`'s scatter cost (proportional to
+   * `density * interior`) and its corridor-walk cost (proportional to
+   * perimeter) scale with the resize, but calibration units are also a ratio
+   * against host noise — this is not asserted anywhere and is recorded as one
+   * data point, not a new baseline. */
   meanUnits: 80_000,
   /** p95 as a multiple of the same run's mean — the host-free number. Three
    * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
@@ -242,7 +250,14 @@ export const MEASURED = {
    * identity is recorded per-host and never asserted — a per-seed maximum is
    * the one statistic no normalisation can rescue. What the test asserts
    * instead is the aggregate behind it: a retry-taking seed's raw cost against
-   * the plain population's median. */
+   * the plain population's median.
+   *
+   * fb166: NOT re-measured at 56x32 — these two identities predate the grid
+   * resize, and `sampleSeeds()` at the new grid retries at only one of them
+   * (`-329`; see `retrySeeds` below). Neither field is asserted by any test
+   * (`terrain-cost-retry-ratio.test.ts` reads, never asserts, the argmax), so
+   * this is a known-stale timing observation left for whoever next re-runs
+   * the perf tier, not a claim about the current retry set. */
   worstSeed: 2147483532,
   worstSeedOtherHost: 2485897837,
   worstOverMean: 2.07,
@@ -261,9 +276,12 @@ export const MEASURED = {
    * Cold it reads 42x, which is V8 specialising for a second config shape and
    * not the generator — see the test. */
   hostileOverMean: 9.5,
-  /** 2 of 1500 seeds retried, both at 2 attempts. */
-  retryCount: 2,
-  retrySeeds: [2485897837, 2147483532] as const,
+  /** fb166 re-measured at 56x32: 1 of 1500 seeds retried (was 2 at 36x20), at
+   * 2 attempts. The bigger board gives every band more headroom (see
+   * `tests/terrain-band-ledger.test.ts`'s file header), so the retry-taking
+   * share fell along with it. */
+  retryCount: 1,
+  retrySeeds: [-329] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
    * Named apart because `expect(worst).toBe(MEASURED.maxAttemptsObserved)` read as
    * "the cap is 2". */
