@@ -653,7 +653,19 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       ⚖ (no all-landslide roster), measured via `classifyMargin`/
       `summarizeMargins`; T3's G1/G8/G14/G23 bands (moved there by p12b) are
       re-confirmed unaffected — refs: BALANCE DIRECTION v2 §C.
-- [ ] (p12d) [balance] Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
+- [ ] (p12d) [balance] **SKIPPED 2026-09-07, logged reason: blocked on p12f.**
+      Acceptance clause (2)(i) requires "every class meets p12a's >=35%-own-
+      kit-share target" to already hold so the rewritten G8 check is green —
+      p12a's own entry measured 0/12 classes at that target (0.00-5.16%
+      range), and closing it is p12f's whole job (still open below, its own
+      QUESTIONS Q175 3-way route decision plus per-class re-measurement, a
+      comparably large item to p12e). Rewriting SPEC-FINAL/the gate tests now
+      would either assert a target known to be unmet (contradicting this
+      item's own "green against p12a-p12c's tuning") or require guessing at
+      a relationship between p12d and p12f neither item states. Not
+      attempted this session — p12e alone (the item that unblocked this one)
+      ran ~6h wall-clock via balance-analyst; p12f is at least comparable
+      scope and belongs in its own dedicated run. Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
       §14) and their test files to (1) measure at T3 as reference tier
       (p12b), with the new T1 band `[55%,90%]`/`>=25% close-win` (p12c) and T5
       `[5%,20%]` (p12b) as companion assertions, not replacements for the T3
