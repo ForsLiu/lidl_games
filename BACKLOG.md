@@ -815,17 +815,50 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       average-not-sum, multiplicative with the wave term, never touches tower
       damage). `npm run test:fast` green apart from the pre-existing,
       unrelated `q15`/`q45` `tools/fuzz-command-domain` failures (confirmed
-      identical on unmodified HEAD via `git stash`). code-reviewer: no
-      Critical/Major. qa-playtester: acceptance criteria confirmed measured
-      (not met, honestly), G1/G14 confirmed unaffected, no money-path or
-      determinism regression (the `typeMasteryRanks` values consumed were
-      already part of `hashWorld`'s replay hash before this change). **What
-      remains unclosed, deliberately**: the dominant share of the gap is the
-      breadth of simultaneously-summed wielded sources across every built
-      tower type plus `upgradeStatMul`'s tier scaling baked into
-      `wielded.damage` itself, not any single uncapped boon — closing that is
-      route (b) or a larger route (a) pass, both a p12b/p12c-sized shared
-      lever, out of this item's blast radius. Original text follows.
+      identical on unmodified HEAD via `git stash`). The implementing session
+      had no subagent-dispatch access and self-reviewed against the
+      code-reviewer/qa-playtester criteria files rather than getting real
+      independent review; the lead session then ran both for real.
+      **code-reviewer (real, independent): one Major** — `kitPowerMul`
+      applies at the single `damageEnemy` choke point to every source in
+      *both* TD and VS, so `kitBuildMul` reaches TD too, and the before/after
+      table only checked G1/G14 (both VS/boss-facing), leaving G8
+      (`tests/p6e-class-diversity.test.ts`, TD-facing) unchecked. **First
+      attempted fix was wrong**: a same-day spot-check of `swordsman`
+      (byte-identical to its pre-p12f reading) was read as "no regression" —
+      but that class's losing seeds all die in Act I wave 3, before any VS
+      phase, so the check could not have exercised the mechanism at all.
+      **Real independent qa-playtester caught it**: `w.typeMasteryRanks` is
+      never reset between VS blocks, so a class/seed surviving past its first
+      VS block carries `kitBuildMul` into every later TD block, inflating
+      `ownShare` (G8's own metric) 26-57% on the two classes measured,
+      reproduced via two independent methods. **Actually fixed**:
+      `kitBuildMul` (`src/sim/enemies.ts`) now gates on `w.huntsWarden` —
+      exactly 1 outside VS regardless of ranks invested — proven by two new
+      pinned unit tests, not inferred from any one class's seed set; the four
+      pre-existing `kitBuildMul` unit tests were updated to set `w.phase =
+      'act2'` (the fix would otherwise have silently broken them, since they
+      never set a phase and a fresh world defaults to TD). G1/G14 re-run
+      clean after the real fix. G8 itself remains fb177's to fix (unrelated,
+      pre-existing staleness since 2026-09-03) — this item only owns not
+      making it worse, which the gate is now closed on by construction rather
+      than by inference. **Second, real independent qa-playtester pass
+      against the actual fix: PASS.** Confirmed the gate sits at the correct
+      choke point (`dotVaryingMul` re-evaluates `w.huntsWarden` live at DoT
+      tick time, not cached at application, so no stale-multiplier window
+      across a phase flip); re-ran G1/G14/`tsc --noEmit` clean; re-derived
+      the `ownShare` numbers at a larger 6-seed sample (`swordsman` 0.88%,
+      `plaguebringer` 18.66%) and judged them consistent with seed-trajectory
+      noise rather than a residual leak, while flagging that any of these
+      small-sample `ownShare` readings should be re-measured at this file's
+      standard 12-seed depth before being treated as a settled baseline.
+      **What remains unclosed, deliberately**: the
+      dominant share of the gap is the breadth of simultaneously-summed
+      wielded sources across every built tower type plus `upgradeStatMul`'s
+      tier scaling baked into `wielded.damage` itself, not any single
+      uncapped boon — closing that is route (b) or a larger route (a) pass,
+      both a p12b/p12c-sized shared lever, out of this item's blast radius.
+      Original text follows.
 
       Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS

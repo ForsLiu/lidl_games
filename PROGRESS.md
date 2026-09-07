@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12f's `code-reviewer`/`qa-playtester`
+  passes below were self-review, not real — a real pass found and this
+  session fixed a genuine Major bug the self-review missed.** The item's
+  entry below (and its own PROGRESS/BACKLOG/QUESTIONS write-up) was produced
+  by a session with no subagent-dispatch access; "code-reviewer pass"/
+  "qa-playtester pass" there means self-review against those agents'
+  criteria files, not independent review. A real, independent code-reviewer
+  found one Major: `kitBuildMul` applies at the same choke point in both TD
+  and VS, and the before/after table only re-checked G1/G14 (VS/boss-facing),
+  leaving G8 (`tests/p6e-class-diversity.test.ts`, TD-facing) unchecked. A
+  first attempt at closing this spot-checked `swordsman` (byte-identical to
+  its pre-p12f reading) and called it clean — **wrong**: that class's losing
+  seeds all die in Act I wave 3, before any VS phase, so the check could not
+  have exercised the mechanism. A real, independent qa-playtester caught the
+  actual bug: `w.typeMasteryRanks` is never reset between a run's VS blocks,
+  so any class/seed that *survives* past its first VS block carries
+  `kitBuildMul` into every later TD block, inflating `ownShare` (the metric
+  G8's diversity clause reads) 26-57% on the two classes measured
+  (`swordsman` 0.56%->0.88%, `plaguebringer` 14.05%->17.73%), reproduced via
+  two independent methods (a standalone per-tick probe and the project's own
+  measurement harness run pre/post via a `git worktree`). **Fixed**:
+  `kitBuildMul` (`src/sim/enemies.ts`) now gates on `w.huntsWarden` — the
+  same predicate `damageByWeaponVs` already uses for "VS only" — returning
+  exactly `1` outside VS regardless of ranks invested. Proven at the
+  mechanism level: two new pinned unit tests in `tests/p12a-kit-power.test.ts`
+  (TD stays exactly the wave-only term; VS "turns back on" carrying earlier
+  ranks), and the four pre-existing `kitBuildMul` tests were corrected to set
+  `w.phase = 'act2'` (they'd been passing only because they never set a
+  phase, and the fix would otherwise have silently broken them since a fresh
+  `World` defaults to TD). A **second, real, independent** qa-playtester pass
+  against the actual fix: PASS — confirmed the gate sits at the correct
+  choke point (`dotVaryingMul` re-evaluates `w.huntsWarden` live at DoT tick
+  time, not cached at application, so no stale-multiplier window across a
+  phase flip), re-ran G1/G14/`tsc --noEmit` clean, and re-derived the
+  `ownShare` numbers at a larger 6-seed sample (`swordsman` 0.88%,
+  `plaguebringer` 18.66%) — judged consistent with seed-trajectory noise
+  (same class of chaotic divergence fb152's DoT-retiming documented) rather
+  than a residual leak, while flagging that any of these small-sample
+  `ownShare` readings need a 12-seed re-measurement before being treated as
+  a settled baseline. `npm run test:fast`: 4020 passed (up from 4013 — the 7
+  new/changed tests), same pre-existing unrelated `q15`/`q45` failures. Full
+  account: BALANCE.md "p12f" section's two follow-up paragraphs; QUESTIONS
+  Q193's follow-up. **Lesson for next time**: when a delegated session
+  reports it "self-reviewed" because it lacks subagent-dispatch access, treat
+  that as equivalent to *no* review having happened yet — get a real
+  independent pass before trusting a "no Critical/Major" claim, especially on
+  a `/src/sim` change.
+
 - **2026-09-07 — main lane: BACKLOG p12f done, `/src/sim` + tests.** Chose
   Q175 route (a) for BALANCE DIRECTION v2 §A's own-kit-share target:
   `kitPowerMul` (`src/sim/enemies.ts`) now multiplies by a new `kitBuildMul(w)`

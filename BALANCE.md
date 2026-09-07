@@ -792,6 +792,74 @@ remain open if the target is revisited; not attempted here as out of a
 single [balance] item's blast radius, same reasoning Q175 gave for filing
 this as its own item.
 
+**Follow-up #1 (2026-09-07, independent code-review Major finding) —
+inadequate, superseded by follow-up #2 below.** `kitPowerMul` applied at the
+single `damageEnemy` choke point to every `class_`-prefixed source in
+**both** TD and VS (it already "compounds with TD waves cleared" before this
+item), so `kitBuildMul` rode into the TD phase too — a blast radius the
+before/after table above didn't check, since G1/G14 are both VS/boss-facing.
+First attempt at closing this spot-checked `swordsman` (byte-identical to
+its pre-p12f reading) and `time_lord` (12/12 -> 11/12, called noise) and
+concluded no regression. **That conclusion was wrong** — see follow-up #2.
+
+**Follow-up #2 (2026-09-07, independent qa-playtester, adversarial) — real
+bug found and fixed.** The spot-check above only exercised `swordsman`'s
+*losing* seeds, which all die in Act I wave 3 before any VS phase — a case
+that structurally cannot show a VS-accumulated effect. qa-playtester proved
+the actual mechanism directly: `w.typeMasteryRanks` is never reset between a
+run's VS blocks (`world.ts`, declared once), so on any class/seed that
+*survives* past its first VS block, `kitBuildMul` carries into every later
+TD block too, growing further each subsequent cycle since the boon is
+`uncapped: true`. Measured via the project's own `class-kit-damage-share.
+test.ts` harness (a `git worktree` at the pre-p12f commit vs HEAD, seeds
+1-2): `ownShare` (the whole-run metric G8's diversity clause reads) was
+inflated **swordsman 0.56%->0.88%, plaguebringer 14.05%->17.73%** — real,
+reproduced twice by independent methods.
+
+**Fix**: `kitBuildMul` (`src/sim/enemies.ts`) now gates on `w.huntsWarden`,
+returning exactly `1` outside VS — the same predicate `damageByWeaponVs`
+itself already uses to mean "VS only" (`world.ts`'s own comment on that
+field). Proven at the mechanism level, not inferred from any one class's
+seed set: two new pinned unit tests in `tests/p12a-kit-power.test.ts` assert
+`kitPowerMul` is exactly the wave-only term in TD with nonzero ranks
+invested, and that it "turns back on" the instant `w.phase` re-enters `act2`
+carrying whatever ranks an earlier VS block invested — both green. The
+existing four `kitBuildMul` unit tests were updated to set `w.phase =
+'act2'` (they'd been asserting VS-shaped behavior against a world that
+defaults to a TD phase, which the fix would otherwise have silently broken).
+G1 (`tests/p10d-run-length.test.ts`) and G14 (`tests/boss.test.ts`) both
+re-run clean after the fix, matching this item's own already-recorded
+before/after.
+
+**The whole-run `ownShare` re-measurement post-fix is not simply "back to
+baseline," and that's expected, not a residual bug**: `ownShare` still
+includes the *intended* VS-phase boost (that's this item's whole point), so
+post-fix `swordsman`/`plaguebringer` read 0.72%/20.72% against the pre-p12f
+0.56%/14.05% — higher, correctly, since VS kit damage did legitimately grow.
+The reading is not perfectly monotone against the pre-fix buggy numbers
+either (plaguebringer's post-fix 20.72% is above even the buggy 17.73%),
+which at `KIT_SHARE_SEEDS=2` is exactly the "which seed's trajectory wins"
+sensitivity this codebase's own measurement rules warn about (a code change
+early in a run can flip which seed reaches which wave, same class of
+chaotic divergence fb152's DoT-retiming documented) — not itself evidence of
+a defect, and not chased further at n=2. The unit tests, not this whole-run
+number, are what proves the TD leak is closed. fb177 still separately owns
+G8's own pre-existing staleness (unrelated to this item).
+
+**Independently re-verified (second qa-playtester pass, against the actual
+fix rather than the first wrong follow-up):** confirmed the gate sits at the
+correct choke point — `dotVaryingMul` (which calls `kitPowerMul` ->
+`kitBuildMul`) is invoked live at DoT *tick* time, not cached at application
+time, so a DoT stack applied in VS and still ticking after a phase flip to
+TD re-evaluates `w.huntsWarden` every frame and drops to `1` immediately, no
+stale-multiplier window. Re-ran the `ownShare` measurement at a larger
+6-seed sample for more confidence: `swordsman` 0.88%, `plaguebringer`
+18.66% — both close enough to the 2-seed reading to support "seed-trajectory
+noise, not a residual leak" over "a second undiscovered channel," though
+qa-playtester's own recommendation stands: re-run at this file's standard
+12-seed depth before treating any single ownShare number here as a settled
+baseline. G1/G14/`tsc --noEmit` all re-confirmed clean.
+
 ## Tier ladder (p12b) — BALANCE DIRECTION v2 §B
 
 > **Superseded by "T1 re-anchor (p12c)" below.** p12b's *mechanism* stands —

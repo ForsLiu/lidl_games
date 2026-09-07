@@ -823,7 +823,25 @@ Q91 and Q102 corrections if not yet done.
   wielded" swordsman figure) — closing that is route (b) (cut VS-wielded
   scaling, a p12b/p12c-sized shared lever) or a larger route (a) pass, both
   out of this item's blast radius per its own filing reasoning. Recorded red
-  rather than forced, same as Q175 itself. — Reason: CLAUDE.md rule 5
+  rather than forced, same as Q175 itself. **Follow-up (independent
+  code-review Major finding, first pass inadequate, real bug found and fixed
+  by independent qa-playtester):** `kitPowerMul` applies to TD damage too,
+  not just VS, and the before/after table only checked G1/G14. A first
+  attempt at closing this spot-checked `swordsman` (byte-identical to its
+  pre-p12f reading) and called it clean — wrong, because that class's losing
+  seeds all die in Act I before any VS phase, which cannot exercise the
+  mechanism at all. qa-playtester proved the real effect directly:
+  `w.typeMasteryRanks` is never reset between VS blocks, so a class/seed that
+  *survives* past its first VS block carries the build factor into every
+  later TD block, inflating `ownShare` (G8's own metric) 26-57% on the two
+  classes measured (`swordsman` 0.56%->0.88%, `plaguebringer`
+  14.05%->17.73%, reproduced via two independent methods). **Fixed**:
+  `kitBuildMul` now gates on `w.huntsWarden`, the same predicate
+  `damageByWeaponVs` itself uses for "VS only" — returns exactly 1 outside
+  VS regardless of ranks invested, proven by two new pinned unit tests
+  (`tests/p12a-kit-power.test.ts`) rather than inferred from any one class's
+  seed set. G1/G14 re-confirmed green after the fix. Full account: BALANCE.md
+  "p12f" section's two follow-up paragraphs. — Reason: CLAUDE.md rule 5
   (choose, log, continue), the item's own "you do not have to hit >=9/12 —
   honest measurement, don't force it," and measurement rules (control pair,
   before/after both recorded, blast-radius check before calling a lever

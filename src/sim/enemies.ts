@@ -312,8 +312,20 @@ export function kitPowerMul(w: World): number {
  * put it ahead of any single wielded attack rather than merely even with it.
  * A `for...in` loop over `typeMasteryRanks` avoids `Object.values`'s
  * temporary array on a path `dotVaryingMul` calls every kit hit and DoT tick.
+ *
+ * `w.huntsWarden`-gated (qa-playtester, follow-up to the code-reviewer's
+ * blast-radius finding): `typeMasteryRanks` is never reset between the
+ * run's VS blocks, so without this gate the factor rides straight into every
+ * later TD block too — measured to inflate `ownShare` (the whole-run metric
+ * G8's diversity clause reads) 26-57% on the two classes checked, growing
+ * further each subsequent cycle since the boon is `uncapped: true`. §A's
+ * own-kit-share target this item closes is explicitly a VS-only measurement
+ * (`damageByWeaponVs`, gated the same way — see `world.ts`'s own
+ * `damageByWeapon`-restricted-to-VS comment), so a TD-phase effect was never
+ * part of what this item was measuring or meant to change.
  */
 function kitBuildMul(w: World): number {
+  if (!w.huntsWarden) return 1;
   let sum = 0;
   let count = 0;
   for (const key in w.typeMasteryRanks) {
