@@ -11,6 +11,19 @@
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
 
+- **2026-09-07 — lane/content: BACKLOG-CONTENT c002 closed, superseded.**
+  c002 ("SKIPPED 2026-09-03, blocked on the Q161 owner verdict") measured
+  the pre-BALANCE-DIRECTION-v2 G8 diversity clause ("top damage source
+  distinct across >=9/12 classes"). QUESTIONS.md's Q161 entry now carries
+  its owner verdict: "resolved by BALANCE DIRECTION v2 §A/§D... G8's
+  diversity clause is rewritten per §D to the own-kit-share target plus a
+  pairwise fingerprint-distance check rather than the unreachable >=9/12
+  distinct-top-source bar." There is no live gate left for c002's own
+  acceptance metric (the distinct-top-source count) to move — this
+  session's own `c032`-`c041` arc already did the real work the verdict's
+  replacement clauses needed. Closed as superseded rather than executed; no
+  code or test change — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D.
+
 - **2026-09-07 — lane/content: BACKLOG-CONTENT fb062 done (in-lane portion).**
   Pinned Poison Barrel's every-second poison mechanic and, while scoping it,
   found and fixed a real bug: `firePoisonBarrel` (`src/sim/classes.ts`)
@@ -268,57 +281,3 @@
   `q15`/`q45` fuzz-command-domain failures c029 already logged as present on
   HEAD; `npx tsc --noEmit` clean.
 
-- **2026-09-07 — BACKLOG fb082 done.** `updateAreas`'s poison branch
-  (`src/sim/combat.ts`) is gated on a per-area `tickSeconds` accumulator
-  (the pre-existing `GroundArea.acc` field, declared since the type was
-  written but never read) instead of firing every 60 Hz frame, closing the
-  SPEC-FINAL §4.1 "applying poison damage every second" defect
-  `tests/class-spec-numbers.test.ts` had tracked. Authored explicitly as
-  `groundTickSeconds: 1` in `data/classes.json`'s Plaguebringer `active1`
-  (a new `.positive()`-validated schema field, read in `firePoisonBarrel`),
-  with a loader cross-check refusing `groundTickSeconds > groundDurationSeconds`.
-  A first pass shipped a real ~3.5x DPS regression, independently measured
-  by code-reviewer and qa-playtester (429.6 -> 120 total damage over the
-  barrel's 5 s life): gating call frequency alone while leaving
-  `applyPoison`'s hardcoded `duration: 1.0` unchanged let every stack expire
-  before the next application arrived, collapsing 3 sustained stacks (the
-  pre-fix spam's emergent behavior) to 1. Fixed with `duration: tick *
-  POISON_STACK_CAP`, restoring the sustained-cap magnitude; a new test
-  drives real DoT decay (`updateEnemies`) alongside `updateAreas` to prove
-  `dotStacks` reaches 3 at steady state, confirmed red against the naive
-  fix. qa-playtester also found that a poison area whose whole lifetime is
-  one `tickSeconds` window (Venom Spore's own trail blob) went permanently
-  silent — the cadence check ran *after* the area's own expiry early-return,
-  losing the one scheduled application to a rounding race at the boundary
-  (measured 0 damage at the shipped 1.4286 s interval). Fixed by
-  re-ordering so the poison branch's accumulate-and-check happens before
-  marking the area dead (every other type's expiry behavior, including
-  `'burn'`'s pre-existing negligible sub-frame loss, is unchanged);
-  `vsspecials.ts` now also ties the trail's own `tickSeconds` to
-  `special.interval` explicitly rather than the engine's `?? 1` default. A
-  narrower limitation — a non-exact-multiple lifetime loses its trailing
-  partial window, no fractional final tick — is logged rather than
-  engineered around: unreachable by any shipped `/data` row today, and
-  qa-playtester's own suggestion is a future item if a duration-scaling
-  skill card is ever authored for Poison Barrel.
-  A re-review round (code-reviewer + qa-playtester again) both came back
-  APPROVE/PASS, independently re-measuring the DPS restoration and
-  re-driving the Venom Spore fix through the real tower-build pipeline at
-  three interval values. One more Minor closed: `groundDurationSeconds <= 0`
-  with `groundTickSeconds` left unauthored slipped past the exceeds-check
-  (which only compares when both fields are present); closed with an
-  independent, `ground_poison`-scoped positivity check (not a schema-wide
-  change, since `dash_trail`/`time_lock` share the field for a lifetime with
-  no cadence to cross) — confirmed via an unchanged q7 census that this
-  closes no further fuzzer holes (real data always authors
-  `groundTickSeconds`, so the combination was never reachable through the
-  existing single-field mutation families).
-  `tests/q7-loader-holes.ts` regenerated twice (once for the new field,
-  again once the loader cross-check closed `groundDurationSeconds`'s own
-  stale negative/zero holes) — diffed both times to confirm purely
-  additive/closing changes. `npm run test:fast`: only the documented
-  pre-existing `q15`/`q45` flake, both before and after every fix in this
-  item. `npx tsc --noEmit` clean throughout. A short cross-lane note was
-  added to BACKLOG-CONTENT.md's Log: fb082 unblocks fb062 (a broader,
-  still-open content-lane item — its own zero-direct-damage/no-lifesteal
-  and tooltip-text acceptance is untouched by this item).
