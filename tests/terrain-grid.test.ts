@@ -449,7 +449,12 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // than tightened to 0, per this lane's own logged lesson that a count over
     // a seed window is not a golden. (Review.)
     expect(stranded).toBeLessThanOrEqual(3);
-    const stranding = applied(generateTerrain(4426, cfg));
+    // Re-found at fb166's 56x32 grid: seed 4426 no longer strands the Core
+    // (headroom went up 2.65x with the interior, and stranding is exactly the
+    // kind of extreme this item found much rarer everywhere else too — none
+    // of 1..5000 strands it, and this witness turned up at 7120). Searched
+    // fresh rather than reused, per this file's own precedent above.
+    const stranding = applied(generateTerrain(7120, cfg));
     expect(stranding.allGatesReachable()).toBe(false);
     for (const gate of GATES) expect(stranding.distAt(gate.tx, gate.ty)).toBe(-1);
   });
@@ -665,11 +670,11 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       ]),
     );
     // The aliasing shape (b007): GRID_W is even, so `.5` in `ty` cancels its
-    // own fraction. `1.5 * GRID_W + 3` is tile (21, 1) — open ground — so
+    // own fraction. `1.5 * GRID_W + 3` is tile (31, 1) — open ground — so
     // `passable(3, 1.5)` used to answer `true` about the mountain at (3, 1).
     const alias = 1.5 * GRID_W + 3;
     expect(Number.isInteger(alias)).toBe(true);
-    expect(alias).toBe(57);
+    expect(alias).toBe(87);
     expect(g.tile[alias]).toBe(TileType.Open);
     expect(g.blocked[alias]).toBe(0);
     expect(g.passable(3, 1)).toBe(false);
@@ -758,11 +763,13 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     // fields for a reason that has nothing to do with `grid.ts`, and a
     // balance-analyst editing densities should read "the map changed" rather
     // than a bare field-hash mismatch on a Grid test (QA bug 4).
+    // Re-recorded at fb166's 56x32 grid (`data/terrain.json` unchanged) — the
+    // grid resize alone moves every generated map and so every field hash.
     const GOLDEN: ReadonlyArray<readonly [number, string, string, string]> = [
-      [1, '54fad3db', 'ebcc9078', 'de5c7d1b'],
-      [4, '131ee8f2', 'b2d3934d', '462315b5'],
-      [11, '5064cfc5', '09546a0e', '16f18023'],
-      [137, '2184cf89', '0e3776a5', '66ee4ee2'],
+      [1, '164edd68', 'f0b35203', '6b942063'],
+      [4, '3d7c70c8', '584805a6', '1d4311d3'],
+      [11, '942f7549', 'edd34ea6', '464fae91'],
+      [137, 'fc1b1ea9', '75347292', 'a94f93c4'],
     ];
     for (const [seed, map, bare, dense] of GOLDEN) {
       const generated = generateTerrain(seed, cfg);
@@ -1111,15 +1118,15 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
     // is worse than over a read: a read reports the wrong tile, a write
     // silently occupies one and re-routes the flow field around it.
     const g = applied(handMap([]));
-    expect(g.occ[57]).toBe(0);
+    expect(g.occ[87]).toBe(0);
     g.setOcc(3, 1.5, 7);
-    // Tile (21, 1), not (3, 1): `1.5 * GRID_W` cancels its own fraction.
-    expect(g.idx(21, 1)).toBe(57);
-    expect(g.occ[57]).toBe(7);
-    expect(g.blocked[57]).toBe(1);
+    // Tile (31, 1), not (3, 1): `1.5 * GRID_W` cancels its own fraction.
+    expect(g.idx(31, 1)).toBe(87);
+    expect(g.occ[87]).toBe(7);
+    expect(g.blocked[87]).toBe(1);
     expect(g.occ[g.idx(3, 1)]).toBe(0);
     g.setBreach(3, 1.5, 99);
-    expect(g.breach[57]).toBe(99);
+    expect(g.breach[87]).toBe(99);
     // The exposure is real and it is call-site-owned: nothing in `src/` or
     // `tools/` reaches either write with a non-integer, because every path in
     // goes through `buildable`. Recorded here so that stays a checked claim.
@@ -1154,7 +1161,7 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
     expect(g.idx(3, 1)).toBe(1 * GRID_W + 3);
     // The alias, stated as an assertion so nobody has to re-derive it: a
     // fractional ty produces a legal index for a different tile.
-    expect(g.idx(3, 1.5)).toBe(57);
+    expect(g.idx(3, 1.5)).toBe(87);
     expect(Number.isInteger(g.idx(3, 1.5))).toBe(true);
     expect(g.idx(3, 1.5)).not.toBe(g.idx(3, 1));
     // A fractional tx does not alias — it produces a non-integer index, which

@@ -48,6 +48,14 @@
  * reason, and saying so is the difference between a recorded measurement and a
  * story. The deterministic tail lives in layer 1.
  *
+ * **fb166 re-measured this at the 56x32 grid.** The 1500-seed sample is a
+ * fixed seed list, independent of grid size, so it still names the same two
+ * pre-fb166 candidates — but 2485897837 no longer retries at the larger
+ * interior (more room means its first attempt now clears every band),
+ * leaving exactly one retry-taking seed, -329, which is also the argmax on
+ * every idle probe taken for this item. See `MEASURED` for the re-recorded
+ * numbers.
+ *
  * **The retry-ratio case is no longer here** (2026-09-06): "a seed that
  * generates twice costs about twice" divides one wall-clock population by
  * another, and on the GitHub runner it read **1.2x against its 1.5x floor**
@@ -207,7 +215,7 @@ describe('fb064z — the cost of a generated map, sampled across the seed domain
     expect(
       units / mean,
       `a maxed-out retry run must cost a multiple of the mean ` +
-        `(warm reading ~${MEASURED.hostileOverMean}x, measured 8.42-10.49)`,
+        `(warm reading ~${MEASURED.hostileOverMean}x, measured 7.23-7.88 at fb166's 56x32 grid)`,
     ).toBeGreaterThan(4);
   });
 });

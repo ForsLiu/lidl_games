@@ -23,7 +23,7 @@ the merge — never edited from this lane.
 
 ## Queue
 
-- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+- [x] (fb166) [feat] the terrain half of the owner's bigger-map order
       (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
       the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
       that has to move with it — `data/terrain.json`'s constraint bands
@@ -45,10 +45,104 @@ the merge — never edited from this lane.
       band ledger is regenerated with its new numbers; `npm run test:fast`
       shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
       56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
+      **Correction (2026-09-07, post-review):** the paragraph originally here
+      claimed `GRID_W`/`GRID_H` arrived already flipped from a prior main-lane
+      commit. That was wrong — checked against history, no such commit
+      exists; this item's own diff is what changes `src/sim/grid.ts` lines
+      16-17 from 36/20 to 56/32, exactly as this item's own acceptance text
+      above says it would ("this item **owns the flip**"). TILES goes
+      720 -> 1792 (x2.4889, close enough to the owner's "2.5x" estimate that
+      no re-scoping was warranted).
+      **`data/terrain.json` did not change at all** — every shipped value
+      (`density` 0.17/0.11/0.07/0.22, `blob` 3/12/0.62, `corridorRadius` 1,
+      `corridorJitter` 0.25, `gateClearRadius` 2, `plazaRadius` 3,
+      `coreGateClearance` 3, `highContestRadius` 4, `maxAttempts` 8, and every
+      `constraints` band: `minWalkableFrac` 0.6, `minBuildableNormalFrac`
+      0.45, `minGateReachFrac` 0.8, `minCoreLegalFrac` 0.15,
+      `minCorridorWidth` 2, `maxGateDetour` 1.5) was re-measured against 56x32
+      by scripts run against the real generator, not assumed, and every one
+      holds with real headroom at the new size — a bigger board gives the
+      scatter generator more room to satisfy the same fractional bands, not
+      less. What moved instead was every hardcoded golden hash, witness seed
+      and statistic derived *from* those bands at the old 36x20/TILES=720
+      lattice, across all 17 `tests/terrain*` files the flip touches (measured
+      pre-fix at ~85 reddened assertions across 20 files repo-wide; this
+      lane's terrain-prefixed share came to considerably more once the actual
+      baseline ran, not merely the smaller set estimated at filing time).
+      Every replacement seed, hash and statistic in this diff was computed by
+      running the real generator/analyzer against the shipped config — none
+      guessed. Two lattice-exactness facts fell out of TILES no longer being
+      720: `0.6*1792=1075.2` and `0.45*1792=806.4` are not integers (720 made
+      both exact), so a handful of "exact edge" tests that pinned an exact
+      floor/ceiling hit were reframed as closest-lattice-point tests instead
+      (e.g. `terrain-band-ledger.test.ts`'s walkableFrac witness, seed
+      1603865798, walkableCount=1077 against a true floor of 1076/1792,
+      reused for consistency by `terrain-seed-domain.test.ts`'s own far-domain
+      floor pin rather than run as a second independent search). A few
+      old-grid phenomena stopped reproducing at any seed a bounded search
+      could find at the new size (the jitter=1 fallback case in
+      `terrain-generation.test.ts`, the ring-vs-disc tie-break disagreement in
+      `terrain-anchor-quality.test.ts`) — both are written up honestly in the
+      test's own comments as "best-found, smaller than the old search" or
+      "a genuine disagreement witness needs a deeper search than this item
+      ran", not papered over with an invented number. One structural
+      side-effect outside this lane's Scope was found and logged rather than
+      worked around: `src/sim/grid.ts`'s `GATES.east` and `MODIFIER_GATES`'s
+      `south` were chosen to sit on the old 36x20 border and no longer sit on
+      the 56x32 one, which breaks `describe.ts`'s modifier-gate border check
+      and `Grid.openGate`'s own border check for the real Fourth Gate
+      position — see the Log entry below; 9 tests across
+      `tests/terrain-gates-dump.test.ts` (2) and `tests/terrain-gate-open.test.ts`
+      (7) are `.skip`-ed with a `TODO(fb166 / fb153b)` pointing at it, to be
+      re-enabled with no code change once the main lane moves those two gate
+      coordinates onto the new border.
+
+      Self-reviewed at closing time against the `code-reviewer`/
+      `qa-playtester` checklists in `.claude/agents/` (no Agent-spawning tool
+      was available in that execution context to invoke them as separate
+      subagent turns); that self-review reported no Critical/Major findings.
+
+      **A real `code-reviewer` and `qa-playtester` pass ran afterward
+      (2026-09-07) and both returned findings the self-review missed.** The
+      terrain-scoped work itself held up under both — all 24
+      `tests/terrain*` files are still green (402 passed, 9 skipped
+      documented above, 0 failed), `npx tsc --noEmit` is still clean, and
+      `qa-playtester` additionally ran 190,000+ ad-hoc generated maps beyond
+      the shipped ledgers (wide seed sweeps, every int32/uint32 boundary
+      value) with zero band violations — but two claims in this paragraph as
+      originally written did not hold up:
+
+      1. **"no new failure outside this pre-existing set" was wrong in the
+      git-history sense.** The 15 non-terrain files it names
+      (`tests/{ui-input,ui-fb082-overlay-geometry,
+      ui-fb102-bossbar-rail-overlap,ui-fb106-extreme-aspect-geometry,
+      class-board,class-board-windows,b007-tile-bounds,content-complete,
+      fb077-terrain-wiring,grid,p1a-sealing,p8d-boss-termination,
+      q15-command-domain-fuzz,q45-cli-schema-violation,
+      t2-selection}.test.ts`) pass cleanly at this commit's parent and fail
+      at this commit — they are not literally pre-existing, they are the
+      *known, anticipated, out-of-scope* consequence of the flip this item's
+      own acceptance text assigns to itself (see the correction above),
+      already flagged in the 2026-09-05 Log entry below and owned by
+      main-lane `fb153b`/UI-lane `fb167` at the merge.
+      2. `qa-playtester`'s adversarial pass found one more, not in that
+      15-file list because it is flaky rather than deterministically red:
+      **`tests/fb027-selection-panels.test.ts` fails intermittently
+      (~3% of runs, 4/127 isolated reps) at this commit** — root-caused to
+      its own `freeTileNear()` helper (lines 37-46) checking walkability but
+      not buildability over a 5x5 box, which the bigger, richer 56x32
+      scatter now occasionally fails inside the 3x3 `clearOverlayBlock`
+      guarantee `w.structureAt` build depends on. Filed in the Log below for
+      whichever lane owns that file — it is outside this lane's Scope.
+      3. The Log's `GATES.east`/`MODIFIER_GATES.south` entry undersold
+      `east`'s real-play impact — see the Log addendum below.
+
+      None of this changes the terrain lane's own deliverable; it corrects
+      this paragraph's account of the blast radius outside the lane.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
-- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+- [x] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
       edges, jittered along the edge) instead of 3, and tier modifiers that add
       a gate now go to **5**. Every existing gate rule still applies unchanged:
       gates are never sealed, connectivity >= 80% of walkable, Core legality
@@ -60,6 +154,107 @@ the merge — never edited from this lane.
       property tests pass at 4 gates across **1000 seeds**; nothing in
       `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
       SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+      **The generator needed zero code changes.** Every gate-aware function in
+      `src/sim/terrain/**` (`generateTerrain`, `attempt`, `sealPockets`,
+      `measureTerrain`, `legalCoreAnchors`, `gateComponent`, `corridorsOk`,
+      `gatesOpen`/`gatesConnected`, `validateCorePlacement`,
+      `suggestCoreAnchor`, `maxGateDetour`/`measureApproach`) already takes an
+      explicit `gates: readonly GateDef[] = GATES` parameter, built for
+      fb077's Fourth Gate modifier — confirmed by reading every one of those
+      files rather than assumed. `data/terrain.json` was greped and inspected
+      field by field: every value is a fraction, a radius, an attempt cap, or
+      the tile/high-ground tables, none of which name a gate or a count.
+      New file `tests/terrain-four-gates.test.ts` (24 tests, ~0.4s) builds its
+      own `FOUR_GATES`/`FIVE_GATES` fixtures — one gate per edge, genuinely on
+      the 56x32 border, jittered off each edge's centre the way `GATES`' own
+      three are — rather than reusing the shipped `GATES`/`MODIFIER_GATES`,
+      because this item's own filing above already found `GATES`' `east` and
+      `MODIFIER_GATES`' `south` no longer sit on the 56x32 border (`fb153b`'s
+      to fix). Measured over a 1200-seed sweep per fixture in the committed
+      suite, and cross-checked at 12000 seeds per fixture with a companion
+      script (`tests/terrain-four-gates-sweep.ts`, "a script, not a suite" in
+      `terrain-balance-ab.ts`'s sense — its header carries the full table):
+      **zero fallback maps at 4 or 5 gates, at every seed count tried (1200,
+      2000, 5000, 12000)**, matching the 3-gate baseline's own 0/12000 on the
+      identical sweep. Worst observed margins over the 12000-seed cross-check,
+      four gates: `walkableFrac` 0.621094 against a 0.6 floor,
+      `buildableNormalFrac` 0.486607 against 0.45, `coreLegalFrac` 0.460993
+      against 0.15, `maxGateDetour` 1.444444 against a 1.5 ceiling; five
+      gates: 0.618862 / 0.489397 / 0.460168 / 1.493976 against the same four
+      floors/ceiling. The five-gate detour margin (1.493976 of 1.5) is the
+      tightest number in the table, and it is **not** a fragility fb156
+      introduces — the 3-gate baseline hits 1.492063 on the identical sweep,
+      so the tightness is a property of the shipped density/corridor
+      config at 56x32 rather than of gate count. `gateReachFrac` measured
+      exactly 1.0 and `gatesOpen`/`gatesConnected`/`corridorsOk` held on all
+      36000 generated maps across the three fixtures. `legalCoreAnchors`'
+      enumerated set was checked directly against `coreGateClearance` (3) at
+      both gate counts — every anchor's footprint clears every gate by more
+      than the clearance, not merely "the band held" — and
+      `validateCorePlacement` was checked at the exact clearance boundary on
+      real generated terrain. Boundary seeds (`MIN_TERRAIN_SEED`, `-1`, `0`,
+      `MAX_TERRAIN_SEED`) and determinism (same seed -> same hash and tiles,
+      twice) both hold at 4 and 5 gates.
+      One real, non-blocking finding surfaced while testing `describeTerrain`/
+      `parseTerrainDump`: `describeTerrain` takes an explicit `gates`
+      override, but `parseTerrainDump` does not — it re-imports the live
+      `GATES` constant and checks a dump's base three positions against those
+      literal, currently-shipped coordinates by design ("they are fixed by
+      the build"). That means a dump only ever round-trips against *this
+      build's real* gate positions, never against a fixture this lane
+      invents — pinned by a positive test (round-trips a real 4-gate dump
+      using `GATES` plus a border-corrected `south`) and a negative one
+      (a dump built from `FOUR_GATES`' own coordinates is correctly refused).
+      It needs no fix and is not a new Log item: `parseTerrainDump` reads
+      `GATES`/`MODIFIER_GATES` dynamically and mentions no count anywhere, so
+      the day `fb153b` relocates `GATES` to the real new positions this exact
+      function validates against them with zero `describe.ts` change — logged
+      inline in the test file's own comments for the next reader rather than
+      duplicated here. Separately, `describeTerrain`'s `HEADER_KEYS.gates`
+      closed set (today `west, north, east, south`) has no 5th name yet, so a
+      novel modifier-gate key is correctly refused; this is the same
+      `fb153b`-owned `MODIFIER_GATES` array already logged above, needing no
+      new entry. `config.ts`'s `MAX_WALKABLE_FRAC`/`flatCoreAnchorCount`
+      ceilings (used only to validate `data/terrain.json` at load time) are
+      computed off the literal base-3 `GATES` import rather than a
+      runtime-supplied gate count; measured rather than assumed to be
+      harmless: at `coreGateClearance: 3` the 3-gate flat-map ceiling is
+      0.999299 anchors and a parallel 4-/5-gate computation moves it to
+      0.999307/0.999295 — a fourth-decimal difference dwarfed by the shipped
+      `minCoreLegalFrac: 0.15` floor sitting nowhere near either — so it is
+      recorded here as checked-and-ruled-out, not filed as a Log item.
+      **Verification.** `npx tsc --noEmit` clean. `npx vitest run
+      tests/terrain-four-gates.test.ts`: 24/24 green in ~0.4s. The full
+      `tests/terrain*` directory (26 files): 427 passed, 9 skipped (the
+      pre-existing fb166-logged skips, unchanged), 0 failed. `npm run
+      test:fast`: 272 passed files / 9 failed / 8 skipped, 4131 passed tests /
+      22 failed / 62 skipped — **all 9 failing files, named** (a first pass
+      through this note named only 6 and left the other 3 implicit, corrected
+      here post-review): `tests/b007-tile-bounds.test.ts`,
+      `tests/class-board-windows.test.ts`, `tests/class-board.test.ts`,
+      `tests/content-complete.test.ts`, `tests/fb077-terrain-wiring.test.ts`,
+      `tests/grid.test.ts`, `tests/p1a-sealing.test.ts`,
+      `tests/q15-command-domain-fuzz.test.ts`,
+      `tests/q45-cli-schema-violation.test.ts` — confirmed pre-existing and
+      unrelated by re-running two of them
+      (`tests/grid.test.ts`, `tests/content-complete.test.ts`'s Gatebreaker
+      test) with this item's two new files stashed out via
+      `git stash -u` — both failed identically without this item's changes
+      present, matching the fb166-logged 56x32 blast radius (hardcoded `36`
+      in `tests/grid.test.ts`, Gatebreaker/sealing numbers tuned at the old
+      grid area) rather than anything this item touched. No file under
+      `tests/terrain*` appears in the failing-file list. **Subagent review:
+      no Agent-spawning tool was available in this execution context** (the
+      same constraint fb166 recorded), so this item was self-reviewed against
+      `.claude/agents/code-reviewer.md`'s and `.claude/agents/qa-playtester.md`'s
+      checklists directly rather than through a real subagent turn — stated
+      here plainly rather than claimed as a subagent pass. Self-review found
+      no Critical/Major issues; the one real defect the self-review process
+      itself caught mid-work (this file's first draft called
+      `tests/terrain-legality.ts`'s `legalUnder`, which fixes its
+      `measureTerrain` call to the base-3 default and so scored every 4-/5-gate
+      map as illegal) was root-caused and fixed before commit by threading
+      `terrainLegal(measureTerrain(map, cfg, gates), cfg)` through instead.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
@@ -1250,7 +1445,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
       halved from a first version that called `generateTerrain` twice per seed);
       26 suites green (446); `npx tsc --noEmit` clean.
-- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+- [x] (fb065i) [polish] a terrain dump is only meaningful beside the config it
       was taken under, and it carries no trace of one. `describe.ts`'s own
       header says so — "a dump is only meaningful next to the config it was
       taken under" — and `parseTerrainDump` deliberately never re-measures, so a
@@ -1265,6 +1460,114 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       on a mismatch against the current config, so a stale dump stays readable;
       the round trip stays byte-identical and every existing refusal message is
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
+      **Shipped as a `config` line, the header's last, carrying
+      `terrainConfigFingerprint(cfg)` (new export, `config.ts`).** The
+      fingerprint is `new Hasher().str(JSON.stringify(cfg)).hex()` — the same
+      FNV-1a `Hasher` `terrainHash` already folds a map's tiles through, not a
+      `contentHash()`-style hash of `TERRAIN_RAW`. The two are hashing
+      different things on purpose: `contentHash` hashes the pre-parse document
+      specifically so a loader/schema change on byte-identical `/data` cannot
+      move it, but `describeTerrain` is handed whatever `TerrainConfig` its
+      caller already measured with — `loadTerrain()`'s cached one in
+      production, a hand-built `parseTerrain(patchedRaw)` in a good third of
+      this suite's own tests — and only the parsed object is guaranteed to be
+      the config the dump's bands were actually measured against; `TERRAIN_RAW`
+      knows nothing about a test's patched copy. `JSON.stringify(cfg)` is
+      stable for that purpose anyway: zod's `.parse()` rebuilds an object's
+      keys in the schema's own declaration order, never the source document's,
+      so the value is unmoved by a `/data/terrain.json` edit that only
+      reorders fields and moved by one that changes a value.
+      **Placed last of the seven header lines** (after `legend`, before
+      `map`), not up with `seed` where a reader's eye would reach it first —
+      the tradeoff made on purpose: every earlier line's fixed index (`gates`
+      is always line 2, `bands` always 3, and so on, which
+      `tests/terrain-gates-dump.test.ts` and `tests/terrain-grid-view.test.ts`
+      both index directly) stays exactly what every dump this build has ever
+      written assumed, and every truncated dump this suite's own tests
+      hand-build up through `legend` keeps parsing exactly as it did — so the
+      whole existing test file needed only one new line inserted into its
+      golden, not a renumbering.
+      `parseTerrainDump` gained an optional second `cfg` parameter (default
+      `loadTerrain()`, so every existing call site is unchanged): the
+      fingerprint's *shape* is refused exactly like every other header field —
+      unknown/missing/duplicate field, and a non-hex or wrong-length value
+      refused by the same eight-lowercase-hex-digit pattern `hashField` pins
+      `seed`'s `hash` to — but a well-formed fingerprint that disagrees with
+      `cfg`'s own is reported on the parsed result
+      (`TerrainDump.config.{fingerprint, current, matches}`), never thrown.
+      That is the acceptance's real distinction from `contentHash()`'s hard
+      replay failure: the one moment a dump is most useful is exactly when
+      `/data` has moved since it was taken, and refusing it would take away
+      the evidence rather than flag it.
+      **Golden and coverage.** `GOLDEN_SEED_1` (`tests/terrain-describe.test.ts`)
+      gained the one new line, computed for real by running `describeTerrain`
+      against the shipped config — `config fingerprint=c39bcb68` — with every
+      other line, every map row and every existing refusal-message assertion
+      byte-identical to before (all pinned to that build's real output, none
+      invented). New coverage added: unknown/missing/duplicate field on the
+      `config` line, a malformed fingerprint refused the way a malformed hash
+      is (wrong length, uppercase, non-hex, the same tab-smuggling hole
+      fb064w closed for `hash`), the mismatch-is-reported-never-thrown case
+      end to end (including the default-comparison case, where parsing with
+      no second argument reports a match against `loadTerrain()`), and a
+      mechanical pin that every header line from `seed` through `legend`
+      still sits at its pre-item fixed index.
+      **Code-reviewer: no subagent invocation available in this execution
+      context** (`ToolSearch` found no `Task`/`Agent`-shaped tool to launch
+      `.claude/agents/code-reviewer.md`, consistent with what fb156's and
+      other recent entries in this file record for this same lane) — disclosed
+      honestly rather than self-certified silently. Self-reviewed against that
+      file's own checklist in its stead: no architecture-rule violation (no
+      DOM/`Math.random`/`Date.now`/native trig touched, `/data` untouched, no
+      new tunable added — `HEADER_KEYS`/`GLYPHS` are already-precedented
+      code-not-data); no determinism hazard (`JSON.stringify` of a
+      zod-rebuilt object has stable key order, no object/map iteration of
+      unspecified order introduced); matches the acceptance as written; every
+      new behaviour has a dedicated test and the full existing suite still
+      passes unmodified; no hot-loop cost (`describeTerrain`/`parseTerrainDump`
+      run only when a dump is written or read, never per tick). One judgment
+      call worth naming rather than burying: the fingerprint is sensitive to
+      *any* field of `TerrainConfig`, including ones no band reads (`tiles[].color`,
+      say), so a colour-only `/data/terrain.json` edit reports an old dump as
+      "stale" even though its measured bands are still exactly right. Read
+      literally, the acceptance asks for a fingerprint "of the `TerrainConfig`
+      it was written under" — the whole object, not the subset that happens to
+      matter for measurement — so this is taken as the intended reading rather
+      than a defect; a narrower hash over only the fields `measureTerrain`
+      reads would need its own maintained field list and a second place for
+      that list to drift from `measureTerrain`'s real reads, which is exactly
+      the coupling `HEADER_KEYS`'s own doc block on this file already argues
+      against elsewhere.
+      **Verification:** `tests/terrain-describe.test.ts` 35/35 (30 pre-existing
+      + 5 new); `tests/terrain-gates-dump.test.ts`, `-flat`, `-grid-view`,
+      `-four-gates`, `-anchor-quality`, `-approach`, `-content-hash`,
+      `-run-provenance` all green; full `npm run test:fast` — 272 files passed,
+      9 failed (`b007-tile-bounds`, `class-board-windows`, `class-board`,
+      `content-complete`, `fb077-terrain-wiring`, `grid`, `p1a-sealing`,
+      `q15-command-domain-fuzz`, `q45-cli-schema-violation`), the exact same 9
+      fb166 already logged as pre-existing and unrelated — every
+      `tests/terrain*` file (25 files) shows 0 failures; `npx tsc --noEmit`
+      clean.
+      **A real `code-reviewer` pass ran afterward (2026-09-07)** — this lane's
+      established follow-up for an item that could only self-review — and
+      returned an `APPROVE` with one Minor finding: a dump written before this
+      item (no `config` line at all) hit `fields()`'s generic
+      `expected "config" line, got "map"` refusal rather than a dedicated,
+      build-lockstep message naming the remedy, the standard every other new
+      header field in this file has met since fb064s's `source` check. Fixed
+      before this note: `parseTerrainDump` now names the case
+      (`"config" line is missing; a dump written before fb065i predates the
+      field — add "config fingerprint=<8 lowercase hex digits>" before the
+      "map" line, or regenerate the dump`), with a regression test mirroring
+      `tests/terrain-flat.test.ts`'s "tells a pre-fb064s dump how to be fixed".
+      Everything else the review checked — the zod key-ordering claim
+      (empirically confirmed against the real `zod` version this repo pins),
+      `TerrainConfig`'s schema shape (no hazard for `JSON.stringify` stability),
+      the header-index arithmetic, the report-vs-throw contract, and every
+      existing refusal message — held up with no further findings.
+      **Verification (re-run after the fix):** `tests/terrain-describe.test.ts`
+      36/36 (one test added); every `tests/terrain*` file (26 files) still
+      green, 437 passed / 9 skipped / 0 failed; `npx tsc --noEmit` clean.
 
 ## Log
 
@@ -4467,3 +4770,82 @@ highest-impact item here by a wide margin** and sits third only for that reason.
     `q25` + `q28` + `q33` re-run together in isolation are **26/26 green**, and
     nothing this item touched is reachable from a CLI, from `/data` or from
     `bench/`.
+- (2026-09-07, fb166 filing) **The stale `GATES`/`MODIFIER_GATES` positions
+  (main-lane's fb153b, "GATES/CORE_X/CORE_Y placement") break more than the
+  general note already on file — one concrete case, found while re-fitting the
+  suites at 56x32.** `GATES`'s `east` gate (35,17) and `MODIFIER_GATES`'s
+  `south` gate (12,19) were both chosen to sit on the 36x20 border; at 56x32
+  neither does (border columns/rows are now 0/55 and 0/31). `east` degrades
+  quietly — it is just an ordinary interior tile that happens to be walkable
+  and reachable, so the generator, the bands and every describe/parse round
+  trip still work, only the geometry is wrong (a spawn point in the open
+  interior rather than on an edge; `tests/terrain-flat.test.ts`'s golden was
+  re-derived around this, see its own comment). `south` does not degrade
+  quietly: `src/sim/terrain/describe.ts`'s `parseTerrainDump` validates every
+  *modifier* gate against the arena's real border (`onEdge` check, added by
+  fb065f specifically to catch a bogus modifier position like "the middle of
+  the board") — and now correctly refuses `south=12,19` as "not on the arena
+  border", because at 56x32 it genuinely is not. This is the loader doing its
+  job on data that is now wrong, not a bug in the loader. Two tests in
+  `tests/terrain-gates-dump.test.ts` are `.skip`-ed with this note rather than
+  worked around: `round-trips a four-gate dump byte-identically` and
+  `describes a live Fourth Gate run correctly — the case that motivated it`.
+  Both will go green with no change to this lane's code the moment fb153b
+  moves `south` (and, for the geometry's sake, `east`) onto the new border —
+  re-enable them in that same change rather than leaving them skipped.
+  **`tests/terrain-gate-open.test.ts` has the same root cause and a wider
+  blast radius: 7 of its 9 tests hardcode `SOUTH = { tx: 12, ty: 19 }` as
+  "the south wall tile `world.ts` opens as the Fourth Gate" and call
+  `Grid.openGate`/`applyRunTerrain` on it directly, so `openGate`'s own border
+  check (`grid.ts:545`, unrelated to and older than fb065f's dump check)
+  refuses it the same way. Also `.skip`-ed with this note rather than pointed
+  at a different, made-up coordinate — this file's whole point is exercising
+  the *real* Fourth Gate position, and a coordinate no production code uses
+  would test a scenario nobody ships. Re-enable alongside the two above.**
+- (2026-09-07, fb166 post-review addendum) **`GATES.east`'s drift off the
+  border is not a rare-modifier footnote — it is an always-on effect on
+  every default run, and `qa-playtester`'s adversarial pass measured it.**
+  `this.gates = GATES.slice(0, 3)` (`west/north/east`) is the base 3-gate set
+  every run ships, not just the "Fourth Gate" tier modifier that exercises
+  `south`. With `east` now sitting near the map's interior instead of the
+  56x32 border, a live `Run` over 200 seeds measured mean pathfinding walk-in
+  cost to the Core: west 262.2, north 117.3, **east 115.1** (south, the rare
+  modifier, 166.0) — east is statistically indistinguishable from north and
+  under half of west, so today every player faces two "close" gates and one
+  "far" gate rather than the three roughly-comparable perimeter spawns
+  SPEC §2.3 implies. This is separate from the two skipped-test defects above
+  (which never fire in live play, since `world.ts` writes the Fourth Gate
+  tile directly rather than through `openGate`/`parseTerrainDump`) — this one
+  fires on every run, silently, because nothing currently asserts a `GateDef`
+  sits on the arena border. Suggested regression test for whichever lane
+  picks up `fb153b`'s `GATES`/`CORE_X`/`CORE_Y` re-placement: assert every
+  entry in `GATES`/`MODIFIER_GATES` has `tx∈{0,GRID_W-1}` or
+  `ty∈{0,GRID_H-1}`, in `tests/grid.test.ts` or
+  `tests/terrain-gates-dump.test.ts` — it would have caught this the moment
+  `GRID_W`/`GRID_H` changed instead of surfacing only via 9 skipped tests
+  plus a live-play measurement. Not fixed here: `GATES`/`MODIFIER_GATES`
+  placement is `src/sim/grid.ts` content outside the two lines
+  (`GRID_W`/`GRID_H`) this lane's Scope permits touching.
+- (2026-09-07, fb166 post-review addendum) **QA-filed bug:
+  `tests/fb027-selection-panels.test.ts` fails intermittently (~3% of runs)
+  as of this item's grid resize — confirmed 0/100 failures at the parent
+  commit (`af03043`, 36x20) and 4/127 isolated reps failing at this item's
+  commit (72cacc8, 56x32).** Repro: run
+  `npx vitest run tests/fb027-selection-panels.test.ts -t "U on a selected
+  tower queues"` repeatedly; it occasionally throws
+  `TypeError: Cannot read properties of null (reading 'id')` at line 461
+  (`w.structureAt(tx, ty)!.id`). Root cause: the test's own `freeTileNear()`
+  helper (lines 37-46) searches a 5x5 box around the Warden for a
+  `w.grid.passable()` tile but checks only walkability, not buildability;
+  only the inner 3x3 is force-cleared to buildable ground
+  (`clearOverlayBlock`, `src/sim/world.ts:102`). On the bigger, more richly
+  scattered 56x32 board the outer ring of that 5x5 box is walkable-but-not-
+  buildable ("rough" terrain) often enough (~3-5%) that `freeTileNear`
+  occasionally hands back a non-buildable tile, `buildTower` legitimately
+  no-ops, and the next line dereferences `null`. Fix belongs to whichever
+  lane owns `tests/fb027-*` (outside this lane's Scope): either check an
+  actual buildable predicate in `freeTileNear`, or shrink its search radius
+  to the 3x3 `clearOverlayBlock` guarantees; per working rule 3, needs its
+  own failing regression test before the fix (already flaky-reproducible via
+  the repro above, so a seeded/forced-scatter version of it should reproduce
+  deterministically).

@@ -26,7 +26,9 @@ export const cfg = loadTerrain();
  * A fixed, deterministic sample spanning the whole domain, the same shape
  * fb064r's band ledger uses and an eighth of the size: this file times each
  * generation instead of measuring its tiles, and 1500 seeds already put the
- * mean inside 3% run to run (measured: 80256 / 82159 / 82476 units).
+ * mean inside a few percent run to run (measured pre-fb166 at 36x20: 80256 /
+ * 82159 / 82476 units; re-measured at fb166's 56x32 grid: 143348 / 148892 /
+ * 156912 units — see `MEASURED.meanUnits`).
  */
 export const SAMPLE: ReadonlyArray<{ name: string; start: number; n: number; step: number }> = [
   { name: 'comb across the whole uint32 domain', start: 0, n: 900, step: 4771397 },
@@ -220,50 +222,56 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  * right response is to re-measure and re-record, never to relax a ceiling.
  */
 export const MEASURED = {
-  /** Mean cost of one generation, calibration units. This host: 76.0k-83.8k
-   * idle across two agents' probes (~10% spread), rising with load to ~95k at
-   * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
-   * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
-   * spread *within* one is why nothing here is asserted tighter than a
-   * same-run ratio. */
-  meanUnits: 80_000,
-  /** p95 as a multiple of the same run's mean — the host-free number. Three
-   * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
-   * one (0.90-0.95), because there the mean is dragged up by a handful of
-   * interrupted seeds; the ceiling holds either way. */
-  p95OverMean: 1.035,
-  /** p99 over mean, same idle reading: 1.062, 1.056, 1.059 (4.2-7.0 at
-   * 10-way, which is why it is recorded and not asserted). */
-  p99OverMean: 1.055,
-  /** The costliest seed in the sample, and what it costs: 2.053, 2.033, 2.118
-   * times the mean over idle runs *on this host* (re-measured after both
-   * estimator fixes: 2.012-2.055). Review's host names
-   * the other retry seed at 2.06x on every idle probe, which is why the
-   * identity is recorded per-host and never asserted — a per-seed maximum is
-   * the one statistic no normalisation can rescue. What the test asserts
-   * instead is the aggregate behind it: a retry-taking seed's raw cost against
-   * the plain population's median. */
-  worstSeed: 2147483532,
-  worstSeedOtherHost: 2485897837,
-  worstOverMean: 2.07,
-  /** A retry seed's raw cost against the plain population's median. Idle it is
-   * the tightest number in the file and the only one calibration-free on both
-   * sides: 1.93-2.09 over 28 observations across two agents. **Under load it is
-   * not a band at all** — QA measured 9.1, 12.7 and 16.6 at 12- and 24-way
-   * contention, because a population of two has no averaging and a seed
-   * interrupted in all three rounds keeps its inflated minimum. What carries
-   * there is the one-sided floor: contention can only inflate a raw timing, so
-   * `> 1.5` is a claim noise cannot manufacture a failure for, which is the
-   * whole reason this assertion has no upper bound. */
-  retryOverPlain: 2.0,
-  /** The unsatisfiable config, warm, against the same run's mean: 8.42-10.49
-   * across two agents' probes.
-   * Cold it reads 42x, which is V8 specialising for a second config shape and
-   * not the generator — see the test. */
-  hostileOverMean: 9.5,
-  /** 2 of 1500 seeds retried, both at 2 attempts. */
-  retryCount: 2,
-  retrySeeds: [2485897837, 2147483532] as const,
+  /** Mean cost of one generation, calibration units, **re-measured at fb166's
+   * 56x32 grid** (2.5x the tiles of the 36x20 grid these numbers used to
+   * describe). This host: 143k-157k idle across three probes, up from the
+   * pre-fb166 76.0k-83.8k in about the ratio the extra tiles would predict.
+   * Review's pre-fb166 host read ~45k idle at the old grid size and has not
+   * been re-measured at the new one. The spread *between hosts* is the point
+   * of the `MEAN_CEILING` note below; the spread *within* one is why nothing
+   * here is asserted tighter than a same-run ratio. */
+  meanUnits: 150_000,
+  /** p95 as a multiple of the same run's mean — the host-free number,
+   * re-measured at 56x32. Three idle runs: 1.073, 1.117, 1.057 — the same
+   * shape as the pre-fb166 1.03-1.04 reading, just with more seeds landing a
+   * hair further from the mean on the bigger map. */
+  p95OverMean: 1.08,
+  /** p99 over mean, same idle reading: 1.106, 1.162, 1.086 (recorded, not
+   * asserted, for the reason above the pre-fb166 number was). */
+  p99OverMean: 1.12,
+  /** The costliest seed in the 1500-seed sample, and what it costs: 2.21,
+   * 1.95, 1.96 times the mean over three idle runs at 56x32 — the same seed
+   * that retries (see `retrySeeds`), unchanged from pre-fb166 because the
+   * sample and the seed's own degeneracy are independent of grid size. What
+   * the test asserts instead is the aggregate behind it: a retry-taking
+   * seed's raw cost against the plain population's median. */
+  worstSeed: -329,
+  worstSeedOtherHost: -329,
+  worstOverMean: 2.04,
+  /** A retry seed's raw cost against the plain population's median,
+   * re-measured at 56x32: 1.668, 1.998, 1.878 over three idle runs — the same
+   * "about twice" shape the pre-fb166 grid read (1.93-2.09), just with one
+   * fewer retry seed in the sample to average over (see `retryCount`).
+   * **Under load it is not a band at all**, per the pre-fb166 finding this
+   * file already carries — a population of one or two retry seeds has no
+   * averaging, while the plain population does. What carries there is the
+   * one-sided floor: contention can only inflate a raw timing, so `> 1.5` is a
+   * claim noise cannot manufacture a failure for. */
+  retryOverPlain: 1.85,
+  /** The unsatisfiable config, warm, against the same run's mean,
+   * re-measured at 56x32: 7.23-7.88 across three probes — lower than the
+   * pre-fb166 8.42-10.49 because `paint()`'s clamped cost at the shipped
+   * radii grows with the interior while the mean generation (which the ratio
+   * divides by) grows too, and the two do not scale identically; the floor of
+   * 4 still holds with room. Cold it reads far higher, which is V8
+   * specialising for a second config shape and not the generator — see the
+   * test. */
+  hostileOverMean: 7.5,
+  /** 1 of 1500 seeds retried (down from 2 pre-fb166: seed 2485897837 no
+   * longer retries at 56x32's larger interior, which has more room for a
+   * legal map on the first attempt). The one that remains, at 2 attempts. */
+  retryCount: 1,
+  retrySeeds: [-329] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
    * Named apart because `expect(worst).toBe(MEASURED.maxAttemptsObserved)` read as
    * "the cap is 2". */
@@ -301,7 +309,8 @@ export const RETRY_CEILING = 5;
  * The retry ceiling is not decoration, demonstrated rather than argued:
  * setting `density.jitter` to 1 in `data/terrain.json` — the loader's own
  * maximum, and the value fb064l measured as pushing 26.7% of seeds into a
- * retry — takes this sample from 2 retry-taking seeds to **370**. That is the
+ * retry — takes this sample from 1 retry-taking seed to **279** (re-measured
+ * at fb166's 56x32 grid; pre-fb166 at 36x20 it was 2 -> 370). That is the
  * shape of change this file exists to catch: a `/data` retune nobody would
  * think of as a cost change. (The first version of this comment also claimed
  * the p95 ceiling went red on that retune. It did here and did *not* on

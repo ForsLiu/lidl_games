@@ -11,7 +11,10 @@
  * That is a real finding and easy to read as an alarming one, so this file is
  * the measurement that decides what to do about it. **The verdict is to accept
  * it, and the numbers below are what that verdict rests on**, over fb064r's own
- * 12,000-seed sample so they sit next to its ledger without a sampling excuse:
+ * 12,000-seed sample so they sit next to its ledger without a sampling excuse.
+ * Everything from here to the "first version" paragraph below is the pre-fb166
+ * (36x20) finding, kept for the shape of the argument — the paragraph after it
+ * states what fb166 found instead.
  *
  *  1. **A seed on the edge costs nothing today.** All five witnesses are
  *     *accepted* on their first attempt (`attempts: 1`). The zero headroom is
@@ -48,6 +51,23 @@
  * measured 0.017%. The band positions are worth revisiting when a retune moves
  * the *distribution*, and the cost curve below is what makes that a diff
  * rather than a re-derivation.
+ *
+ * **fb166 re-measured this whole file at the 56x32 grid, `data/terrain.json`
+ * unchanged, and the finding changed shape rather than just moving.** Over the
+ * same 12,000-seed sample, **zero maps sit exactly on any of the five bands**
+ * — `onEdge: 0` on every row, where pre-fb166 it was 2 (both on the detour
+ * ceiling). The five pre-fb166 witnesses, re-measured rather than re-derived,
+ * are no longer anywhere near an edge at all: the tightest of them
+ * (2454233399) now clears `buildableNormalFrac` by 0.099107, and the loosest
+ * (2005486180) clears `walkableFrac` by 0.152232 — both comfortably inside
+ * the sample's own p5. Every "tighten by N steps" reading in the curve below
+ * collapsed with it: sixteen steps on `walkableFrac`, which cost 41 seeds
+ * pre-fb166, costs 1 now; the detour ceiling's own edge, 2 seeds pre-fb166 at
+ * one step, costs 0 until sixteen. The 56x32 grid's extra headroom is not
+ * evenly spread across this suite — `tests/terrain-run-provenance.test.ts`
+ * found the hardcoded-Core-stranding rate fall by a similar order — but this
+ * is the sharpest single number for it: the zero-headroom phenomenon this
+ * whole file was built to price is, at this sample size, gone.
  *
  * **The first version of this file reached the same verdict on numbers that
  * were wrong**, and the correction is recorded rather than quietly applied: its
@@ -202,18 +222,24 @@ function fixed(v: number): string {
  * so a disagreement here is a real change and the response is to re-measure and
  * re-record, never to widen a tolerance.
  */
+// Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged (pre-fb166
+// at 36x20: walkableFrac 0.001389/0.058333/0.094444/0.092311/onEdge 0,
+// buildableNormalFrac 0.006944/0.056944/0.100000/0.099509/onEdge 0,
+// coreLegalFrac 0.269098/0.318672/0.367520/0.367837/onEdge 0, maxGateDetour
+// 0.000000/0.296610/0.398305/0.408052/onEdge 2). Every band's `onEdge` is 0
+// now, including `maxGateDetour` — see the header's fb166 paragraph.
 const SLACK: Record<LegalityBand, unknown> = {
-  walkableFrac: { min: '0.001389', p5: '0.058333', median: '0.094444', mean: '0.092311', onEdge: 0 },
+  walkableFrac: { min: '0.006027', p5: '0.107031', median: '0.137165', mean: '0.136371', onEdge: 0 },
   buildableNormalFrac: {
-    min: '0.006944',
-    p5: '0.056944',
-    median: '0.100000',
-    mean: '0.099509',
+    min: '0.023214',
+    p5: '0.090179',
+    median: '0.133705',
+    mean: '0.133428',
     onEdge: 0,
   },
   gateReachFrac: { min: '0.200000', p5: '0.200000', median: '0.200000', mean: '0.200000', onEdge: 0 },
-  coreLegalFrac: { min: '0.269098', p5: '0.318672', median: '0.367520', mean: '0.367837', onEdge: 0 },
-  maxGateDetour: { min: '0.000000', p5: '0.296610', median: '0.398305', mean: '0.408052', onEdge: 2 },
+  coreLegalFrac: { min: '0.287365', p5: '0.338108', median: '0.386842', mean: '0.386919', onEdge: 0 },
+  maxGateDetour: { min: '0.007937', p5: '0.292308', median: '0.406250', mean: '0.405161', onEdge: 0 },
 };
 
 /**
@@ -222,12 +248,24 @@ const SLACK: Record<LegalityBand, unknown> = {
  * `walkableFrac` floor seed and is here because the first version of this file
  * silently dropped it.
  */
+// Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged. These are
+// pre-fb166's edge witnesses, still re-verified here rather than dropped —
+// see the header's fb166 paragraph for what changed: every one of them now
+// clears its band by a wide margin instead of sitting on it (pre-fb166 at
+// 36x20: '2005486180 hash=7c0d939c attempts=1 walkable=0.600000
+// buildableNormal=0.480556 detour=1.050847', '228583774 hash=0f924bc4
+// attempts=1 walkable=0.600000 buildableNormal=0.486111 detour=1.152542',
+// '2454233399 hash=b88a82e4 attempts=1 walkable=0.626389
+// buildableNormal=0.450000 detour=1.000000', '301216586 hash=da1c6177
+// attempts=1 walkable=0.718056 buildableNormal=0.587500 detour=1.500000',
+// '816758607 hash=905ba2a4 attempts=1 walkable=0.690278
+// buildableNormal=0.527778 detour=1.500000').
 const WITNESS_ROWS: string[] = [
-  '2005486180 hash=7c0d939c attempts=1 walkable=0.600000 buildableNormal=0.480556 detour=1.050847',
-  '228583774 hash=0f924bc4 attempts=1 walkable=0.600000 buildableNormal=0.486111 detour=1.152542',
-  '2454233399 hash=b88a82e4 attempts=1 walkable=0.626389 buildableNormal=0.450000 detour=1.000000',
-  '301216586 hash=da1c6177 attempts=1 walkable=0.718056 buildableNormal=0.587500 detour=1.500000',
-  '816758607 hash=905ba2a4 attempts=1 walkable=0.690278 buildableNormal=0.527778 detour=1.500000',
+  '2005486180 hash=442a1b0f attempts=1 walkable=0.752232 buildableNormal=0.616071 detour=1.144000',
+  '228583774 hash=1842c228 attempts=1 walkable=0.712612 buildableNormal=0.529018 detour=1.204724',
+  '2454233399 hash=e70bba5f attempts=1 walkable=0.734375 buildableNormal=0.549107 detour=1.112000',
+  '301216586 hash=e428ca8d attempts=1 walkable=0.730469 buildableNormal=0.588170 detour=1.338983',
+  '816758607 hash=35ea2d19 attempts=1 walkable=0.743862 buildableNormal=0.616629 detour=1.152000',
 ];
 
 /**
@@ -239,12 +277,17 @@ const WITNESS_ROWS: string[] = [
  * start retrying and one would walk one step further. Every other cell's maps
  * are `attempts: 1`, the two load-bearing `1/720` maps included.
  */
+// Re-measured at fb166's 56x32 grid (`TILES` = 1792, not 720 — see the key
+// naming note above); `data/terrain.json` unchanged. Every column collapsed
+// hard (pre-fb166 at 36x20: walkableFrac 0/2/4/14/41, buildableNormalFrac
+// 0/0/0/1/8, maxGateDetour 2/2/2/3/4) — the sample now has real headroom
+// everywhere, per the header's fb166 paragraph.
 const CURVE: Record<LegalityBand, Record<string, number>> = {
-  walkableFrac: { '1/720': 0, '2/720': 2, '4/720': 4, '8/720': 14, '16/720': 41 },
-  buildableNormalFrac: { '1/720': 0, '2/720': 0, '4/720': 0, '8/720': 1, '16/720': 8 },
-  gateReachFrac: { '1/720': 0, '2/720': 0, '4/720': 0, '8/720': 0, '16/720': 0 },
-  coreLegalFrac: { '1/720': 0, '2/720': 0, '4/720': 0, '8/720': 0, '16/720': 0 },
-  maxGateDetour: { '1/720': 2, '2/720': 2, '4/720': 2, '8/720': 3, '16/720': 4 },
+  walkableFrac: { '1/1792': 0, '2/1792': 0, '4/1792': 0, '8/1792': 0, '16/1792': 1 },
+  buildableNormalFrac: { '1/1792': 0, '2/1792': 0, '4/1792': 0, '8/1792': 0, '16/1792': 0 },
+  gateReachFrac: { '1/1792': 0, '2/1792': 0, '4/1792': 0, '8/1792': 0, '16/1792': 0 },
+  coreLegalFrac: { '1/1792': 0, '2/1792': 0, '4/1792': 0, '8/1792': 0, '16/1792': 0 },
+  maxGateDetour: { '1/1792': 0, '2/1792': 0, '4/1792': 0, '8/1792': 0, '16/1792': 2 },
 };
 
 describe('fb065a — the zero-headroom bands, measured and accepted', () => {
@@ -320,13 +363,24 @@ describe('fb065a — the zero-headroom bands, measured and accepted', () => {
       const row: Record<string, number> = {};
       for (const steps of [1, 2, 4, 8, 16]) {
         // `v + EPS < eps`, not `v < eps`: the density slacks are computed as
-        // `k / 720 - 0.6`, which is not bit-identical to the `1 / 720` this
-        // grid multiplies, so a map sitting exactly `steps` lattice steps clear
-        // of the floor compared as *inside* the column and inflated it. The
-        // first reading of this curve said `1/720: 2` for `walkableFrac` while
-        // the same sweep reported its minimum slack as one whole step and no
-        // map on the edge at all — three numbers that could not all be true.
-        row[`${steps}/720`] = slack[band].filter((v) => v + FP_EPS < steps * STEP).length;
+        // `k / TILES - 0.6`, which is not bit-identical to the `1 / TILES`
+        // this grid multiplies, so a map sitting exactly `steps` lattice steps
+        // clear of the floor compared as *inside* the column and inflated it.
+        // The first reading of this curve said `1/720: 2` for `walkableFrac`
+        // while the same sweep reported its minimum slack as one whole step
+        // and no map on the edge at all — three numbers that could not all be
+        // true.
+        //
+        // The key names off `TILES` rather than a literal `720`: fb166 found
+        // this hardcoded at `/720` even after the grid moved to 1792 tiles —
+        // a stale label rather than a wrong number (the *values* were always
+        // computed off `STEP`, which is grid-aware), but a label that lies
+        // about which lattice it is describing is exactly the kind of
+        // silent drift this suite is built to catch elsewhere. Fixed rather
+        // than left, since a reader comparing this table against
+        // `tests/terrain-band-ledger.test.ts`'s own (correctly `TILES`-keyed)
+        // curve would otherwise see two different denominators for one grid.
+        row[`${steps}/${TILES}`] = slack[band].filter((v) => v + FP_EPS < steps * STEP).length;
       }
       curve[band] = row;
     }
@@ -337,34 +391,35 @@ describe('fb065a — the zero-headroom bands, measured and accepted', () => {
     // found are, and which one representable step of tightening would newly
     // send round the retry path.
     //
-    // Deliberately not the same quantity as the curve's `1/720` column, and
+    // Deliberately not the same quantity as the curve's `1/1792` column, and
     // the distinction is worth keeping (QA): that column is "slack under one
-    // *density* lattice step", and `maxGateDetour` — the band both of these
-    // maps sit on — is not on that lattice at all. They coincide today only
-    // because the attainable detour values near the ceiling are sparse: over
-    // seeds 0..59,999 the closest one below 1.5 is 1.492063, 5.7 density steps
-    // away. If a map ever lands inside that gap the column becomes 3 while
-    // these two are still the only maps on the edge, and each number will
-    // still be saying what it means.
+    // *density* lattice step", and `maxGateDetour` is not on that lattice at
+    // all. Pre-fb166 at 36x20 the two coincided (both read 2, the same
+    // seeds), because the attainable detour values near the ceiling were
+    // sparse enough that the closest one below 1.5 sat outside one density
+    // step too. **fb166 found they no longer need to coincide, because there
+    // is nothing left for either to count**: `onEdge` is empty on every band
+    // (see `SLACK` above) and the `16/1792` detour column is the only nonzero
+    // cell in `CURVE` at all — the sample has no maps within even four steps
+    // of any floor or the ceiling except that one deep column.
     // Counted as a *union of seeds*, not a sum of per-band counts: a map on
     // the edge of two bands would be one seed and two crossings, and the rate
-    // below is a seed rate. They are equal today (2 either way) and the
-    // assertion should keep saying what it means when they stop being.
+    // below is a seed rate.
     const { onEdge, n } = runSweep();
     const oneStepSeeds = new Set<number>();
     for (const band of LEGALITY_BANDS) {
       for (const seed of onEdge[band]) oneStepSeeds.add(seed);
     }
-    // Named, not just counted (QA): fb064r's doctrine is that a retune which
-    // *relocates* an extreme is a different event from one that lowers it, and
-    // both should be readable at a glance. 2753786469 is this file's own
-    // contribution — fb064r's witness table does not carry it — and counting
-    // it would let a generator change swap one edge seed for another with the
-    // header's prose silently going wrong.
-    expect([...oneStepSeeds].sort((a, b) => a - b)).toEqual([816758607, 2753786469]);
+    // Re-measured at fb166's 56x32 grid: empty, where pre-fb166 at 36x20 it
+    // was `[816758607, 2753786469]`. Named as an empty list rather than
+    // dropped, so a future retune that puts a seed back on an edge changes
+    // this line's *shape* (empty -> non-empty) and not just a number inside
+    // an unchanged assertion.
+    expect([...oneStepSeeds].sort((a, b) => a - b)).toEqual([]);
     expect(oneStepSeeds.size / n).toBeLessThan(0.001);
-    // ...against the retry rate the sample pays today, which is fb064r's
-    // pinned number over the same seeds and is what makes the comparison fair.
-    expect(runSweep().retryTaking).toBe(43);
+    // ...against the retry rate the sample pays today. Re-measured at fb166's
+    // 56x32 grid (pre-fb166 at 36x20: 43, fb064r's pinned number over the
+    // same seeds).
+    expect(runSweep().retryTaking).toBe(23);
   });
 });

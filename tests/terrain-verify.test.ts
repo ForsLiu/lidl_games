@@ -124,20 +124,21 @@ describe('fb064p — verifyTerrainMap is clean on everything the generator makes
     // A degenerate-retry map hashes under `requestedSeed + n`, not under
     // `requestedSeed`. A verifier that reached for the tempting field would be
     // green on every first-attempt map and red only here, so the witness is
-    // named rather than searched for: at the shipped config, **seed 379 is the
-    // first retry-taker** (the next are 463, 715, 1247, 1253, 1317). If a
-    // retune moves that set this assertion goes red, which is the intended
-    // cost — rescan for `attempts > 1` and rename the seed.
-    const map = generateTerrain(379, cfg);
+    // named rather than searched for: at the shipped config and the fb166
+    // 56x32 grid, **seed 387 is the first retry-taker** (the next are 694,
+    // 800, 1011, 1145). If a retune moves that set this assertion goes red,
+    // which is the intended cost — rescan for `attempts > 1` and rename the
+    // seed.
+    const map = generateTerrain(387, cfg);
     expect(map.fallback).toBe(false);
     expect(map.attempts).toBe(2);
-    expect(map.seed).toBe(380);
+    expect(map.seed).toBe(388);
     expect(map.seed).not.toBe(map.requestedSeed >>> 0);
     expect(verifyTerrainMap(map)).toEqual({ ok: true });
     // The handle is the *effective* seed's, not the requested one's — verifying
     // against `requestedSeed` here would report a clean map as corrupt.
-    expect(map.hash).toBe(terrainHash(380, map.kind));
-    expect(terrainHash(379, map.kind)).not.toBe(map.hash);
+    expect(map.hash).toBe(terrainHash(388, map.kind));
+    expect(terrainHash(387, map.kind)).not.toBe(map.hash);
   });
 
   it('does not mutate the map it verifies', () => {

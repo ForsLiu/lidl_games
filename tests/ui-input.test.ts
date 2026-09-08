@@ -227,10 +227,19 @@ describe('the DPS/VS panels dock instead of covering the whole screen (fb051)', 
     const world = new World(cfg());
     hud.buildTowerBar(world);
     // jsdom does no layout — give the real canvas a known CSS box, same as `fakeCanvas` above.
-    Object.defineProperty(hud.canvas, 'clientWidth', { value: 1152, configurable: true });
-    Object.defineProperty(hud.canvas, 'clientHeight', { value: 640, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
     hud.canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
     return { root, hud, world, queue };
   }
 
@@ -317,10 +326,19 @@ describe('the character panel docks to the same right edge as DPS/VS, and is not
     const hud = new Hud(root, noopHudCallbacks(queue));
     const world = new World(cfg());
     hud.buildTowerBar(world);
-    Object.defineProperty(hud.canvas, 'clientWidth', { value: 1152, configurable: true });
-    Object.defineProperty(hud.canvas, 'clientHeight', { value: 640, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
     hud.canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
     return { root, hud, world, queue };
   }
 
@@ -516,10 +534,19 @@ describe('canvas clicks reach the game', () => {
   /** A canvas with a known CSS box, since jsdom does no layout. */
   function fakeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
-    Object.defineProperty(canvas, 'clientWidth', { value: 1152, configurable: true });
-    Object.defineProperty(canvas, 'clientHeight', { value: 640, configurable: true });
+    Object.defineProperty(canvas, 'clientWidth', { value: GRID_W * TILE, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: GRID_H * TILE, configurable: true });
     canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+      ({
+        left: 0,
+        top: 0,
+        width: GRID_W * TILE,
+        height: GRID_H * TILE,
+        right: GRID_W * TILE,
+        bottom: GRID_H * TILE,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
     document.body.appendChild(canvas);
     return canvas;
   }
@@ -609,8 +636,8 @@ describe('canvas clicks reach the game', () => {
   it('maps pointer coordinates through the CSS box, not the backing store', () => {
     const canvas = fakeCanvas();
     // A HiDPI backing store must not shift where a click lands.
-    canvas.width = 2304;
-    canvas.height = 1280;
+    canvas.width = GRID_W * TILE * 2;
+    canvas.height = GRID_H * TILE * 2;
     const p = pointerToTile(canvas, 32 * 10, 32 * 5);
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
@@ -618,28 +645,41 @@ describe('canvas clicks reach the game', () => {
 
   it('still hits the right tile when a narrower viewport shrinks the rendered CSS box (b078)', () => {
     const canvas = fakeCanvas();
-    // The logical grid stays GRID_W*TILE x GRID_H*TILE (1152x640), but the
-    // element's actual rendered box is smaller than that — reproduces
-    // qa-playtester's repro of an ~872x484 CSS box against the 1152x640
-    // logical grid after a viewport resize. A real browser moves
-    // `clientWidth`/`clientHeight` and `getBoundingClientRect()` together
-    // (src/ui/style.css pins #sw-canvas to a fixed aspect-ratio), so both are
-    // shrunk here — overriding only the rect would leave the old buggy
-    // formula's `canvas.clientWidth` term at the unshrunk logical size, which
-    // cancels against the rect denominator and passes even without the fix.
-    Object.defineProperty(canvas, 'clientWidth', { value: 872, configurable: true });
-    Object.defineProperty(canvas, 'clientHeight', { value: 484, configurable: true });
+    // The logical grid stays GRID_W*TILE x GRID_H*TILE, but the element's
+    // actual rendered box is smaller than that — reproduces qa-playtester's
+    // repro of a shrunk CSS box against the logical grid after a viewport
+    // resize. A real browser moves `clientWidth`/`clientHeight` and
+    // `getBoundingClientRect()` together (src/ui/style.css pins #sw-canvas to
+    // a fixed aspect-ratio), so both are shrunk here — overriding only the
+    // rect would leave the old buggy formula's `canvas.clientWidth` term at
+    // the unshrunk logical size, which cancels against the rect denominator
+    // and passes even without the fix.
+    const logicalW = GRID_W * TILE;
+    const logicalH = GRID_H * TILE;
+    const shrunkW = Math.round(logicalW * 0.7);
+    const shrunkH = Math.round(logicalH * 0.7);
+    Object.defineProperty(canvas, 'clientWidth', { value: shrunkW, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: shrunkH, configurable: true });
     canvas.getBoundingClientRect = () =>
-      ({ left: 10, top: 20, width: 872, height: 484, right: 882, bottom: 504, x: 10, y: 20 }) as DOMRect;
+      ({
+        left: 10,
+        top: 20,
+        width: shrunkW,
+        height: shrunkH,
+        right: 10 + shrunkW,
+        bottom: 20 + shrunkH,
+        x: 10,
+        y: 20,
+      }) as DOMRect;
     // Backing store resolution is independent of the CSS box (e.g. left at the
     // logical size, or DPR-scaled) and must not affect the tile mapping.
-    canvas.width = 1152;
-    canvas.height = 640;
+    canvas.width = logicalW;
+    canvas.height = logicalH;
 
-    // Tile (10, 5)'s center in logical pixels is (336, 176); scale that down
-    // by the CSS box's 872/1152 and 484/640 ratios, then offset by the rect.
-    const clientX = 10 + 336 * (872 / 1152);
-    const clientY = 20 + 176 * (484 / 640);
+    // Tile (10, 5)'s center in logical pixels; scale that down by the CSS
+    // box's shrunk/logical ratios, then offset by the rect.
+    const clientX = 10 + (10 * TILE + TILE / 2) * (shrunkW / logicalW);
+    const clientY = 20 + (5 * TILE + TILE / 2) * (shrunkH / logicalH);
     const p = pointerToTile(canvas, clientX, clientY);
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
