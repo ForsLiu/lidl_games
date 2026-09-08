@@ -37,10 +37,9 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     //
     // A single timed pass cannot name it — review reproduced five different
     // argmaxes over five passes. The round minima fix that, but the identity
-    // is still host-local: this host names 2147483532 on three consecutive
-    // idle runs (2.053 / 2.033 / 2.118 means), review's names the *other*
-    // retry seed, 2485897837, at 2.06x, on every idle probe of its own. Both
-    // are recorded in `MEASURED`; neither is asserted.
+    // is still host-local, which is why it is read (`MEASURED.worstSeed`) and
+    // never asserted — see the note below the assertions for why an argmax
+    // assertion cannot survive contention at all.
     //
     // What *is* asserted is the causal claim behind them, which is an
     // aggregate and so survives a contended host: the expensive seeds are the
@@ -85,8 +84,9 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     // further out. What survives contention is the aggregate above.
     // The argmax is read and not asserted for the same reason: `max >= mean`
     // holds by construction, so an assertion on it could never fail, and the
-    // identity itself is host-local (`MEASURED.worstSeed` here,
-    // `worstSeedOtherHost` on review's). Both are in `MEASURED`.
+    // identity itself is host-local — `MEASURED.worstSeed` names whichever
+    // retry seed this host's own runs happened to read as worst, and a
+    // different host is free to name the other one.
     const [worst] = costs[costs.length - 1];
     void worst;
   });

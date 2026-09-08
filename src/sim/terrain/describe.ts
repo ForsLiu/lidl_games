@@ -51,6 +51,7 @@
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../grid';
 import { measureTerrain } from './analyze';
 import {
+  configFingerprint,
   loadTerrain,
   TERRAIN_KEYS,
   TerrainKind,
@@ -164,16 +165,33 @@ export interface TerrainDump extends TerrainGrid {
    * The bands *as printed*, not as re-measured.
    *
    * The fractions are therefore rounded to `FRAC_DIGITS`, and they reflect the
-   * config the dump was written under, which the dump does not carry. That is
-   * deliberate: a dump is a record of what was measured, and re-measuring it
-   * here under whatever `/data` happens to be on disk now would silently
-   * replace the reported numbers with different ones — turning the one artefact
-   * that is supposed to settle "what did the generator actually produce" into a
-   * second opinion.
+   * config the dump was written under. That is deliberate: a dump is a record
+   * of what was measured, and re-measuring it here under whatever `/data`
+   * happens to be on disk now would silently replace the reported numbers
+   * with different ones — turning the one artefact that is supposed to settle
+   * "what did the generator actually produce" into a second opinion.
    */
   readonly measure: TerrainMeasure;
   /** Tile counts by kind, in `TERRAIN_KEYS` order. */
   readonly tileCounts: readonly number[];
+  /**
+   * fb065i: `configFingerprint()` of the `TerrainConfig` the dump was measured
+   * under, as printed on the `bands` line. Carried so `measure` above is no
+   * longer trust-me-on-this — a reader can check it against
+   * `configFingerprint(loadTerrain())` (or `configMismatch` below already did
+   * that, against whatever `cfg` was passed to `parseTerrainDump`).
+   */
+  readonly configFingerprint: string;
+  /**
+   * `true` iff `configFingerprint` above does *not* match the `cfg` argument
+   * `parseTerrainDump` was called with (the live `loadTerrain()` by default).
+   * A mismatch is reported here rather than thrown: the whole point of a dump
+   * is to stay readable after a `/data` tune moves on, the same reasoning
+   * `measure` above is built on. Check this before trusting `measure` against
+   * the config on disk right now; a dump that mismatches is not wrong, it is
+   * just describing a rule set that no longer exists.
+   */
+  readonly configMismatch: boolean;
 }
 
 function hasProvenance(map: TerrainGrid): map is TerrainGrid & Provenance {
@@ -284,7 +302,8 @@ export function describeTerrain(
   // visible to a reader, bands measured against a different arena are not.
   lines.push(`gates ${gates.map((g) => `${g.key}=${g.tx},${g.ty}`).join(' ')}`);
   lines.push(
-    `bands walkable=${frac(m.walkableFrac)} buildableNormal=${frac(m.buildableNormalFrac)} ` +
+    `bands config=${configFingerprint(cfg)} walkable=${frac(m.walkableFrac)} ` +
+      `buildableNormal=${frac(m.buildableNormalFrac)} ` +
       `gateReach=${frac(m.gateReachFrac)} coreLegal=${frac(m.coreLegalFrac)} ` +
       `gateDetour=${frac(m.maxGateDetour)} ` +
       `corridors=${m.corridorsOk} gatesOpen=${m.gatesOpen} gatesConnected=${m.gatesConnected}`,
@@ -371,6 +390,11 @@ export const HEADER_KEYS = {
   // is unaffected and every existing golden is byte-identical.
   gates: [...GATES.map((g) => g.key), ...MODIFIER_GATES.map((g) => g.key)],
   bands: [
+    // fb065i, first: the frame the rest of this line should be read under,
+    // before a reader's eye reaches numbers that are only meaningful next to
+    // it — the same "printed first, read that way too" reasoning `seed`'s
+    // `source` field is built on.
+    'config',
     'walkable',
     'buildableNormal',
     'gateReach',
@@ -489,6 +513,23 @@ function hashField(f: Map<string, string>): string {
   return raw;
 }
 
+/**
+ * fb065i: the `bands` line's `config` field, pinned to what
+ * `configFingerprint` can produce — same shape as `hashField` above, refused
+ * the same way a malformed one would be, and deliberately *not* compared to
+ * anything here. The comparison against a live config is `parseTerrainDump`'s
+ * job, after this has confirmed the field is well-formed; a value that merely
+ * *disagrees* with the current config is not malformed, it is the whole
+ * reason this field exists.
+ */
+function configField(f: Map<string, string>): string {
+  const raw = req(f, 'bands', 'config');
+  if (!/^[0-9a-f]{8}$/.test(raw)) {
+    fail(`"bands" line has non-hash config="${raw}"; expected eight lowercase hex digits`);
+  }
+  return raw;
+}
+
 function bool(f: Map<string, string>, head: string, key: string): boolean {
   const raw = req(f, head, key);
   if (raw !== 'true' && raw !== 'false') fail(`"${head}" line has non-boolean ${key}="${raw}"`);
@@ -498,8 +539,15 @@ function bool(f: Map<string, string>, head: string, key: string): boolean {
 /**
  * Read a dump back. Byte-identical `kind` to whatever `describeTerrain` was
  * given, or a throw naming what is wrong with the text.
+ *
+ * `cfg` (fb065i, default `loadTerrain()`) is *not* used to re-measure
+ * anything — `measure` above is still read back exactly as printed — it is
+ * only compared, by fingerprint, against what the dump says it was measured
+ * under, to fill in `configMismatch`. Pass a specific config to check a dump
+ * against something other than what happens to be on disk right now (a test
+ * fixture, a Tuner draft); the default is what a bug-report tool wants.
  */
-export function parseTerrainDump(text: string): TerrainDump {
+export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain()): TerrainDump {
   // A dump's whole job is to survive a trip through a bug report, so the two
   // things that trip does to text are absorbed here rather than diagnosed as
   // corruption: a leading BOM, and CRLF line endings. CRLF is not hypothetical
@@ -708,6 +756,7 @@ export function parseTerrainDump(text: string): TerrainDump {
 
   const bandLine = fields(lines[3], 'bands');
   const countLine = fields(lines[4], 'counts');
+  const dumpConfigFingerprint = configField(bandLine);
   const measure: TerrainMeasure = {
     walkableFrac: num(bandLine, 'bands', 'walkable'),
     buildableNormalFrac: num(bandLine, 'bands', 'buildableNormal'),
@@ -829,5 +878,15 @@ export function parseTerrainDump(text: string): TerrainDump {
     }
   }
 
-  return { w, h, kind, provenance, gates, measure, tileCounts };
+  return {
+    w,
+    h,
+    kind,
+    provenance,
+    gates,
+    measure,
+    tileCounts,
+    configFingerprint: dumpConfigFingerprint,
+    configMismatch: dumpConfigFingerprint !== configFingerprint(cfg),
+  };
 }

@@ -13,8 +13,8 @@
  * Costs are integers (10 orthogonal / 14 diagonal) so the field is bit-exact.
  */
 
-export const GRID_W = 36;
-export const GRID_H = 20;
+export const GRID_W = 56;
+export const GRID_H = 32;
 export const TILE = 32;
 
 export const enum TileType {
@@ -30,11 +30,19 @@ export interface GateDef {
   ty: number;
 }
 
-/** SPEC §2.3: 3 spawn gates (west, north, east), Core 2x2 near east-center. */
+/**
+ * fb156 (owner feedback `terrain-four-gates`): 4 spawn gates by default — one
+ * per edge, each nudged off its edge's exact midpoint ("jittered along the
+ * edge") rather than centered, for map variety. Was 3 (west/north/east) on
+ * a 36x20 grid; this is the 56x32 layout. Every position is genuinely
+ * border-adjacent, not a corner, and no two are adjacent along a border —
+ * pinned by `tests/terrain-generation.test.ts`.
+ */
 export const GATES: readonly GateDef[] = [
-  { key: 'west', tx: 0, ty: 10 },
-  { key: 'north', tx: 18, ty: 0 },
-  { key: 'east', tx: 35, ty: 17 },
+  { key: 'west', tx: 0, ty: 12 },
+  { key: 'north', tx: 24, ty: 0 },
+  { key: 'east', tx: 55, ty: 20 },
+  { key: 'south', tx: 33, ty: 31 },
 ];
 
 /**
@@ -47,8 +55,16 @@ export const GATES: readonly GateDef[] = [
  * a coordinate is the drift shape this lane has already consolidated twice.
  * `world.ts` still writes its own literal; folding that in touches a file
  * outside the terrain lane and is logged for the merge.
+ *
+ * fb156: the base list grew from 3 gates to 4, so a modifier that used to add
+ * "the Fourth Gate" now adds a fifth. Its key was `south`, which the new base
+ * list now owns — reusing it would collide (`describeTerrain` refuses a
+ * duplicate gate key) — so it is renamed to `south2`, a second point on the
+ * south edge distinct from the base `south` gate. `world.ts`'s own literal
+ * (key and coordinate) needs the same rename at the merge; logged in
+ * BACKLOG-TERRAIN.md.
  */
-export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 12, ty: 19 }];
+export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 45, ty: 31 }];
 
 export const CORE_X = 25;
 export const CORE_Y = 9;
@@ -515,8 +531,8 @@ export class Grid {
    * same file rather than being claimed closed.
    *
    * Re-opening a gate that is already open is a no-op, so `world.ts`'s loop
-   * over all four gates — three of which are already open — needs no special
-   * case at the merge.
+   * over every gate the run has (five with a modifier active, fb156) — most
+   * of them already open — needs no special case at the merge.
    */
   openGate(tx: number, ty: number): void {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
@@ -535,8 +551,8 @@ export class Grid {
     const i = ty * GRID_W + tx;
     // Ahead of the occupancy guard on purpose: re-opening an open gate mutates
     // nothing, so unlike `placeCore` re-deriving under a standing tower it
-    // cannot bury one. That is what lets `world.ts`'s loop over all four gates
-    // — three of them already open — stay a plain loop at the merge.
+    // cannot bury one. That is what lets `world.ts`'s loop over every gate the
+    // run has — most of them already open — stay a plain loop at the merge.
     if (this.tile[i] === TileType.Gate) return;
     // Only wall becomes a gate. An interior "gate" is a spawn point with open
     // ground behind it and no wall to be a hole in, and `staticBlocked` would

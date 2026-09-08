@@ -1,6 +1,7 @@
 /** SPEC-FINAL §10.5 (fb064a): terrain generation, public surface. */
 export {
   blocksCharacter,
+  configFingerprint,
   isBuildable,
   isHighGround,
   isWalkable,

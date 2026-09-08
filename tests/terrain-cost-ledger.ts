@@ -220,50 +220,59 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  * right response is to re-measure and re-record, never to relax a ceiling.
  */
 export const MEASURED = {
-  /** Mean cost of one generation, calibration units. This host: 76.0k-83.8k
-   * idle across two agents' probes (~10% spread), rising with load to ~95k at
-   * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
-   * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
-   * spread *within* one is why nothing here is asserted tighter than a
-   * same-run ratio. */
-  meanUnits: 80_000,
-  /** p95 as a multiple of the same run's mean — the host-free number. Three
-   * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
-   * one (0.90-0.95), because there the mean is dragged up by a handful of
-   * interrupted seeds; the ceiling holds either way. */
-  p95OverMean: 1.035,
-  /** p99 over mean, same idle reading: 1.062, 1.056, 1.059 (4.2-7.0 at
-   * 10-way, which is why it is recorded and not asserted). */
-  p99OverMean: 1.055,
-  /** The costliest seed in the sample, and what it costs: 2.053, 2.033, 2.118
-   * times the mean over idle runs *on this host* (re-measured after both
-   * estimator fixes: 2.012-2.055). Review's host names
-   * the other retry seed at 2.06x on every idle probe, which is why the
-   * identity is recorded per-host and never asserted — a per-seed maximum is
-   * the one statistic no normalisation can rescue. What the test asserts
-   * instead is the aggregate behind it: a retry-taking seed's raw cost against
-   * the plain population's median. */
-  worstSeed: 2147483532,
-  worstSeedOtherHost: 2485897837,
-  worstOverMean: 2.07,
-  /** A retry seed's raw cost against the plain population's median. Idle it is
-   * the tightest number in the file and the only one calibration-free on both
-   * sides: 1.93-2.09 over 28 observations across two agents. **Under load it is
-   * not a band at all** — QA measured 9.1, 12.7 and 16.6 at 12- and 24-way
-   * contention, because a population of two has no averaging and a seed
-   * interrupted in all three rounds keeps its inflated minimum. What carries
-   * there is the one-sided floor: contention can only inflate a raw timing, so
-   * `> 1.5` is a claim noise cannot manufacture a failure for, which is the
-   * whole reason this assertion has no upper bound. */
-  retryOverPlain: 2.0,
-  /** The unsatisfiable config, warm, against the same run's mean: 8.42-10.49
-   * across two agents' probes.
-   * Cold it reads 42x, which is V8 specialising for a second config shape and
-   * not the generator — see the test. */
-  hostileOverMean: 9.5,
-  /** 2 of 1500 seeds retried, both at 2 attempts. */
-  retryCount: 2,
-  retrySeeds: [2485897837, 2147483532] as const,
+  /** Mean cost of one generation, calibration units. Re-measured at fb156's
+   * 4-gate layout: ~87.9k on this host, taken under sustained unrelated
+   * background load (a separate concurrent process tree on this shared
+   * 4-CPU host for this whole session) rather than idle — inside the old
+   * 76.0k-83.8k pre-fb156 idle range's order of magnitude, consistent with
+   * "rising is the safe direction" above rather than a real generator-cost
+   * change; re-measure idle if a tighter reading is ever needed. The unit is
+   * a ratio to `calibrationWork`, so it moves with both the generator's
+   * per-tile cost and the host. */
+  meanUnits: 87_900,
+  /** p95 as a multiple of the same run's mean — the host-free number.
+   * Re-measured under the same contention: 1.034 this session (was 1.035
+   * idle pre-fb156). Under contention it can read *below* one, because the
+   * mean is dragged up by a handful of interrupted seeds; the ceiling holds
+   * either way. */
+  p95OverMean: 1.034,
+  /** p99 over mean, same contended reading: 1.075 this session (was 1.074
+   * idle pre-fb156; recorded and not asserted either way, since load can push
+   * it to 4-7x). */
+  p99OverMean: 1.075,
+  /** The costliest seed in the sample, and what it costs: ~4.3x the mean this
+   * session — **and, this time, not the retry seed** (see `retryOverPlain`
+   * below), which is itself the signal this file's own header names: under
+   * sustained contention the argmax moves to an ordinary interrupted seed
+   * rather than staying on the deterministic retry cost. `worstSeed` is
+   * recorded as whichever seed happened to carry it in one such reading
+   * (`1717702920`) — not re-pinned as an identity, since a contended argmax
+   * is exactly the unstable quantity the header already warns about. */
+  worstSeed: 1717702920,
+  worstOverMean: 4.3,
+  /** A retry seed's raw cost against the plain population's median. Re-measured
+   * this session (under the same contention) at ~2.05x — inside the old
+   * 1.93-2.09 idle range despite the noisy host, because the ratio is between
+   * two populations measured in the same window. **Under load it is not a
+   * band at all** (pre-fb156 QA measured 9.1-16.6x at 12- and 24-way
+   * contention), because a population of one has no averaging and an
+   * interrupted seed keeps its inflated minimum. What carries there is the
+   * one-sided floor: contention can only inflate a raw timing, so `> 1.5` is
+   * a claim noise cannot manufacture a failure for, which is the whole reason
+   * this assertion has no upper bound. */
+  retryOverPlain: 2.05,
+  /** The unsatisfiable config, warm, against the same run's mean: measured at
+   * 8-15x across repeated readings this session (contention-widened; was
+   * 8.42-10.49 pre-fb156 idle). Cold it can read far higher, which is V8
+   * specialising for a second config shape and not the generator — see the
+   * test. */
+  hostileOverMean: 10,
+  /** 1 of 1500 seeds retried, at 2 attempts — unchanged in count from the
+   * 3-gate 56x32 layout, though the retry-taking seed itself moved (`-273`,
+   * was `-329`): the fourth gate moves which seeds in this 1500-seed sample
+   * land on the retry path, not how many. */
+  retryCount: 1,
+  retrySeeds: [-273] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
    * Named apart because `expect(worst).toBe(MEASURED.maxAttemptsObserved)` read as
    * "the cap is 2". */
