@@ -22,7 +22,7 @@
 
 import { applyAoE } from './combat';
 import type { DamageTypeDef } from './content';
-import { applyDot, damageEnemy, type DamageOptions } from './enemies';
+import { applyDot, damageEnemy, isTowerSource, type DamageOptions } from './enemies';
 import type { Enemy } from './types';
 import { World } from './world';
 
@@ -117,9 +117,11 @@ export function applyDamageType(
   // Electric: "deals its damage in a small AoE inherently". Centred on the
   // target, and the target is the `primary`: a row that lands its damage must
   // land it on the enemy it was handed, whatever else is standing there and
-  // whether or not the spatial buckets have seen it. `area` scales every
-  // effect (§2).
-  const r = radius * w.derived.areaMul;
+  // whether or not the spatial buckets have seen it. `area`/`towerArea`
+  // scales every effect (§2) — fb083 splits the two, so a tower's own
+  // Electric attack (Tesla Coil) reads the tower-scoped multiplier.
+  const areaMul = isTowerSource(w, source) ? w.derived.towerAreaMul : w.derived.areaMul;
+  const r = radius * areaMul;
   w.emit('pulse', e.x, e.y, r, 0);
   return applyAoE(w, e.x, e.y, r, amount, source, {}, { primary: e, damage: hit });
 }

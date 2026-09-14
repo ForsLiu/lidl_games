@@ -258,6 +258,8 @@ export interface Derived {
   powerMul: number;
   attackSpeedMul: number;
   areaMul: number;
+  /** fb083 (§2, Q163): towers-only Area — `towers.ts`'s `effectiveTowerRange`/`effectiveTowerAoe`/`fireTower`'s own local `area` alias read this, never `areaMul`, so a "towers" passive (Wide Grove) or tower-side mechanic (Chronal Surge) authored on `towerArea` cannot also widen the caster's own kit. `vswield.ts` deliberately keeps reading `areaMul` (§6.1: wielded attacks ride the character's own stats). */
+  towerAreaMul: number;
   cdr: number;
   pickupRadius: number;
   luck: number;
@@ -329,6 +331,8 @@ export interface Derived {
   charRangeMul: number;
   /** fb015: Bleeding Ring — true once its stat contribution is present at all. */
   bleedLifesteal: boolean;
+  /** fb084 (§4.2 Animist "summon cap +1"): a passive-authored point bonus on a class's summon cap, added alongside `classLineBonus(w)` at the three `classes.ts` summon sites. */
+  summonCapBonus: number;
 }
 
 // b062: `total()` and `factor()` each guard their own accumulation, but the
@@ -365,6 +369,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     powerMul: s.factor('power'),
     attackSpeedMul: s.factor('attackSpeed'),
     areaMul: s.factor('area'),
+    towerAreaMul: s.factor('towerArea'),
     cdr: Math.min(BASE.cdrCap, s.total('cdr')),
     pickupRadius: Math.max(0.25, safeScale(BASE.pickupRadius, s.factor('pickupPct'))),
     luck: s.total('luck'),
@@ -397,5 +402,6 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     towerAtkFlat: s.total('towerAtkFlat'),
     charRangeMul: s.factor('charRange'),
     bleedLifesteal: s.total('bleedLifesteal') > 0,
+    summonCapBonus: s.total('summonCap'),
   };
 }

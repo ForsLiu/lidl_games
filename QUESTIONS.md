@@ -759,7 +759,6 @@ Q91 and Q102 corrections if not yet done.
   control pair" is (b)'s own verification burden and does not apply once (b)
   is not the chosen option; fb163 is closed on that basis.
 
-
 - **Q192. [p12e] The boss's own pacing ramps were fitted pre-p12c; the fix is
   to re-anchor its authored HP, not to exempt it from the roster multiplier in
   code.** Q177 diagnosed p12e's run-length tail as entirely the boss fight
@@ -1127,3 +1126,193 @@ Q91 and Q102 corrections if not yet done.
   cross-document check; CLAUDE.md's measurement rules ("check a `/data`
   row's blast radius", "my change improved X needs the control run");
   SPEC-FINAL §14 G8; BACKLOG p12j.
+
+**Merge note (PR #55, 2026-09-14):** this branch and `origin/master` both
+numbered new entries Q192-Q196 independently after diverging from a shared
+Q191. This branch's Q192-Q196 (above) are kept as-numbered since they were
+already pervasively cross-referenced across `/tests`, BALANCE.md,
+PROGRESS.md and BACKLOG.md. Master's five colliding entries are kept too,
+renumbered Q201-Q205 in the order master appended them (its own Q197/Q199/
+Q200 did not collide and are unchanged below).
+
+- **Q201** (was Q192 on `origin/master`). [fb162, integrator merge] Two independent fixes for the same
+  overkill-ledger bug collided at merge; master's unconditional clamp was
+  kept over the branch's narrower `bankedTick`-scoped one.** `claude/admiring-
+  cray-lj5pov` fixed fb162 by clamping only the two real fb152 bank-flush
+  sites, deliberately leaving Time Lord's/the Corpse Core's designed-overkill
+  executes booking their full raw amount past a target's hp. Master had
+  already merged a simpler, unconditional `Math.min(dmg, hpBeforeHit)` clamp
+  at the same choke point, with its own `tests/fb162-dot-kill-overkill
+  .test.ts` explicitly pinning a **direct** overkill as clamped too — the
+  opposite of what the branch's `bankedTick` scoping intended to preserve.
+  A real semantic conflict on shared sim core, not a textual one. Resolved by
+  the merge's own standing rule (master wins on shared sim core): kept
+  master's shape, removed the now-dead `bankedTick` opt and its two call
+  sites, and dropped the branch's `tests/fb162-dot-overkill.test.ts`, which
+  pinned the discarded behavior. Neither `p12a-kit-power.test.ts` nor
+  `fb013-timelord.test.ts` depend on an execute overkilling a near-dead
+  target, so master's stricter clamp does not regress either. See PROGRESS.md
+  for the full reconciliation note.
+
+- **Q202** (was Q193 on `origin/master`). [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` (Windows)
+  or a repo-relative `inbox/` (any other host — the merge's own platform-check
+  fold-in, since a literal Windows path is a bogus folder name rather than a
+  meaningful path on POSIX) and a repo-relative `replays/` directory
+  respectively, so the owner's real `npm run dev` writes exactly where the
+  feedback text says while every test injects a temp directory
+  (`tests/fb139-bug-report-plugin.test.ts`, `tests/fb139-bug-report-
+  replay.test.ts`) and never touches either path. — Reason: CLAUDE.md's gap
+  rule (fill with the most spec-consistent default and log it) — the
+  alternative, silently substituting a different directory for the default,
+  would mean the owner's own dev server never actually writes where the
+  order says. — (owner verdict: pending)
+
+- **Q203** (was Q194 on `origin/master`). [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+  appended, written from `feedback/processed/20260903-121255-feature-terrain-
+  generation.md` verbatim plus the `lane/terrain` design decisions already
+  logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
+  and merged by `lane/terrain` before SPEC-FINAL's own §16 reconcile folded
+  Q162/Q171's decisions into QUESTIONS.md, but nobody had appended the
+  section SPEC-FINAL's own §14 G2/§13 references presuppose — §10 still read
+  the pre-terrain fixed 36×20/3-gate map. This item's whole content is the
+  owner's own feedback file plus decisions already owner-approved at Q162/
+  Q171; nothing new is chosen here beyond where the append lands (as §10.5,
+  the id the feedback file itself names) and folding G2's wording/§13's
+  totals to match, both explicitly asked for in the BACKLOG item's
+  acceptance text. — Reason: CLAUDE.md's gap rule and working rule 5 (never
+  stop to ask, choose and log) — the section is marked `[designer-fill]`
+  itself per its own owner-feature tag, so the owner may still veto or
+  reshape it via a later inbox verdict. — (owner verdict: pending)
+  **Merge note (2026-09-07):** this branch and master each wrote §10.5
+  independently from the same feedback file; master's landed version is kept,
+  with two fidelity fixes made at the merge — the quote was still missing its
+  title and `Priority: normal` lines (both present in the source memo), and
+  the character-passage bullet had drifted to claim the shipped default lets
+  the character fly over rock, when `data/terrain.json` and
+  `src/sim/terrain/character.ts`'s own doc comment both confirm the opposite
+  (the vetoed reading shipped, unresolved) — restored to match this branch's
+  own, verified text.
+
+- **Q199. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch).
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way.
+
+- **Q204** (was Q195 on `origin/master`). [fb083] A new tower-only Area stat key (`towerArea`) closes the
+  Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit
+  Actives — but `effectiveTowerAoe` (`towers.ts`) is shared by three callers,
+  not two, and two genuine design choices fall out of that.** (1)
+  `classes.ts`'s `towerSummonProfile` — the shape Engineer's Pop Turret and
+  the Animist's own Manifest spirit both clone their AoE from, since each is
+  a literal tower clone — calls `effectiveTowerAoe` too. Chosen default:
+  these stay on the `'tower'` route (the function's default), so Wide Grove/
+  Chronal Surge's "all towers" text keeps reaching a turret/spirit summon
+  exactly as it reaches a real tower, which is the more spec-consistent
+  reading of "towers" than carving summons out as a special case nothing
+  asked for. (2) `vswield.ts`'s wielded lob/poison blasts also call
+  `effectiveTowerAoe` (its only other caller) — these must NOT move, per
+  that file's own §6.1 header ("treated as character attacks," riding the
+  character's own Area/range, never the tower-side ones) — so
+  `effectiveTowerAoe` gained an explicit `route: 'tower' | 'character'`
+  parameter (default `'tower'`) rather than splitting into two functions,
+  and `vswield.ts`'s four call sites pass `'character'` explicitly. —
+  Reason: CLAUDE.md's gap rule (most spec-consistent default, logged rather
+  than asked) — a parameter keeps the one formula (`lob`/`poison` AoE
+  shape) in one place rather than forking it, and the tower-clone reading
+  for (1) is a straightforward extension of "these are towers" rather than
+  an invented exception. — (owner verdict: pending)
+
+- **Q205** (was Q196 on `origin/master`). [fb083] Two more shared reads of the old global `area` key —
+  Electric's inherent AoE (`damagetypes.ts`'s `applyDamageType`) and
+  Burning's splash (`enemies.ts`'s `tickDotSplash`) — can't take
+  `effectiveTowerAoe`'s `route` parameter, because neither function is
+  called with a caller-chosen route: both only ever receive a `source`
+  string (the attacking tower's or Active's key).** Left unfixed they would
+  have gone from over-applying (reading the global key on both routes) to
+  under-applying (reading neither, since Wide Grove/Chronal Surge/Normal
+  Bracelet's tower half moved off that key entirely) — a real Tesla Coil or
+  Ember Brazier would stop being widened by its own class's tower passive.
+  Chosen fix: a small shared helper, `enemies.ts`'s exported
+  `isTowerSource(w, source)`, reusing the exact idiom `dotPotency` already
+  uses for `towerPoisonDamageMul` (`!w.huntsWarden && w.content.towerByKey
+  .has(source)`) — true only for a real tower's own Act I attack, false
+  during VS (`huntsWarden`) even for a source that names a tower key, since
+  a hunting tower's attack is a character-route effect for every other
+  purpose in the sim. Both sites now pick `towerAreaMul`/`areaMul` by that
+  check instead of taking a parameter. — Reason: CLAUDE.md's gap rule
+  (most spec-consistent default) — reusing an existing, already-reviewed
+  idiom for "is this a tower's own hit" beats inventing a second one, and a
+  source check is the only option available to a function that has no
+  caller-chosen route to read. — (owner verdict: pending)
+
+- **Q197. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+  measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
+  acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
+  gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this
+  item, run) a single or small (5-Core) scripted harness, so adding two more
+  tiers is a small multiple of their existing cost. G8's own T3 band is
+  inherently per-class (12 classes x 12 seeds already, ~10+ minutes), so a
+  literal per-class T1/T5 expansion would triple that file's cost for a
+  question the shared harness already answers: whether the T1/T5 rungs
+  themselves produce the intended easy/hard skew, independent of which class
+  is asking. Chose to add the companion checks once, on the same
+  `classKey: 'engineer'`/`hybrid` harness `tests/p12c-margin.test.ts` and
+  G1/G14 use, rather than per class. If a future item needs the per-class
+  reading specifically (e.g. to check whether the tier ladder skews any one
+  class's band differently from the rest), that is new work, not implied by
+  this one.
+
+- **Q200. [fb174] A single retry plus an 8000 ms deadline does not close q15's
+  census-`hangs` gap under arbitrary concurrent load — only under the load
+  this repo's CI actually runs.** fb174's own qa-playtester pass, re-checking
+  the retry-once fix, forced 5 concurrent `vitest run` processes onto the
+  same file on a 4-core host (a load shape this repo's CI does not produce —
+  one `vitest run` per suite, not five stacked on one file) and got 5/5
+  failures; two full concurrent `npm run test:fast` invocations failed 1/2.
+  Both attempts still exceeding a deadline at that load level is expected —
+  no bounded retry count or deadline is safe against unbounded contention,
+  and BACKLOG-TERRAIN.md independently logs q15 as chronically load-sensitive
+  across unrelated sessions. Chose not to chase this further: raised the
+  default deadline to 8000 ms (fb173's own already-measured concurrent-safe
+  ceiling, `bench/q44-worker-timing-probe.ts`, 0/75 over budget) plus the
+  retry, and left a `hangs` verdict that survives both as a loud, honest
+  test failure rather than a silent hole — the gap fb174 was actually filed
+  to close. Serializing q15 against sibling lanes' CI runs, or an unbounded
+  retry loop, would be new scope past what fb174 asked for. — Reason:
+  CLAUDE.md rule 5 (never stop to ask, choose and log) and rule 6 (only two
+  distinct approaches tried here — retry alone, then retry + re-measured
+  deadline — both already exceed what a single backlog item should chase;
+  a real fix needs its own item if the residual load level ever shows up in
+  this repo's actual CI, not this session's stress-test rig). — (owner
+  verdict: pending)

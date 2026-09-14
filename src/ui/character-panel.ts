@@ -74,6 +74,7 @@ const STAT_LABELS: Partial<Record<StatKey, string>> = {
   charRange: 'Range',
   bleedLifesteal: 'Lifesteal from Bleeding',
   startingGold: 'Starting Gold',
+  summonCap: 'Summon Cap',
 };
 
 export function statLabel(key: StatKey): string {

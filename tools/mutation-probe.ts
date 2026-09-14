@@ -636,6 +636,29 @@ export const MUTATIONS: Mutation[] = [
     source:
       'BACKLOG-QUALITY.md q54/q56: hollows `readsDataJsonDirectly` (added at q54 to catch tools/*.ts files that read a /data/*.json file directly via readFileSync + JSON.parse, bypassing loadContent()) to always report false. `tools/m20d-price-probe.ts` classifies purely on this axis (it does not import content.ts), so it drops from `pinned` to `no-content-import` — flips both `tests/q47-cli-crash-coverage.test.ts`\'s hand-derived EXPECTED_STATUS table and its "every PIN_COVERAGE entry actually classifies as pinned" dead-entry check red.',
   },
+  // BACKLOG fb080: `data/terrain.json`'s per-kind density values were, until
+  // this item, covered by neither q7's exhaustive field fuzzer nor this
+  // file's hand-curated regression list — only by the terrain lane's own
+  // informal mutation runs (BACKLOG-TERRAIN.md's Log, "killed 11/11"),
+  // which left no durable, automated guard behind. This is the first of
+  // those eleven landed as a permanent entry here: `generate.ts` scatters
+  // rock at `cfg.density.rock`, and `tests/terrain-generation.test.ts`'s own
+  // "achieved share tracks authored density" case measures it against a
+  // ±25% band. Cutting the authored value to a third moves the achieved
+  // share well outside that band.
+  {
+    name: 'terrain-generate-ignore-rock-density',
+    file: 'src/sim/terrain/generate.ts',
+    edits: [
+      {
+        find: 'scatter(TerrainKind.Rock, cfg.density.rock, rockBudget);',
+        replace: 'scatter(TerrainKind.Rock, cfg.density.rock * 0.3, rockBudget);',
+      },
+    ],
+    testFile: 'tests/terrain-generation.test.ts',
+    source:
+      'BACKLOG fb080: unlike this file\'s other entries (each reverting a specific historical bug fix), there is no prior defect to revert here — terrain generation always applied density correctly. This entry instead injects a fresh, representative defect (silently discounting `density.rock`) directly against the shipped generator, hand-verified red against `tests/terrain-generation.test.ts`\'s density-tracking case before landing, to give the file a durable terrain regression guard where none existed.',
+  },
 ];
 
 export interface ProbeResult {

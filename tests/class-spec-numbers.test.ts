@@ -261,7 +261,6 @@ const NO_FIGURE: readonly { cls: string; slot: Slot; clause: string; why: string
 ];
 
 const CLASSES_TS = 'src/sim/classes.ts';
-const COMBAT_TS = 'src/sim/combat.ts';
 const RUN_TS = 'src/sim/run.ts';
 
 /** p6e — G8's first honest per-class win-rate measurement, PROGRESS.md. */
@@ -375,25 +374,17 @@ const LEDGER: readonly Figure[] = [
     figure: 'applying poison damage every second',
     quote: 'applying\npoison damage every second',
     spec: 1,
-    path: null,
-    slot: 'active1',
-    status: {
-      kind: 'defect',
-      tracked: 'BACKLOG-CONTENT Log, 2026-09-03 session 1 (fb062 scoping) — main lane',
-      site: "updateAreas' poison branch re-applies every tick (60 Hz), not every second",
-      file: COMBAT_TS,
-      anchors: [/if \(a\.type === 'poison'\) \{\s+applyPoison\(w, e, a\.dps \* scale, 1\.0, \d+, a\.source\);\s+\} else \{/],
-      why:
-        'The cadence is not authored anywhere: `ground_poison` has no interval field, and ' +
-        'the barrel re-applies 60x per second. The stack cap of 3 bounds the damage, so this ' +
-        'is a refresh-cadence bug rather than a damage bug — but §4.1 states "every second" ' +
-        'and the sim does not. Fixing it is a `combat.ts` edit, outside this lane. The anchor ' +
-        'spans the whole poison branch, so wrapping the call in an interval gate reddens this ' +
-        'row rather than leaving it claiming a defect that had been fixed.',
-      in: 'active1',
-      absentKey: /interval|cadence|tick|period|every|applySeconds|perSecond/i,
-      knownKeys: ['basicAttack.interval'],
-    },
+    path: ['active1', 'groundTickSeconds'],
+    status: { kind: 'match' },
+    note:
+      'fb082: `updateAreas` (src/sim/combat.ts) used to re-apply poison on every 60 Hz frame ' +
+      'instead of on an authored cadence — the stack cap of 3 bounded the damage, but that is a ' +
+      'different guard from the refresh cadence §4.1 actually states. Fixed by gating the ' +
+      "poison branch on a per-area `tickSeconds` (an accumulator already declared on `GroundArea` " +
+      "but never read), authored here as `groundTickSeconds: 1` rather than left to the engine's " +
+      'own fallback default, per the item\'s own acceptance text. Was tracked as a defect at ' +
+      'BACKLOG-CONTENT Log, 2026-09-03 session 1 (fb062 scoping); closed by fb082 (main lane, ' +
+      '2026-09-07), which is what moved this row from `defect` to `match`.',
   },
   {
     cls: 'plaguebringer',
@@ -1103,7 +1094,9 @@ const LEDGER: readonly Figure[] = [
       tracked: 'c004 (BACKLOG-CONTENT, blocked out of Scope)',
       why:
         "`data/classes.json`'s Kinship row authors only the aura half (`mods: {}`, no `kind`), " +
-        'and the three summon-cap sites in `classes.ts` add only `classLineBonus`.',
+        'and the three summon-cap sites in `classes.ts`, while now also folding in a generic ' +
+        '`summonCapBonus` (fb084), still have nothing to fold in — Kinship\'s own passive ' +
+        'authors no such source.',
       in: 'passive',
       absentKey: /cap|summon|minion|spirit|limit|retinue|kinship/i,
       knownKeys: ['active1.summonCap', 'active1.summonDurationSeconds', 'active1.summonStatMul', 'active1.summonRadius'],
@@ -1111,14 +1104,30 @@ const LEDGER: readonly Figure[] = [
       // implemented it as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at
       // the Manifest cap site and this row stayed green. These are the only
       // three places a summon cap is computed; any added term reddens the row.
+      //
+      // fb084 (2026-09-07) added a *generic* `summonCap` StatKey and folded
+      // `w.derived.summonCapBonus` into all three sites below, so a passive
+      // can grant the bonus without a class-key check — but Kinship's own
+      // `data/classes.json` row still authors `mods: {}`, so the Animist's
+      // live cap is unchanged and this clause is still genuinely
+      // unimplemented. Re-pinned to the new lines (fb084's enabler is the
+      // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
+      // authoring `summonCap: 1` on Kinship's `mods`.
+      //
+      // A qa-playtester pass on fb084 found the generic bonus can drive the
+      // Pop Turret/Manifest total to <=0, which `spawnClassSummon` would
+      // otherwise read as its own "uncapped" sentinel (Bone Pylons' literal
+      // `0` call) — fixed with an explicit `cap <= 0` guard at both sites,
+      // hoisting the expression into a named `const cap` in the process (a
+      // second re-pin, still no `/data` change).
       srcLines: [
         {
           file: CLASSES_TS,
           needle: 'summonCap',
           lines: [
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
-            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w)));',
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
+            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
           ],
         },
         // Pinning the three cap lines catches a `+1` folded *into* them, but
@@ -1177,7 +1186,7 @@ const LEDGER: readonly Figure[] = [
     clause: 'Wide Grove (tower passive)',
     figure: 'all towers +10% area',
     spec: 0.1,
-    path: ['towerPassive', 'mods', 'area'],
+    path: ['towerPassive', 'mods', 'towerArea'],
     status: {
       kind: 'retuned',
       authorised: 'BACKLOG p12j (2026-09-07)',
@@ -1196,17 +1205,21 @@ const LEDGER: readonly Figure[] = [
       coveredBy: 'tests/class-tower-passive-liveness.test.ts',
       anchor: /Animist \*Wide Grove\* — a spore's splash covers more ground/,
       why:
-        "**A named reach divergence, not a clean row.** §4.2 says 'all towers', and the key is " +
-        'the global `area`: `c013` enumerates every consumer it reaches and `c024` measures the ' +
-        'Time Lord twin. The pointer covers the tower half the sentence does claim; the rest is ' +
-        "those two items' measurement, not a second one here.",
+        "**A named reach divergence, closed by fb083, not a clean row from the start.** §4.2 says " +
+        "'all towers', and the key used to be the global `area`: `c013` enumerated every consumer " +
+        "it reached and `c024` measured the Time Lord twin. fb083 gave the key its own `towerArea` " +
+        "slot, which `c013`'s own file now measures against — eleven of twelve non-tower leaks " +
+        'closed, one (the Manifest spirit) left open by design, and the two tower-route footprints ' +
+        "(Electric, Burning) that fb083's first landing briefly starved on both routes closed too, " +
+        "via a follow-up `isTowerSource` check. The pointer covers the tower half the sentence " +
+        "claims; the rest is c013/c024's measurement, not a second one here.",
     },
     note:
-      'The *key* is the global `area` stat for want of a `towerArea` one — a ' +
-      'location question, not a drift question, and an owner-approved deviation (QUESTIONS Q120 ' +
-      'item 5, flagged for the P10 pass) rather than an open bug. Restated by c009 and sized by ' +
-      'c013, whose `tests/class-wide-grove-reach.test.ts` measures all twenty footprints the ' +
-      'global key reaches. The *value* is now a p12j retune (`status` above), not a match.',
+      'The *key* is now a tower-only `towerArea` — fb083 closed the location question QUESTIONS ' +
+      'Q120 item 5 approved as a deferral (item 5, flagged for the P10 pass) rather than an open ' +
+      'bug. Restated by c009 and sized by c013, whose `tests/class-wide-grove-reach.test.ts` ' +
+      'measures the fix against all twenty-one footprints the global key used to reach. The ' +
+      '*value* is now a p12j retune (`status` above), not a match.',
   },
 
   /* ------------------------------------------------------ §4.2 Paladin */
@@ -1540,16 +1553,20 @@ const LEDGER: readonly Figure[] = [
       why: 'G8 re-tune, same halving as bonusRangeMul above.',
     },
     note:
-      '**The second of the two reach divergences `c027` exists because of, and the larger one.** The ' +
-      'figure is right and its *key* is not a `mods` key at all — `bonusAoeMul` is a required field ' +
-      'of the `chronal_surge` kind — so `applyChronalSurge` (`run.ts`) spends it as ' +
-      "`stats.add(source, 'area', ...)`, the **global** stat, on the line after a `towerRange` " +
-      'sibling. §4.2 says "all towers"; `area` is read by `towers.ts`, `vswield.ts`, ' +
-      '`damagetypes.ts`, `enemies.ts` and, since `c001`, every class Active. `c024` measures it — ' +
-      '19 consumer rows flip under a main-lane `towerArea` fix that touches `run.ts:817` alone, and ' +
-      "the surge compounds where the Animist's flat +10% (`c013`) does not. Recorded here rather " +
-      'than left as a clean-looking row, which is exactly how this one went unnoticed after c013 ' +
-      'found its twin.',
+      '**The second of the two reach divergences `c027` exists because of, and the larger one — ' +
+      'closed by fb083, same as the first.** The figure is right and its *key* was not a `mods` key ' +
+      'at all — `bonusAoeMul` is a required field of the `chronal_surge` kind — so `applyChronalSurge` ' +
+      "(`run.ts`) used to spend it as `stats.add(source, 'area', ...)`, the **global** stat, on the " +
+      'line after a `towerRange` sibling. §4.2 says "all towers"; the global `area` key was read by ' +
+      '`towers.ts`, `vswield.ts`, `damagetypes.ts`, `enemies.ts` and, since `c001`, every class ' +
+      "Active. fb083 (`run.ts:875`) moved the line to `stats.add(source, 'towerArea', ...)`, and " +
+      "`c024` measures the fix against the same footprints it measured the bug against — the surge " +
+      "still compounds where the Animist's flat +10% (`c013`) does not, and the two tower-route " +
+      "footprints (Electric, Burning) that briefly stopped widening on *both* classes after fb083's " +
+      "first landing — a gap `c013`/`c024` both named — are closed too, via the same follow-up " +
+      "`isTowerSource` check `c013`'s own file measures. Recorded here rather than left as a " +
+      'clean-looking row, which is exactly how the underlying bug went unnoticed after c013 found ' +
+      "its twin the first time.",
   },
 ];
 
@@ -1966,7 +1983,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 59 match · 18 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 1 defect', () => {
+  it('census: 60 match · 18 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1985,13 +2002,15 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // flameDps/burnDps, cryomancer shatterDamage). p12j's G8 re-tune moved
       // eight more (engineer summonStatMul/summonCap, bloodlord
       // titheHpFraction/titheDamageMul/healPerEnemy, animist area, time_lord
-      // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196.
-      match: 59,
+      // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196. fb082 (master, this
+      // merge) separately closed the one remaining defect (Poison Barrel's
+      // cadence) as a match.
+      match: 60,
       retuned: 18,
       elsewhere: 1,
       in_code: 8,
       unimplemented: 2,
-      defect: 1,
+      defect: 0,
     });
     expect(LEDGER).toHaveLength(89);
   });
@@ -2243,13 +2262,14 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
     }
   });
 
-  it('the two known reach divergences are named on their rows, not left silent', () => {
+  it('the two known reach divergences — now closed by fb083 — are named on their rows, not left silent', () => {
     // c013 and c024 are the two cases this whole item exists because of: a
-    // figure that is right, on a key whose reach is wider than §4's sentence.
-    // Neither is fixable from this lane (`statkeys.ts` has no `towerArea`), so
-    // the requirement is that the rows *say so* — a silent correct-looking row
-    // is exactly what let the second one go unnoticed after the first.
-    const grove = MODS_ROWS.find((f) => f.cls === 'animist' && f.path![2] === 'area')!;
+    // figure that was right, on a key whose reach was wider than §4's
+    // sentence. Neither was fixable from this lane (`statkeys.ts` had no
+    // `towerArea`); fb083 added it and moved both rows, but the requirement is
+    // unchanged — the rows *say so* rather than reading clean and silent,
+    // which is exactly what let the second one go unnoticed after the first.
+    const grove = MODS_ROWS.find((f) => f.cls === 'animist' && f.path![2] === 'towerArea')!;
     expect(grove.behaviour!.why, "Wide Grove's row does not name c013/c024").toMatch(/c013[\s\S]*c024|c024[\s\S]*c013/);
     // The Time Lord twin is not a `mods` row at all — `bonusAoeMul` is a
     // required field of the `chronal_surge` kind — so it cannot carry a

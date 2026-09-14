@@ -13,7 +13,7 @@ import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
 import { tierEnemyHpMul } from '../src/sim/tiers';
-import { cfg, GATE_TIER, runScripted, scaled } from './helpers';
+import { cfg, classifyMargin, GATE_TIER, runScripted, scaled, summarizeMargins } from './helpers';
 
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
 // Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
@@ -93,7 +93,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // history of trading off against this exact field): re-ran it both at HP
   // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
   // unaffected by this ~36s fight-length increase.
-  // p12e (QUESTIONS Q177/Q192): `baseHpMul: 20` applying to the final boss
+  // p12e (QUESTIONS Q192): `baseHpMul: 20` applying to the final boss
   // like every other enemy took it to 7.3M at T1, and its own pacing/
   // escalation ramps (`src/sim/boss.ts`) were fitted to the pre-p12c
   // magnitude — profiling the six censored T3 seeds showed the run-length
@@ -104,6 +104,12 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // pre-p12c 36,500 fixture (the value this test pinned before p12c ever
   // shipped), and at T3 the measured kill-time spread over 24 seeds tightens
   // from 313-1153s to 190-226s. See BALANCE.md "Boss HP re-anchor (p12e)".
+  // (Merge note, PR #55: `origin/master` independently fixed the same
+  // problem by exempting `TRAIT.finalBoss` from `baseHpMul` in
+  // `src/sim/enemies.ts`'s `makeEnemy` instead, leaving the authored HP at
+  // 365,000 — equivalent by construction but not stackable with this fix;
+  // the `/data`-only version was kept, see `src/sim/enemies.ts`'s own p12e
+  // merge-note comment.)
   it('spawns at 3:01 with 18,250 HP scaled by tier', () => {
     // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
     // is *about* the authored base HP and how the ladder scales it, so it has
@@ -133,6 +139,36 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     const e3 = boss(w3);
     expect(e3.maxHp).toBeCloseTo(scaled(18250) * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
+  });
+
+  // p12e (QUESTIONS Q192, merge note PR #55): the final boss takes
+  // `baseHpMul` exactly like every ordinary enemy — no code-side exemption
+  // (see `src/sim/enemies.ts`'s p12e merge-note comment for why the
+  // alternative, a `TRAIT.finalBoss` exemption, was dropped in favor of the
+  // `/data`-only re-anchor). This pins that the authored, already-re-anchored
+  // `warden_eater.hp` (18,250) still scales with `baseHpMul` the same way an
+  // ordinary enemy's authored HP does.
+  it('final boss and ordinary enemies both take baseHpMul, against the re-anchored authored HP', () => {
+    const w = act2World(1);
+    const husk = spawnEnemy(w, 'husk', 5, 5, { overlay: false })!;
+    const huskDef = w.content.enemyByKey.get('husk')!;
+    expect(w.content.enemies.baseHpMul).toBeGreaterThan(1);
+    expect(husk.maxHp).toBeCloseTo(huskDef.hp * w.content.enemies.baseHpMul, 0);
+
+    const e = boss(w);
+    const bossDef = w.content.enemyByKey.get('warden_eater')!;
+    expect(bossDef.hp).toBeCloseTo(scaled(18250), 0);
+    expect(e.maxHp).toBeCloseTo(bossDef.hp * w.content.enemies.baseHpMul, 0);
+  });
+
+  // `gatebreaker` carries `TRAIT.boss` too (it's a wave-18 miniboss, not the
+  // Warden-Eater) but not `TRAIT.finalBoss` — confirms it takes `baseHpMul`
+  // the same as any other non-final-boss enemy.
+  it('gatebreaker (TRAIT.boss but not TRAIT.finalBoss) takes baseHpMul', () => {
+    const w = act2World(1);
+    const gate = spawnEnemy(w, 'gatebreaker', 5, 5, { overlay: false })!;
+    const gateDef = w.content.enemyByKey.get('gatebreaker')!;
+    expect(gate.maxHp).toBeCloseTo(gateDef.hp * w.content.enemies.baseHpMul, 0);
   });
 
   it('moves through three phases as its HP falls', () => {
@@ -535,6 +571,43 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(wins, message).toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.6));
     expect(wins, message).toBeLessThan(seeds.length);
   }); // p10s re-measurement (scripted harness): 20/20 (100%), every seed victory/w18
+
+  // p12d (BACKLOG.md): T1/T5 companion checks alongside — not replacing —
+  // the T3 reference-tier band above, same harness and 20-seed shape,
+  // reusing the bands `tests/p12c-margin.test.ts`'s opt-in sweep first
+  // recorded for this tier/harness combination.
+  describe('G14 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+    const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+    const T1_WIN_BAND = [0.55, 0.9] as const;
+    const T1_MIN_CLOSE_WIN = 0.25;
+    const T5_WIN_BAND = [0.05, 0.2] as const;
+
+    function runAt(tier: number) {
+      return seeds.map((seed) => runScripted(cfg({ seed, cycles: 6, tier, allocated: FULL_TREE }), 'hybrid').report);
+    }
+
+    it('T1: win rate in [55%,90%] with >=25% close-win share', () => {
+      const reports = runAt(1);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+      const rate = wins.length / reports.length;
+      const closeShare = closeWins / reports.length;
+      const detail = `T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+      expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+    });
+
+    it('T5: win rate in [5%,20%]', () => {
+      const reports = runAt(5);
+      const wins = reports.filter((r) => r.outcome === 'victory');
+      const resolved = reports.filter((r) => r.outcome !== 'running');
+      const rate = wins.length / resolved.length;
+      const detail = `T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds) — ${summarizeMargins(reports)}`;
+      expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+      expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
+    });
+  });
 });
 
 describe('Rift events (SPEC 5.1)', () => {

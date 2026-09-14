@@ -33,7 +33,7 @@ const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
-import { defaultSettings, sanitize, type Settings } from './settings';
+import { firstRunSettings, sanitize, type Settings } from './settings';
 import {
   ACTION_ORDER,
   defaultKeyBindings,
@@ -45,7 +45,7 @@ import {
   type KeyBindings,
 } from './keybindings';
 import { NORMAL_PROFILE_CLASS_KEYS, classBandStatsMarkup, classSelectSkillsMarkup } from './class-select';
-import { coreDetailMarkup } from './core-info';
+import { coreSelectSummaryMarkup, coreSelectEffectsMarkup } from './core-select';
 import { modLines, modLinesHtml } from './info-format';
 import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment-info';
 import { STAT_KIND, type StatKey } from '../sim/stats';
@@ -308,7 +308,7 @@ export class Hub {
 
       <div class="sw-panel">
         <h2>Core</h2>
-        <div class="sw-choices">
+        <div class="sw-classrow">
           ${content.cores.cores
             .map((core) => {
               // §5.5's default is never itself locked out — guarding here too,
@@ -317,18 +317,25 @@ export class Hub {
               // shape `migrate()` can't intercept if something else ever
               // constructs a `Hub` without going through it).
               const locked = core.key !== defaultCoreKey(content) && !this.meta.unlockedCores.includes(core.key);
-              return `<button class="sw-choice ${this.coreKey === core.key ? 'on' : ''} ${
+              return `<button class="sw-classcard ${this.coreKey === core.key ? 'on' : ''} ${
                 locked ? 'locked' : ''
               }" data-core="${core.key}" ${locked ? 'disabled' : ''}>
-                <b>${core.name}</b><span>${core.baseHp} HP</span>
+                <div class="sw-classcard-art"><span>${core.name.charAt(0)}</span></div>
+                <b>${core.name}</b>
                 ${locked ? `<small>Locked — ${core.unlockCondition ?? 'complete a quest'}</small>` : ''}
               </button>`;
             })
             .join('')}
         </div>
-        <div class="sw-classdetail">${coreDetailMarkup(
-          content.cores.cores.find((c) => c.key === this.coreKey) ?? content.cores.cores[0],
-        )}</div>
+        ${(() => {
+          const selectedCore = content.cores.cores.find((c) => c.key === this.coreKey) ?? content.cores.cores[0];
+          return selectedCore
+            ? `<div class="sw-classdetail">
+                ${coreSelectSummaryMarkup(selectedCore)}
+                ${coreSelectEffectsMarkup(selectedCore)}
+              </div>`
+            : '';
+        })()}
       </div>
 
       <div class="sw-panel">
@@ -750,7 +757,12 @@ export class Hub {
         return;
       }
       this.settingsResetArmed = false;
-      this.settings = sanitize(defaultSettings());
+      // fb169: a reset produces the same settings a first run would, so an
+      // OS "prefers-reduced-motion" player who ever presses Reset keeps that
+      // preference honoured rather than a hard `reducedMotion: false`
+      // `defaultSettings()` alone would have written (a stored value always
+      // wins over the OS query from then on — `loadSettings`'s own rule).
+      this.settings = sanitize(firstRunSettings());
       this.cb.onSettingsChanged(this.settings);
       this.show();
     });

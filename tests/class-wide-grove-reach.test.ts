@@ -1,70 +1,97 @@
 /**
  * c013 (BACKLOG-CONTENT, lane `content`) — **how far the Animist's *Wide
- * Grove* actually reaches.**
+ * Grove* actually reached, and what fb083's `towerArea` key changed about it.**
  *
  * `data/classes.json`'s Animist row says, in the player-facing sentence §4.2
- * gives it: *"All towers +10% area."* It is authored as
- * `towerPassive.mods.area`, and `area` is §2's **global** Area stat, folded by
- * `baseRunStats` (`stats.ts:194`) into `derived.areaMul` — the same multiplier
- * every non-tower footprint in the sim reads. There is no `towerArea` key in
- * `src/sim/statkeys.ts`, so the row has nowhere else to go.
+ * gives it: *"All towers +10% area."* It used to be authored as
+ * `towerPassive.mods.area` — `area` being §2's **global** Area stat, folded by
+ * `baseRunStats` (`stats.ts:194`) into `derived.areaMul`, the same multiplier
+ * every non-tower footprint in the sim read too, for want of a tower-only key.
  *
- * **This is a logged, owner-approved deviation, not an unapproved defect.**
- * `QUESTIONS.md` Q120 item 5 states it — "maps onto the existing global `area`
- * stat, which also scales the character's own effects — the closest existing
- * key, over-applying rather than inventing a `towerArea` nothing else reads,
- * and flagged for the P10 pass" — and carries an owner verdict of *approved*.
- * What that verdict bought was a deferral, and CLAUDE.md's first measurement
- * rule is that **a deferral is a measurement with an expiry date**: Q120 named
- * the expiry (the P10 pass) and never sized the over-application. This file
- * sizes it. A green run here is the approved deviation behaving as approved,
- * not a bug going unreported.
+ * **This was a logged, owner-approved deviation, not an unapproved defect —
+ * and the deferral has now expired.** `QUESTIONS.md` Q120 item 5 stated it —
+ * "maps onto the existing global `area` stat, which also scales the
+ * character's own effects — the closest existing key, over-applying rather
+ * than inventing a `towerArea` nothing else reads, and flagged for the P10
+ * pass" — with an owner verdict of *approved*. CLAUDE.md's first measurement
+ * rule is that **a deferral is a measurement with an expiry date**; Q120 named
+ * the expiry as the P10 pass, and `fb083` (§2, §4.2, Q163) is that pass
+ * landing: `src/sim/statkeys.ts` now carries a `towerArea` key,
+ * `effectiveTowerRange`/`effectiveTowerAoe`/`fireTower`'s own `area` alias
+ * read it instead of the global one, and Wide Grove is authored on it. This
+ * file, which used to size the over-application, now checks the fix against
+ * the same twenty-one footprints it measured before — which of them actually
+ * stopped leaking, and which did not.
  *
- * `c009` restated it (route 5 of its five) and `c001` then made it materially
- * larger without anyone re-measuring: before c001, `src/sim/classes.ts` never
- * read `areaMul` at all, so the over-application reached towers, VS wielded
- * attacks, Electric's inherent AoE and Burning's splash; after c001 it reaches
- * **all 24 class Actives too**, the Animist's own included. CLAUDE.md names
- * exactly this failure: *"check a `/data` row's blast radius before calling it
- * narrow"*, and *"when a field's range changes, grep its readers, not just its
- * writers."*
+ * `c009` restated the deviation (route 5 of its five) and `c001` had made it
+ * materially larger without anyone re-measuring: before c001,
+ * `src/sim/classes.ts` never read `areaMul` at all, so the over-application
+ * reached towers, VS wielded attacks, Electric's inherent AoE and Burning's
+ * splash; after c001 it reached **all 24 class Actives too**, the Animist's
+ * own included. CLAUDE.md names exactly this failure: *"check a `/data` row's
+ * blast radius before calling it narrow"*, and *"when a field's range
+ * changes, grep its readers, not just its writers."* fb083 is graded against
+ * that whole blast radius, not just the sentence's own wording.
  *
- * **This file is the measurement, not the fix.** The fix needs a new stat key
- * in `src/sim/statkeys.ts`, which is outside this lane's Scope (the same
- * blocker `c004` sits behind). So the reach is written down as a red/green
- * target the main-lane `towerArea` fix flips, rather than as a claim in prose
- * the next reader has to re-derive.
+ * **The result, in one line: eleven of twelve character-route leaks closed
+ * (the twelfth stays open by design), and all nine tower-route footprints
+ * §4.2 claims are widened — including the two, Electric off a Tesla Coil and
+ * Burning off an Ember Brazier, that fb083's first landing left stopped on
+ * *both* routes.** A follow-up fix closed that last gap by giving
+ * `damagetypes.ts`/`enemies.ts` a way to tell a tower's own hit from a class
+ * Active's without a `route` parameter — see `SHARED_READS`'s and
+ * `CLOSED_BY_ROUTE`'s own comments for the mechanism, and `STILL_WIDENED`/
+ * `STOPPED_WIDENING_BOTH` (now empty, kept for the history) for the count.
  *
  * **Reads and consumers are two different lists, and conflating them is how
- * this got bigger the first time.** `READS` is the ten places in `src/sim`
- * that multiply by `w.derived.areaMul`. `CONSUMERS` is the twenty *footprints*
- * those reads produce — because five reads sit inside helpers (`classArea`,
- * `effectiveTowerAoe`, `effectiveTowerRange`, `wieldedRangeFor`,
- * `wieldedSplashFor`) that other files call, and two more (`fireTower`'s and
- * `fireWielded`'s `area` locals) are each read by three to five footprints
- * inside their own function. c001 widened this row's blast radius by adding a
- * *caller*, not a read; a file that only counted reads would have watched it
- * happen and stayed green, which is why `CARRIERS` pins the call sites too.
+ * this got bigger the first time.** `READS`/`READS_TOWER_AREA` are the places
+ * in `src/sim` that multiply by the bare `areaMul`/`towerAreaMul` tokens.
+ * `CONSUMERS` is the twenty-one *footprints* those reads produce — because
+ * several reads sit inside helpers (`classArea`, `effectiveTowerAoe`,
+ * `effectiveTowerRange`, `wieldedRangeFor`, `wieldedSplashFor`) that other
+ * files call, and two more (`fireTower`'s and `fireWielded`'s `area` locals)
+ * are each read by three to five footprints inside their own function. c001
+ * widened this row's blast radius by adding a *caller*, not a read; a file
+ * that only counted reads would have watched it happen and stayed green,
+ * which is why `CARRIERS` pins the call sites too.
  *
- * **Four of the ten reads are `shared`, and they are what a `towerArea` key
- * alone does not close.** `effectiveTowerAoe`'s two branches,
- * `damagetypes.ts`'s Electric AoE and `enemies.ts`'s Burning splash each serve
- * both routes from one line that cannot see who is calling:
- *   - `effectiveTowerAoe` is a Venom Spore's own splash at `towers.ts:606`
+ * **Four read-names are `shared` in the `CONSUMERS` table, and all four are
+ * now genuinely closed — by two different mechanisms.** `effectiveTowerAoe`'s
+ * lob/poison branches, `damagetypes.ts`'s Electric AoE and `enemies.ts`'s
+ * Burning splash all had one line that could not see who was calling:
+ *   - `effectiveTowerAoe` is a Venom Spore's own splash at `towers.ts:624`
  *     and the panel's mirror of a Mortar's shell, **and** the Animist's own
- *     *Manifest* spirit via `towerSummonProfile` (`classes.ts:523`), **and**
+ *     *Manifest* spirit via `towerSummonProfile` (`classes.ts:553`), **and**
  *     every VS wielded lob/poison blast (`vswield.ts:295,296,487,505`);
  *   - Electric's inherent AoE and Burning's splash widen identically whether a
  *     Tesla Coil or a class Active applied the damage.
- * Moving the `/data` row to a `towerArea` key fixes the character-only
- * consumers and leaves these four sites needing a **source check** as well.
- * `shared` is not asserted by hand: it is derived from the consumer table — a
- * read is shared exactly when it has consumers on both routes — and compared
- * against `SHARED_READS`.
+ * fb083's first landing gave `effectiveTowerAoe` a caller-chosen `route`, so
+ * its two branches (`CLOSED_BY_ROUTE` from the start) were closed
+ * immediately — every caller passes the route its own semantics demand. A
+ * `route` parameter was never on the table for `damagetypes.ts`/`enemies.ts`:
+ * `applyDamageType` and `tickDotSplash` see only a `source: string` (an
+ * attack/tower id), never a caller-chosen enum, so that first landing left
+ * Electric and Burning as one unrouted line each — moving Wide Grove off the
+ * key they read did not close them, it **starved** them, and
+ * `STOPPED_WIDENING_BOTH` (now empty) is the record of that gap. The
+ * follow-up fix closed it by reusing this codebase's own precedent for
+ * exactly this shape: `dotPotency` (`enemies.ts`) already tells a tower's own
+ * Act I hit apart from every other caller with
+ * `!w.huntsWarden && w.content.towerByKey.has(source)`, because poison damage
+ * has the same one-string-and-nothing-else signature. A new
+ * `isTowerSource(w, source)` helper names that same check, and
+ * `applyDamageType`'s Electric branch and `tickDotSplash`'s Burning branch
+ * now pick `towerAreaMul` or `areaMul` by asking it rather than by taking a
+ * `route` argument — so `CLOSED_BY_ROUTE` names all four read-names today,
+ * "by route" covering both an explicit parameter and a source-checked
+ * dispatch, since either one ends up handing the right route the right key.
+ * `shared` is not asserted by hand: it is derived from the consumer table —
+ * a read-name is shared exactly when it has consumers on both routes — and
+ * compared against `SHARED_READS`.
  *
  * **How each consumer is measured.** Two `Content`s, identical but for one
  * key: the shipped one, and one rebuilt from a copy of `data/classes.json`
- * with `animist.towerPassive.mods.area` deleted (`c006`/`c009`'s control
+ * with `animist.towerPassive.mods.towerArea` deleted (`c006`/`c009`'s control
  * shape). Both build an Animist `World`; each row returns one number that
  * grows with its footprint — a radius where the sim's own helper computes one,
  * and the damage taken by an enemy parked in the **ring between the un-widened
@@ -73,26 +100,31 @@
  * out of `/data`, so a retune from 10% to 12% must not turn this file red
  * (`c008` owns the figure itself, in `tests/class-spec-numbers.test.ts`).
  *
- * Every `shared` read is probed on **both** routes, and each tower-route probe
- * parks its neighbour outside the firing tower's own reach so only the splash
- * under test can touch it. Two probes upgrade their tower first, because the
- * footprint they measure is only live behind a §5.2 milestone (the Arrow's
- * pierce, the Tesla's electric chain); which tier that is gets asked of
- * `attackProfile` rather than pinned, since a special's `at: 3` lands at tier
- * 4 and a retuned milestone must move the probe, not redden it.
+ * Every `shared` read-name is probed on **both** routes, and each tower-route
+ * probe parks its neighbour outside the firing tower's own reach so only the
+ * splash under test can touch it. Two probes upgrade their tower first,
+ * because the footprint they measure is only live behind a §5.2 milestone
+ * (the Arrow's pierce, the Tesla's electric chain); which tier that is gets
+ * asked of `attackProfile` rather than pinned, since a special's `at: 3` lands
+ * at tier 4 and a retuned milestone must move the probe, not redden it.
  *
  * **The honesty half.** A row that measured nothing would report "does not
- * widen" and look like good news — which is precisely the answer the main-lane
- * fix is expected to produce for twelve of these twenty consumers. So every
- * probe is additionally run on the no-grove content with an explicit +Area
- * source of its own: each must move. A row may only ever claim "Wide Grove
- * does not reach here" while proving it can still see Area arrive by another
- * door.
+ * widen" and look like good news — the correct answer fb083 now produces for
+ * most of the character-route consumers. So every probe is additionally run
+ * on the no-grove content with an explicit +Area source of its own: each must
+ * move. A row may only ever claim "Wide Grove does not reach here" while
+ * proving it can still see Area arrive by another door — `controlOpts`/
+ * `Consumer.controlKey` open the door this *specific* consumer's own
+ * implementation reads, which for one consumer (the Manifest spirit)
+ * disagrees with its `route` classification; see `Consumer.controlKey`'s own
+ * doc comment for why.
  *
  * The VS rows are classified against `vswield.ts`'s own header rule: a wielded
  * attack is "treated as character attacks" (§6.1) and deliberately does *not*
- * ride `towerRangeMul`. A `towerArea` that reached them would contradict the
- * reading that file already ships.
+ * ride `towerRangeMul`/`towerAreaMul`. fb083 made this structural rather than
+ * accidental: `vswield.ts`'s four `effectiveTowerAoe` calls now pass
+ * `'character'` explicitly, so a `towerArea` source genuinely cannot reach
+ * them — this file's own per-consumer checks confirm it rather than assume it.
  *
  * **One use of one read has no probe, and it is named rather than left
  * silent** — `DEVIATIONS`, `c019`'s convention.
@@ -147,7 +179,7 @@ function runDotTick(w: World): void {
 }
 
 /** The authored magnitude, read from `/data` — never restated. A retune moves this file's ring positions with it. */
-const WIDE_GROVE = content.classByKey.get('animist')!.towerPassive.mods.area!;
+const WIDE_GROVE = content.classByKey.get('animist')!.towerPassive.mods.towerArea!;
 
 /**
  * Where a ring probe parks its enemy: half-way between the un-widened
@@ -175,15 +207,28 @@ function contentWithoutGrove(): Content {
   // A throw, not an `expect`: this runs at module scope, where a failed
   // assertion surfaces as an unnamed collection error.
   if (!row) throw new Error('animist missing from data/classes.json');
-  delete row.towerPassive.mods.area;
+  delete row.towerPassive.mods.towerArea;
   return loadContent({ classes: doc });
 }
 
 const noGrove = contentWithoutGrove();
 
 interface WorldOpts {
-  /** An extra, explicit Area source — the sensitivity control's second door. */
+  /**
+   * An extra, explicit *character-route* Area source — the sensitivity
+   * control's second door for a `route: 'character'` consumer. fb083 split
+   * the one door into two: `classArea`/`vswield.ts`/the still-unrouted
+   * `damagetypes.ts`/`enemies.ts` splash read `area`, so this is the one that
+   * proves those probes.
+   */
   area?: number;
+  /**
+   * fb083: the same door on the *tower* side. `effectiveTowerRange`/
+   * `effectiveTowerAoe`'s default route and `fireTower`'s own `area` alias
+   * read `towerArea`, so a `route: 'tower'` consumer needs this one instead —
+   * `controlFor` below is what picks between the two so no call site has to.
+   */
+  towerArea?: number;
   /** `act1_wave` for the class-Active rows (`ACTIVE_PHASES`). */
   phase?: World['phase'];
   /** c024: whose tower passive is under test. Defaults to the Animist (c013). */
@@ -220,11 +265,25 @@ function animist(c: Content, o: WorldOpts = {}): World {
   // The character's own attack would contaminate every damage reading here.
   w.warden.attackCooldown = 1e9;
   if (o.phase) w.phase = o.phase;
-  if (o.area) {
-    w.stats.addAll('test:area', { area: o.area });
+  if (o.area || o.towerArea) {
+    w.stats.addAll('test:area', { area: o.area ?? 0, towerArea: o.towerArea ?? 0 });
     w.recomputeDerived();
   }
   return w;
+}
+
+/**
+ * fb083: the sensitivity control, aimed at whichever key this consumer's own
+ * `controlKey` (or, failing that, its `route`) says it actually reads. Before
+ * the fix one door served every probe because one key served every reader;
+ * now the two are genuinely separate stats, so the control has to ask the
+ * consumer which one it is before opening a door — asking both at once would
+ * prove nothing about the row the fix changed, only that *some* key on the
+ * World responds.
+ */
+function controlOpts(c: Pick<Consumer, 'route' | 'controlKey'>, extra: WorldOpts = {}): WorldOpts {
+  const key = c.controlKey ?? (c.route === 'tower' ? 'towerArea' : 'area');
+  return key === 'towerArea' ? { ...extra, towerArea: CONTROL_AREA } : { ...extra, area: CONTROL_AREA };
 }
 
 /**
@@ -348,13 +407,39 @@ function coneAnchors(w: World, x: number, y: number): void {
   for (const d of [1.2, 1.3, 1.4]) dummy(w, x + d, y);
 }
 
-/* ------------------------------------------------------------- the ten reads */
+/* ------------------------------------------------------------- the reads */
 
-/** One `w.derived.areaMul` read in `src/sim`. */
+/**
+ * One read in `src/sim`, of either the bare `areaMul` token or the bare
+ * `towerAreaMul` one — `family` says which, and which completeness guard
+ * below the entry counts against.
+ *
+ * fb083 split what used to be one `w.derived.areaMul` reader into two: most
+ * reads moved wholesale to `towerAreaMul` (`R_TOWER_RANGE`, `R_FIRE_TOWER`),
+ * and three call sites pick between the two *inline*, into a shared local
+ * variable each names `areaMul` — the same identifier the global stat's own
+ * derived factor uses. `effectiveTowerAoe` (`towers.ts:341`) does it with a
+ * caller-chosen `route` parameter; `applyDamageType` (`damagetypes.ts`) and
+ * `tickDotSplash` (`enemies.ts`) do it with an `isTowerSource(w, source)`
+ * check instead, since neither has a `route` to ask (a `source: string` is
+ * all either one gets). None of the three locals are this table's invention;
+ * they are real production source, and each means its one dispatch line
+ * carries a bare `areaMul` token (the variable's own name) *and* a bare
+ * `towerAreaMul` token (the tower-route operand) at once — which is exactly
+ * the case `weight` exists for.
+ */
 interface Read {
   /** `file` + the function the read sits in, as a reader would grep for it. */
   name: string;
   file: string;
+  family: 'area' | 'towerArea';
+  /**
+   * How many bare tokens of `family`'s own kind this entry's anchor line
+   * contributes — 1 unless stated otherwise. The three route-dispatch
+   * entries (`R_TOWER_AOE_ROUTE`, `R_ELECTRIC_ROUTE`, `R_BURNING_ROUTE`) are
+   * the only places this is not 1: see each one's own comment.
+   */
+  weight?: number;
   /**
    * Must still match `file`. Each anchor carries an adjacent line unique to
    * its function, so a read that moves to a *different* function in the same
@@ -364,69 +449,190 @@ interface Read {
 }
 
 const R_TOWER_RANGE = 'towers.ts effectiveTowerRange (aura kind)';
+const R_TOWER_AOE_ROUTE =
+  "towers.ts effectiveTowerAoe (route dispatch: towerAreaMul default / areaMul for 'character')";
 const R_TOWER_AOE_LOB = 'towers.ts effectiveTowerAoe (lob branch)';
 const R_TOWER_AOE_POISON = 'towers.ts effectiveTowerAoe (poison branch)';
 const R_FIRE_TOWER = 'towers.ts fireTower (aura radius / cone half-angle / lob shell aoe)';
 const R_CLASS_AREA = 'classes.ts classArea (a kit footprint: nova, cloud, zone, aura, line half-width, basic splash)';
+/**
+ * The follow-up fix's own dispatch line, the `isTowerSource` twin of
+ * `R_TOWER_AOE_ROUTE`: `applyDamageType` has no `route` to switch on, only
+ * `source`, so it asks `isTowerSource(w, source)` instead of taking a
+ * parameter. Same shape, same reason it is in `NO_CONSUMER`: the line itself
+ * produces no footprint, it only decides which key `R_ELECTRIC`'s own line
+ * reads.
+ */
+const R_ELECTRIC_ROUTE =
+  'damagetypes.ts applyDamageType (route dispatch via isTowerSource: towerAreaMul / areaMul)';
 const R_ELECTRIC = 'damagetypes.ts applyDamageType (Electric inherent AoE)';
+/** `tickDotSplash`'s own `isTowerSource` dispatch — see `R_ELECTRIC_ROUTE`'s comment, same shape. */
+const R_BURNING_ROUTE = 'enemies.ts tickDotSplash (route dispatch via isTowerSource: towerAreaMul / areaMul)';
 const R_BURNING = 'enemies.ts tickDotSplash (Burning splash)';
 const R_WIELD_RANGE = 'vswield.ts wieldedRangeFor (VS wielded attack range)';
 const R_WIELD_SPLASH = 'vswield.ts wieldedSplashFor (VS single-kind cleave radius)';
 const R_FIRE_WIELDED = 'vswield.ts fireWielded (line half-width / cleave / cone / chain range)';
 
+/**
+ * These three dispatch lines name real production text (the check that
+ * decides which of the two stats a caller gets) rather than a footprint of
+ * their own — nobody's radius is *these* lines, they only feed the branch (or
+ * the one radius line) below them, which already has its own row.
+ * `R_TOWER_AOE_ROUTE` picks with a caller-chosen `route` parameter;
+ * `R_ELECTRIC_ROUTE`/`R_BURNING_ROUTE` pick with `isTowerSource(w, source)`
+ * instead, because `applyDamageType`/`tickDotSplash` only ever have a
+ * `source: string` to ask, never a caller-chosen enum. Exempted from "every
+ * read has a consumer" for the same reason `DEVIATIONS` exists: named and
+ * reasoned about, not silently dropped.
+ */
+const NO_CONSUMER: readonly string[] = [R_TOWER_AOE_ROUTE, R_ELECTRIC_ROUTE, R_BURNING_ROUTE];
+
+/** The dispatch line itself, quoted once so its two `Read` entries (one per family) cannot drift apart. */
+const TOWER_AOE_ROUTE_ANCHOR =
+  /const areaMul = route === 'tower' \? w\.derived\.towerAreaMul : w\.derived\.areaMul;/;
+
+/**
+ * `applyDamageType`'s `isTowerSource` dispatch line, quoted once for the same
+ * reason `TOWER_AOE_ROUTE_ANCHOR` is: one physical line, two `Read` entries
+ * (one per family), and this is the single source of truth for the text both
+ * of them match.
+ */
+const ELECTRIC_ROUTE_ANCHOR =
+  /const areaMul = isTowerSource\(w, source\) \? w\.derived\.towerAreaMul : w\.derived\.areaMul;/;
+
+/** `tickDotSplash`'s twin of `ELECTRIC_ROUTE_ANCHOR`. */
+const BURNING_ROUTE_ANCHOR =
+  /const areaMul = isTowerSource\(w, acc\.source\) \? w\.derived\.towerAreaMul : w\.derived\.areaMul;/;
+
+/** Reads of the bare `areaMul` token — the character-reachable half post-fix. */
 const READS: readonly Read[] = [
   {
-    name: R_TOWER_RANGE,
+    // Both operands of the dispatch are on this one line: the local
+    // variable's own name (`const areaMul =`) and the character-route
+    // fallback (`w.derived.areaMul`) are two distinct `areaMul` tokens.
+    name: R_TOWER_AOE_ROUTE,
     file: 'src/sim/towers.ts',
-    anchor:
-      /const targeting = a\.range \* w\.derived\.towerRangeMul;\r?\n\s*return a\.kind === 'aura' \? targeting \* w\.derived\.areaMul : targeting;/,
+    family: 'area',
+    weight: 2,
+    anchor: TOWER_AOE_ROUTE_ANCHOR,
   },
   {
     name: R_TOWER_AOE_LOB,
     file: 'src/sim/towers.ts',
-    anchor: /kind === 'lob'\) return \(a\.aoe \?\? 1\.5\) \* w\.derived\.areaMul;/,
+    family: 'area',
+    anchor: /kind === 'lob'\) return \(a\.aoe \?\? 1\.5\) \* areaMul;/,
   },
   {
     name: R_TOWER_AOE_POISON,
     file: 'src/sim/towers.ts',
-    anchor: /kind === 'poison'\) return \(a\.aoe \?\? 0\) \* w\.derived\.areaMul;/,
-  },
-  {
-    name: R_FIRE_TOWER,
-    file: 'src/sim/towers.ts',
-    anchor: /const dmg = towerDamage\(w, s, a\.damage\);\r?\n\s*const area = w\.derived\.areaMul;/,
+    family: 'area',
+    anchor: /kind === 'poison'\) return \(a\.aoe \?\? 0\) \* areaMul;/,
   },
   {
     name: R_CLASS_AREA,
     file: 'src/sim/classes.ts',
+    family: 'area',
     anchor: /function classArea\(w: World, radius: number\): number \{\r?\n\s*return radius \* w\.derived\.areaMul;/,
+  },
+  {
+    // Same shape as `R_TOWER_AOE_ROUTE`'s own entry above: the dispatch line
+    // carries both the local variable's own name (`const areaMul =`) and the
+    // character-route fallback (`w.derived.areaMul`) — two distinct `areaMul`
+    // tokens on one line.
+    name: R_ELECTRIC_ROUTE,
+    file: 'src/sim/damagetypes.ts',
+    family: 'area',
+    weight: 2,
+    anchor: ELECTRIC_ROUTE_ANCHOR,
   },
   {
     name: R_ELECTRIC,
     file: 'src/sim/damagetypes.ts',
-    anchor: /const r = radius \* w\.derived\.areaMul;\r?\n\s*w\.emit\('pulse'/,
+    family: 'area',
+    anchor: /const r = radius \* areaMul;\r?\n\s*w\.emit\('pulse'/,
+  },
+  {
+    // Same shape as `R_ELECTRIC_ROUTE` above, for `tickDotSplash`'s twin dispatch.
+    name: R_BURNING_ROUTE,
+    file: 'src/sim/enemies.ts',
+    family: 'area',
+    weight: 2,
+    anchor: BURNING_ROUTE_ANCHOR,
   },
   {
     name: R_BURNING,
     file: 'src/sim/enemies.ts',
-    anchor: /const r = \(acc\.radius \+ w\.derived\.burnSpread\) \* w\.derived\.areaMul;/,
+    family: 'area',
+    anchor: /const r = \(acc\.radius \+ w\.derived\.burnSpread\) \* areaMul;/,
   },
   {
     name: R_WIELD_RANGE,
     file: 'src/sim/vswield.ts',
+    family: 'area',
     anchor: /return a\.range \* w\.derived\.areaMul \* w\.derived\.charRangeMul;/,
   },
   {
     name: R_WIELD_SPLASH,
     file: 'src/sim/vswield.ts',
+    family: 'area',
     anchor: /radius: WIELD_SPLASH_RADIUS \* w\.derived\.areaMul/,
   },
   {
     name: R_FIRE_WIELDED,
     file: 'src/sim/vswield.ts',
+    family: 'area',
     anchor: /const y = wd\.y;\r?\n\s*const area = w\.derived\.areaMul;/,
   },
 ];
+
+/**
+ * Reads of the bare `towerAreaMul` token — the tower-only half fb083 carved
+ * out. Three of these live in `towers.ts`; the follow-up fix added one each
+ * in `damagetypes.ts`/`enemies.ts` (their own `isTowerSource` dispatch
+ * lines) — nothing else in `src/sim` names the token today (the completeness
+ * guard below is what would notice if that changed).
+ */
+const READS_TOWER_AREA: readonly Read[] = [
+  {
+    name: R_TOWER_RANGE,
+    file: 'src/sim/towers.ts',
+    family: 'towerArea',
+    anchor:
+      /const targeting = a\.range \* w\.derived\.towerRangeMul;\r?\n\s*return a\.kind === 'aura' \? targeting \* w\.derived\.towerAreaMul : targeting;/,
+  },
+  {
+    // The tower-route operand of the same dispatch line `R_TOWER_AOE_ROUTE`
+    // names above — one physical line, one entry per family, per that read's
+    // own comment.
+    name: R_TOWER_AOE_ROUTE,
+    file: 'src/sim/towers.ts',
+    family: 'towerArea',
+    anchor: TOWER_AOE_ROUTE_ANCHOR,
+  },
+  {
+    name: R_FIRE_TOWER,
+    file: 'src/sim/towers.ts',
+    family: 'towerArea',
+    anchor: /const dmg = towerDamage\(w, s, a\.damage\);\r?\n\s*const area = w\.derived\.towerAreaMul;/,
+  },
+  {
+    // The tower-route operand of `R_ELECTRIC_ROUTE`'s own dispatch line.
+    name: R_ELECTRIC_ROUTE,
+    file: 'src/sim/damagetypes.ts',
+    family: 'towerArea',
+    anchor: ELECTRIC_ROUTE_ANCHOR,
+  },
+  {
+    // The tower-route operand of `R_BURNING_ROUTE`'s own dispatch line.
+    name: R_BURNING_ROUTE,
+    file: 'src/sim/enemies.ts',
+    family: 'towerArea',
+    anchor: BURNING_ROUTE_ANCHOR,
+  },
+];
+
+/** Both families, for the checks that do not care which one a read belongs to. */
+const ALL_READS: readonly Read[] = [...READS, ...READS_TOWER_AREA];
 
 /**
  * The helpers that carry a read *out of* the function it lives in, and how
@@ -465,6 +671,20 @@ interface Consumer {
   /** The `READS` entry this footprint flows from. */
   read: string;
   route: 'tower' | 'character';
+  /**
+   * fb083: which Stats key this consumer's own sensitivity-control probe
+   * should bump. Defaults to the key `route` implies (`towerArea` for
+   * 'tower', `area` for 'character') — every consumer but one agrees with its
+   * own route this way. The one exception is named on its own row below: the
+   * Manifest spirit (`route: 'character'` per §4.2's coverage — a class
+   * Active is not a tower — but internally a `'tower'`-route call by design).
+   * The `R_ELECTRIC`/`R_BURNING` tower-route rows used to be a second
+   * exception (`applyDamageType`/`tickDotSplash` took no `route` parameter
+   * and only ever saw `area`, so their sensitivity control had to be forced
+   * onto `area` even on the tower route) — the `isTowerSource` fix made them
+   * agree with their own route again, so they no longer override this field.
+   */
+  controlKey?: 'area' | 'towerArea';
   measure: (c: Content, o?: WorldOpts) => number;
 }
 
@@ -511,6 +731,13 @@ const CONSUMERS: readonly Consumer[] = [
     site: "the Animist's *Manifest* spirit, cloned from a Mortar",
     read: R_TOWER_AOE_LOB,
     route: 'character',
+    // fb083: `towerSummonProfile` calls `effectiveTowerAoe(w, def)` with no
+    // route argument (`classes.ts:553`) — the default, `'tower'` — because a
+    // literal tower-clone summon is meant to ride the tower's own numbers.
+    // So this footprint's *stat key* is `towerArea` even though its `route`
+    // classification above is `'character'` (§4.2's sentence does not name a
+    // class Active). See `Consumer.controlKey`'s own doc comment.
+    controlKey: 'towerArea',
     measure: (c, o) => {
       const w = animist(c, { ...o, phase: 'act1_wave' });
       placeProbed(w, MORTAR);
@@ -613,6 +840,38 @@ const CONSUMERS: readonly Consumer[] = [
     },
   },
   {
+    // fb081: `fireTower`'s `single` case scaled `LINE_HALF_WIDTH` by `area`
+    // for the first time (previously a bare, unscaled constant) — a fourth
+    // `R_FIRE_TOWER` footprint alongside the Frost aura/Brazier cone/Mortar
+    // splash rows above, mirroring "a wielded line's perpendicular
+    // half-width" below on the character route.
+    site: "an Arrow Spire's line half-width, at its §5.2 pierce milestone",
+    read: R_FIRE_TOWER,
+    route: 'tower',
+    measure: (c, o) => {
+      const w = animist(c, o);
+      const p = placeProbed(w, ARROW);
+      // At pierce 0 the line stops at its primary, so the half-width decides
+      // nothing; the Arrow's §5.2 pierce milestone is the first tier where a
+      // second enemy can be on the line at all.
+      upgradeTo(w, p, tierWhere(c.towerByKey.get(ARROW)!, (prof) => prof.pierce > 0));
+      const range = c.towerByKey.get(ARROW)!.attack!.range;
+      const half = LINE_HALF_WIDTH;
+      // `targetFirst` (combat.ts) picks whichever candidate is furthest along
+      // the path to the Core, not whichever is nearest the tower — so the
+      // on-axis primary sits at the reach's edge (most advanced, the only
+      // sane choice of target) and the width-tested dummy sits *less*
+      // advanced, off-axis, where only the sweep — never the guaranteed
+      // primary strike — can decide whether it is on the line.
+      const primary = dummy(w, p.x + range * 0.9, p.y);
+      const beside = dummy(w, p.x + range * 0.5, p.y + half * RING, 0.01);
+      const before = beside.hp;
+      fireOnce(w, p.s);
+      expect(primary.hp, 'harness fired no arrow volley').toBeLessThan(primary.maxHp);
+      return before - beside.hp;
+    },
+  },
+  {
     site: "the Animist's *Recall Totem* aura radius",
     read: R_CLASS_AREA,
     route: 'character',
@@ -630,6 +889,13 @@ const CONSUMERS: readonly Consumer[] = [
     site: "Electric's inherent AoE, off a Tesla Coil's own hit",
     read: R_ELECTRIC,
     route: 'tower',
+    // The follow-up fix (`isTowerSource`) means `applyDamageType` now agrees
+    // with its own route classification, so no `controlKey` override is
+    // needed here any more — the default (`towerArea` for `route: 'tower'`)
+    // is the key this row actually reads. Before that fix `applyDamageType`
+    // took no `route` parameter and only ever read `w.derived.areaMul`, which
+    // is why this row used to force its control onto `area`; see
+    // `Consumer.controlKey`'s own doc comment for the history.
     measure: (c, o) => {
       const w = animist(c, o);
       const p = placeProbed(w, TESLA);
@@ -665,6 +931,9 @@ const CONSUMERS: readonly Consumer[] = [
     site: "Burning's splash, off an Ember Brazier's own burn",
     read: R_BURNING,
     route: 'tower',
+    // Same history as the Electric row above: the `isTowerSource` fix means
+    // `tickDotSplash` now agrees with its own route classification, so the
+    // default `controlKey` (`towerArea`) is right and no override is needed.
     measure: (c, o) => {
       const w = animist(c, o);
       const p = placeProbed(w, BRAZIER);
@@ -819,18 +1088,70 @@ const DEVIATIONS: ReadonlyArray<{ read: string; use: string; anchor: RegExp; why
       'probe that forced such a flip would be measuring the direction search rather than the ' +
       'footprint. Declared here so the uncovered use is a decision with a reason attached.',
   },
+  {
+    // fb081: `fireTower`'s own `pierce` case (a Ballista) passes the same
+    // scaled half-width into the same helper, for the same reason.
+    read: R_FIRE_TOWER,
+    use: "a Ballista's `pierce` kind `bestLineDirection` half-width",
+    anchor: /const dir = bestLineDirection\(w, x, y, range, LINE_HALF_WIDTH \* area\);/,
+    why:
+      'Same shape as the wielded deviation above: the widened half-width only re-scores which ' +
+      'direction the volley is aimed in; the bolts it spawns carry their own geometry through ' +
+      '`spawnProjectile` (`pierce`, combat.ts), which Area never touches. Declared here for the same ' +
+      'reason, on the tower side of the same kind.',
+  },
 ];
 
-/** A read is shared when both routes flow through it — derived, never hand-typed. */
+/**
+ * A read's *name* is shared when `CONSUMERS` tags it on both routes — derived,
+ * never hand-typed. Scanned over `ALL_READS` on purpose, not just `READS`:
+ * nothing stops a future `towerArea`-family read from picking up a
+ * character-route consumer, and this table should notice if one does.
+ *
+ * fb083 note: this is a **naming** fact about the `CONSUMERS` table, not
+ * proof the underlying stat is still conflated. All four names below still
+ * show up here because each one's helper (`effectiveTowerAoe`,
+ * `applyDamageType`, `tickDotSplash`) backs consumers on both routes by
+ * construction — a Tesla Coil's own hit and a class Active's hit both flow
+ * through `applyDamageType`, for instance. What changed is only whether the
+ * line *behind* that name can tell the two apart: `CLOSED_BY_ROUTE` below
+ * names all four as genuinely closed today, the first two by an explicit
+ * `route` parameter and the last two by the `isTowerSource` check.
+ */
 function sharedReads(): string[] {
-  return READS.filter((r) => {
+  return ALL_READS.filter((r) => {
     const routes = new Set(CONSUMERS.filter((c) => c.read === r.name).map((c) => c.route));
     return routes.has('tower') && routes.has('character');
   }).map((r) => r.name);
 }
 
-/** The four a `towerArea` key alone cannot close: they need a source check at the site as well. */
+/**
+ * The four read-names `CONSUMERS` still tags on both routes. Unchanged in
+ * *membership* since fb083's first landing (a naming fact — see
+ * `sharedReads`'s own comment): it is a fact about which helper backs which
+ * consumers, not about whether that helper can tell its callers apart, so
+ * fixing the latter was never going to shrink this list. `CLOSED_BY_ROUTE`
+ * is the list that tracks the fix.
+ */
 const SHARED_READS: readonly string[] = [R_TOWER_AOE_LOB, R_TOWER_AOE_POISON, R_ELECTRIC, R_BURNING];
+
+/**
+ * All four of `SHARED_READS`, now closed — by two different mechanisms.
+ * `effectiveTowerAoe` takes an explicit `route` and every caller passes the
+ * right one (`'tower'` by default for `fireTower`'s own poison dispatch and
+ * the two literal tower-clone summons, `'character'` explicitly for every
+ * `vswield.ts` wielded blast). `applyDamageType`/`tickDotSplash` have no
+ * `route` to take — only a `source: string` — so they ask
+ * `isTowerSource(w, source)` instead: `!w.huntsWarden &&
+ * w.content.towerByKey.has(source)`, the same check `dotPotency` already used
+ * for `towerPoisonDamageMul` (§4.1 Plaguebringer, p6c, Q119) for the same
+ * reason. Either mechanism produces the same observable: a character-route
+ * consumer of any of these four no longer reads `towerArea` at all, and a
+ * tower-route one no longer reads the bare `area`. "By route" in this
+ * constant's name covers both — a parameter the caller sets and a fact the
+ * callee derives from `source` are two ways of answering the same question.
+ */
+const CLOSED_BY_ROUTE: readonly string[] = [R_TOWER_AOE_LOB, R_TOWER_AOE_POISON, R_ELECTRIC, R_BURNING];
 
 /* ------------------------------------------------------- the completeness guards */
 
@@ -912,26 +1233,46 @@ function asObject(m: Map<string, number>): Record<string, number> {
 }
 
 /**
- * `stats.ts` is where `areaMul` is *written* — the `Derived` field and the
- * `s.factor('area')` that fills it. Everything else that names the token is a
+ * `stats.ts` is where `areaMul`/`towerAreaMul` are *written* — each one's
+ * `Derived` field and the `s.factor(...)` line that fills it, two lines per
+ * stat, one stat per family. Everything else that names either token is a
  * reader, which is why the token count is what this guard watches rather than
  * the `w.derived.areaMul` spelling: destructuring it, bracket-indexing it or
  * splitting it over two lines are all reads that the narrower pattern misses.
  */
 const WRITER = { 'src/sim/stats.ts': 2 };
+/** fb083: `towerAreaMul`'s own two lines in `stats.ts`, the same shape as `WRITER`. */
+const WRITER_TOWER_AREA = { 'src/sim/stats.ts': 2 };
 
-describe('c013: the tables cover every way `areaMul` gets out of the stat block', () => {
+/**
+ * One family's completeness guard: every bare token of `family`'s own kind
+ * under `src/sim` is either declared here (weighted, since `R_TOWER_AOE_ROUTE`
+ * carries two `areaMul` tokens on one line) or is the writer's own two lines.
+ */
+function checkCompleteness(family: Read['family'], writer: Record<string, number>): void {
+  const token = family === 'area' ? 'areaMul' : 'towerAreaMul';
+  const re = family === 'area' ? /\bareaMul\b/ : /\btowerAreaMul\b/;
+  const declared: Record<string, number> = { ...writer };
+  for (const r of ALL_READS.filter((x) => x.family === family)) {
+    declared[r.file] = (declared[r.file] ?? 0) + (r.weight ?? 1);
+  }
+  expect(
+    asObject(scanSim(re)),
+    `a src/sim file names ${token} a different number of times than its family's READS + WRITER claims`,
+  ).toEqual(Object.fromEntries(Object.entries(declared).sort()));
+}
+
+describe('c013: the tables cover every way `areaMul`/`towerAreaMul` get out of the stat block', () => {
   it('every `areaMul` token under src/sim is a declared read or the writer itself', () => {
-    const declared: Record<string, number> = { ...WRITER };
-    for (const r of READS) declared[r.file] = (declared[r.file] ?? 0) + 1;
-    expect(
-      asObject(scanSim(/\bareaMul\b/)),
-      'a src/sim file names areaMul a different number of times than READS + WRITER claims',
-    ).toEqual(Object.fromEntries(Object.entries(declared).sort()));
+    checkCompleteness('area', WRITER);
   });
 
-  for (const r of READS) {
-    it(`${r.name}: its read is still where the table says it is`, () => {
+  it('every `towerAreaMul` token under src/sim is a declared read or the writer itself', () => {
+    checkCompleteness('towerArea', WRITER_TOWER_AREA);
+  });
+
+  for (const r of ALL_READS) {
+    it(`${r.name} [${r.family}]: its read is still where the table says it is`, () => {
       expect(readFileSync(r.file, 'utf8')).toMatch(r.anchor);
     });
   }
@@ -946,11 +1287,12 @@ describe('c013: the tables cover every way `areaMul` gets out of the stat block'
     });
   }
 
-  it('every consumer names a read that exists, and every read has at least one consumer', () => {
-    const names = new Set(READS.map((r) => r.name));
+  it('every consumer names a read that exists, and every read but the named dispatch has a consumer', () => {
+    const names = new Set(ALL_READS.map((r) => r.name));
     for (const c of CONSUMERS) expect(names, `${c.site} names an unknown read`).toContain(c.read);
     for (const d of DEVIATIONS) expect(names, `${d.use} names an unknown read`).toContain(d.read);
-    for (const r of READS) {
+    for (const r of ALL_READS) {
+      if (NO_CONSUMER.includes(r.name)) continue;
       expect(
         CONSUMERS.some((c) => c.read === r.name),
         `${r.name} has no consumer — its reach is unmeasured`,
@@ -958,9 +1300,18 @@ describe('c013: the tables cover every way `areaMul` gets out of the stat block'
     }
   });
 
+  it('NO_CONSUMER names only reads that really do go unconsumed, not a typo hiding a gap', () => {
+    for (const name of NO_CONSUMER) {
+      expect(
+        CONSUMERS.some((c) => c.read === name),
+        `${name} is in NO_CONSUMER but a CONSUMERS row already covers it — drop it from the exemption`,
+      ).toBe(false);
+    }
+  });
+
   for (const d of DEVIATIONS) {
     it(`deviation: ${d.use} is uncovered on purpose, and still exists`, () => {
-      const read = READS.find((r) => r.name === d.read)!;
+      const read = ALL_READS.find((r) => r.name === d.read)!;
       expect(readFileSync(read.file, 'utf8'), d.why).toMatch(d.anchor);
     });
   }
@@ -987,14 +1338,18 @@ describe('c013: the tables cover every way `areaMul` gets out of the stat block'
 
 describe('c013: the harness measures Wide Grove and nothing else', () => {
   it('the two Contents differ by exactly one key', () => {
-    expect(content.classByKey.get('animist')!.towerPassive.mods.area).toBe(WIDE_GROVE);
-    expect(noGrove.classByKey.get('animist')!.towerPassive.mods.area).toBeUndefined();
+    expect(content.classByKey.get('animist')!.towerPassive.mods.towerArea).toBe(WIDE_GROVE);
+    expect(noGrove.classByKey.get('animist')!.towerPassive.mods.towerArea).toBeUndefined();
     expect(WIDE_GROVE).toBeGreaterThan(0);
   });
 
-  it("Wide Grove is the whole of an Animist run's areaMul, and the control removes it", () => {
-    expect(animist(content).derived.areaMul).toBeCloseTo(1 + WIDE_GROVE, 10);
-    expect(animist(noGrove).derived.areaMul).toBe(1);
+  it("fb083: Wide Grove is the whole of an Animist run's towerAreaMul, and no longer touches areaMul at all", () => {
+    expect(animist(content).derived.towerAreaMul).toBeCloseTo(1 + WIDE_GROVE, 10);
+    expect(animist(noGrove).derived.towerAreaMul).toBe(1);
+    // The other half of the fix, stated as its own assertion rather than left
+    // to be inferred from the tables below: the row that used to be the whole
+    // of an Animist run's `areaMul` no longer contributes to it at all.
+    expect(animist(content).derived.areaMul).toBe(1);
   });
 
   it('the sensitivity control clears every ring, which sits at RING', () => {
@@ -1009,13 +1364,14 @@ describe('c013: the harness measures Wide Grove and nothing else', () => {
   });
 
   // The honesty half. A probe that measured nothing would report "Wide Grove
-  // does not widen this" — the same answer the main-lane fix is expected to
-  // produce for the character rows. Every probe must therefore be shown to see
-  // Area arriving by a door that is not Wide Grove.
+  // does not widen this" — the correct answer fb083 now produces for most of
+  // the character rows. Every probe must therefore be shown to see Area
+  // arriving by a door that is not Wide Grove — `controlOpts` opens the one
+  // door this consumer's own `route` actually reads, per its own doc comment.
   for (const c of CONSUMERS) {
     it(`${c.site}: the probe still sees Area arriving from another source`, () => {
       const flat = c.measure(noGrove);
-      const bumped = c.measure(noGrove, { area: CONTROL_AREA });
+      const bumped = c.measure(noGrove, controlOpts(c));
       expect(bumped, `${c.site} is blind to Area — its "does not widen" reading would be worthless`).toBeGreaterThan(
         flat,
       );
@@ -1027,62 +1383,134 @@ describe('c013: the harness measures Wide Grove and nothing else', () => {
 
 describe('c013: what Wide Grove widens today, per consumer', () => {
   for (const c of CONSUMERS) {
-    it(`${c.site} [${c.route}]: Wide Grove widens it`, () => {
+    const shouldWiden = STILL_WIDENED.includes(c.site);
+    it(`${c.site} [${c.route}]: Wide Grove ${shouldWiden ? 'still widens it' : 'no longer widens it (fb083)'}`, () => {
       const withGrove = c.measure(content);
       const without = c.measure(noGrove);
-      // Every one of the twenty is widened today — that is the finding. When
-      // the main-lane `towerArea` key lands, the twelve character rows flip
-      // and this assertion goes red on exactly those rows.
-      expect(withGrove, `${c.site} no longer widens — see LEAKING_TODAY below`).toBeGreaterThan(without);
+      // fb083 (both passes) landed: eleven of the twenty-one consumers read
+      // "does not widen" today — every one of the twelve character-route
+      // consumers but the Manifest spirit, a deliberate tower-clone.
+      // `STILL_WIDENED` names the other ten (all nine tower-route consumers,
+      // Electric/Burning off a tower included since the `isTowerSource`
+      // follow-up, plus the Manifest spirit), so this loop's own assertion
+      // direction follows the fix rather than hardcoding "greater than" and
+      // hand-listing the flipped majority a second time.
+      if (shouldWiden) {
+        expect(withGrove, `${c.site} no longer widens — update STILL_WIDENED`).toBeGreaterThan(without);
+      } else {
+        expect(withGrove, `${c.site} still widens — update STILL_WIDENED`).toBeCloseTo(without, 10);
+      }
     });
   }
 });
 
 /**
- * The claim in one place, as the thing the main-lane fix removes.
+ * **fb083 landed, in two passes.** The first moved Wide Grove from the global
+ * `area` key to `towerArea` (`data/classes.json`) and gave `effectiveTowerAoe`
+ * a caller-chosen `route` (`towers.ts`); a follow-up gave `applyDamageType`/
+ * `tickDotSplash` an `isTowerSource` check so Electric/Burning could tell
+ * their callers apart too, with no `route` parameter to add. This is the set
+ * of `CONSUMERS.site` names widened by Wide Grove today, across *both*
+ * routes — stated once so the per-consumer loop above and the two
+ * route-specific checks below all read off the same list.
  *
- * `route === 'character'` is "§4.2's sentence does not cover this footprint".
- * Twelve of the twenty consumers are in that set today. A `towerArea` key
- * empties nine of them outright; the three that flow through a `shared` read
- * (the *Manifest* spirit and the two wielded blasts, all via
- * `effectiveTowerAoe`) plus the two shared damage-type sites need a source
- * check at the site as well, since none of those lines can see who called.
+ * **Character route (one of twelve stayed open, by design):** the *Manifest*
+ * spirit is the one `LEAKING_TODAY` row that did not flip. It is not a bug:
+ * `towerSummonProfile` (`classes.ts:553`) calls `effectiveTowerAoe(w, def)`
+ * with no route argument, the same call `fireTower`'s own poison dispatch and
+ * Engineer's Pop Turret use, because SPEC-FINAL treats a literal tower-clone
+ * summon as riding the tower's own numbers (`towers.ts`'s own doc comment on
+ * the function, fb083). The other eleven — every wielded VS footprint, the
+ * Recall Totem aura, and Electric/Burning off a class Active — read `area`
+ * and Wide Grove does not touch it, so all eleven read "does not widen".
+ *
+ * **Tower route (all nine widen — the last two by a second fix):**
+ * `effectiveTowerRange`, `effectiveTowerAoe`'s lob/poison branches and
+ * `fireTower`'s own `area` alias moved to `towerArea` wholesale in the first
+ * pass, so the seven consumers behind them (Frost's ring, Mortar's shell
+ * radius, Venom Spore's splash, Frost's aura, Brazier's cone, Mortar's shell
+ * splash, Arrow's line half-width) widened exactly as §4.2 claims from day
+ * one. `R_ELECTRIC`/`R_BURNING` did not move in that pass — `damagetypes.ts`/
+ * `enemies.ts` took no `route` parameter and read the bare `area`
+ * unconditionally — so moving Wide Grove off that key briefly stopped it
+ * reaching *either* of their two consumers, tower included: a Tesla Coil's
+ * Electric proc and an Ember Brazier's Burning splash stopped receiving Wide
+ * Grove's bonus at all, a footprint §4.2's own sentence ("all towers") claims
+ * and the first pass silently dropped (`STOPPED_WIDENING_BOTH`, now empty,
+ * is the record of that gap). The `isTowerSource` follow-up closed it: both
+ * now read `towerAreaMul` when a real tower fired the hit, so all nine
+ * tower-route consumers widen today.
  */
-const LEAKING_TODAY: readonly string[] = [
+const STILL_WIDENED: readonly string[] = [
+  "a Frost Obelisk's ring, as the panel and the range circle quote it",
+  "a Mortar's shell radius, as the panel mirror quotes it",
   "the Animist's *Manifest* spirit, cloned from a Mortar",
-  "a VS wielded lob's blast (§6.1: a character attack)",
-  "a VS wielded poison's blast (§6.1: a character attack)",
-  "the Animist's *Recall Totem* aura radius",
-  "Electric's inherent AoE, off a class Active",
-  "Burning's splash, off a class Active",
-  "a VS wielded attack's range (§6.1: a character attack)",
-  'a VS wielded single-kind cleave radius, as the panel quotes it',
-  'the cleave a wielded shot really lands',
-  "a wielded line's perpendicular half-width (Arrow at its §5.2 pierce milestone)",
-  "a wielded cone's half-angle",
-  "a wielded chain's jump range (Tesla at its §5.2 electric-chain milestone)",
+  "a Venom Spore's own splash, as the spore really lands it",
+  "a Frost Obelisk's aura, as the enemy standing in it feels it",
+  'an Ember Brazier\'s cone half-angle',
+  "a Mortar's shell splash, as the shell really detonates it",
+  "an Arrow Spire's line half-width, at its §5.2 pierce milestone",
+  "Electric's inherent AoE, off a Tesla Coil's own hit",
+  "Burning's splash, off an Ember Brazier's own burn",
 ];
 
+/**
+ * **Empty, and kept that way on purpose.** §4.2 says "all towers +10% area",
+ * and both of these are bona fide tower attacks; between fb083's first
+ * landing and the `isTowerSource` follow-up, neither was widened by Wide
+ * Grove on *either* route — `damagetypes.ts`/`enemies.ts` took no `route`
+ * parameter and read the bare `area` unconditionally, so moving Wide Grove
+ * off that key starved both consumers instead of closing either. The
+ * follow-up gave both readers a way to ask `isTowerSource(w, source)` instead
+ * of a parameter, and both sites now flow to `STILL_WIDENED`. Left as its own
+ * (empty) constant, rather than deleted, so a regression that starves either
+ * one again has a named place to land instead of silently vanishing from
+ * `STILL_WIDENED`. See `SHARED_READS`'s and `CLOSED_BY_ROUTE`'s own comments
+ * for the mechanism.
+ */
+const STOPPED_WIDENING_BOTH: readonly string[] = [];
+
+/**
+ * The one `LEAKING_TODAY` row fb083 could not close by construction — see
+ * `STILL_WIDENED`'s own comment. Kept as its own named constant (rather than
+ * inlined into the `describe` below) because `c024`'s Time Lord twin needs to
+ * subtract the same one row from its own expectation, by name, not by index.
+ */
+const LEAKING_TODAY: readonly string[] = ["the Animist's *Manifest* spirit, cloned from a Mortar"];
+
 describe('c013: the leak, stated as a set the fix can be checked against', () => {
-  it('exactly these twelve non-tower footprints are widened by "All towers +10% area"', () => {
+  it('fb083 closed eleven of the twelve non-tower leaks; the Manifest spirit is the one left, by design', () => {
     const leaking = CONSUMERS.filter((c) => c.route === 'character' && c.measure(content) > c.measure(noGrove)).map(
       (c) => c.site,
     );
     expect(leaking, 'the leak set moved — update LEAKING_TODAY and say which fix moved it').toEqual(LEAKING_TODAY);
   });
 
-  it('and every footprint §4.2 does claim is still widened', () => {
+  it('all nine tower-route footprints §4.2 claims are widened; none stopped', () => {
     const towers = CONSUMERS.filter((c) => c.route === 'tower');
-    for (const c of towers) {
-      expect(c.measure(content), `${c.site} stopped obeying the row that claims it`).toBeGreaterThan(c.measure(noGrove));
-    }
-    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(8);
+    const stillWidened = towers.filter((c) => c.measure(content) > c.measure(noGrove)).map((c) => c.site);
+    expect(
+      stillWidened,
+      'the still-widened tower set moved — update STILL_WIDENED/STOPPED_WIDENING_BOTH',
+    ).toEqual(STILL_WIDENED.filter((s) => towers.some((c) => c.site === s)));
+    const stopped = towers.filter((c) => c.measure(content) <= c.measure(noGrove)).map((c) => c.site);
+    expect(
+      stopped,
+      'a genuine tower attack is no longer widened by "All towers +10% area" — see STOPPED_WIDENING_BOTH',
+    ).toEqual(STOPPED_WIDENING_BOTH.filter((s) => towers.some((c) => c.site === s)));
+    expect(stopped, 'STOPPED_WIDENING_BOTH is supposed to be empty today').toHaveLength(0);
+    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(9);
   });
 
-  it('four reads serve both routes, so a `towerArea` key alone cannot close them', () => {
+  it('the four read-names CONSUMERS still tags on both routes are all genuinely closed today', () => {
     expect(sharedReads(), 'the shared-read set moved — a key swap now fixes more (or less) than it did').toEqual(
       SHARED_READS,
     );
+    // Every one of the four now has a way to tell its caller's route apart —
+    // `effectiveTowerAoe`'s explicit `route` parameter for the lob/poison
+    // pair, `isTowerSource` for Electric/Burning — so none of them is still
+    // shared in practice, only in the naming sense `sharedReads` measures.
+    expect(SHARED_READS.filter((r) => !CLOSED_BY_ROUTE.includes(r))).toEqual([]);
   });
 });
 
@@ -1090,9 +1518,10 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
 
 /**
  * **c024 — the same §4.2 "all towers" wording, on the other class, applied by
- * code instead of by `/data`.** Filed by QA on `c013`.
+ * code instead of by `/data`.** Filed by QA on `c013`; the twin fb083 had to
+ * close alongside Wide Grove or leave the larger leak standing.
  *
- * `applyChronalSurge` (`src/sim/run.ts:816-817`) is two adjacent lines:
+ * `applyChronalSurge` (`src/sim/run.ts:816-817`) used to be two adjacent lines:
  *
  * ```ts
  * w.stats.add(source, 'towerRange', cls.towerPassive.bonusRangeMul ?? 0);
@@ -1101,17 +1530,22 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
  *
  * A **tower-scoped** key for the range half and the **global** key for the
  * area half, from one sentence, uncapped, and re-added every `waveInterval` TD
- * waves for the whole run. The Animist's leak that `c013` sized is a flat
- * `+10%` authored once in `data/classes.json`; this one compounds with wave
- * count, and this lane's own Log already measured it at `areaMul 3.203` by end
- * of run — **+90% from Chronal Surge alone**, up to nine times the Animist's.
+ * waves for the whole run. The Animist's leak that `c013` sized was a flat
+ * `+10%` authored once in `data/classes.json`; this one compounded with wave
+ * count, and this lane's own Log measured it at `areaMul 3.203` by end of run
+ * — **+90% from Chronal Surge alone**, up to nine times the Animist's. fb083
+ * (`run.ts:875`) moved the second line's key to `towerArea`, so both halves of
+ * one sentence are tower-scoped now.
  *
- * **Why it had to live in this file.** Every one of the twenty `CONSUMERS`
- * built an Animist world. A main-lane `towerArea` swap that moved
- * `data/classes.json` but missed `run.ts:817` would therefore have landed with
- * this file *fully green* while leaving the larger of the two leaks in place.
- * The consumers are now class-parameterised (`WorldOpts.classKey`), so the two
- * classes' rows flip together or the difference is a named deviation.
+ * **Why it had to live in this file.** Every one of the twenty-one
+ * `CONSUMERS` built an Animist world. A main-lane `towerArea` swap that moved
+ * `data/classes.json` but missed `run.ts:817` would have landed with this file
+ * *fully green* while leaving the larger of the two leaks in place — it did
+ * not miss it, and the `c024` describe block below is what confirms that
+ * rather than trusting the diff. The consumers are class-parameterised
+ * (`WorldOpts.classKey`), so the two classes' rows are checked to flip
+ * together (`STILL_WIDENED`, shared with `c013`), or the difference is a
+ * named deviation.
  *
  * **`run.ts` is not edited from this lane** — this is the measurement only.
  */
@@ -1121,9 +1555,9 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
  * untouched.
  *
  * **Zeroed, not deleted** — and the difference is the loader doing its job.
- * `c013`'s Animist control deletes `towerPassive.mods.area`, which is legal
- * because `mods` is a free map. `bonusAoeMul` is a *required field of the
- * `chronal_surge` kind* (`validateClassPassive`, `content.ts:1333`), so
+ * `c013`'s Animist control deletes `towerPassive.mods.towerArea`, which is
+ * legal because `mods` is a free map. `bonusAoeMul` is a *required field of
+ * the `chronal_surge` kind* (`validateClassPassive`, `content.ts:1333`), so
  * deleting it is refused outright with "chronal_surge needs bonusAoeMul" —
  * architecture rule 4's "a loader rule that refuses unpayable data is worth
  * more than a comment saying the data must be valid", met head-on. `0` is the
@@ -1159,27 +1593,29 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
     expect(tower!.measure(content, timeLordOpts())).toBeGreaterThan(tower!.measure(noSurgeAoe, timeLordOpts()));
   });
 
-  it('the two halves really are authored on different stat keys, which is the whole bug', () => {
-    // The cleanest evidence the main-lane `towerArea` key needs, asserted on
-    // the source rather than described: two adjacent `stats.add` calls from one
-    // §4.2 sentence, one tower-scoped and one global.
+  it("fb083: both halves are tower-scoped now, closing the bug the two adjacent lines used to be", () => {
+    // Pre-fix this asserted the opposite — one tower-scoped `stats.add`, one on
+    // the global `area` key, from one §4.2 sentence. fb083 (`run.ts:875`)
+    // moved the area half to `towerArea` alongside it, asserted on the source
+    // rather than described so a regression back to the global key reddens
+    // here directly, not just in the LEAKING rows below.
     const run = readFileSync(join(__dirname, '../src/sim/run.ts'), 'utf8');
     expect(run, "Chronal Surge's range half is no longer tower-scoped").toMatch(
       /w\.stats\.add\(source, 'towerRange', cls\.towerPassive\.bonusRangeMul/,
     );
     expect(
       run,
-      "Chronal Surge's area half no longer uses the global `area` key — if a `towerArea` key landed, " +
-        'the LEAKING rows below should have flipped with it',
-    ).toMatch(/w\.stats\.add\(source, 'area', cls\.towerPassive\.bonusAoeMul/);
+      "Chronal Surge's area half is back on the global `area` key — the LEAKING rows below should have " +
+        'flipped back with it',
+    ).toMatch(/w\.stats\.add\(source, 'towerArea', cls\.towerPassive\.bonusAoeMul/);
   });
 
   /**
-   * **Two of the twenty cannot exist in a Time Lord world at all**, and that is
-   * structural rather than a finding: they are footprints of the *Animist's own
-   * class Actives*. A Time Lord cannot summon a Manifest spirit or plant a
-   * Recall Totem, so there is nothing to widen. Named, per `c019`'s convention,
-   * rather than quietly dropped from the sweep.
+   * **Two of the twenty-one cannot exist in a Time Lord world at all**, and
+   * that is structural rather than a finding: they are footprints of the
+   * *Animist's own class Actives*. A Time Lord cannot summon a Manifest
+   * spirit or plant a Recall Totem, so there is nothing to widen. Named, per
+   * `c019`'s convention, rather than quietly dropped from the sweep.
    */
   const CLASS_SPECIFIC: readonly string[] = [
     "the Animist's *Manifest* spirit, cloned from a Mortar",
@@ -1188,8 +1624,8 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
 
   /**
    * **Three more are harness-calibrated for the Animist and do not survive
-   * being pointed at this control**, which is a statement about the probe and
-   * not about the leak. Measured, not guessed:
+   * being pointed at this control**, which was, and mostly still is, a
+   * statement about the probe and not about the leak. Measured, not guessed:
    *
    *   | consumer                          | surge world | zeroed control      |
    *   |-----------------------------------|-------------|---------------------|
@@ -1203,11 +1639,27 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
    * — the control under-reaches, so there is no comparison to make. The third
    * reads a saturating observable (the enemy is inside the aura either way).
    *
-   * All three are **tower-route**, which is the half §4.2's "all towers"
-   * sentence actually covers, so none of them is where the leak lives; the
-   * twelve character-route rows are. Re-calibrating them belongs with `c026`'s
-   * footprint work, not here — filed rather than bodged, because widening a
-   * probe to make a control pass is how a measurement stops measuring.
+   * **Postscript on the middle row.** Electric off a Tesla hit briefly sat
+   * outside `APPLICABLE` for *two* reasons at once: between fb083's first
+   * landing and the `isTowerSource` follow-up, `damagetypes.ts` took no
+   * `route` parameter and only read the bare `area`, so it was also one of
+   * `STOPPED_WIDENING_BOTH`'s two rows — a production gap that would have
+   * excluded it from a "still widens" claim on its own. The follow-up closed
+   * that gap (this row now flows to `STILL_WIDENED`, same as its Burning
+   * twin), so the calibration problem above is the *only* reason left this
+   * row sits outside `APPLICABLE` — re-tuning it belongs with `c026`'s
+   * footprint work, same as the other two `UNCALIBRATED` rows. Burning's own
+   * tower row never had this row's calibration problem, which is why it
+   * stayed in `APPLICABLE` throughout and could be swept directly (below)
+   * rather than reasoned about here.
+   *
+   * All three of these are **tower-route**, which is the half §4.2's "all
+   * towers" sentence actually covers, so none of them is where the closed
+   * leak lived; the eleven now-closed character-route rows were (see
+   * `STILL_WIDENED`'s complement, checked below). Re-calibrating these three
+   * belongs with `c026`'s footprint work, not here — filed rather than
+   * bodged, because widening a probe to make a control pass is how a
+   * measurement stops measuring.
    */
   const UNCALIBRATED: readonly string[] = [
     "a Venom Spore's own splash, as the spore really lands it",
@@ -1223,35 +1675,56 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
       expect(sites, `${name} is not a CONSUMERS row — the exclusion list has drifted`).toContain(name);
     }
     expect(APPLICABLE).toHaveLength(CONSUMERS.length - CLASS_SPECIFIC.length - UNCALIBRATED.length);
-    expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(15);
+    expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(16);
   });
 
-  it('the two class-specific rows really are Animist Actives, not something quietly dropped', () => {
-    // They widen under the Animist — that is c013's finding, re-read here — so
-    // their absence under Time Lord is about whose Active it is, nothing else.
+  it('the two class-specific rows really are Animist Actives, and fb083 tells them apart, not something quietly dropped', () => {
+    // Whether each one widens under the Animist is c013's finding, re-read
+    // here via `STILL_WIDENED` rather than restated: the Manifest spirit is a
+    // literal tower-clone (still widens), the Recall Totem reads the
+    // character's own `classArea` (fb083 closed it). Their absence from this
+    // describe's own sweep is about whose Active it is, nothing else —
+    // proven by checking each against the *same* direction c013 measured,
+    // not by assuming both still widen.
     for (const name of CLASS_SPECIFIC) {
       const c = CONSUMERS.find((x) => x.site === name)!;
-      expect(c.measure(content), `${name} no longer widens under the Animist either`).toBeGreaterThan(
-        c.measure(noGrove),
-      );
+      const withGrove = c.measure(content);
+      const without = c.measure(noGrove);
+      if (STILL_WIDENED.includes(name)) {
+        expect(withGrove, `${name} no longer widens under the Animist either`).toBeGreaterThan(without);
+      } else {
+        expect(withGrove, `${name} widens under the Animist again — has fb083 regressed?`).toBeCloseTo(without, 10);
+      }
     }
   });
 
   for (const c of APPLICABLE) {
-    it(`${c.site} [${c.route}]: Chronal Surge's area half widens it, exactly as Wide Grove does`, () => {
+    // fb083: Chronal Surge and Wide Grove now land on the exact same two
+    // stat keys (`towerRange`/`towerArea`), so whether a footprint still
+    // widens is the same fact `STILL_WIDENED` already states for c013 — a Time
+    // Lord row that disagreed with its Animist twin would be the asymmetry
+    // this item exists to catch.
+    const shouldWiden = STILL_WIDENED.includes(c.site);
+    it(`${c.site} [${c.route}]: Chronal Surge's area half ${shouldWiden ? 'still widens it, exactly as Wide Grove does' : 'no longer widens it (fb083), exactly as Wide Grove does not'}`, () => {
       const withSurge = c.measure(content, timeLordOpts());
       const without = c.measure(noSurgeAoe, timeLordOpts());
-      // The same footprints, so the two classes flip together when the
-      // main-lane key lands. A row that stops widening here while the Animist
-      // row still does is the asymmetry this item exists to catch.
-      expect(withSurge, `${c.site} is not widened by Chronal Surge, but is by Wide Grove`).toBeGreaterThan(without);
+      if (shouldWiden) {
+        expect(withSurge, `${c.site} is not widened by Chronal Surge, but is by Wide Grove`).toBeGreaterThan(without);
+      } else {
+        expect(withSurge, `${c.site} is widened by Chronal Surge, but is not by Wide Grove`).toBeCloseTo(without, 10);
+      }
     });
   }
 
-  it('the same character-route footprints leak under Time Lord as under the Animist', () => {
-    // The set that matters: §4.2's sentence says "all towers", and every one of
-    // these is a *character* footprint widened anyway. Ten of `LEAKING_TODAY`'s
-    // twelve; the other two are the Animist-Active rows above.
+  it('fb083 closed the character-route leak under Time Lord too — none of them widen any more', () => {
+    // The set that matters: §4.2's sentence says "all towers", and every one
+    // of `LEAKING_TODAY`'s residual members is either `CLASS_SPECIFIC`
+    // (excluded above) or, before fb083, a *character* footprint widened
+    // anyway. `LEAKING_TODAY` now holds only the Manifest spirit — itself
+    // `CLASS_SPECIFIC` — so the filtered `expected` set below is empty, and it
+    // should be: the two classes land on the same two stat keys, so a
+    // character-route leak fb083 closed for the Animist is closed for the
+    // Time Lord by the same mechanism, not by a second fix.
     const expected = LEAKING_TODAY.filter((s) => !CLASS_SPECIFIC.includes(s) && !UNCALIBRATED.includes(s));
     const leaking = APPLICABLE.filter(
       (c) => c.route === 'character' && c.measure(content, timeLordOpts()) > c.measure(noSurgeAoe, timeLordOpts()),
@@ -1260,7 +1733,7 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
       [...leaking].sort(),
       'the two classes no longer leak through the same set — one has been fixed without the other',
     ).toEqual([...expected].sort());
-    expect(leaking.length, 'the character-route leak set has emptied — has the main-lane fix landed?').toBe(10);
+    expect(leaking.length, 'a character-route leak reappeared under Time Lord — has fb083 regressed?').toBe(0);
   });
 
   it('and it is the larger leak: it compounds with wave count, where Wide Grove is flat', () => {

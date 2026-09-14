@@ -50,6 +50,7 @@ export function runSingleType(
   tier: number,
   seed: number,
   mods: string[],
+  runContent: Content = content,
 ): { waves: number; cleared: boolean; outcome: string; survival: number } {
   const cfg: RunConfig = {
     seed,
@@ -61,8 +62,20 @@ export function runSingleType(
     // SPEC-FINAL §1.1's real run shape (re-baselined at p3e): 18 TD waves
     // across 6 blocks, not the old single 10-wave Act I.
     cycles: 6,
+    // p12h: fb077 wired real generated terrain into every non-practice run
+    // (`World`'s `terrainFallback` ternary), which this probe picked up as an
+    // unintended side effect — a solo tower's TD-wave-curve viability was
+    // never meant to also depend on a given seed's map geometry. `practice:
+    // true` is the sim's only switch back to the flat fallback arena
+    // (`terrainFallback` is hardcoded false/skipped for a practice run,
+    // `src/sim/world.ts`); its only other effect (enabling dev commands,
+    // `src/sim/run.ts`) is inert here since this probe never issues one.
+    practice: true,
   };
-  const run = new Run(cfg);
+  // `runContent` defaults to the real loaded content; a test may pass a
+  // variant (e.g. `baseHpMul` reverted to its identity) to isolate one lever
+  // from the real one without touching `/data` (p12h).
+  const run = new Run(cfg, runContent);
   // Isolate solo-tower TD viability from VS combat viability — P6/P7 are
   // unbuilt, so no build can out-fight a VS wave on character kit alone
   // today. See tests/a4-single-type.test.ts's doc comment and Q109.

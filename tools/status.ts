@@ -42,6 +42,7 @@ import '../src/bots';
 export const HANDOFF_PATH = resolve(REPO_ROOT, 'HANDOFF.md');
 export const QUESTIONS_PATH = resolve(REPO_ROOT, 'QUESTIONS.md');
 export const BACKLOG_PATH = resolve(REPO_ROOT, 'BACKLOG.md');
+export const BACKLOG_DONE_PATH = resolve(REPO_ROOT, 'docs', 'BACKLOG-DONE.md');
 export const FEEDBACK_PROCESSED_DIR = resolve(REPO_ROOT, 'feedback', 'processed');
 export const STATUS_PATH = resolve(REPO_ROOT, 'STATUS.md');
 
@@ -257,7 +258,18 @@ export function backlogPaths(root: string = REPO_ROOT): string[] {
   // A plain codepoint sort: `localeCompare` would trade a filesystem
   // dependency for an ICU/locale one, which is the same problem.
   names.sort((a, b) => (a === 'BACKLOG.md' ? -1 : b === 'BACKLOG.md' ? 1 : a < b ? -1 : a > b ? 1 : 0));
-  return names.map((n) => resolve(root, n));
+  const paths = names.map((n) => resolve(root, n));
+  // fb178: done items moved to docs/BACKLOG-DONE.md so the live files stay
+  // short. Appended last, never first — a live file's own citation of an id
+  // must win over the archive's copy of the same (now-historical) bullet.
+  const donePath = resolve(root, 'docs', 'BACKLOG-DONE.md');
+  try {
+    readFileSync(donePath, 'utf8');
+    paths.push(donePath);
+  } catch {
+    // No archive yet (e.g. a scratch test root) — nothing to append.
+  }
+  return paths;
 }
 
 export function feedbackLedger(
@@ -360,8 +372,11 @@ export function feedbackLedger(
         continue;
       }
       // The lane is named for a cited item that is not in the main queue, so a
-      // reader can find it without grepping five files.
-      const where = doc.name === 'BACKLOG.md' ? '' : ` (${doc.name})`;
+      // reader can find it without grepping five files. The archive is not a
+      // lane — fb178 moves a done item there from whichever file originally
+      // owned it, and a done item needs no routing information — so it gets
+      // the same silent treatment as BACKLOG.md itself.
+      const where = doc.name === 'BACKLOG.md' || doc.name === 'BACKLOG-DONE.md' ? '' : ` (${doc.name})`;
       return { file, status: `${bullet.id}${where} — ${bullet.done ? 'done' : 'queued'}` };
     }
     return { file, status: looseHit ?? 'no BACKLOG citation found' };

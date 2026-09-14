@@ -49,6 +49,32 @@ describe('saveTunerFile (p9c, G15)', () => {
     expect(readFileSync(join(dir, 'towers.json'), 'utf8')).toBe(before);
   });
 
+  // BACKLOG fb080: terrain.json's own save/reject round-trip, spot-checked
+  // like every other file already is above rather than trusting the
+  // generic "accepts the real unedited file" case alone to prove Save
+  // actually validates through `parseTerrain`, not just that the schema
+  // exists.
+  it('round-trips a valid edit to terrain.json', () => {
+    const dir = makeTempDataDir();
+    const before = JSON.parse(readFileSync(join(dir, 'terrain.json'), 'utf8'));
+    const edited = { ...before, density: { ...before.density, rock: before.density.rock + 0.01 } };
+    const result = saveTunerFile('terrain', edited, dir);
+    expect(result.ok, JSON.stringify(result.errors)).toBe(true);
+    const after = JSON.parse(readFileSync(join(dir, 'terrain.json'), 'utf8'));
+    expect(after.density.rock).toBeCloseTo(before.density.rock + 0.01, 9);
+  });
+
+  it('rejects invalid terrain.json data (a density outside 0..1) and writes nothing', () => {
+    const dir = makeTempDataDir();
+    const before = readFileSync(join(dir, 'terrain.json'), 'utf8');
+    const terrain = JSON.parse(before);
+    terrain.density.rock = 1.5;
+    const result = saveTunerFile('terrain', terrain, dir);
+    expect(result.ok).toBe(false);
+    expect(result.errors!.length).toBeGreaterThan(0);
+    expect(readFileSync(join(dir, 'terrain.json'), 'utf8')).toBe(before);
+  });
+
   it('rejects an unknown file key', () => {
     const dir = makeTempDataDir();
     const result = saveTunerFile('not-a-real-file', {}, dir);

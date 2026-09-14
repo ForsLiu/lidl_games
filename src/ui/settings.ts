@@ -147,8 +147,16 @@ export function prefersReducedMotion(): boolean {
  * Only ever reached when there is no stored entry at all; see `loadSettings`.
  * Not run through `sanitize()`: `defaultSettings()` is in range by construction
  * and the one seeded field is a boolean.
+ *
+ * fb169: also the shape a Settings "Reset to defaults" should produce, per
+ * that item's own acceptance — `hub.ts`'s reset handler used
+ * `defaultSettings()` directly, which re-buries the OS preference for the
+ * rest of the session (a stored value always wins once one exists, `loadSettings`'s
+ * own rule, so `reducedMotion: false` written by a reset is indistinguishable
+ * from a player who visited Settings and said no). Exported for that call
+ * site rather than kept module-private.
  */
-function firstRunSettings(): Settings {
+export function firstRunSettings(): Settings {
   return { ...defaultSettings(), reducedMotion: prefersReducedMotion() };
 }
 

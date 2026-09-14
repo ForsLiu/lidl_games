@@ -54,12 +54,20 @@ export default mergeConfig(
         'tests/q14-mutation-smoke.test.ts',
         // 20-seed × cycles:6 full boss runs.
         'tests/boss.test.ts',
+        // p12e: 12 full T3 `runScripted` runs (one per contested seed, each a
+        // complete TD + VS + boss fight against the full Constellation tree)
+        // to measure the boss fight's own length — measured standalone 384 s,
+        // the same class as `boss.test.ts` directly above and past this
+        // config's own ~60 s rule.
+        'tests/p12e-boss-hp-anchor.test.ts',
         // Long mandatory-mechanism live sims (multi-seed full runs).
         'tests/a3-movement-mandatory.test.ts',
         'tests/a9-economy.test.ts',
         // Measured standalone 2026-08-29: a4 116 s, p1b 121 s, q2 122 s,
         // q9 184 s. (a1/a2/a7/a11/q13/q15/q18/q26 were measured under 60 s
-        // the same session and stay IN the fast tier.)
+        // the same session and stay IN the fast tier.) p12h added a4's own
+        // ~515 s case (35 full 18-wave sims verifying the terrain-fix
+        // mechanism in isolation) — re-measured 2026-09-07, still excluded.
         'tests/a4-single-type.test.ts',
         'tests/p1b-seal-winrate.test.ts',
         'tests/q2-input-fuzz.test.ts',
