@@ -759,7 +759,383 @@ Q91 and Q102 corrections if not yet done.
   control pair" is (b)'s own verification burden and does not apply once (b)
   is not the chosen option; fb163 is closed on that basis.
 
-- **Q192. [fb162, integrator merge] Two independent fixes for the same
+- **Q192. [p12e] The boss's own pacing ramps were fitted pre-p12c; the fix is
+  to re-anchor its authored HP, not to exempt it from the roster multiplier in
+  code.** Q177 diagnosed p12e's run-length tail as entirely the boss fight
+  once `baseHpMul: 20` applied to `warden_eater` like every other enemy
+  (7.3M at T1). The item's two candidates — re-anchor `warden_eater.hp` in
+  `/data`, or exempt the boss from `baseHpMul` in code — produce identical
+  runtime numbers by construction (`18,250 x baseHpMul(20) = 365,000`), so
+  only the re-anchor needed an actual run. Measured at T3 over 24 seeds
+  (120-minute cap, so nothing censors either reading): HEAD's boss-kill-time
+  spread is 313-1153s (3.7x, longest run 51.15 min); re-anchoring
+  `warden_eater.hp` 365,000 -> 18,250 (exactly /`baseHpMul`) tightens that to
+  190-226s (1.19x, longest run 36.3 min) and moves the win rate by one seed
+  (11/24 -> 10/24 of 24, still inside G1's `[35%,70%]` band). At T1 the
+  re-anchor is bit-for-bit the boss's pre-p12c fixture (36,500 effective hp),
+  so every T1-pinned boss test is unaffected by construction. Chosen: the
+  **`/data`-only re-anchor** — same runtime numbers as the code-exemption
+  alternative, no engine change, per CLAUDE.md architecture rule 4.
+  Re-measured over the same 24 seeds: 0 stall at either the original
+  45-minute cap or a lifted 120-minute one, so `tests/p10d-run-length.test.ts`'s
+  tick-cap case and `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak are
+  both un-skipped. Full table in BALANCE.md "Boss HP re-anchor (p12e)". —
+  Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and
+  its measurement rules (control pair, before/after both recorded); SPEC-FINAL
+  §14 G1/G14, BALANCE DIRECTION v2 §E, QUESTIONS Q177.
+
+- **Q193. [p12f] BALANCE DIRECTION v2 §A's own-kit-share target: chose route
+  (a) from Q175 — `kitPowerMul` now rides the player's actual `typeMastery`
+  investment, not only wave count — and it moves the metric without closing
+  it: 0/12 classes still clear 35%, but 11 of 12 move in the intended
+  direction (best: plaguebringer 19.69% -> 25.71%).** Re-diagnosed before
+  picking: `class_active` damage already multiplies by `w.derived.powerMul`
+  exactly like a wielded attack does (`classes.ts:280` vs `vswield.ts:375`),
+  so `powerMul` (the Constellation/stat stack) was never the actual gap Q175's
+  prose named. The real asymmetry is `typeMasteryMul` (`progression.ts`): a
+  per-built-tower-type VS boon marked `"uncapped": true`
+  (`data/vsupgrades.json`) that keeps compounding every level-up for the run's
+  length, applied only to wielded damage — while the kit's own upgrade path
+  (skill cards) caps at `maxRank` 2 and stops being offered, so every
+  level-up past that point can only grow the wielded side. Implemented as
+  `kitBuildMul(w)` (`src/sim/enemies.ts`), a second factor on `kitPowerMul`
+  reading the *average* rank across `w.typeMasteryRanks` through
+  `typeMasteryMul`'s own `1 + perRank * rank` formula — average, not sum, so
+  the kit never gets ahead of what any single wielded attack earns for the
+  same investment; multiplicative with the existing wave term. `/src/sim`,
+  not `/data`, because Q175 already showed no `data/classes.json` magnitude
+  could reach this: architecture rule 4's data-only preference is overridden
+  here on that basis, recorded per the rule's own "wherever possible."
+  Measured with p12a's own control-pair method (`KIT_SHARE_MEASURE=1
+  KIT_SHARE_SEEDS=2`, fresh control against this session's HEAD since
+  p12c/p12e landed since p12a's original control): full before/after table
+  in BALANCE.md "p12f — kitBuildMul: riding the same axis". `bloodlord`
+  stays flat at 0.00% by construction (its only VS-attributed kit source is
+  the TD-only `basicAttack.dps`, per Q175) — not a failure of this item's
+  lever, a separate still-open problem. G1 (`tests/p10d-run-length.test.ts`)
+  and G14 (`tests/boss.test.ts`) both re-confirmed green before and after,
+  no band violation, no new tick-cap timeout. **What remains unclosed and
+  deliberately unattempted**: the dominant share of the gap is not any single
+  uncapped boon but the sheer breadth of simultaneously-summed wielded
+  sources across every built tower type plus `upgradeStatMul`'s tier-upgrade
+  scaling baked into `wielded.damage` itself (Q175's "134.3M of 134.5M is
+  wielded" swordsman figure) — closing that is route (b) (cut VS-wielded
+  scaling, a p12b/p12c-sized shared lever) or a larger route (a) pass, both
+  out of this item's blast radius per its own filing reasoning. Recorded red
+  rather than forced, same as Q175 itself. **Follow-up (independent
+  code-review Major finding, first pass inadequate, real bug found and fixed
+  by independent qa-playtester):** `kitPowerMul` applies to TD damage too,
+  not just VS, and the before/after table only checked G1/G14. A first
+  attempt at closing this spot-checked `swordsman` (byte-identical to its
+  pre-p12f reading) and called it clean — wrong, because that class's losing
+  seeds all die in Act I before any VS phase, which cannot exercise the
+  mechanism at all. qa-playtester proved the real effect directly:
+  `w.typeMasteryRanks` is never reset between VS blocks, so a class/seed that
+  *survives* past its first VS block carries the build factor into every
+  later TD block, inflating `ownShare` (G8's own metric) 26-57% on the two
+  classes measured (`swordsman` 0.56%->0.88%, `plaguebringer`
+  14.05%->17.73%, reproduced via two independent methods). **Fixed**:
+  `kitBuildMul` now gates on `w.huntsWarden`, the same predicate
+  `damageByWeaponVs` itself uses for "VS only" — returns exactly 1 outside
+  VS regardless of ranks invested, proven by two new pinned unit tests
+  (`tests/p12a-kit-power.test.ts`) rather than inferred from any one class's
+  seed set. G1/G14 re-confirmed green after the fix. Full account: BALANCE.md
+  "p12f" section's two follow-up paragraphs. — Reason: CLAUDE.md rule 5
+  (choose, log, continue), the item's own "you do not have to hit >=9/12 —
+  honest measurement, don't force it," and measurement rules (control pair,
+  before/after both recorded, blast-radius check before calling a lever
+  narrow); SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §A, QUESTIONS Q175,
+  BACKLOG p12f.
+
+- **Q194. [p12h] The pre-p12c G13 solo-viability regression bisected: fb077's
+  terrain wiring, not any of the three named-by-date candidates.** BACKLOG
+  p12h asked why `tests/a4-single-type.test.ts` measured
+  `{arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1,
+  mortar 3, venom_spore 0}` of 5 T1 clears at HEAD, against an authored
+  5/5/5/5/4/5/4 table, well before p12c's own `baseHpMul:20` anchor touched
+  anything. Three candidates were named by date: fb076 (tower retune), fb025
+  (x10 enemy-HP pass), p12a (kit-damage re-anchor). All three are exonerated
+  by direct evidence, not elimination-by-story: fb025 predates the regression
+  by a full session and was already fixed by b080 (2026-09-03, confirmed
+  16/16 green then); `data/towers.json` is provably byte-unchanged since
+  fb076 authored the exact 5/5/5/5/4/5/4 table this clause was measured
+  against (`git log --follow -- data/towers.json` shows no write between
+  fb076 and HEAD), so it cannot be the cause of a regression in the field it
+  authored; p12a's 29 changed values live in `data/classes.json` (class kit
+  damage) and its `src/sim/enemies.ts` changes gate strictly on the `class_`
+  source prefix (`scalesWithKitPower`), which no tower-sourced damage reads —
+  its basicAttack.dps buffs to engineer/pyromancer (the two classes
+  `a4probe.ts` actually probes) are a net help to this TD-only-basic-attack
+  probe (`classBasicAttack` auto-fires TD-only, `run.ts:541`), not a hurt.
+  **The actual cause: fb077** ("wire generated terrain into every
+  non-practice `World` run", 2026-09-04, landed the same day as fb076,
+  several unrelated commits later — not the "very next commit": fb076 is
+  05becf2, and four intervening commits (fb093/fb094/fb095/a feedback-filing
+  commit) sit between it and fb077's own parent, 1c9546e; none of them touch
+  towers, enemies, waves or `a4probe.ts`, so the isolation still holds).
+  `a4probe.ts`'s `RunConfig` never sets a practice flag, so every solo-tower
+  probe run went from the open flat arena fb076 was tuned against to a
+  seeded, obstacle-bearing generated map — a change fb077's own acceptance
+  text re-measured G1/G14/G17 against (run length and boss timing "move"
+  with terrain) but never checked against this fast-tier-excluded G13 suite,
+  the same blind spot the whole p12h item exists to close. Control run (git
+  worktree, `data/*.json` byte-identical both sides): commit 1c9546e
+  (fb077's immediate parent) T1/seeds 1-2 = 7/7 towers 2/2 clears, 18/18
+  waves every run; commit 967463d (fb077 applied, the very next commit after
+  1c9546e) same seeds =
+  every tower down, three of seven (ember_brazier/frost_obelisk/venom_spore)
+  collapsing to a wave-3 death. The HEAD-control figure itself was also
+  reproduced bit-exactly by checking out p12b (23b6f6c, `baseHpMul` still at
+  1.0 identity): {arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk
+  0, tesla_coil 1, mortar 3, venom_spore 0} of 5, matching the qa-playtester
+  p12c-session reading exactly. **Chose re-band over fix** (CLAUDE.md rule 5:
+  choose, log, continue): fb077 is a real SPEC-FINAL §10.5 feature landing,
+  not a tuning mistake to revert, and a `data/towers.json` retune that holds
+  against *variable, per-seed* generated terrain (not a fixed HP ladder) is
+  materially more work than this bisection item's own scope — the same
+  reasoning p12c gave for deferring its own re-anchor's assertion rewrite to
+  p12d. The clause stays `.skip`-ed with its already-measured honest numbers;
+  what changed is that the cause is now on record instead of unexplained.
+  Follow-up filed as BACKLOG p12i: either retune solo-tower economy against
+  the terrain-bearing curve, or decide (an inbox-verdict-shaped design call,
+  not a unilateral one, since it changes what G13 measures) that this clause
+  should run on the flat fallback arena instead of real terrain — "does a
+  single tower type break the wave curve" and "does a single tower type
+  survive an adversarial map roll" are different claims. — Reason: measured,
+  not guessed (CLAUDE.md measurement rules: "check a `/data` row's blast
+  radius before calling it narrow," "grep readers, not just writers" — here
+  extended to "grep the commit log, not just the candidate list handed to
+  you"); SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, p12i.
+
+- **Q195. [fb177] G8's post-p12a-p12h re-measurement: a roster-wide
+  rescramble, not a swordsman-only regression — bisected to `baseHpMul: 20`
+  (p12c) plus an undocumented reference-tier move (p12b), re-pinned rather
+  than fixed.** `tests/p6e-class-diversity.test.ts`'s 12-class `beforeAll`
+  sweep hadn't run since b080 (2026-09-03); fb177 flagged one incidental
+  finding (swordsman 2/12) as the lead to chase. The full re-run (fresh table
+  in the test file's own fb177 header paragraph) found something bigger:
+  **only `archer` (5/12) is honestly inside G8's `[5,8]`-of-12 win-rate
+  band** — 8 of the other 11 classes are under the 35% floor, 3
+  (cryomancer/animist/time_lord) are over the 70% ceiling. Bisected
+  swordsman's own collapse by name (git worktree control runs, `data/*.json`
+  byte-identical, p12h's method): 12/12 unchanged through fb077 alone and
+  p12a alone (both exonerated for this gate specifically); p12b alone —
+  running its own shipped-then-immediately-superseded `tierEnemyHpPerStep:
+  4.0` (16x HP at T3, replaced by 1.07/1.05/1.03 one commit later in p12c) —
+  drops it to 0/12; p12c's *settled* state (the fitted ladder plus
+  `baseHpMul: 20`) reads 3/12, within one seed of HEAD's 2/12; the
+  fb152/fb153a checkpoint reproduces HEAD's 2/12 bit-for-bit (same two
+  winning seeds). **`baseHpMul: 20` is the dominant, persisting cause.**
+  Also found and corrected along the way: **p12b silently moved this file's
+  own reference tier from T1 to T3** (`tier: 1` -> `tier: GATE_TIER`,
+  `GATE_TIER=3`) without updating the file's "T1, concretely: `tier: 1`"
+  header sentence or any of the eleven per-class `.skip` comments below it —
+  a real doc/code drift, now corrected in the header, and a secondary
+  compounding contributor to the swordsman number (p12b's ladder rung stacks
+  on top of `baseHpMul`). This directly connects to the still-blocked p12d
+  (formalizing T1/T3/T5 companion bands for G1/G8/G14/G23) — p6e had
+  quietly already made the T3 move p12d is supposed to formalize.
+  **A correction to fb177's own hypothesis, not just a confirmation**: the
+  item's text read "wave 3, Act I, TD-only, no causal path to any VS
+  mechanic" and used that to argue *against* `baseHpMul`. That's backwards —
+  `defeat_warden` can only fire while `w.huntsWarden` is true
+  (`src/sim/world.ts`: `phase==='act2'||'levelup'`), never during TD, and
+  `cycleWaveEnd` splits 18 TD waves across 6 VS blocks (3 TD waves/block), so
+  "wave 3" is the *first VS/Night block*, not an Act-I death — confirmed
+  directly (`run.world.act2Time` reads 18-40s into that block's 75s budget
+  at the moment of defeat). `baseHpMul` applies at the single `makeEnemy`
+  choke point *before* VS's own overlay multipliers, so it inflates Night-1
+  enemy HP by the same x20 as every TD wave gets — landing hardest on the
+  block with the least built economy of the whole run. `classBasicAttack` is
+  TD-only (`run.ts:550`), so a class's kit Actives alone carry 100% of that
+  fight's output regardless of basic-attack strength. The table's two
+  worst-hit classes — swordsman (10/12 Night-1 losses) and bloodlord (8/12)
+  — are the roster's two shortest-range classes (`basicAttack.range: 2.5`)
+  and rank #1/#3 by `basicAttack.dps` (78, 51): exactly the stat that fight
+  cannot use. Corroborated by the data pattern across all 12 classes, not
+  exhaustively proven per class. **Chose re-pin over fix, for all eleven
+  remaining classes.** A swordsman-only data tune (the Cryomancer/Paladin/
+  Necromancer style already in this file) was considered but not attempted
+  once the full table showed the problem is roster-wide and pulls in
+  opposite directions (some classes need buffs, some need nerfs) — a
+  balance-analyst re-tune pass, not this bisect item's blast radius, and
+  reverting `baseHpMul` would re-break p12c's own deliberate T3
+  contested-margin fit and every other gate riding it. `archer` un-skipped
+  (real, green, in-band); the other eleven re-pinned with fresh numbers.
+  Follow-up filed as BACKLOG p12j (full roster re-tune against the new T3 +
+  `baseHpMul: 20` baseline, informed by the Night-1/basicAttack-TD-only
+  mechanism above). — Reason: measured, not guessed (CLAUDE.md: "a deferral
+  is a measurement with an expiry date," "check a `/data` row's blast radius
+  before calling it narrow" — `baseHpMul` looked TD-only-relevant and isn't);
+  SPEC-FINAL §14 G8, BACKLOG fb177, p12b, p12c, p12j, p12h (bisect method
+  precedent).
+
+- **Q196. [p12j] The roster-wide G8 re-tune Q195 called for — 10 of 12
+  classes now in band, `data/classes.json` only, two honestly left open.**
+  Balance-analyst method throughout: state a hypothesis, change one lever (or
+  a small, named conceptual group of levers) at a time, re-measure over the
+  real 12-seed `beforeAll`-equivalent harness (a scratch probe,
+  `tools/p12j-probe.ts`, reusing `tests/helpers.ts`'s exact `runScripted`/
+  `scriptClassKit`/`GATE_TIER`/`cfg` — deleted before this item's commit,
+  final numbers reconfirmed by the real test file's own full `beforeAll`),
+  keep every round's number whether it helped, did nothing, or hurt. Full
+  before -> after table:
+
+  | class | before | after | rounds | what moved it |
+  |---|---|---|---|---|
+  | swordsman | 2/12 | 2/12 | 3 | nothing — see below |
+  | plaguebringer | 3/12 | 6/12 | 3 | Poison Barrel damage 24->40 + radius 3->5, *and* Poison Boost cooldownSeconds 14->8 — all three land together; damage+radius alone (cooldown left at 14) independently re-measures at 4/12, still under floor. Corrected in the second follow-up below — an earlier draft of this row named cooldown as a rejected lever, which was wrong. |
+  | engineer | 3/12 | 5/12 | 3 (2 reverted/dialed back) | Pop Turret summonStatMul/cap/cooldown (a towerHp passive buff tried first made it worse, 3/12->2/12; the first Pop Turret buff got G8 to 7/12 but broke G14's boss test, dialed back — see below) |
+  | pyromancer | 2/12 | 5/12 | 1 | Immolation Wave damage 135->200 |
+  | archer | 5/12 | 5/12 | 0 | untouched (already in band per fb177) |
+  | necromancer | 3/12 | 4/12 | 3 (2 reverted) | Raise summonStatMul 0.65->0.90 alone; stacking a cooldown cut collapsed it to 0/12, stacking a cap raise gave 2/12 — both reverted, best-of-3 kept |
+  | cryomancer | 9/12 | 5/12 | 1 | Glaciate damage 60->40 (nerf) |
+  | stormcaller | 4/12 | 5/12 | 2 | Chain Surge damage alone did nothing (4/12->4/12); cooldown 8->5 on top moved it |
+  | bloodlord | 4/12 | 5/12 | 3 (2 reverted) | Blood Tithe titheDamageMul/titheHpFraction/cooldown/radius all buffed together, + Crimson Rush healPerEnemy 2->10 at cooldown 6 (cooldown 4 alone was worse; a towerHp passive fix tried first was also worse) |
+  | animist | 9/12 | 8/12 | 2 (1 abandoned) | Wide Grove area 10%->4% first (in band at 6/12, but broke `tests/class-wide-grove-reach.test.ts`'s RING probe placement — 9 failures); 10%->8% instead, which clears both the probe and G8, at the ceiling with no headroom. Corrected in the second follow-up below — an earlier draft of this row and this file's other documents still had the abandoned 4%/6-12 draft as final. |
+  | paladin | 3/12 | 5/12 | 1 | Judgement wrathDamageMul 2.2->3.2 |
+  | time_lord | 10/12 | 8/12 | 1 | Chronal Surge bonusRangeMul/bonusAoeMul 0.10->0.05 (nerf) |
+
+  **10/12 in band at this point in the item, clears SPEC-FINAL §14's own G8
+  ratio (>=9/12, fb013) — see the follow-up at the end of this entry for why
+  the final number is 9/12, not 10.**
+  Both remaining classes got genuine multi-round attempts, not a one-shot
+  give-up, and both are the two classes fb177's header names sharing the
+  *identical* diagnosed mechanism (shortest range, #1/#3 basicAttack.dps,
+  first-VS-block wipe): **swordsman** got 3 materially different lever
+  rounds — Circle Slash damage alone (180->260); +cooldown 6->3/knockback
+  3->6; a drastic damage->450/radius->6/minDamage->100 plus a Dash Slash
+  rework (damage->200/cooldown->2) — and every single round reproduced
+  *exactly* the same 10/12 first-VS-block `defeat_warden`@w3 result, not one
+  seed's outcome ever changed. That is itself a real finding, not a null
+  result to shrug off: kit-Active damage is provably not this class's
+  bottleneck, so whatever is (most likely raw Warden HP/mitigation against
+  the Night-1 HP swarm, given damage this large couldn't dent the outcome)
+  sits outside a `classes.json`-only lever this item can reach — flagged for
+  a follow-up with `/src` in scope, not fixed here per this item's own
+  guardrail. Left at the smallest tested buff (damage 260 only) rather than
+  an untested/extreme value sitting in `/data` for zero measured gain.
+  **necromancer** landed one win short of band (4/12, needs 5) after 3
+  rounds each trying a different lever on top of its one improvement; kept
+  the best-measured config over two later attempts that both measured worse.
+  The sharpest disconfirmation of a clean "shortest range +
+  highest-basicAttack-dps" causal story: **bloodlord shares swordsman's
+  exact diagnosed mechanism per fb177 and *did* move** (4/12->5/12) on a
+  completely different lever (Blood Tithe/Crimson Rush numbers, not raw
+  damage) — so the shared trait correlates with the roster-wide collapse but
+  isn't sufficient on its own to predict which classes a kit-numbers retune
+  can rescue. `tests/p6e-class-diversity.test.ts`'s 9 newly-in-band classes
+  un-skipped with their fresh numbers; swordsman/necromancer re-pinned with
+  the honest post-retune count and the specific rounds tried, not the
+  pre-retune fb177 numbers. Two stray towerPassive description strings
+  (animist "Wide Grove", time_lord "Chronal Surge") still quoting the old
+  percentage after a numeric nerf were also corrected — a small but real
+  content/data drift caught along the way, not this item's main finding.
+  **A real gate-coupling hit** (CLAUDE.md's A4/A7 lesson, and the same class
+  of bug p12h found in this file's own neighborhood): engineer's first Pop
+  Turret buff (`summonStatMul` 0.30->0.55, cap 2->3, cooldown 3->2) cleared
+  G8 (7/12) but broke `tests/boss.test.ts`'s T1 mechanism check — that file's
+  own `runScripted(cfg(...))` calls default `classKey` to `'engineer'`
+  (`tests/helpers.ts`'s `cfg()`), and the stronger Pop Turret killed the
+  Warden-Eater in 15-17s against the test's own ">20s, not trivially short"
+  floor (seed 4 then seed 3, as the tuning moved). Caught only because this
+  item's guardrail said to re-run G1 (`tests/p10d-run-length.test.ts`) and
+  G14 (`tests/boss.test.ts`) directly — both excluded from `test:fast`,
+  neither touched since p12e/p12f, so `npm run test:fast` alone would have
+  shipped this broken. Bisected the window by hand: `summonStatMul: 0.42`
+  still broke the >20s floor (17.2s); `0.34` fixed that but dropped the boss
+  test's own T1 win-count below its `>=2 of 4 seeds` floor (only 1 seed
+  reached/killed the boss); `0.38` (cooldown 2.5, cap 3) is the value that
+  keeps both G8 (5/12, right at the floor) and G14's boss mechanism check
+  green — engineer's final number in the table above already reflects this
+  *at the time this item's own session wrote it*; see the follow-up below.
+
+  **Follow-up (2026-09-07, found directly by the lead session, not a
+  delegated reviewer): this item's own "no independent review" flag was
+  accurate — a real pass, run after a mid-session container restart,
+  found two genuine regressions self-review missed.** Re-running `npm run
+  test:fast` turned up: (1) engineer's retuned `summonCap: 3` was nominally
+  unreachable at its own 2.5s Pop Turret cast cadence
+  (`cadenceCeiling(10s, 2.5s) = 4`, one short of `summonCap(3) +
+  maxBonus(2) = 5`), breaking `tests/class-line-bonus.test.ts`'s c018 case
+  and `tests/class-active2-cdr.test.ts`'s c019 case — both exist
+  specifically to catch a cap that reads reachable on paper but isn't at
+  the real cadence; (2) the "two stray description strings...corrected"
+  claim above was half-true — `data/classes.json` was fixed but
+  `tests/class-descriptions.test.ts`'s own ledger tokens for those two rows
+  were never updated to match, so the file's own c015 checks broke.
+  Fixed both: `cooldownSeconds` 2.5->2.4 for the cadence bug (smallest cut
+  that restores reachability; G1/G14 re-verified clean at that value too),
+  ledger tokens corrected to `+8%`/`+5%`/`+5%`. Re-running the full G8
+  sweep after the cooldown fix surfaced a further, *honest* consequence,
+  not a bug: engineer's own chaotic seed trajectory moved by exactly one
+  win on that 0.1s change, **5/12 -> 4/12**, dropping back out of band.
+  Not chased with another retune round — the cadence bug was the real
+  defect, and re-tuning `summonStatMul`/cap again to chase this exact seed
+  count risks reopening the G14 coupling this item already spent 3 rounds
+  closing once; re-pinned honestly (`it.skip`, same as swordsman/
+  necromancer). **The item's real final number is 9/12, not 10/12** — one
+  seed short of the earlier claim, still clearing SPEC-FINAL's own ">=9 of
+  12" exactly at the boundary. `tests/p6e-class-diversity.test.ts`'s header
+  paragraph updated in place with the full account. — Reason: measured, not
+  guessed, per this item's own
+  "iterate: measure, adjust, re-measure, at least 2-3 rounds" instruction and
+  CLAUDE.md's balance-analyst method (hypothesis first, one lever at a time
+  where practical, keep every round's number even when it hurts); SPEC-FINAL
+  §14 G8, BACKLOG p12j, fb177, Q195.
+
+  **Second follow-up (2026-09-07): a real independent code-reviewer agent,
+  dispatched by the lead session on the container-restart recovery commit,
+  found two Major discrepancies between this entry's table and what
+  `data/classes.json` actually ships.** Both re-verified directly (throwaway
+  `tools/`-script probe reusing `runClassScripted`, deleted after use).
+  **animist**: the table said Wide Grove `area` retuned 10%->4%
+  (9/12->6/12); the shipped value is 10%->8%. Re-measured: 4% independently
+  gives 6/12 but breaks `tests/class-wide-grove-reach.test.ts`'s live-derived
+  RING probe placement (9 failures, reproduced directly) — 8% clears both
+  and independently re-measures at 8/12, the G8 band ceiling with no
+  headroom. This was in fact the *later*, correct decision — it was already
+  recorded accurately in `tests/class-spec-numbers.test.ts`'s own ledger row
+  for this field (`kind: 'retuned'`, `actual: 0.08`, with the wide-grove-reach
+  rationale spelled out), it just never made it into this table,
+  `tests/p6e-class-diversity.test.ts`'s comment, PROGRESS.md, or BACKLOG.md —
+  a real instance of one document telling the truth while three others still
+  carried an abandoned draft. **plaguebringer**: the table (before this
+  follow-up's edit) credited only Poison Barrel's `active1` damage/radius,
+  naming Poison Boost's `active2.cooldownSeconds` cut (14->8) as a rejected,
+  reverted lever. False: reverting `cooldownSeconds` to 14 while keeping the
+  shipped `active1` damage/radius independently re-measures at 4/12, still
+  under floor — the cooldown cut is load-bearing, not a discarded
+  experiment. Fixed the table rows above in place, plus
+  `tests/p6e-class-diversity.test.ts`'s header table and both classes'
+  trailing `it` comments, plus BACKLOG.md's p12j entry and this file's
+  PROGRESS.md entry. Neither correction changes any class's in/out-of-band
+  verdict or the roster's 9-of-12 tally. A third, Minor finding from the
+  same review: BACKLOG.md's p12j entry said "3 genuine regressions" while
+  naming two root causes (the c018/c019 cadence bug, and the
+  class-descriptions ledger miss) — left as a cosmetic note, since "3
+  genuine regressions" is also a defensible read counting failing test
+  cases rather than root causes. **Lesson, sharpened from the one just above
+  it**: cross-document *consistency* (three documents agreeing with each
+  other) is not the same evidence as document-vs-data *correctness* — this
+  item's four documents were internally consistent with each other on
+  animist and still wrong, because the fourth (the spec-numbers ledger) held
+  the truth alone and nothing cross-checked the other three against it or
+  against the actual shipped file. — Reason: a real independent
+  code-reviewer pass, not self-review or a repeat of the same
+  cross-document check; CLAUDE.md's measurement rules ("check a `/data`
+  row's blast radius", "my change improved X needs the control run");
+  SPEC-FINAL §14 G8; BACKLOG p12j.
+
+**Merge note (PR #55, 2026-09-14):** this branch and `origin/master` both
+numbered new entries Q192-Q196 independently after diverging from a shared
+Q191. This branch's Q192-Q196 (above) are kept as-numbered since they were
+already pervasively cross-referenced across `/tests`, BALANCE.md,
+PROGRESS.md and BACKLOG.md. Master's five colliding entries are kept too,
+renumbered Q201-Q205 in the order master appended them (its own Q197/Q199/
+Q200 did not collide and are unchanged below).
+
+- **Q201** (was Q192 on `origin/master`). [fb162, integrator merge] Two independent fixes for the same
   overkill-ledger bug collided at merge; master's unconditional clamp was
   kept over the branch's narrower `bankedTick`-scoped one.** `claude/admiring-
   cray-lj5pov` fixed fb162 by clamping only the two real fb152 bank-flush
@@ -778,7 +1154,7 @@ Q91 and Q102 corrections if not yet done.
   target, so master's stricter clamp does not regress either. See PROGRESS.md
   for the full reconciliation note.
 
-- **Q193. [fb139] The owner feedback names a literal machine path,
+- **Q202** (was Q193 on `origin/master`). [fb139] The owner feedback names a literal machine path,
   `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
   on the owner's own Windows dev machine and cannot be meaningfully created
   or verified from this Linux checkout.** Chosen default: the same
@@ -797,7 +1173,7 @@ Q91 and Q102 corrections if not yet done.
   would mean the owner's own dev server never actually writes where the
   order says. — (owner verdict: pending)
 
-- **Q194. [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+- **Q203** (was Q194 on `origin/master`). [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
   appended, written from `feedback/processed/20260903-121255-feature-terrain-
   generation.md` verbatim plus the `lane/terrain` design decisions already
   logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
@@ -853,7 +1229,7 @@ Q91 and Q102 corrections if not yet done.
   on (BACKLOG.md fb081b, closed moot by this same alignment). Still
   owner-vetoable either way.
 
-- **Q195. [fb083] A new tower-only Area stat key (`towerArea`) closes the
+- **Q204** (was Q195 on `origin/master`). [fb083] A new tower-only Area stat key (`towerArea`) closes the
   Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit
   Actives — but `effectiveTowerAoe` (`towers.ts`) is shared by three callers,
   not two, and two genuine design choices fall out of that.** (1)
@@ -877,7 +1253,7 @@ Q91 and Q102 corrections if not yet done.
   for (1) is a straightforward extension of "these are towers" rather than
   an invented exception. — (owner verdict: pending)
 
-- **Q196. [fb083] Two more shared reads of the old global `area` key —
+- **Q205** (was Q196 on `origin/master`). [fb083] Two more shared reads of the old global `area` key —
   Electric's inherent AoE (`damagetypes.ts`'s `applyDamageType`) and
   Burning's splash (`enemies.ts`'s `tickDotSplash`) — can't take
   `effectiveTowerAoe`'s `route` parameter, because neither function is

@@ -559,14 +559,16 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'animist',
     slot: 'towerPassive',
-    token: '+10%',
+    token: '+8%',
     means: 'tower area',
     keywords: ['area'],
     // fb083: authored on its own `towerArea` key now — before the fix this
     // rode the *global* `area` key for want of one, so the sentence's "All
     // towers" was narrower than what the field actually reached. That
     // reach was (and still partly is) c013's measurement, not this file's:
-    // the number matches, and the noun matches too as of fb083.
+    // the number matches, and the noun matches too as of fb083. p12j
+    // (2026-09-07): 10% -> 8%, G8 nerf pass (animist was over the win-rate
+    // ceiling); description updated in step, ledger token follows.
     status: { kind: 'field', path: ['towerPassive', 'mods', 'towerArea'], as: 'pct' },
   },
 
@@ -638,7 +640,9 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'time_lord',
     slot: 'towerPassive',
-    token: '+10%',
+    // p12j (2026-09-07): 10% -> 5%, G8 nerf pass (time_lord was over the
+    // win-rate ceiling); description updated in step, ledger token follows.
+    token: '+5%',
     means: 'tower range per bonus level',
     keywords: ['range'],
     status: { kind: 'field', path: ['towerPassive', 'bonusRangeMul'], as: 'pct' },
@@ -646,7 +650,7 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'time_lord',
     slot: 'towerPassive',
-    token: '+10%',
+    token: '+5%',
     means: 'tower AoE area per bonus level',
     // Latent only because `bonusRangeMul === bonusAoeMul` today; QA swapped the
     // two nouns and the first draft could not tell.

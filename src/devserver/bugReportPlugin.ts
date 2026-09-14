@@ -24,7 +24,7 @@ export const BUG_REPORT_SAVE_PATH = '/__bugreport/save';
 export const MAX_BUG_REPORT_BODY_BYTES = 64 * 1024 * 1024;
 
 /**
- * Q193 (owner feedback `feature-bug-report-hotkey`): the owner's literal
+ * QUESTIONS Q202 (owner feedback `feature-bug-report-hotkey`): the owner's literal
  * machine path (`D:\lidl_inbox`), kept verbatim from the feedback text — but
  * only on the owner's own Windows machine. POSIX treats a backslash as an
  * ordinary filename character, so on any other host `mkdirSync` would
