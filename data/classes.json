@@ -435,12 +435,12 @@
       "passive": {
         "name": "Kinship",
         "description": "Aura effects also affect summons.",
-        "mods": {}
+        "mods": { "summonCap": 1 }
       },
       "active1": {
         "name": "Manifest",
         "kind": "manifest_spirit",
-        "cooldownSeconds": 4,
+        "cooldownSeconds": 3.2,
         "radius": 0,
         "damage": 0,
         "summonCap": 3,

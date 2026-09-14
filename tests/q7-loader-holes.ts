@@ -22,6 +22,14 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-14 (BACKLOG-CONTENT c004, lane `content`):
+ * `data/classes.json`'s Animist Kinship passive went from `mods: {}` to
+ * `mods: { summonCap: 1 }` — its first non-empty `passive.mods`, so the
+ * census's per-key fuzz reaches it for the first time. `summonCap` is a bare
+ * generic `StatKey` number, validated the same (un-)guarded way every other
+ * authored `passive.mods.*` entry above already is (`buildRange`, `leech`,
+ * `towerCost`) — one additive `ACCEPTED` line, no other entry moved.
+ *
  * Regenerated 2026-09-07 (fb082, revised after code-reviewer/qa-playtester
  * findings in the same session): `data/classes.json`'s new
  * `active1.groundTickSeconds` (Poison Barrel's authored poison-application
@@ -366,6 +374,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].passive.mods': ['drop-key', 'rename-key'],
   'classes.classes[].passive.mods.buildRange': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.mods.leech': ['negative', 'zero', 'fractional', 'drop-key'],
+  // c004 (BACKLOG-CONTENT): Animist Kinship's new `summonCap: 1` is the same
+  // bare, unguarded generic `StatKey` number every other authored
+  // `passive.mods` entry above already is — no new class of hole.
+  'classes.classes[].passive.mods.summonCap': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.mods.towerCost': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.name': ['to-string', 'empty-string'],
   'classes.classes[].passive.shatterDamage': ['negative', 'zero', 'fractional'],
