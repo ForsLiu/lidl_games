@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — feedback/verdicts-q168-205 processed.** All 38 Q168-Q205
+  entries (including the Q201 fb162/p12i numbering collision) tagged with
+  their owner verdict in QUESTIONS.md, plus a consolidated Verdict log
+  entry. Applied: fb124 **closed** (Q168, full-charge-only variant not
+  wanted); fb128 and fb129 updated with their Q172/Q171 decisions (carry
+  the sub-tick cooldown remainder; Act II high-ground residual closed as a
+  non-issue, Burrower untargetable window capped at 3s ⚖); three new
+  owner-priority items filed in BACKLOG.md ahead of the rest of the queue
+  per the batch's PRIORITY DIRECTIVE — **fb193** (per-class survivability
+  bands, Q196), **fb194** (OVERRIDE: split `numberScale` into a scaled
+  economy A and an unscaled economy B, reversing fb163's "(a)" decision and
+  reverting fb164's prose re-anchoring for economy-B fields, Q180/Q191),
+  **fb195** (restate the own-kit VS share target to 15% from TD wave 12,
+  amending BALANCE DIRECTION v2 §A, Q175/Q193). Checked the directive's
+  content-lane concern ("delivered nothing since Sep 3") and found it
+  already stale — `lane/content` merged c002 and c004 earlier today — logged
+  in BACKLOG-CONTENT.md rather than acted on. No code/data changed by this
+  pass; next up is fb193 per the directive's own priority order.
+
 - **2026-09-14 — lane/content: BACKLOG-CONTENT c004 done.** Closed SPEC-
   FINAL §4.2's Animist "summon cap +1" clause: Kinship's passive now authors
   `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), read through the
