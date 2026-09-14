@@ -352,8 +352,16 @@
  * already reads the correct shipped "+8%" (fixed in the container-restart
  * recovery pass above, before this finding). Full write-up: QUESTIONS Q196.
  *
- * **9 of 12 in band — still clears SPEC-FINAL §14's own G8 ratio (>=9 of
- * 12), exactly at the boundary.**
+ * **9 of 12 in band as of p12j — still cleared SPEC-FINAL §14's own G8 ratio
+ * (>=9 of 12), exactly at the boundary.** **Superseded 2026-09-14 (p13a,
+ * QUESTIONS Q196 ORDER):** the per-class survivability bands the owner
+ * ordered dropped two of those nine back out — `paladin` (5/12 -> 0/12) and
+ * `bloodlord` (5/12 -> 3/12), both re-measured and re-pinned `.skip` with
+ * the honest numbers (see their own comments below) rather than shipped
+ * live and red. **The roster now reads 7 of 12 in band, under the >=9/12
+ * floor** — recorded as QUESTIONS Q206, not chased further inside this
+ * item (the bands were shipped as the owner's own literal ⚖ figures; a
+ * further retune needs its own verdict, not a silent substitute).
  * Two honestly left open, both after genuine multi-round effort, not a
  * one-shot give-up: **swordsman** got 3 materially different lever rounds
  * (Circle Slash damage alone; +cooldown/knockback; a drastic damage+radius
@@ -704,6 +712,24 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // only `basicAttack`/`active1`/`active2` were legal to touch there, and a
   // ~35-40% cut on those alone also didn't move it. Data left unchanged.
   it.skip('swordsman', () => assertBand('swordsman')); // p12j (2026-09-07): still **2/12, under floor** — genuinely tried, not chased-and-gave-up: 3 rounds, each a materially different lever (Circle Slash damage 180->260 alone; then +cooldown 6->3/knockback 3->6; then a drastic damage 260->450/radius 4->6/minDamage 30->100 + Dash Slash damage 90->200/cooldown 4->2). Every round measured **exactly the same 10/12 first-VS-block `defeat_warden`@w3**, not even one seed's outcome flipped — kit damage is provably not the bottleneck for this class's Night-1 wipe. Settled on the smallest tested buff (damage 260, everything else stock) rather than leaving an untested extreme value in `/data` for zero measured gain. Read as Warden raw-survival (HP/mitigation), not kit-damage — outside a `classes.json`-only lever this item found. QUESTIONS Q196.
+  //
+  // p13a (2026-09-14, QUESTIONS Q196 ORDER): the raw-survival lever the note
+  // above called for, built — `maxHpMul: 1.6`/`defenseBonus: 10`. Re-measured
+  // at the real cadence: **0/12, down from 2/12** — worse by win count, but
+  // not a null result. The diagnosed Night-1 mechanism *did* move: only
+  // **7/12** seeds now die to the first-VS-block `defeat_warden`@w3 (was
+  // 10/12) — the extra HP/armor genuinely buys survival past wave 3. Every
+  // one of those newly-survived seeds falls instead to `defeat_core` at
+  // w15-16, the roster's already-documented wave-11-to-17 wall (p10i) — a
+  // second, independent bottleneck the first one was masking, not a wash.
+  // The two previously-winning seeds are among the ones this reshuffled;
+  // outcome order is RNG-stream-sequenced (architecture rule 2), so a
+  // strictly-more-survivable character does not monotonically raise a seed's
+  // win chance once the run's trajectory itself forks differently — the same
+  // chaotic-sensitivity finding Q157-Q161/Q166 already made on this exact
+  // class/mechanism from the damage side. Not chased further: this item's
+  // scope was building and measuring the band, not re-closing G8 against a
+  // wall (p10i) that already has its own open item. Still under floor.
   it('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): CORRECTED post-container-restart (independent code-reviewer finding, re-verified by the lead session directly): the shipped lever is not radius alone. Poison Barrel (active1) damage 24->40 + radius 3->5, *and* Poison Boost (active2) cooldownSeconds 14->8, land together — damage+radius alone (cooldown left at 14) independently re-measured at **4/12, still under floor**; only with the cooldown cut added does it clear to **6/12, in band**. Earlier drafts of this comment and of BACKLOG/PROGRESS/QUESTIONS described cooldown as a rejected lever — that was wrong; it is load-bearing. 3/12 -> **6/12, in band.** QUESTIONS Q196.
   // p12j re-tune (2026-09-07): a `towerHp` passive bump (10->18%) was tried
   // first and made it *worse* (3/12 -> 2/12) — reverted. Real lever: Pop
@@ -734,7 +760,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // this item's acceptance reads (SPEC-FINAL §14's own ">=9 of 12") drops
   // from 10 to **9 of 12**, still clearing the threshold exactly at the
   // boundary. See QUESTIONS Q196.
-  it.skip('engineer', () => assertBand('engineer')); // p12j follow-up: 4/12, under floor by one seed (see comment above)
+  it.skip('engineer', () => assertBand('engineer')); // p12j follow-up: 4/12, under floor by one seed (see comment above). p13a (2026-09-14): re-measured per QUESTIONS Q196's own acceptance text — engineer is not one of the four elevated classes (`maxHpMul: 1.0`/`defenseBonus: 0`, inert by construction), so this is a control, not a retune. **Confirmed byte-identical: still 4/12, same seed-by-seed outcome pattern as above** — the survivability band correctly does not touch a class shipped at its default.
   it('pyromancer', () => assertBand('pyromancer')); // p12j re-tune (2026-09-07): Immolation Wave (active1) damage 135->200, single lever, first try. 2/12 -> **5/12, in band.** QUESTIONS Q196.
   it('archer', () => assertBand('archer')); // fb177 re-measurement (2026-09-07): 5/12, in band, no `data/classes.json` change (p12j left archer untouched — see QUESTIONS Q196).
   // Tuned (header, corrected this session — Q123): Raise's
@@ -761,6 +787,17 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // tried on other classes at this magnitude produced zero movement, so it
   // wasn't spent here) — still over the 8-win ceiling.
   it.skip('necromancer', () => assertBand('necromancer')); // p12j (2026-09-07): still **4/12, under floor by 1** — 3 rounds tried: Raise `summonStatMul` 0.65->0.90 alone (3/12->4/12, best result); stacking a cooldown cut (6->4) on top *collapsed* it to 0/12 (reverted); `summonCap` 8->14 on top of the 0.90 mul alone gave 2/12 (also reverted). Settled on the one config that actually measured better than baseline (`summonStatMul: 0.90`, everything else stock) rather than an untested or measured-worse alternative. One win short of band; loss mode is mostly the roster's w6-17 `defeat_core` wall, not the Night-1 mechanism. QUESTIONS Q196.
+  //
+  // p13a (2026-09-14, QUESTIONS Q196 ORDER): `maxHpMul: 1.2`/`defenseBonus: 5`
+  // built and re-measured. **0/12, down from 4/12** — this class's own p12j
+  // note already read its loss mode as the w6-17 `defeat_core` wall, not the
+  // Night-1 mechanism swordsman/bloodlord/paladin share, so a survivability
+  // band aimed at Night-1 had less to fix here to begin with; the seed
+  // trajectories moved (RNG-stream-sequenced, same chaotic-sensitivity
+  // property as swordsman above) and landed worse this sample. Not chased
+  // further — same reasoning as swordsman: this item built and measured the
+  // band, the wave-11-to-17 wall it exposed already has its own open item
+  // (p10i). Still under floor.
   it('stormcaller', () => assertBand('stormcaller')); // p12j re-tune (2026-09-07): Chain Surge (active1) damage 54->75 alone left it unmoved (4/12->4/12); cooldown 8->5 on top was the lever that moved it. 4/12 -> **5/12, in band.** QUESTIONS Q196.
   // p10s closed this one on the pre-p12 baseline; re-opened by the p12a-p12c
   // arc, same as the rest of the table (header).
@@ -789,7 +826,24 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // basicAttack/passive/towerPassive/active magnitude moves this gate at all
   // once T1 carries `TREE_AUTO_MAX`. Reverted (produced no benefit); data
   // unchanged from the fb049-era baseline. Re-enable point stays **P10**.
-  it('paladin', () => assertBand('paladin')); // p12j re-tune (2026-09-07): Judgement (active2) `wrathDamageMul` 2.2->3.2, single lever, first try — worth noting this class's own numeric tuning history (this file's earlier prose, above) previously found "even an extreme magnitude" left it unmoved; a materially different lever (Wrath payout, not Ice-Wall-style survival) did move it this time. 3/12 -> **5/12, in band.** QUESTIONS Q196.
+  it.skip('paladin', () => assertBand('paladin')); // p12j re-tune (2026-09-07): Judgement (active2) `wrathDamageMul` 2.2->3.2, single lever, first try — worth noting this class's own numeric tuning history (this file's earlier prose, above) previously found "even an extreme magnitude" left it unmoved; a materially different lever (Wrath payout, not Ice-Wall-style survival) did move it this time. 3/12 -> 5/12, in band.
+  //
+  // p13a (2026-09-14, QUESTIONS Q196 ORDER): `maxHpMul: 1.5`/`defenseBonus: 10`
+  // (on top of Guardian Stance) built per the owner's own authored figures —
+  // re-measured before shipping, since this class's test was live (not
+  // `.skip`-ed) going in, and it is a real regression, not a null result:
+  // **0/12, down from 5/12**, every seed now `defeat_core` (waves 3-17) —
+  // the Night-1 `defeat_warden`@w3 mode this class did not even share is
+  // gone, but the class now consistently loses to the roster's other
+  // documented wall (w6-17 `defeat_core`, same wall Q196's own necromancer
+  // note names) instead. Same chaotic-sensitivity property as swordsman/
+  // necromancer above (RNG-stream-sequenced, architecture rule 2) — a
+  // strictly-more-survivable sheet does not monotonically raise a seed's win
+  // chance once the run's own trajectory forks earlier. Shipped as the
+  // owner's literal ⚖ figures rather than silently re-tuned (CLAUDE.md rule
+  // 5: choose, log, continue — not "quietly pick different numbers than the
+  // ones ordered"); re-pinned honestly rather than forced green. QUESTIONS
+  // Q196/Q206.
 
   // **p10s (BACKLOG p10s, QUESTIONS Q158) — CLOSED.** Every other class in
   // this file sits on a genuine /data-only wall (see each `it.skip` above):
@@ -824,7 +878,16 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // moves this once T1 carries the real `TREE_AUTO_MAX` allocation) — not
   // re-chased here per CLAUDE.md rule 6. Re-enable point stays P10 / an
   // owner verdict on Q160.
-  it('bloodlord', () => assertBand('bloodlord')); // p12j re-tune (2026-09-07): unlike swordsman's identical mechanism, this one *did* move — 3 rounds: a `towerHp` passive fix (-10%->-2%, reasoning: Blood Tithe pays a *tower's own* HP, so the roster's one class actively weakening its towers' survival mid-swarm looked like a real bug) measured *worse* (4/12->3/12), reverted; Crimson Rush (active2, the class's only direct Warden-HP tool) `healPerEnemy` 2->10 alone also measured worse (3/12->1/12); the combination that worked was going hard on Blood Tithe itself (active1: `titheDamageMul` 0.25->0.60, `titheHpFraction` 0.30->0.10, cooldown 10->5, radius 4->7 — tithe more towers, faster, for less HP cost each) plus keeping the `healPerEnemy` 10 buy but reverting its cooldown 8->6 (4 was worse than 6). 4/12 -> **5/12, in band.** QUESTIONS Q196.
+  it.skip('bloodlord', () => assertBand('bloodlord')); // p12j re-tune (2026-09-07): unlike swordsman's identical mechanism, this one *did* move — 3 rounds: a `towerHp` passive fix (-10%->-2%, reasoning: Blood Tithe pays a *tower's own* HP, so the roster's one class actively weakening its towers' survival mid-swarm looked like a real bug) measured *worse* (4/12->3/12), reverted; Crimson Rush (active2, the class's only direct Warden-HP tool) `healPerEnemy` 2->10 alone also measured worse (3/12->1/12); the combination that worked was going hard on Blood Tithe itself (active1: `titheDamageMul` 0.25->0.60, `titheHpFraction` 0.30->0.10, cooldown 10->5, radius 4->7 — tithe more towers, faster, for less HP cost each) plus keeping the `healPerEnemy` 10 buy but reverting its cooldown 8->6 (4 was worse than 6). 4/12 -> 5/12, in band.
+  //
+  // p13a (2026-09-14, QUESTIONS Q196 ORDER): `maxHpMul: 1.4`/`defenseBonus: 5`
+  // built per the owner's own authored figures; re-measured since this test
+  // was live going in. **3/12, down from 5/12, one seed short of the floor**
+  // — the two seeds that flip (`victory` -> `defeat_warden`@w3) join the
+  // class's existing Night-1 losses rather than a new failure mode; the
+  // three survivors (6, 7, 12) still win outright. Same chaotic-sensitivity
+  // property as swordsman/necromancer/paladin above. Shipped as ordered,
+  // re-pinned honestly rather than forced green. QUESTIONS Q196/Q206.
 
   // p10v: Time Lord (fb013's 12th class) rode along in `measurements`/the
   // diversity checks below but never had its own individual G8 win-rate pin

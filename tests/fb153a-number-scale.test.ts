@@ -137,6 +137,13 @@ const UNSCALED_REASONS: Record<string, string> = {
   'classes.classes[].active2.wrathDamageMul': 'a multiplier',
   'classes.classes[].active2.pactDrainPerSecond': 'a fraction of the structure max HP per second',
   'classes.classes[].passive.stanceArmor': 'armor points',
+  // p13a (QUESTIONS Q196): the per-class survivability bands. Same shape as
+  // `enemies.baseHpMul` two rows up — a roster-wide (here per-class)
+  // multiplier, not an HP magnitude, so scaling it by `numberScale` would
+  // shrink the *ratio* itself rather than leaving it alone the way every
+  // other `*Mul` field in this table already is.
+  'classes.classes[].maxHpMul': 'a multiplier, not an HP magnitude (same shape as enemies.baseHpMul)',
+  'classes.classes[].defenseBonus': 'armor points',
   'classes.classes[].towerPassive.mods.towerDamage': 'a percent stat (STAT_SCALED)',
   'classes.classes[].towerPassive.mods.towerDamageVsBurning': 'a percent stat',
   'classes.classes[].towerPassive.mods.towerDamageVsChilled': 'a percent stat',
@@ -171,7 +178,6 @@ const UNSCALED_REASONS: Record<string, string> = {
   'towers.towers[].buffAura.attackSpeed': 'a percent aura',
   'towers.towers[].passive.attackSpeedPer': 'a percent per stack',
   'damagetypes.statuses.frost.attackSpeed': 'a percent (-30% attack speed)',
-  'classes.classes[].maxHpMul': 'a multiplier (fb193 per-class survivability band)',
 };
 
 /** Stat-record paths, whose classification comes from `STAT_SCALED` per key. */

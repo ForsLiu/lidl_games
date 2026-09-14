@@ -634,15 +634,17 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
   });
 
   it('a maxHp change alone refreshes the Health row', () => {
-    const w = new World(cfg({ classKey: 'swordsman' }));
+    // p13a: not `swordsman` — its `maxHpMul: 1.6` (QUESTIONS Q196) would move
+    // the hardcoded pool below out from under this test's own numbers, which
+    // have nothing to do with any one class's survivability band. `engineer`
+    // is this codebase's own inert-by-default control class (`maxHpMul: 1`).
+    const w = new World(cfg({ classKey: 'engineer' }));
     const sel: Selection = { kind: 'warden' };
     const { hud, text } = hudWarden(w);
 
     hud.update(w, undefined, sel);
-    // fb153a: the pool is authored 100 x `numberScale`. fb193: swordsman
-    // authors a `maxHpMul` survivability band (x1.6), a `derive()` factor
-    // applied on top of the scaled base pool.
-    expect(text()).toContain(`Health${scaled(160)} / ${scaled(160)}`);
+    // fb153a: the pool is authored 100 x `numberScale`.
+    expect(text()).toContain(`Health${scaled(100)} / ${scaled(100)}`);
 
     const hp = w.warden.hp;
     w.stats.add('src:test', 'maxHp', scaled(50));
@@ -650,7 +652,7 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     expect(w.warden.hp).toBe(hp);
 
     hud.update(w, undefined, sel);
-    expect(text()).toContain(`Health${scaled(160)} / ${scaled(240)}`);
+    expect(text()).toContain(`Health${scaled(100)} / ${scaled(150)}`);
   });
 
   it('a dash-charge-cap change alone refreshes the Dash row', () => {

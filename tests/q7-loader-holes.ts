@@ -22,6 +22,15 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-14 (BACKLOG p13a, QUESTIONS Q196 ORDER): `data/
+ * classes.json` gained two new required top-level fields, `maxHpMul`
+ * (`.positive()`) and `defenseBonus` (bare `num`) — the per-class
+ * survivability bands. Same unguarded shape as the neighbouring
+ * `moveSpeedBonus` (`negative`/`zero`/`fractional` all accepted for
+ * `defenseBonus`; `.positive()` on `maxHpMul` already refuses
+ * `negative`/`zero`, leaving only `fractional`). Four additive lines, one
+ * per accepted mutation; nothing existing moved.
+ *
  * Regenerated 2026-09-14 (BACKLOG-CONTENT c004, lane `content`):
  * `data/classes.json`'s Animist Kinship passive went from `mods: {}` to
  * `mods: { summonCap: 1 }` — its first non-empty `passive.mods`, so the
@@ -360,11 +369,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].basicAttack.dps': ['fractional'],
   'classes.classes[].basicAttack.interval': ['fractional'],
   'classes.classes[].basicAttack.range': ['fractional'],
-  // fb193 (QUESTIONS Q196): per-class survivability bands, optional with a
-  // neutral default (factor 1 / +0) when absent — `drop-key`/`rename-key`
-  // fall back to that default, same as any other optional field here.
-  'classes.classes[].maxHpMul': ['fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].defenseBonus': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
+  'classes.classes[].defenseBonus': ['negative', 'zero', 'fractional'],
+  'classes.classes[].maxHpMul': ['fractional'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
   'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],

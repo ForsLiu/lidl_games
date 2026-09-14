@@ -403,6 +403,13 @@ const LEDGER: readonly Figure[] = [
         'of "double" would be a code edit — architecture rule 4 says it should be `/data`.',
       in: 'active2',
       absentKey: /mul|multiplier|factor|scale|boost|double/i,
+      // p13a (QUESTIONS Q196): every class row now carries a top-level
+      // `maxHpMul` (the per-class survivability band), which matches this
+      // row's deliberately broad regex on every class, not just
+      // plaguebringer — a real neighbour, not this figure. Same treatment
+      // as Manifest's `summonCap`/Blood Frenzy's `leech` (this file's own
+      // header comment).
+      knownKeys: ['maxHpMul'],
     },
   },
   {

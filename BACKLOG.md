@@ -243,6 +243,122 @@ still in test headers.
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.
 
+### Owner priority queue (2026-09-14 verdicts Q168-Q205) — execute top-down
+
+Filed processing `feedback/verdicts-q168-205.md` (moved to `feedback/processed/`
+on the same commit). Verdicts recorded in QUESTIONS.md against each of
+Q168-Q205; the four items below are the verdict file's own PRIORITY
+DIRECTIVE, in its order. Item (4) of that directive (queued content-lane
+items + the lane-content stall check) is handled in BACKLOG-CONTENT.md's Log,
+not here.
+
+- [x] (p13a) [balance] **DONE 2026-09-14 — mechanism landed, re-measured
+      honestly, does not close G8 (in fact widens it).** Per-class
+      survivability bands (QUESTIONS Q196 ORDER). `maxHpMul`/`defenseBonus`
+      added to `data/classes.json`'s `ClassSchema` and to all 12 rows
+      (swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10, necromancer
+      x1.2/+5, every other class x1.0/+0), folded into `baseRunStats`
+      (`src/sim/stats.ts`) as one more `maxHpPct`/`armor` source — the same
+      mechanism `moveSpeedBonus` already uses, inert by construction at the
+      shipped default (pinned, `tests/p13a-survivability-bands.test.ts`, 6
+      cases: field presence, the four authored bands, the eight defaults,
+      the derived-stat formula, and multiplicative composition with an
+      independent `maxHpPct` source). Re-measured all four elevated classes
+      live at the real 12-seed T3 cadence before shipping (two, paladin/
+      bloodlord, had non-`.skip` tests going in) — **every one measured
+      worse**: swordsman 2/12->0/12, necromancer 4/12->0/12, paladin
+      5/12->0/12, bloodlord 5/12->3/12, dropping the roster's G8 in-band
+      count from 9/12 to 7/12, under SPEC-FINAL's own >=9/12 floor. Not a
+      null result: the diagnosed Night-1 `defeat_warden`@w3 mode did shrink
+      where it existed (swordsman 10/12->7/12 first-VS-block wipes) — the
+      band buys real survival past wave 3, and those saved seeds fall
+      instead to the roster's other documented wave-11-to-17 `defeat_core`
+      wall (p10i) rather than converting into wins; a seed's fate is
+      RNG-stream-sequenced so more survivability does not monotonically
+      raise its win chance once the run forks earlier (same
+      chaotic-sensitivity property Q157-Q166 already found from the damage
+      side). Engineer (inert, a control per this item's own acceptance)
+      re-confirmed byte-identical, still 4/12, same seed-by-seed pattern.
+      Shipped the owner's literal ⚖ figures rather than silently
+      re-tuning them; all four `.skip`-ed with honest numbers
+      (`tests/p6e-class-diversity.test.ts`); regression logged as
+      **QUESTIONS Q206**, not chased with an un-ordered second retune round
+      inside this item. `npx tsc --noEmit` clean; `Q7_RECORD=1` regenerated
+      `tests/q7-loader-holes.ts`'s census (4 new lines, mechanical, not
+      hand-edited); `npm run test:fast` green — refs: SPEC-FINAL §14 G8/G14,
+      QUESTIONS Q196/Q206, BACKLOG p12j/fb177/p10i.
+
+- [ ] (fb185) [bug] `tests/p6e-class-diversity.test.ts` (fast-tier-excluded)
+      has drifted stale against at least one same-day change: a full run
+      during p13a found `it('animist', ...)` red (8/12 -> 4/12, pinned
+      2026-09-07) and the "T1/T5 companion" `T5` case red (0/12, band
+      [5%,20%]), both using classes p13a's diff cannot touch (animist itself
+      and `engineer` are both at the survivability-band default). Most
+      likely cause: BACKLOG-CONTENT c004 (2026-09-14, merged before this
+      session) added `mods: { summonCap: 1 }` to Animist's Kinship passive
+      — this file was not re-run against it. The pinned fingerprint-distance
+      failure count (16, `it('the current (red) fingerprint-distance
+      failure count is pinned...')`) also moved to 27 as of p13a's own
+      shipped changes (partly expected, per p13a's writeup — swordsman/
+      necromancer/paladin/bloodlord's fingerprints genuinely shifted;
+      unclear how much of the remainder is animist's own drift). Acceptance:
+      re-run the full file fresh; re-diagnose each red case by name (a git
+      worktree control run at the pre-c004 commit isolates whether c004 is
+      really the cause of the animist delta); re-pin every `.skip`/`it`
+      comment with the honest current numbers, same as p13a did for its own
+      four classes — refs: BACKLOG-CONTENT c004, BACKLOG p13a, QUESTIONS
+      Q196/Q206.
+
+- [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
+      — priority 2.** The 2026-09-06 "decided (a), no code/data change"
+      closure (full text `docs/BACKLOG-DONE.md`) is overridden: ship route
+      (b), scoped narrowly. Split `numberScale` (`data/modifiers.json`) into
+      its two economies: **economy A** (enemy HP and damage dealt to
+      enemies — tower/kit/wielded/Core attacks) stays scaled by
+      `numberScale`; **economy B** (enemy damage output, character/Core/
+      structure HP, equipment flats, regen) is NOT scaled. The five
+      crossing constants — lifesteal, Blood Tithe, Wrath, the Corpse store
+      ratio, Vampire Heart overheal — take the *inverse* factor so their
+      already-correct outputs are unchanged; verify each with the existing
+      cross-scale-invariant test shape `tests/fb153a-number-scale.test.ts`
+      already uses for `overhealGoldRatio` ("an HP-to-gold conversion pays
+      the same gold at every scale"), one control pair per constant. Revert
+      fb164's prose re-anchoring for economy-B sentences (`data/*.json`
+      description text that fb164 rewrote to the post-scale figure) back to
+      their pre-`numberScale` numbers. Acceptance: `tests/fb153a-number
+      -scale.test.ts`'s census updated to classify every numeric leaf by
+      economy (A/B) rather than uniformly; the five crossing-constant control
+      pairs pass; `tests/fb164-prescale-prose.test.ts`'s economy-B cases
+      re-pinned to the reverted text; a fresh proportionality control run
+      (economy A only) shows the same identical-outcome property fb153a's
+      original census proved — refs: SPEC-FINAL §2/§3, QUESTIONS Q180/Q191,
+      BACKLOG fb153a/fb164.
+
+- [ ] (fb183) [balance] **priority 3** — restate the kit-relevance target in
+      BALANCE.md and its tests per QUESTIONS Q175's amendment to BALANCE
+      DIRECTION v2 §A: own-kit VS-damage-share target = **15% ⚖ from TD
+      wave 12** (not 35%, not a G8 clause), measured for the nine classes
+      whose kit has a damaging VS Active; bloodlord, engineer and animist
+      are exempt (identity via lifesteal/tithe/summons respectively) and
+      measured for the record only, not against the target. `kitPowerMul`
+      and `kitBuildMul` stay exactly as shipped (p12a/p12f) — no further
+      route-(b) wielded-scaling cut. Acceptance: BALANCE.md's "Kit relevance
+      target" section rewritten to the 15%-from-wave-12 wording and the
+      nine/three split; `tests/class-kit-damage-share.test.ts`'s assertion
+      re-pointed at the new target and wave cutoff, re-measured live (not
+      carried from the old 35% run) — refs: QUESTIONS Q175/Q193, BALANCE
+      DIRECTION v2 §A, BACKLOG p12a/p12f.
+
+- [ ] (fb184) [bug] **cheap closer** (QUESTIONS Q181 ORDER) — the loader
+      refuses an unknown top-level key in `data/modifiers.json`, closing the
+      `"numberScal3"`-typo class of silent mis-scale Q181 found. Acceptance:
+      a schema/loader rule rejects an unrecognized top-level key in
+      `modifiers.json` with a message naming the field; every currently
+      legitimate top-level key still loads; a regression test pins the
+      typo repro (`numberScal3`) now failing to load instead of silently
+      defaulting `numberScale` to 1.0 — refs: QUESTIONS Q181, SPEC-FINAL
+      §12 rule 4.
+
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
 **Standing note for the p12 balance arc:** `fb153a` divides every damage source
@@ -3673,17 +3789,19 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       a tower across a cliff edge and fb064m's "no uncontestable plot"
       constraint guards a rule no run enforces. The six call sites are
       listed in BACKLOG-TERRAIN.md's fb064i Log; `nearestStructureWithin`
-      (`enemies.ts:1258`) selects before the rule applies. **Decided
-      (feedback/verdicts-q168-205, Q171):** the Act II residual — Spitters
-      skip structures under `!act2`, so every high-ground tower is
-      uncontestable during the VS phase — is accepted as a non-issue
-      (towers are inert during VS waves and enemies hunt the Warden, so an
-      uncontestable inert tower changes nothing) and needs no code; the
-      Burrower's widened untargetable window is capped at **3 s ⚖ per
-      surfacing**. Acceptance: rules wired at every listed site with a
-      red-first test per site; the Burrower's untargetable window clamped
-      to 3 s with a regression test — refs: SPEC-FINAL §10.5 (fb079),
-      BACKLOG-TERRAIN.md fb064d/fb064i/fb064m, Q171.
+      (`enemies.ts:1258`) selects before the rule applies. The Act II
+      residual — Spitters skip structures under `!act2`, so every
+      high-ground tower is uncontestable during the VS phase — and the
+      Burrower's widened untargetable window are design calls (Q171).
+      **Q171 verdict (2026-09-14): the Act II residual is accepted as a
+      non-issue (towers are inert and enemies hunt the Warden during VS, so
+      an uncontestable inert tower changes nothing) — closed, no code
+      needed.** The Burrower's widened untargetable window is capped at
+      **3s ⚖ per surfacing** — folds into this item's acceptance below.
+      Acceptance: rules wired at every listed site with a red-first test
+      per site; the Burrower untargetable-window cap (3s ⚖) pinned by a
+      regression test — refs: SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md
+      fb064d/fb064i/fb064m, QUESTIONS Q171.
 - [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
       migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
       `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,

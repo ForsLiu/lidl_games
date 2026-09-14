@@ -208,6 +208,24 @@ Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
   outside a `[balance]` item or one whose acceptance is a gate
   re-measurement).
 
+### Note 2026-09-14 — lane-content stall check (verdict directive item 4)
+
+The verdict file (`feedback/verdicts-q168-205.md`) asked to check why this
+lane "delivered nothing since Sep 3" and, if an overlap guard is tripping on
+a stale branch/PR, close it and note the fix here. Checked directly against
+GitHub: no stale branch or open PR was blocking the lane — **c004 landed
+today** (2026-09-14, PR #57, merged), so the routine is running. The real
+reason `fb056`/`fb057`/`fb059`/`fb061` have sat "Blocked out of Scope" since
+2026-09-03 is recorded above in this file and in `docs/BACKLOG-DONE.md`
+(session 1, 2026-09-03): each needs a file outside this lane's hard Scope
+(a main-lane-owned test file with a hardcoded equipment census, a closed
+zod enum in `src/sim/content.ts`, a `World` field, `src/sim/classes.ts`'s
+own scope is fine but the supporting schema/test plumbing is not) — not a
+branch/PR overlap problem. No fix applied here since there was nothing
+stale to close; the actual unblock (widening this lane's Scope, or moving
+the five items to BACKLOG.md as main-lane work) is a main-lane call, not
+this lane's to make unilaterally.
+
 ### Recently completed
 
 - (c004) [bug] **DONE 2026-09-14.** Animist's Kinship passive now authors
