@@ -1,9 +1,17 @@
 {
   "classes": [
     {
-      "key": "swordsman", "name": "Swordsman", "unlockedByDefault": true, "unlockQuest": null,
-      "moveSpeedBonus": 0.30,
-      "basicAttack": { "dps": 78, "range": 2.5, "interval": 0.7857, "aoe": 1.5 },
+      "key": "swordsman",
+      "name": "Swordsman",
+      "unlockedByDefault": true,
+      "unlockQuest": null,
+      "moveSpeedBonus": 0.3,
+      "basicAttack": {
+        "dps": 78,
+        "range": 2.5,
+        "interval": 0.7857,
+        "aoe": 1.5
+      },
       "passive": {
         "name": "Thousand Cuts",
         "description": "Each attack (including Active attacks; each damage instance from an Active counts as 1 attack) applies 1 Bleeding.",
@@ -15,7 +23,7 @@
         "kind": "charge_nova",
         "cooldownSeconds": 6,
         "radius": 4,
-        "damage": 180,
+        "damage": 260,
         "minRadius": 1.5,
         "minDamage": 30,
         "knockback": 3,
@@ -33,13 +41,23 @@
       "towerPassive": {
         "name": "Wind Slash",
         "description": "All towers +10% attack speed, effective in VS.",
-        "mods": { "towerAttackSpeed": 0.10 }
+        "mods": {
+          "towerAttackSpeed": 0.1
+        }
       }
     },
     {
-      "key": "plaguebringer", "name": "Plaguebringer", "unlockedByDefault": false, "unlockQuest": "plaguebringer_veteran",
+      "key": "plaguebringer",
+      "name": "Plaguebringer",
+      "unlockedByDefault": false,
+      "unlockQuest": "plaguebringer_veteran",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 36, "range": 6, "interval": 1.0714, "aoe": 0 },
+      "basicAttack": {
+        "dps": 36,
+        "range": 6,
+        "interval": 1.0714,
+        "aoe": 0
+      },
       "passive": {
         "name": "Spreading Plague",
         "description": "If any DoT on an enemy is unfinished when it dies, deal the total unfinished damage to the nearest enemy, once.",
@@ -50,32 +68,45 @@
         "name": "Poison Barrel",
         "kind": "ground_poison",
         "cooldownSeconds": 7,
-        "radius": 3,
-        "damage": 24,
+        "radius": 5,
+        "damage": 40,
         "groundDurationSeconds": 5,
         "groundTickSeconds": 1
       },
       "active2": {
         "name": "Poison Boost",
         "kind": "poison_boost",
-        "cooldownSeconds": 14,
+        "cooldownSeconds": 8,
         "radius": 0,
         "damage": 0
       },
       "towerPassive": {
         "name": "Miasma",
         "description": "All towers +10% poison damage.",
-        "mods": { "towerPoisonDamage": 0.10 }
+        "mods": {
+          "towerPoisonDamage": 0.1
+        }
       }
     },
     {
-      "key": "engineer", "name": "Engineer", "unlockedByDefault": true, "unlockQuest": null,
+      "key": "engineer",
+      "name": "Engineer",
+      "unlockedByDefault": true,
+      "unlockQuest": null,
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 30, "range": 4, "interval": 1.1429, "aoe": 0 },
+      "basicAttack": {
+        "dps": 30,
+        "range": 4,
+        "interval": 1.1429,
+        "aoe": 0
+      },
       "passive": {
         "name": "Efficient Engineering",
         "description": "Builds and upgrades cost 10% less; build range +2 tiles.",
-        "mods": { "towerCost": -0.10, "buildRange": 2 }
+        "mods": {
+          "towerCost": -0.1,
+          "buildRange": 2
+        }
       },
       "active1": {
         "name": "Field Kit",
@@ -83,31 +114,41 @@
         "cooldownSeconds": 10,
         "radius": 4,
         "damage": 0,
-        "repairFraction": 0.40,
-        "overclockAtkSpdMul": 0.50,
+        "repairFraction": 0.4,
+        "overclockAtkSpdMul": 0.5,
         "overclockSeconds": 6
       },
       "active2": {
         "name": "Pop Turret",
         "kind": "summon_turret",
-        "cooldownSeconds": 3,
+        "cooldownSeconds": 2.4,
         "radius": 0,
         "damage": 0,
         "towerKey": "arrow_spire",
-        "summonStatMul": 0.30,
-        "summonCap": 2,
+        "summonStatMul": 0.38,
+        "summonCap": 3,
         "summonDurationSeconds": 10
       },
       "towerPassive": {
         "name": "Reinforced Frames",
         "description": "All towers +10% HP.",
-        "mods": { "towerHp": 0.10 }
+        "mods": {
+          "towerHp": 0.1
+        }
       }
     },
     {
-      "key": "pyromancer", "name": "Pyro", "unlockedByDefault": false, "unlockQuest": "win_a_run",
+      "key": "pyromancer",
+      "name": "Pyro",
+      "unlockedByDefault": false,
+      "unlockQuest": "win_a_run",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 48, "range": 4, "interval": 1.0, "aoe": 1.2 },
+      "basicAttack": {
+        "dps": 48,
+        "range": 4,
+        "interval": 1.0,
+        "aoe": 1.2
+      },
       "passive": {
         "name": "Contagious Flame",
         "description": "Burning enemies deal 0.6 damage/s to enemies touching them.",
@@ -121,7 +162,7 @@
         "kind": "burst_damage",
         "cooldownSeconds": 10,
         "radius": 4,
-        "damage": 135,
+        "damage": 200,
         "burnDps": 9,
         "burnDuration": 3
       },
@@ -139,13 +180,23 @@
       "towerPassive": {
         "name": "Kindling",
         "description": "All towers +10% damage against Burning enemies.",
-        "mods": { "towerDamageVsBurning": 0.10 }
+        "mods": {
+          "towerDamageVsBurning": 0.1
+        }
       }
     },
     {
-      "key": "archer", "name": "Archer", "unlockedByDefault": true, "unlockQuest": null,
+      "key": "archer",
+      "name": "Archer",
+      "unlockedByDefault": true,
+      "unlockQuest": null,
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 48, "range": 6, "interval": 1.0, "aoe": 0 },
+      "basicAttack": {
+        "dps": 48,
+        "range": 6,
+        "interval": 1.0,
+        "aoe": 0
+      },
       "passive": {
         "name": "Long Draw",
         "description": "Deadeye damage has no cap; +1 pierce per full second charged.",
@@ -157,8 +208,8 @@
         "cooldownSeconds": 1.5,
         "radius": 9,
         "damage": 60,
-        "compoundPerSecond": 0.40,
-        "moveMulWhileCharging": 0.60,
+        "compoundPerSecond": 0.4,
+        "moveMulWhileCharging": 0.6,
         "pierceCap": 6,
         "chargeCapSeconds": 5
       },
@@ -174,13 +225,23 @@
       "towerPassive": {
         "name": "Ranger's Eye",
         "description": "All towers +10% range.",
-        "mods": { "towerRange": 0.10 }
+        "mods": {
+          "towerRange": 0.1
+        }
       }
     },
     {
-      "key": "necromancer", "name": "Necromancer", "unlockedByDefault": false, "unlockQuest": "four_slot_win",
+      "key": "necromancer",
+      "name": "Necromancer",
+      "unlockedByDefault": false,
+      "unlockQuest": "four_slot_win",
       "moveSpeedBonus": 0,
-      "basicAttack": { "dps": 30, "range": 4, "interval": 1.2857, "aoe": 0 },
+      "basicAttack": {
+        "dps": 30,
+        "range": 4,
+        "interval": 1.2857,
+        "aoe": 0
+      },
       "passive": {
         "name": "Grave Harvest",
         "description": "Kills leave corpses for 6 s.",
@@ -196,7 +257,7 @@
         "damage": 0,
         "summonCap": 8,
         "summonDurationSeconds": 24,
-        "summonStatMul": 0.65,
+        "summonStatMul": 0.9,
         "summonRadius": 8
       },
       "active2": {
@@ -206,7 +267,7 @@
         "radius": 4,
         "damage": 0,
         "pactDamageMul": 0.45,
-        "pactAtkSpdMul": 0.30,
+        "pactAtkSpdMul": 0.3,
         "pactDrainPerSecond": 0.02,
         "pylonDps": 15,
         "pylonRange": 3,
@@ -215,13 +276,23 @@
       "towerPassive": {
         "name": "Wounded Fury",
         "description": "All towers +15% damage while below full HP.",
-        "mods": { "towerLowHpDamageBonus": 0.15 }
+        "mods": {
+          "towerLowHpDamageBonus": 0.15
+        }
       }
     },
     {
-      "key": "cryomancer", "name": "Cryomancer", "unlockedByDefault": false, "unlockQuest": "build_40_obelisks",
+      "key": "cryomancer",
+      "name": "Cryomancer",
+      "unlockedByDefault": false,
+      "unlockQuest": "build_40_obelisks",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 30, "range": 6, "interval": 1.1429, "aoe": 0.8 },
+      "basicAttack": {
+        "dps": 30,
+        "range": 6,
+        "interval": 1.1429,
+        "aoe": 0.8
+      },
       "passive": {
         "name": "Frost Touch",
         "description": "Attacks apply frost; an enemy hit 5 times while frosted freezes; frozen enemies shatter on death.",
@@ -236,7 +307,7 @@
         "kind": "frost_nova",
         "cooldownSeconds": 9,
         "radius": 4,
-        "damage": 60
+        "damage": 40
       },
       "active2": {
         "name": "Ice Wall",
@@ -250,13 +321,23 @@
       "towerPassive": {
         "name": "Deep Winter",
         "description": "All towers +10% damage against frosted or frozen enemies.",
-        "mods": { "towerDamageVsChilled": 0.10 }
+        "mods": {
+          "towerDamageVsChilled": 0.1
+        }
       }
     },
     {
-      "key": "stormcaller", "name": "Stormcaller", "unlockedByDefault": false, "unlockQuest": "hoarder",
+      "key": "stormcaller",
+      "name": "Stormcaller",
+      "unlockedByDefault": false,
+      "unlockQuest": "hoarder",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 48, "range": 6, "interval": 1.0, "aoe": 0.8 },
+      "basicAttack": {
+        "dps": 48,
+        "range": 6,
+        "interval": 1.0,
+        "aoe": 0.8
+      },
       "passive": {
         "name": "Conduction",
         "description": "Electric damage +20% per jump, compounding, cap 8 jumps.",
@@ -265,11 +346,11 @@
       "active1": {
         "name": "Chain Surge",
         "kind": "chain_lightning",
-        "cooldownSeconds": 8,
+        "cooldownSeconds": 5,
         "radius": 5,
-        "damage": 54,
+        "damage": 75,
         "chainCount": 6,
-        "chainGrowth": 0.20,
+        "chainGrowth": 0.2,
         "chainCap": 8
       },
       "active2": {
@@ -284,50 +365,73 @@
       "towerPassive": {
         "name": "Live Wire",
         "description": "All towers deal +10% of their damage as extra Electric.",
-        "mods": { "towerExtraElectricPct": 0.10 }
+        "mods": {
+          "towerExtraElectricPct": 0.1
+        }
       }
     },
     {
-      "key": "bloodlord", "name": "Bloodlord", "unlockedByDefault": false, "unlockQuest": "fast_boss",
-      "moveSpeedBonus": 0.30,
-      "basicAttack": { "dps": 51, "range": 2.5, "interval": 0.8571, "aoe": 1.0 },
+      "key": "bloodlord",
+      "name": "Bloodlord",
+      "unlockedByDefault": false,
+      "unlockQuest": "fast_boss",
+      "moveSpeedBonus": 0.3,
+      "basicAttack": {
+        "dps": 51,
+        "range": 2.5,
+        "interval": 0.8571,
+        "aoe": 1.0
+      },
       "passive": {
         "name": "Blood Frenzy",
         "description": "3% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
-        "mods": { "leech": 0.03 },
+        "mods": {
+          "leech": 0.03
+        },
         "kind": "blood_frenzy",
-        "frenzyVsMul": 0.10,
+        "frenzyVsMul": 0.1,
         "frenzyTdMul": -0.05
       },
       "active1": {
         "name": "Blood Tithe",
         "kind": "blood_tithe",
-        "cooldownSeconds": 10,
-        "radius": 4,
+        "cooldownSeconds": 5,
+        "radius": 7,
         "damage": 0,
-        "titheHpFraction": 0.30,
-        "titheDamageMul": 0.25
+        "titheHpFraction": 0.1,
+        "titheDamageMul": 0.6
       },
       "active2": {
         "name": "Crimson Rush",
         "kind": "dash_heal",
-        "cooldownSeconds": 8,
+        "cooldownSeconds": 6,
         "radius": 0,
         "damage": 0,
         "dashRange": 6,
         "dashWidth": 1,
-        "healPerEnemy": 2
+        "healPerEnemy": 10
       },
       "towerPassive": {
         "name": "Sanguine Pact",
         "description": "All towers +4% damage, -10% max HP.",
-        "mods": { "towerDamage": 0.04, "towerHp": -0.10 }
+        "mods": {
+          "towerDamage": 0.04,
+          "towerHp": -0.1
+        }
       }
     },
     {
-      "key": "animist", "name": "Animist", "unlockedByDefault": false, "unlockQuest": "archivist",
+      "key": "animist",
+      "name": "Animist",
+      "unlockedByDefault": false,
+      "unlockQuest": "archivist",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 30, "range": 4, "interval": 1.1429, "aoe": 0 },
+      "basicAttack": {
+        "dps": 30,
+        "range": 4,
+        "interval": 1.1429,
+        "aoe": 0
+      },
       "passive": {
         "name": "Kinship",
         "description": "Aura effects also affect summons.",
@@ -341,7 +445,7 @@
         "damage": 0,
         "summonCap": 3,
         "summonDurationSeconds": 20,
-        "summonStatMul": 0.30,
+        "summonStatMul": 0.3,
         "summonRadius": 6
       },
       "active2": {
@@ -356,14 +460,22 @@
       },
       "towerPassive": {
         "name": "Wide Grove",
-        "description": "All towers +10% area.",
-        "mods": { "towerArea": 0.10 }
+        "description": "All towers +8% area.",
+        "mods": { "towerArea": 0.08 }
       }
     },
     {
-      "key": "paladin", "name": "Paladin", "unlockedByDefault": false, "unlockQuest": "sealed_win",
+      "key": "paladin",
+      "name": "Paladin",
+      "unlockedByDefault": false,
+      "unlockQuest": "sealed_win",
       "moveSpeedBonus": 0,
-      "basicAttack": { "dps": 48, "range": 2.5, "interval": 1.1429, "aoe": 1.5 },
+      "basicAttack": {
+        "dps": 48,
+        "range": 2.5,
+        "interval": 1.1429,
+        "aoe": 1.5
+      },
       "passive": {
         "name": "Guardian Stance",
         "description": "+50 defense after standing still 0.5 s; blocked damage charges Wrath.",
@@ -371,7 +483,7 @@
         "kind": "guardian_stance",
         "stanceArmor": 50,
         "stanceSeconds": 0.5,
-        "wrathFraction": 0.80
+        "wrathFraction": 0.8
       },
       "active1": {
         "name": "Clarion Taunt",
@@ -387,18 +499,29 @@
         "cooldownSeconds": 12,
         "radius": 4,
         "damage": 0,
-        "wrathDamageMul": 2.20
+        "wrathDamageMul": 3.2
       },
       "towerPassive": {
         "name": "Consecrated Stone",
         "description": "All towers +10% HP and +5 defense.",
-        "mods": { "towerHp": 0.10, "towerDefenseBonus": 5 }
+        "mods": {
+          "towerHp": 0.1,
+          "towerDefenseBonus": 5
+        }
       }
     },
     {
-      "key": "time_lord", "name": "Time Lord", "unlockedByDefault": false, "unlockQuest": "chrono_veteran",
+      "key": "time_lord",
+      "name": "Time Lord",
+      "unlockedByDefault": false,
+      "unlockQuest": "chrono_veteran",
       "moveSpeedBonus": 0.05,
-      "basicAttack": { "dps": 27, "range": 4.5, "interval": 1.2857, "aoe": 0 },
+      "basicAttack": {
+        "dps": 27,
+        "range": 4.5,
+        "interval": 1.2857,
+        "aoe": 0
+      },
       "passive": {
         "name": "Time Flow",
         "description": "Damage taken becomes a 4 s DoT after one armor mitigation, instead of landing at once.",
@@ -419,10 +542,10 @@
         "markPastDotSeconds": 6,
         "markPresentDotDps": 48,
         "markPresentDotSeconds": 6,
-        "markFutureSlowAmount": 0.20,
+        "markFutureSlowAmount": 0.2,
         "markFutureSlowSeconds": 3,
         "markFutureDotSeconds": 6,
-        "markEliteExecuteFraction": 0.50
+        "markEliteExecuteFraction": 0.5
       },
       "active2": {
         "name": "Time Lock",
@@ -437,12 +560,12 @@
       },
       "towerPassive": {
         "name": "Chronal Surge",
-        "description": "Every 2 TD waves cleared, all towers gain one free uncapped bonus level: +10% range, +10% AoE area (no milestone triggers).",
+        "description": "Every 2 TD waves cleared, all towers gain one free uncapped bonus level: +5% range, +5% AoE area (no milestone triggers).",
         "mods": {},
         "kind": "chronal_surge",
         "waveInterval": 2,
-        "bonusRangeMul": 0.10,
-        "bonusAoeMul": 0.10
+        "bonusRangeMul": 0.05,
+        "bonusAoeMul": 0.05
       }
     }
   ]

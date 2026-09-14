@@ -304,14 +304,9 @@ describe('fb077 — real terrain never strands a ground horde in Act II (qa-play
   // to 7.3M with no fight-length ceiling), not a terrain-stranding
   // regression: this file's other 18 tests cover `updateGroundUnreachable`
   // and the gate/route machinery directly and were all green throughout.
-  //
-  // p12e (2026-09-07): re-measured, not inherited (CLAUDE.md measurement
-  // rules — "a deferral is a measurement with an expiry date"). Landed fix:
-  // the final boss no longer takes the roster-wide `baseHpMul` (it already
-  // had its own fb099-fitted HP, restored to 365,000 unmultiplied), so the
-  // boss clock is back to a real fight length. This seed resolves at
-  // ~18.2 min, `victory`, `bossKilled: true` — well inside the 45-minute cap
-  // below. Un-skipped.
+  // p12e re-anchored `warden_eater`'s HP (BALANCE.md "Boss HP re-anchor
+  // (p12e)"); re-measured on this exact seed/config, the run now resolves
+  // `victory` well inside the 45-minute cap. Un-skipped.
   it('seed 52 + Fourth Gate + cycles 3 resolves instead of hanging forever', () => {
     const content = loadContent();
     const cfg = {

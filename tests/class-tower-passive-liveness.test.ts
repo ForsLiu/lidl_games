@@ -1023,7 +1023,7 @@ describe('c036: equipment and class-tower-passive bonuses on the same stat key m
     expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
   });
 
-  it("Wide Grove (+10% towerArea) stacks with Normal Bracelet (+10% towerArea) to x1.21, not x1.20", () => {
+  it("Wide Grove (+8% towerArea) stacks with Normal Bracelet (+10% towerArea) to x1.188, not x1.18", () => {
     const sporeDef = content.towerByKey.get(SPORE)!;
     const base = effectiveTowerAoe(towerWorld(CONTROL), sporeDef);
     const passiveOnly = effectiveTowerAoe(towerWorld('animist'), sporeDef);
@@ -1031,12 +1031,15 @@ describe('c036: equipment and class-tower-passive bonuses on the same stat key m
     const both = effectiveTowerAoe(towerWorldWithEquipment('animist', ['normal_bracelet']), sporeDef);
 
     // Each source alone reads close to the expected single factor, same
-    // shape as the range pair above.
-    expect(passiveOnly / base, 'Wide Grove alone').toBeCloseTo(1.1, 6);
+    // shape as the range pair above. Wide Grove's own magnitude is p12j's
+    // G8 nerf (10% -> 8%, BACKLOG p12j, QUESTIONS Q196) — the multiplicative
+    // claim this test exists to prove is unaffected by that retune, only the
+    // two literals below are.
+    expect(passiveOnly / base, 'Wide Grove alone').toBeCloseTo(1.08, 6);
     expect(equipOnly / base, 'Normal Bracelet alone').toBeCloseTo(1.1, 6);
     // The joint case: two independent §2 sources on the same key multiply.
-    expect(both / base, 'both sources together').toBeCloseTo(1.21, 6);
-    expect(both / base, 'not silently additive (would read 1.20)').not.toBeCloseTo(1.2, 6);
+    expect(both / base, 'both sources together').toBeCloseTo(1.08 * 1.1, 6);
+    expect(both / base, 'not silently additive (would read 1.18)').not.toBeCloseTo(1.18, 6);
   });
 
   it('proven live, not vacuous — collapsing the two sources into one additive pool reddens both rows above', () => {

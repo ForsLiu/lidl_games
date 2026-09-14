@@ -712,6 +712,154 @@ numerator does not. Recorded red rather than forced; the closure is
 **QUESTIONS Q175** and **BACKLOG p12f**, sequenced after p12c so it tunes
 against p12b/p12c's baseline.
 
+### 6. p12f — `kitBuildMul`: riding the same axis (QUESTIONS Q175/Q193)
+
+Re-diagnosed before picking a route: `class_active`'s damage already
+multiplies by `w.derived.powerMul` exactly like `vswield.ts`'s wielded
+damage does (`classes.ts:280` vs `vswield.ts:375`), so `powerMul` — the
+Constellation/stat stack — was never the gap. What a wielded attack gets and
+a kit source does not is `typeMasteryMul` (`progression.ts`): a per-built-
+tower-type VS boon, **`"uncapped": true`** (`data/vsupgrades.json`), that
+keeps compounding every level-up for the run's length. The kit's own upgrade
+path — skill cards — caps at `maxRank` (2) and stops being offered, so every
+level-up past that point can only grow the wielded side. This is route (a)
+from Q175: `kitPowerMul` (`src/sim/enemies.ts`) now multiplies by
+`kitBuildMul(w)`, which reads the *average* rank across the player's own
+`typeMasteryRanks` through `typeMasteryMul`'s own `1 + perRank * rank`
+formula — the same axis, not an invented one — deliberately the average
+rather than the sum, so the kit never gets ahead of what any single wielded
+attack earns for the same investment. `/src/sim`, not `/data`, because Q175
+already showed no `data/classes.json` magnitude can close a gap the wave-only
+term structurally cannot reach; CLAUDE.md architecture rule 4's data-only
+preference is documented here as the reason a justification is on record.
+
+**Measured (2026-09-07, `KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, fresh
+control on this session's HEAD — p12c/p12e had landed since p12a's own
+control, so this is not a re-use of that number):**
+
+| class | control (wave-only) | treatment (+ kitBuildMul) |
+|---|---|---|
+| swordsman | 0.42% | 0.67% |
+| plaguebringer | 19.69% | **25.71%** |
+| engineer | 0.22% | 0.33% |
+| pyromancer | 0.41% | 0.85% |
+| archer | 0.15% | 0.22% |
+| necromancer | 0.22% | 0.42% |
+| cryomancer | 0.66% | 0.49% |
+| stormcaller | 2.00% | 2.28% |
+| bloodlord | 0.00% | 0.00% |
+| animist | 0.02% | 0.04% |
+| paladin | 0.03% | 0.18% |
+| time_lord | 10.07% | 13.02% |
+
+**Still 0/12 at the 35% target** — honestly recorded, not forced. 11/12
+classes move in the intended direction (cryomancer's control->treatment dip,
+0.66%->0.49%, is a seed-level outcome flip, not the mechanism: see below).
+`bloodlord` stays flat at 0.00% by construction — per Q175, its only
+VS-attributed kit source is `basicAttack.dps`, which is TD-only
+(`src/sim/run.ts:541`) and so contributes nothing to a VS-window metric
+regardless of any multiplier on top of it; closing `bloodlord`'s (and
+`paladin`'s multiplier-shaped-kit share, which *did* move here, 0.03%->0.18%,
+via its Judgement Active) own reading is a separate, still-open problem this
+item does not claim to have solved. Distinct top-source count moved 1/12 ->
+3/12 (`mortar`/`frost_obelisk`/`ballista`), informative only — G8's diversity
+clause is p12d's, not this item's.
+
+Two seeds (of 24 run) flipped outcome (`necromancer` 1/2->0/2, `cryomancer`
+1/2->2/2) — the same run-shape sensitivity every prior p12a/p12c/p12e change
+in this arc showed at this sample size, not attributed to a specific cause;
+a 2-seed sample is not evidence about which seed-level branch flipped, only
+about the aggregate share column, per CLAUDE.md's own measurement rules.
+
+**Gate re-confirmation (same HEAD, before -> after this change):**
+
+| gate | before | after |
+|---|---|---|
+| G1 (`tests/p10d-run-length.test.ts`, 24 seeds) | 3/3 pass, `[35%,70%]` win band held, 0 tick-cap timeouts | 3/3 pass, unchanged |
+| G14 (`tests/boss.test.ts`, full file) | 14/14 pass, scripted kill 119.8s | 14/14 pass, scripted kill 121.3s |
+
+No band violation either side. `npm run test:fast` green apart from the
+pre-existing, unrelated `q15`/`q45` `tools/fuzz-command-domain` scratch-
+directory failures (confirmed identical on unmodified HEAD via `git stash`).
+
+**What this does not claim.** The dominant gap Q175 named — the sheer breadth
+of simultaneously-summed wielded sources across every built tower type, plus
+`upgradeStatMul`'s tier-upgrade scaling baked into `wielded.damage` itself —
+is untouched by this item; `kitBuildMul` closes only the one axis the kit was
+completely exempt from (uncapped Mastery stacking). Route (b) (cut
+VS-wielded scaling) and a `typeMasteryMul`-scale second pass on route (a)
+remain open if the target is revisited; not attempted here as out of a
+single [balance] item's blast radius, same reasoning Q175 gave for filing
+this as its own item.
+
+**Follow-up #1 (2026-09-07, independent code-review Major finding) —
+inadequate, superseded by follow-up #2 below.** `kitPowerMul` applied at the
+single `damageEnemy` choke point to every `class_`-prefixed source in
+**both** TD and VS (it already "compounds with TD waves cleared" before this
+item), so `kitBuildMul` rode into the TD phase too — a blast radius the
+before/after table above didn't check, since G1/G14 are both VS/boss-facing.
+First attempt at closing this spot-checked `swordsman` (byte-identical to
+its pre-p12f reading) and `time_lord` (12/12 -> 11/12, called noise) and
+concluded no regression. **That conclusion was wrong** — see follow-up #2.
+
+**Follow-up #2 (2026-09-07, independent qa-playtester, adversarial) — real
+bug found and fixed.** The spot-check above only exercised `swordsman`'s
+*losing* seeds, which all die in Act I wave 3 before any VS phase — a case
+that structurally cannot show a VS-accumulated effect. qa-playtester proved
+the actual mechanism directly: `w.typeMasteryRanks` is never reset between a
+run's VS blocks (`world.ts`, declared once), so on any class/seed that
+*survives* past its first VS block, `kitBuildMul` carries into every later
+TD block too, growing further each subsequent cycle since the boon is
+`uncapped: true`. Measured via the project's own `class-kit-damage-share.
+test.ts` harness (a `git worktree` at the pre-p12f commit vs HEAD, seeds
+1-2): `ownShare` (the whole-run metric G8's diversity clause reads) was
+inflated **swordsman 0.56%->0.88%, plaguebringer 14.05%->17.73%** — real,
+reproduced twice by independent methods.
+
+**Fix**: `kitBuildMul` (`src/sim/enemies.ts`) now gates on `w.huntsWarden`,
+returning exactly `1` outside VS — the same predicate `damageByWeaponVs`
+itself already uses to mean "VS only" (`world.ts`'s own comment on that
+field). Proven at the mechanism level, not inferred from any one class's
+seed set: two new pinned unit tests in `tests/p12a-kit-power.test.ts` assert
+`kitPowerMul` is exactly the wave-only term in TD with nonzero ranks
+invested, and that it "turns back on" the instant `w.phase` re-enters `act2`
+carrying whatever ranks an earlier VS block invested — both green. The
+existing four `kitBuildMul` unit tests were updated to set `w.phase =
+'act2'` (they'd been asserting VS-shaped behavior against a world that
+defaults to a TD phase, which the fix would otherwise have silently broken).
+G1 (`tests/p10d-run-length.test.ts`) and G14 (`tests/boss.test.ts`) both
+re-run clean after the fix, matching this item's own already-recorded
+before/after.
+
+**The whole-run `ownShare` re-measurement post-fix is not simply "back to
+baseline," and that's expected, not a residual bug**: `ownShare` still
+includes the *intended* VS-phase boost (that's this item's whole point), so
+post-fix `swordsman`/`plaguebringer` read 0.72%/20.72% against the pre-p12f
+0.56%/14.05% — higher, correctly, since VS kit damage did legitimately grow.
+The reading is not perfectly monotone against the pre-fix buggy numbers
+either (plaguebringer's post-fix 20.72% is above even the buggy 17.73%),
+which at `KIT_SHARE_SEEDS=2` is exactly the "which seed's trajectory wins"
+sensitivity this codebase's own measurement rules warn about (a code change
+early in a run can flip which seed reaches which wave, same class of
+chaotic divergence fb152's DoT-retiming documented) — not itself evidence of
+a defect, and not chased further at n=2. The unit tests, not this whole-run
+number, are what proves the TD leak is closed. fb177 still separately owns
+G8's own pre-existing staleness (unrelated to this item).
+
+**Independently re-verified (second qa-playtester pass, against the actual
+fix rather than the first wrong follow-up):** confirmed the gate sits at the
+correct choke point — `dotVaryingMul` (which calls `kitPowerMul` ->
+`kitBuildMul`) is invoked live at DoT *tick* time, not cached at application
+time, so a DoT stack applied in VS and still ticking after a phase flip to
+TD re-evaluates `w.huntsWarden` every frame and drops to `1` immediately, no
+stale-multiplier window. Re-ran the `ownShare` measurement at a larger
+6-seed sample for more confidence: `swordsman` 0.88%, `plaguebringer`
+18.66% — both close enough to the 2-seed reading to support "seed-trajectory
+noise, not a residual leak" over "a second undiscovered channel," though
+qa-playtester's own recommendation stands: re-run at this file's standard
+12-seed depth before treating any single ownShare number here as a settled
+baseline. G1/G14/`tsc --noEmit` all re-confirmed clean.
+
 ## Tier ladder (p12b) — BALANCE DIRECTION v2 §B
 
 > **Superseded by "T1 re-anchor (p12c)" below.** p12b's *mechanism* stands —
@@ -982,11 +1130,54 @@ The deepening is still a real trade rather than a defect — a tower that soloed
 the whole curve was a statement about a difficulty the bot won 100% of the time
 with the Core untouched — and it is the strongest argument against keeping the
 anchor at 20, which is an owner call, not a silent one. The final boss also takes the
-roster multiplier — historically 365,000 → 7.3M at T1, until its fight-length
-case blew past the gate cap on the slow seeds (p12e, 2026-09-07): `warden_eater`'s
-*authored* HP was re-anchored 365,000 → 18,250 to cancel the multiplier back to
-the original 365,000 effective, restoring the fight length fb099 fit. Its
-fight-length case still passes, measured rather than assumed.
+roster multiplier (365,000 → 7.3M at T1); its fight-length case still passes,
+measured rather than assumed.
+
+### Boss HP re-anchor (p12e)
+
+**The above "still passes, measured" reading was a single seed at T1; profiled
+across 24 seeds at T3 (the reference tier) the boss fight is a 3x-wide tail.**
+`baseHpMul: 20` applies to `warden_eater` the same as every other enemy, but
+the boss's own pacing/escalation ramps (`PACING_*`/`ESCALATION_*`,
+`src/sim/boss.ts`) were fitted against the pre-p12c magnitude. Profiling the
+six T3 seeds that were censoring at the 45-minute cap (QUESTIONS Q177) showed
+Act I holding near-constant at 24.6-25.7 min on every seed while
+`bossKillSeconds` ranged **381-1187s** — the entire run-length spread was the
+boss fight, not pacing elsewhere.
+
+Two candidate fixes were on the table: re-anchor `warden_eater.hp` in
+`/data`, or exempt the boss from `baseHpMul` in code. The two produce
+identical runtime numbers by construction (`18,250 x baseHpMul(20) =
+365,000`), so only the re-anchor needed an actual run — measured rather than
+assumed (T3, `runScripted`, `hybrid`, seeds 1-24, cap lifted to 120 min so
+nothing censors either side):
+
+| | win rate | boss-kill-time range | longest run (of 24) |
+|---|---|---|---|
+| HEAD (`baseHpMul` applied to boss) | 11/24 (45.8%) | 313-1153s (3.7x) | 51.15 min |
+| re-anchored (`warden_eater.hp` /20) | 10/24 (41.7%) | 190-226s (1.19x) | 36.3 min |
+
+Chose the re-anchor: `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250
+(exactly /20) so the boss's effective HP nets the roster multiplier back out
+and keeps only p12b's deliberate tier-rung buff — at T1 this is bit-identical
+to the boss's pre-p12c fixture (36,500), so every T1-pinned boss test
+(`tests/boss.test.ts`'s spawn/mechanism cases, the fb099 fight-length floor)
+is unaffected by construction, not by re-measurement. At T3 the win rate moves
+by one seed (11->10 of 24), still comfortably inside G1's `[35%,70%]` band,
+and the tick-cap censoring is gone entirely: 0 of 24 seeds sit at `'running'`
+even at the original 45-minute cap (longest run 36.3 min). The two other
+levers this item's text offered (exempting the boss from `baseHpMul` in code,
+or leaving `/data` alone) were not needed once the re-anchor alone closed the
+gate — a `/data`-only fix over an engine change per CLAUDE.md architecture
+rule 4.
+
+`tests/p10d-run-length.test.ts`'s "no seed reaches the tick cap" case and
+`tests/fb077-terrain-wiring.test.ts`'s seed-52 soak (previously `running` at
+120 min with the boss at 1.10M/7.30M hp) are both re-measured and un-skipped.
+`tests/boss.test.ts`'s T1 spawn/mechanism case now pins 18,250 instead of
+365,000 (same derivation, smaller authored anchor). Logged as **QUESTIONS
+Q192**; p12d (the gate-text/band rewrite this item was blocking) can now
+measure against a baseline with zero timeout censoring.
 
 ## Chronal Surge's uncapped `towerAreaMul` — a pin, not a cap (fb083)
 
