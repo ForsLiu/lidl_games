@@ -246,8 +246,9 @@ const NO_NUMBER: readonly { cls: string; slot: Slot; why: string }[] = [
     slot: 'passive',
     why:
       'Kinship\'s sentence is "Aura effects also affect summons" — a routing rule with no magnitude. ' +
-      '(§4.2 additionally states a "summon cap +1" for it, which is unimplemented and tracked as a ' +
-      "row of c008's ledger; it is not in the shipped sentence, so it is not a claim here.)",
+      '(§4.2 additionally states a "summon cap +1" for it; c004 authored that half onto the passive\'s ' +
+      "`mods` (c008's ledger), but the shipped sentence still only states the aura routing rule, so " +
+      'the cap is not a claim here.)',
   },
 ];
 

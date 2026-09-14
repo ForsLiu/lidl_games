@@ -669,6 +669,16 @@ describe('c016 — a rank moves the branch it names, and nothing else', () => {
  * (`summonCap + rank * perRank`), not merely as movement: the authored cap
  * being reachable is half of what was broken, and a ladder that only moved
  * would still pass with the Animist stuck one spirit short of its own 3.
+ *
+ * **c004 follow-up (2026-09-14).** BACKLOG-CONTENT c004 gave Kinship a
+ * generic, rank-independent `summonCap: 1`, raising Manifest's true top cap
+ * from 5 (`3 + maxRank*perRank`) to 6. At the shipped 4 s cooldown the
+ * cadence ceiling was exactly 5 — the same one-point-dead-on-arrival bug
+ * c018 fixed once, reopened by an unrelated `/data` change to the *other*
+ * side of the cap. Cooldown (still the one free ⚖ lever, per above) moved
+ * 4 -> 3.2 s, restoring ~20% headroom against the new cliff — the same
+ * margin c018/c041 recorded for the pre-c004 cap of 5 — rather than landing
+ * exactly on the new boundary.
  */
 /**
  * The most live summons an Active can ever hold: one arrives every `cooldown`,
@@ -722,12 +732,19 @@ describe('c018 — both summon caps are reachable at the real cast cadence', () 
     const row = content.classByKey.get(k.classKey)!;
     const slot: 1 | 2 = row.active1.summonCap !== undefined ? 1 : 2;
     const eff = slot === 1 ? row.active1 : row.active2;
+    // c004 (BACKLOG-CONTENT): Animist Kinship now authors a generic, rank-
+    // independent `summonCap: 1` on its own passive `mods` — folded into
+    // `w.derived.summonCapBonus` at all three `classes.ts` summon sites
+    // alongside `classLineBonus`. Zero for every other class (Engineer's
+    // passive authors no `summonCap`), so this is read generically rather
+    // than hardcoded to 'animist'.
+    const kinshipBonus = row.passive.mods.summonCap ?? 0;
     // Long enough for the slowest ladder to fill: every rank needs
     // `cap + maxBonus` casts at one cooldown apiece, plus two cooldowns of
     // slack so the last summon is measured while the first is still alive.
     // Derived, never a literal — a cooldown retune lengthens the window too.
-    const windowSeconds = ((eff.summonCap ?? 0) + maxBonus(k.classKey) + 1) * (eff.cooldownSeconds ?? 1);
-    const target = (eff.summonCap ?? 0) + maxBonus(k.classKey);
+    const windowSeconds = ((eff.summonCap ?? 0) + maxBonus(k.classKey) + kinshipBonus + 1) * (eff.cooldownSeconds ?? 1);
+    const target = (eff.summonCap ?? 0) + maxBonus(k.classKey) + kinshipBonus;
 
     it(`${k.classKey} ${k.name}: the cadence itself reaches the card's full ceiling`, () => {
       expect(
@@ -744,7 +761,7 @@ describe('c018 — both summon caps are reachable at the real cast cadence', () 
       // card's `perRank` moves them together — this pins the mechanism, not a
       // magnitude (c005's convention, kept).
       expect(peaks, `${k.name}'s live count did not follow the card: ${peaks.join(' -> ')}`).toEqual(
-        [0, 1, 2].map((n) => (eff.summonCap ?? 0) + n * card.perRank),
+        [0, 1, 2].map((n) => (eff.summonCap ?? 0) + n * card.perRank + kinshipBonus),
       );
     });
 

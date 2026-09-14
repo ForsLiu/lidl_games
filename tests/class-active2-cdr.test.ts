@@ -857,19 +857,27 @@ describe('c041: summon-cooldown headroom re-measured against current /data', () 
     expect(headroom, `Engineer headroom rose above 15% (now ${(headroom * 100).toFixed(2)}%) — c041's pin is stale, re-measure`).toBeLessThan(0.15);
   });
 
-  it('Animist Manifest: the top cap rank (5) sits close to its cliff, same margin c018 recorded (~20%)', () => {
+  it('Animist Manifest: the top cap rank (6) sits close to its cliff, same margin c018 recorded (~20%)', () => {
     const eff = active1('animist');
-    const topCap = (eff.summonCap ?? 0) + lineCard('animist').maxRank * lineCard('animist').perRank;
+    const animist = content.classByKey.get('animist')!;
+    // c004 (BACKLOG-CONTENT, 2026-09-14): Kinship now authors a generic,
+    // rank-independent `summonCap: 1` on its own passive `mods`, raising the
+    // true top cap from 5 to 6 — read generically (0 for any class whose
+    // passive authors no `summonCap`), same as `class-line-bonus.test.ts`'s
+    // own `kinshipBonus`.
+    const kinshipBonus = animist.passive.mods.summonCap ?? 0;
+    const topCap = (eff.summonCap ?? 0) + lineCard('animist').maxRank * lineCard('animist').perRank + kinshipBonus;
     const cliff = cliffFor(eff, topCap);
     const headroom = (cliff - eff.cooldownSeconds) / cliff;
-    // c018 (2026-09-04) recorded "cliff ~5.00 s vs shipped 4 s, ~20% headroom".
-    // Re-measured 2026-09-07 against unchanged `/data`: cliff ≈4.996 s, ~19.9%
-    // headroom — an almost exact match, i.e. no drift at all. Unsurprising:
-    // neither `p12c`'s `baseHpMul` nor `fb077`'s terrain generation touches
-    // `data/classes.json`'s Manifest cooldown/duration/cap fields, and this
-    // measurement has no seed or wave-scaling dependency to move it — the
-    // re-check confirms that rather than assuming it.
-    expect(cliff, `Animist Manifest cliff moved off ~5.00s (now ${cliff.toFixed(4)}) — re-run c041's derivation`).toBeCloseTo(4.996, 2);
+    // c018 (2026-09-04) recorded "cliff ~5.00 s vs shipped 4 s, ~20% headroom"
+    // against the pre-c004 top cap of 5. c004 raised the top cap to 6 (the
+    // reachability bug c018 fixed once, reopened by Kinship's new +1 term —
+    // see class-line-bonus.test.ts's own c004 follow-up note) and moved the
+    // cooldown 4 -> 3.2 s to restore the same ~20% margin against the new
+    // cliff rather than landing on its boundary: cliff ≈3.997 s, ~19.9%
+    // headroom, deliberately re-matched to the pre-c004 ratio, not a
+    // coincidence to re-verify against drift.
+    expect(cliff, `Animist Manifest cliff moved off ~4.00s (now ${cliff.toFixed(4)}) — re-run c041's derivation`).toBeCloseTo(3.997, 2);
     expect(headroom, `Animist headroom dropped below 15% (now ${(headroom * 100).toFixed(2)}%) — flag for p10r`).toBeGreaterThan(0.15);
     expect(headroom, `Animist headroom rose above 25% (now ${(headroom * 100).toFixed(2)}%) — c041's pin is stale, re-measure`).toBeLessThan(0.25);
   });

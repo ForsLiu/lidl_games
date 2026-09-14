@@ -1044,66 +1044,24 @@ const LEDGER: readonly Figure[] = [
     clause: 'Kinship (passive)',
     figure: 'summon cap +1',
     spec: 1,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'unimplemented',
-      tracked: 'c004 (BACKLOG-CONTENT, blocked out of Scope)',
+    path: ['passive', 'mods', 'summonCap'],
+    status: { kind: 'match' },
+    note:
+      'c004 (BACKLOG-CONTENT) closed this row: fb084 (2026-09-07) first added a generic ' +
+      '`summonCap` `StatKey`/`Derived.summonCapBonus` folded into all three `classes.ts` summon ' +
+      "sites, with nothing yet authored to feed it, so the Animist's live cap stayed unchanged " +
+      "and this row read `unimplemented`. c004 authors `summonCap: 1` on Kinship's own `mods` " +
+      "— no class-key check in code — closing the clause entirely in `/data`, per architecture " +
+      'rule 4. tests/class-passive-liveness.test.ts (c006) carries the behavioural proof: the ' +
+      'live cap is the authored one +1 for the Animist, unchanged for Engineer/Necromancer.',
+    behaviour: {
+      coveredBy: 'tests/class-passive-liveness.test.ts',
+      anchor: /animist Kinship, summon-cap half: c004 grants \+1/,
       why:
-        "`data/classes.json`'s Kinship row authors only the aura half (`mods: {}`, no `kind`), " +
-        'and the three summon-cap sites in `classes.ts`, while now also folding in a generic ' +
-        '`summonCapBonus` (fb084), still have nothing to fold in — Kinship\'s own passive ' +
-        'authors no such source.',
-      in: 'passive',
-      absentKey: /cap|summon|minion|spirit|limit|retinue|kinship/i,
-      knownKeys: ['active1.summonCap', 'active1.summonDurationSeconds', 'active1.summonStatMul', 'active1.summonRadius'],
-      // The clause could just as easily land in code as in `/data` — QA
-      // implemented it as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at
-      // the Manifest cap site and this row stayed green. These are the only
-      // three places a summon cap is computed; any added term reddens the row.
-      //
-      // fb084 (2026-09-07) added a *generic* `summonCap` StatKey and folded
-      // `w.derived.summonCapBonus` into all three sites below, so a passive
-      // can grant the bonus without a class-key check — but Kinship's own
-      // `data/classes.json` row still authors `mods: {}`, so the Animist's
-      // live cap is unchanged and this clause is still genuinely
-      // unimplemented. Re-pinned to the new lines (fb084's enabler is the
-      // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
-      // authoring `summonCap: 1` on Kinship's `mods`.
-      //
-      // A qa-playtester pass on fb084 found the generic bonus can drive the
-      // Pop Turret/Manifest total to <=0, which `spawnClassSummon` would
-      // otherwise read as its own "uncapped" sentinel (Bone Pylons' literal
-      // `0` call) — fixed with an explicit `cap <= 0` guard at both sites,
-      // hoisting the expression into a named `const cap` in the process (a
-      // second re-pin, still no `/data` change).
-      srcLines: [
-        {
-          file: CLASSES_TS,
-          needle: 'summonCap',
-          lines: [
-            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
-            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
-            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
-          ],
-        },
-        // Pinning the three cap lines catches a `+1` folded *into* them, but
-        // not a new line beside them (`const capK = cap + (isAnimist ? 1 : 0)`).
-        // So every mention of the class in the sim is pinned too: today all
-        // five are summon-kind strings and not one is a class-key branch, so
-        // any Animist special case anywhere in `src/sim` reddens this row.
-        {
-          file: 'src/sim',
-          needle: 'animist',
-          lines: [
-            "'animist_spirit',",
-            "w.classSummons = w.classSummons.filter((s) => s.kind !== 'animist_totem');",
-            "kind: 'animist_totem',",
-            "if (s.kind === 'animist_totem' && !w.huntsWarden) {",
-            "const totem = w.classSummons.find((s) => s.id === e.tauntSourceId && s.kind === 'animist_totem');",
-          ],
-        },
-      ],
+        "c027's own pointer: the block proving Kinship's `summonCap` mod is load-bearing, not a " +
+        'dead field — it casts Manifest past the authored cap and asserts the live count is ' +
+        'exactly one more, then repeats the cast loop for Engineer/Necromancer to prove the ' +
+        "bonus does not leak off the Animist's own passive scope.",
     },
   },
   {
@@ -1907,7 +1865,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 68 match · 10 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 0 defect', () => {
+  it('census: 69 match · 10 retuned · 1 elsewhere · 8 in code · 1 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1924,12 +1882,13 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     expect(census).toEqual({
       // p12a moved three ⚖-marked figures match -> retuned (pyromancer
       // flameDps/burnDps, cryomancer shatterDamage). fb082 closed the one
-      // remaining defect (Poison Barrel's cadence) as a match.
-      match: 68,
+      // remaining defect (Poison Barrel's cadence) as a match. c004 closed
+      // Animist Kinship's summon-cap clause, unimplemented -> match.
+      match: 69,
       retuned: 10,
       elsewhere: 1,
       in_code: 8,
-      unimplemented: 2,
+      unimplemented: 1,
       defect: 0,
     });
     expect(LEDGER).toHaveLength(89);
@@ -2045,7 +2004,7 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
       // rather than surfacing later as whichever ledger row happened to
       // reference it (code review).
       const EXPECTED: Readonly<Record<string, number>> = {
-        'tests/class-passive-liveness.test.ts': 4,
+        'tests/class-passive-liveness.test.ts': 5,
         'tests/class-tower-passive-liveness.test.ts': 14,
       };
       expect(
@@ -2053,7 +2012,7 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
         `${file}: the KILLS parse found a different number of mods-deleting entries — the table moved, was reshaped, or grew`,
       ).toBe(EXPECTED[file]);
     }
-    expect(MODS_ROWS.length, 'the ledger has no stat-key rows — the path shape changed').toBe(16);
+    expect(MODS_ROWS.length, 'the ledger has no stat-key rows — the path shape changed').toBe(17);
   });
 
   it('every stat-key row carries a behavioural pointer, and only stat-key rows do', () => {

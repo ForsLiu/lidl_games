@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — lane/content: BACKLOG-CONTENT c004 done.** Closed SPEC-
+  FINAL §4.2's Animist "summon cap +1" clause: Kinship's passive now authors
+  `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), read through the
+  generic `summonCap` StatKey/`Derived.summonCapBonus` fb084 (main lane,
+  2026-09-07) had already wired into all three `classes.ts` summon sites —
+  no class-key check added. Found and fixed a real bug while closing it:
+  the unconditional +1 pushed Animist Manifest's true top cap from 5 to 6
+  (3 authored + 2 skill-card max + 1 Kinship), which the shipped 4s cooldown
+  could not reach at real cast cadence (ceiling 5) — reopening the exact
+  "cadence cliff" BACKLOG-CONTENT c018 fixed once before for this same
+  ability. Retuned `active1.cooldownSeconds` 4 -> 3.2 (cooldown is the one
+  free, non-spec-authored lever for this kind of fix), restoring ~20%
+  headroom against the new ~3.997s cliff — the same margin c018/c041 had
+  recorded before this change, not an arbitrary new number. Updated the §4
+  spec-numbers ledger row and its `c027` cross-check machinery, the c018/
+  c041 cadence and headroom re-measurements to read the bonus generically
+  off `/data`, `class-passive-liveness.test.ts`'s route classification and
+  negative-control table, and mechanically regenerated `tests/
+  q7-loader-holes.ts`'s loader-fuzz census (one new line, via `Q7_RECORD=1`,
+  not hand-edited to force green). code-reviewer APPROVE (no Critical/Major).
+  `npx tsc --noEmit` clean; `npm run test:fast` green (4297 passed / 34
+  pre-existing skips, no new failures) — refs: SPEC-FINAL §4.2, BACKLOG-
+  CONTENT.md c004/c018/c041.
+
 - **2026-09-14 — fb174 done: q15's whole census suite had been silently
   `.skip`-ed since before fb172, not just noise-band flaky.** The filed
   report (below) was right that a spurious `hangs` under concurrent load
