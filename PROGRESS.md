@@ -5,6 +5,71 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — main lane: BACKLOG p13a done — per-class survivability
+  bands landed, re-measured honestly, widens G8's red rather than closing
+  it.** `maxHpMul`/`defenseBonus` (QUESTIONS Q196 ORDER) added to
+  `data/classes.json`'s schema and all 12 rows, folded into `baseRunStats`
+  the same way `moveSpeedBonus` already is — inert at the shipped default
+  for 8 of 12 classes (pinned, `tests/p13a-survivability-bands.test.ts`).
+  The four elevated classes (swordsman x1.6/+10, bloodlord x1.4/+5, paladin
+  x1.5/+10, necromancer x1.2/+5) were re-measured live at the real 12-seed
+  T3 cadence before shipping — **every one measured worse**, not better:
+  swordsman 2->0/12, necromancer 4->0/12, paladin 5->0/12 (was a live,
+  passing test), bloodlord 5->3/12 (also live). Roster G8 in-band count
+  drops **9/12 -> 7/12**, under SPEC-FINAL's own >=9/12 floor. The
+  mechanism is not wasted, though: swordsman's diagnosed Night-1
+  `defeat_warden`@w3 wipes fell 10/12 -> 7/12 — the band buys real survival
+  past wave 3 — but those saved seeds fall instead to the roster's other
+  documented wave-11-to-17 `defeat_core` wall (p10i), a second bottleneck
+  the first was masking. Shipped the owner's literal ⚖ figures rather than
+  silently substituting different numbers; all four re-pinned `.skip` with
+  honest numbers. Logged as **QUESTIONS Q206** (owner verdict: pending) —
+  a further retune needs its own verdict, not a silent second round inside
+  this item. **STATUS.md's G8 snapshot is now stale relative to this
+  change** (last regenerated before p13a; a fresh `npm run status` run
+  would show 7/12, not the 9/12 the stale snapshot still reads) — flagged
+  for the next `npm run status` regeneration, not run here per CLAUDE.md
+  rule 8 (not this item's own acceptance criterion). code-reviewer/
+  qa-playtester per Full tier below — refs: SPEC-FINAL §14 G8/G14,
+  QUESTIONS Q196/Q206, BACKLOG p13a/p12j/fb177/p10i.
+
+  **Follow-up finding, same session:** a full (non-targeted) run of
+  `tests/p6e-class-diversity.test.ts` surfaced three further failures this
+  item's diff cannot cause — `animist` (8/12 -> 4/12) and the "G8
+  companions" `T5` case (both use classes at the inert x1.0/+0 default:
+  animist itself, `engineer` for T5) and the pinned fingerprint-distance
+  failure count (16 -> 27, partly explained by the four real p13a changes,
+  partly not). Not fixed here — out of this item's scope, and animist's
+  drift most likely predates this session (BACKLOG-CONTENT c004, merged to
+  master the same day before this session started, added `mods: {
+  summonCap: 1 }` to Animist's own Kinship passive; nobody has re-run this
+  fast-tier-excluded file against it since). Flagged for a dedicated
+  re-measurement item rather than chased inside p13a.
+
+- **2026-09-14 — main lane: processed owner feedback `verdicts-q168-205.md`.**
+  Recorded a verdict tag against all 38 entries QUESTIONS Q168-Q205 (the
+  general "every unnamed pending entry is approved as its chosen default"
+  rule plus explicit named verdicts, two OVERRIDEs, and several ORDERs), all
+  now `approved`/`OVERRIDE`/no remaining `pending` tags in that range. Filed
+  the verdict file's PRIORITY DIRECTIVE as four queue items in priority
+  order: **p13a** (per-class survivability bands, Q196 — swordsman/
+  bloodlord/paladin/necromancer get `maxHpMul`/`defenseBonus`, all others
+  inert at x1.0/+0), **fb163 reopened** (Q180/Q191 OVERRIDE — split
+  `numberScale` into economy A (scaled) and economy B (character/Core/
+  structure HP, equipment flats — not scaled), inverse-factor the five
+  crossing constants, revert fb164's economy-B prose), **fb183** (Q175/Q193
+  — restate BALANCE.md's kit-relevance target at 15% ⚖ from TD wave 12 for
+  the nine damaging-kit classes, bloodlord/engineer/animist record-only),
+  and **fb184** (Q181 — loader refuses an unknown top-level key in
+  `modifiers.json`, closing the `numberScal3`-typo silent-mis-scale class).
+  Directive item (4) (check the lane-content stall) found no stale branch/
+  PR — c004 landed today — and recorded the real blocker (Scope-boundary,
+  not overlap) in BACKLOG-CONTENT.md's new note. Also: fb129's acceptance
+  gained the Q171(b) Burrower-window 3s ⚖ cap; Q171(a)'s Act II high-ground
+  residual closed as a non-issue, no code. Feedback file moved to
+  `feedback/processed/`. — refs: QUESTIONS Q168-Q205, BACKLOG p13a/fb163/
+  fb183/fb184/fb129.
+
 - **2026-09-14 — lane/content: BACKLOG-CONTENT c004 done.** Closed SPEC-
   FINAL §4.2's Animist "summon cap +1" clause: Kinship's passive now authors
   `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), read through the
