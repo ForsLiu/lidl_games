@@ -916,3 +916,27 @@ Q91 and Q102 corrections if not yet done.
   reading specifically (e.g. to check whether the tier ladder skews any one
   class's band differently from the rest), that is new work, not implied by
   this one.
+
+- **Q200. [fb174] A single retry plus an 8000 ms deadline does not close q15's
+  census-`hangs` gap under arbitrary concurrent load — only under the load
+  this repo's CI actually runs.** fb174's own qa-playtester pass, re-checking
+  the retry-once fix, forced 5 concurrent `vitest run` processes onto the
+  same file on a 4-core host (a load shape this repo's CI does not produce —
+  one `vitest run` per suite, not five stacked on one file) and got 5/5
+  failures; two full concurrent `npm run test:fast` invocations failed 1/2.
+  Both attempts still exceeding a deadline at that load level is expected —
+  no bounded retry count or deadline is safe against unbounded contention,
+  and BACKLOG-TERRAIN.md independently logs q15 as chronically load-sensitive
+  across unrelated sessions. Chose not to chase this further: raised the
+  default deadline to 8000 ms (fb173's own already-measured concurrent-safe
+  ceiling, `bench/q44-worker-timing-probe.ts`, 0/75 over budget) plus the
+  retry, and left a `hangs` verdict that survives both as a loud, honest
+  test failure rather than a silent hole — the gap fb174 was actually filed
+  to close. Serializing q15 against sibling lanes' CI runs, or an unbounded
+  retry loop, would be new scope past what fb174 asked for. — Reason:
+  CLAUDE.md rule 5 (never stop to ask, choose and log) and rule 6 (only two
+  distinct approaches tried here — retry alone, then retry + re-measured
+  deadline — both already exceed what a single backlog item should chase;
+  a real fix needs its own item if the residual load level ever shows up in
+  this repo's actual CI, not this session's stress-test rig). — (owner
+  verdict: pending)

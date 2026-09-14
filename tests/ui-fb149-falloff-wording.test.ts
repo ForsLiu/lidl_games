@@ -284,68 +284,15 @@ describe('fb149: one wording rule, applied where and only where the engine decay
 /**
  * code-reviewer finding (f): this is the fifth sentence-accuracy defect in
  * `class-info.ts` (fb108, fb112, fb146, fb148, fb149), and the first pass at
- * this one missed two kinds because the affected set was reasoned about rather
- * than enumerated. The table below has to name EVERY `ClassEffect` kind that
- * ships, so a new kind fails here until someone classifies it — which is what
- * would have caught `ground_poison` and `dash_trail` on the first run.
- *
- * The stronger form the reviewer asked for — probe every kind and require the
- * clause IFF the measured per-target damages differ — needs a per-kind firing
- * harness (charges, stored Wrath, ground-field ticking, summon lifetimes) well
- * beyond this item; filed as fb174.
+ * this one missed two kinds because the affected set was reasoned about
+ * rather than enumerated. This file's own first version shipped a DECLARED
+ * table here (naming every kind's DECAYS/FLAT bucket by hand) — exactly the
+ * kind of table whose first draft missed `ground_poison`/`dash_trail`. The
+ * reviewer's stronger ask (probe every kind and require the clause IFF the
+ * measured per-target damages actually differ, no declared table to go
+ * stale) is now `tests/ui-fb174-measured-falloff-guard.test.ts` — the
+ * declared table that used to live in this file is deleted, not just moved.
  */
-describe('fb149: every shipped kind is classified, so a new one cannot slip through', () => {
-  const DECAYS = new Set(['charge_nova', 'judgement', 'dash_line', 'charge_pierce', 'ground_poison', 'dash_trail']);
-  const FLAT = new Set([
-    'burst_damage',
-    'frost_nova',
-    'chain_lightning',
-    'dash_volley',
-    'time_lock',
-    'dash_heal',
-    'time_mark',
-    'overload',
-    'blood_tithe',
-    'death_pact',
-    'repair_heal',
-    'ice_wall',
-    'clarion_taunt',
-    'recall_totem',
-    'poison_boost',
-    'raise_skeletons',
-    'summon_turret',
-    'manifest_spirit',
-  ]);
-
-  it('every Active1/Active2 kind in data/classes.json is in exactly one bucket', () => {
-    const kinds = new Set<string>();
-    for (const cls of content.classes.classes) {
-      kinds.add(cls.active1.kind);
-      kinds.add(cls.active2.kind);
-    }
-    expect(kinds.size).toBeGreaterThan(0);
-    const unclassified = [...kinds].filter((k) => !DECAYS.has(k) && !FLAT.has(k));
-    expect(unclassified).toEqual([]);
-    // ...and neither bucket names a kind that no longer ships, which would
-    // quietly excuse a real one from the check.
-    expect([...DECAYS, ...FLAT].filter((k) => !kinds.has(k))).toEqual([]);
-  });
-
-  it('every kind in the decaying bucket has a falloff clause, and no flat kind does', () => {
-    for (const cls of content.classes.classes) {
-      for (const which of ['active1', 'active2'] as const) {
-        const eff = which === 'active1' ? cls.active1 : cls.active2;
-        const text = markup(cls.key, which);
-        const hedged =
-          text.includes(LINE_FALLOFF_CLAUSE.trim()) ||
-          text.includes(AOE_FALLOFF_CLAUSE.trim()) ||
-          text.includes(PATCH_FALLOFF_CLAUSE.trim());
-        expect([cls.key, which, eff.kind, hedged]).toEqual([cls.key, which, eff.kind, DECAYS.has(eff.kind)]);
-      }
-    }
-  });
-});
-
 describe('fb149: the clauses themselves, and the case that made one of them false', () => {
   it('Flame Road aimed ALONG a row is not a single blast, which is why it has its own clause', () => {
     // qa-playtester finding: with the dash running down the row of probes, the
