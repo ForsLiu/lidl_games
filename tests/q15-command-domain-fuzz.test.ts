@@ -27,6 +27,7 @@ import {
   runCoreUpgradeProbe,
   runSingleProbe,
   type CensusEntry,
+  type Family,
 } from '../tools/fuzz-command-domain';
 import { runInPhase } from '../tools/fuzz-input';
 import { buildTower } from '../src/sim/towers';
@@ -59,61 +60,21 @@ const EXPECTED_FIELD_KEYS = [
 ] as const;
 
 /**
- * fb119 (this session) — root-caused, `.skip`-ed rather than force-fixed.
- *
- * Every case in this file that goes through `probeInWorker`/`runAliasProbe`
- * — which is all of them, directly or via `runCensus()`'s `beforeAll` — fails
- * the same way in this session's environment (Node 22.22.2, tsx 4.23.12):
- * `new Worker(WORKER_PATH, { execArgv: ['--import', 'tsx/esm'] })`
- * (`tools/fuzz-command-domain.ts`) loads its entry point,
- * `tools/fuzz-command-domain-worker.ts`, but that file's own *relative
- * import* (`from './fuzz-command-domain'`, no extension) then throws
- * `ERR_MODULE_NOT_FOUND` — confirmed with a minimal, two-file repro
- * completely outside this project (a bare `worker_threads.Worker` loading a
- * `.ts` entry that imports an extensionless sibling `.ts` file), so this is
- * not this file's own code being wrong.
- *
- * Adding the missing `.ts` extension fixes that *one* import, but
- * `fuzz-command-domain.ts` itself pulls in most of `/src/sim` (`Run`,
- * `World`, `content`, `towers`, ... — 16+ relative imports in `run.ts`
- * alone, each with more beneath it), and *every* extensionless import
- * anywhere in that whole transitive graph hits the identical resolution
- * failure once loaded through this worker's `tsx/esm` `--import` hook —
- * confirmed by fixing the first import and watching the error simply move
- * to the next one (`../src/sim/run`). Annotating the entire `/src/sim`
- * import graph with explicit `.ts` extensions, against this codebase's
- * established convention everywhere else (which works fine under both
- * Vitest's own transform and the `tsx` CLI directly — confirmed live,
- * `npx tsx <file>.ts` resolves the identical extensionless imports with no
- * error at all), would be a much larger and riskier change than this item
- * scopes, for a benefit narrower than it looks: it is specifically
- * `worker_threads` + `--import tsx/esm` that behaves this way — five other
- * approaches tried and rejected before settling here: a bare `tsx` import
- * instead of `tsx/esm`, passing the worker path as a `file://` URL, an
- * explicit `env` on the `Worker` options, `NODE_OPTIONS` instead of
- * `execArgv`, and Node's own native `--experimental-strip-types` in place of
- * tsx entirely — all five reproduce the exact same error (CLAUDE.md rule 6:
- * five distinct attempts, moving on rather than chasing a sixth).
- *
- * The concrete, scoped fix path for whoever picks this up: `npx tsx
- * <script>.ts` (the full CLI, not the `--import` loader hook) *does*
- * resolve extensionless imports correctly (verified above) — replacing the
- * `worker_threads.Worker` isolation with a `child_process` spawn of the
- * `tsx` CLI (keeping the same "forcibly killable on a timeout" property via
- * `child.kill()` instead of `worker.terminate()`, and JSON-over-stdout or an
- * IPC channel instead of `postMessage`) would sidestep this class of
- * failure entirely, without touching `/src/sim`. That is real, separate
- * engineering work (a different isolation mechanism, its own tests), not a
- * `.skip`-and-move-on fix, so it is not attempted here.
- *
- * This is very likely the exact same defect behind `tests/q45-cli-schema-
- * violation.test.ts`'s standing failure too — its probe subprocess calls
- * into this identical worker path and fails with the identical "Cannot find
- * module '.../tools/fuzz-command-domain'" message — though that file is
- * left untouched here (out of this item's named scope; flagged for whoever
- * owns it next).
+ * fb119 filed this whole suite `.skip`-ed after root-causing a real
+ * `ERR_MODULE_NOT_FOUND` in the worker (a `worker_threads.Worker`'s
+ * `--import tsx/esm` transforms its entry file but does not give that
+ * file's own extensionless imports resolution, so `fuzz-command-domain-
+ * worker.ts`'s `./fuzz-command-domain` import — and everything beneath it in
+ * `/src/sim` — died at worker startup). fb172 landed the scoped fix this
+ * file's old write-up asked for: `tools/fuzz-command-domain-worker-boot.mjs`
+ * registers the loader *on the worker thread itself* before dynamically
+ * importing the real worker, which is exactly what makes the transitive
+ * extensionless graph resolve. That fix is live and this suite now runs and
+ * passes in full (fb174 re-verified: 30/30 green) — the `.skip` above this
+ * comment had gone stale and was still silently dropping the whole file
+ * until fb174 removed it.
  */
-describe.skip('q15 command-argument domain fuzz', () => {
+describe('q15 command-argument domain fuzz', () => {
   let census: CensusEntry[];
 
   beforeAll(async () => {
@@ -220,6 +181,45 @@ describe.skip('q15 command-argument domain fuzz', () => {
     // answer: silently substituting 4000 would hide the caller's mistake.
     it.each([Infinity, NaN, 2 ** 31, -1, 0])('refuses the unusable deadline %p rather than clamping it to 1 ms', async (ms) => {
       await expect(probeInWorker('pick.index', 'negative', ms)).rejects.toThrow(/deadline/i);
+    });
+  });
+
+  describe('runCensus() retries a load-induced hangs once before recording it (fb174)', () => {
+    // A concurrent test run can stretch worker startup past the deadline
+    // (measured 3/3 reproductions, a different combo hanging each time — the
+    // signature of contention, not a real hang). Without a retry, that false
+    // verdict is what the "matches the recorded holes exactly" test above
+    // would see, and — worse, per fb174's filed report — is exactly what
+    // used to reach `classify()` never at all while this suite was `.skip`-ed
+    // (see this file's top comment), so nothing was ever red to say a
+    // combination had gone untested. `runCensus`'s injectable `prober` param
+    // (default `probeInWorker`) lets this prove the retry path without
+    // paying for a real worker or a real timeout.
+    it('a hangs verdict on the first attempt does not get recorded — the retried real outcome does', async () => {
+      let calls = 0;
+      const fakeProber = async (fieldKey: string, family: Family) => {
+        calls++;
+        if (calls === 1) return { hangs: true as const };
+        // A non-empty `problems` classifies as 'accepted' for either
+        // category (see `classify()`), so the expected verdict here does
+        // not depend on which field happens to be combo index 0.
+        return { fieldKey, family, threw: false, problems: ['forced by fb174 test'], digestChanged: false };
+      };
+      const census = await runCensus(4000, 1, fakeProber);
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      expect(census.length).toBe(total); // nothing dropped from the output
+      expect(calls).toBe(total + 1); // exactly one retry, for the one combo that hung
+      expect(census[0].verdict).toBe('accepted'); // surfaced the real outcome, not 'hangs'
+      expect(census[0].detail).toContain('forced by fb174 test');
+    });
+
+    it('a combination that hangs twice is still recorded as hangs, not dropped or retried again', async () => {
+      const fakeProber = async () => ({ hangs: true as const });
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      const census = await runCensus(4000, total, fakeProber);
+      expect(census.length).toBe(total);
+      expect(census.every((e) => e.verdict === 'hangs')).toBe(true);
+      expect(census.every((e) => e.detail.includes('retried once'))).toBe(true);
     });
   });
 

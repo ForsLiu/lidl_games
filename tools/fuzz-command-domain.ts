@@ -505,14 +505,46 @@ function describeOutcome(spec: FieldSpec, outcome: ProbeOutcome): string {
   return 'no observable effect';
 }
 
-/** Every `FIELD_SPECS` x `FAMILIES` combination, each isolated in its own worker. */
-export async function runCensus(timeoutMs = 4000, concurrency = 6): Promise<CensusEntry[]> {
+/**
+ * Every `FIELD_SPECS` x `FAMILIES` combination, each isolated in its own worker.
+ *
+ * `prober` is an injection seam (q7's `runCensusA`-style `read` param), not a
+ * tuning knob — tests substitute a fake to prove the retry path below without
+ * paying for a real worker.
+ *
+ * fb174: a concurrent test run competes for the event loop the same as any
+ * other process, and worker startup (~500 ms alone, fb173's `execArgv: []`
+ * measurement) can stretch past a 4000 ms deadline under that contention —
+ * measured 3/3 reproductions, a *different* combo set hanging each time,
+ * which is the signature of timing contention, not a real hang in the probed
+ * code. A single retry, run serially (not re-entering the `concurrency`-wide
+ * pool — one probe, awaited alone) after the first `hangs`, gives a
+ * load-induced false verdict a clean second shot free of that contention
+ * before it is recorded. A combination that hangs twice is recorded as
+ * `hangs` for real — this does not hide a genuine hang, it only stops a slow
+ * one from being misclassified as one.
+ */
+export async function runCensus(
+  timeoutMs = 4000,
+  concurrency = 6,
+  prober: (fieldKey: string, family: Family, timeoutMs?: number) => Promise<ProbeOutcome | HangResult> = probeInWorker,
+): Promise<CensusEntry[]> {
   const combos: { spec: FieldSpec; family: Family }[] = [];
   for (const spec of FIELD_SPECS) for (const family of FAMILIES) combos.push({ spec, family });
   return mapLimit(combos, concurrency, async ({ spec, family }) => {
-    const outcome = await probeInWorker(spec.key, family, timeoutMs);
+    let outcome = await prober(spec.key, family, timeoutMs);
+    let retried = false;
     if ('hangs' in outcome) {
-      return { fieldKey: spec.key, family, verdict: 'hangs' as Verdict, detail: `did not settle within ${timeoutMs}ms` };
+      retried = true;
+      outcome = await prober(spec.key, family, timeoutMs);
+    }
+    if ('hangs' in outcome) {
+      return {
+        fieldKey: spec.key,
+        family,
+        verdict: 'hangs' as Verdict,
+        detail: `did not settle within ${timeoutMs}ms${retried ? ' (retried once, still hung)' : ''}`,
+      };
     }
     const verdict = classify(spec, outcome);
     return { fieldKey: spec.key, family, verdict, detail: describeOutcome(spec, outcome) };
