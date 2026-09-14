@@ -49,6 +49,110 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+- [x] (fb173) [bug] **DONE 2026-09-07, filed by qa-playtester on fb172, fixed
+      in the same session with the failing test first.** Two defects, one of
+      them in fb172's own diff.
+      (a) `probeInWorker`/`aliasProbeInWorker`'s deadline **silently collapsed
+      to 1 ms** for any `timeoutMs` above `2**31-1`, or `Infinity`/`NaN`:
+      `setTimeout` clamps those, so asking for a *longer* ceiling produced the
+      shortest possible one and every probe came back a false `hangs`. Not
+      hypothetical — QA reached it through `bench/q44-worker-timing-probe.ts`,
+      the tool that exists to tell a real hang from a slow one, which reported
+      **"75/75 never resolved"** at a 3e9 ms ceiling. New
+      `assertUsableDeadline` throws instead; rejected rather than clamped to
+      the 4000 default, because substituting a default hides the caller's
+      mistake in exactly the instrument meant to catch it. Five `it.each`
+      cases (`Infinity`, `NaN`, `2**31`, `-1`, `0`) confirmed red first. The
+      repro now fails loudly, and a sane 8000 ms ceiling measures
+      p50 525 / p95 571 / max 612 ms, 0/75 over budget.
+      (b) fb172 claimed to have removed a duplicate loader registration by
+      dropping `execArgv`. It had not: **a Worker with no `execArgv` inherits
+      the parent's**, and under `npx tsx` that is tsx's own `--require
+      preflight.cjs --import loader.mjs` (verified directly). So the flag was
+      made implicit and parent-dependent, not removed, and fb172's own comment
+      was wrong. Both Worker sites now pin `execArgv: []`, which is what
+      actually makes the bootstrap's `register()` the single registration on
+      every parent — and is faster (p50 507 vs 561 ms).
+
+- [x] (fb174) [bug] **DONE 2026-09-14.** q15's census deadline sat inside the
+      noise band under concurrent load, and a spurious `hangs` silently
+      removed coverage — worse than the filed report knew: the whole 30-test
+      suite was still sitting inside a stale `describe.skip` (fb119's, whose
+      root cause fb172 had already fixed but nobody un-skipped), so nothing
+      was ever red to say a combination had gone untested. Fixed in three
+      parts: (1) removed the stale `.skip` — all 30 pre-existing cases pass;
+      (2) `runCensus()` now retries a `hangs` verdict once, inline, before
+      recording it, with an injectable `prober` param so the retry path is
+      testable without a real worker — three new tests prove a would-be-
+      dropped combination surfaces its real verdict, that a genuine
+      double-hang still records as `hangs` rather than vanishing, and that a
+      hanging combo doesn't affect its concurrently-running `mapLimit`
+      neighbors; (3) qa-playtester's re-check found the retry alone
+      insufficient under heavier concurrent load (5 stacked `vitest run`
+      processes on one file, 5/5 red; two full concurrent `test:fast` runs,
+      1/2 red), so the default deadline is now 8000 ms — fb173's own already-
+      measured concurrent-safe ceiling (`bench/q44-worker-timing-probe.ts`),
+      re-used rather than re-guessed. The residual gap under contention
+      heavier than this repo's actual CI produces is logged as **QUESTIONS
+      Q200** rather than chased further (no bounded retry/deadline survives
+      unbounded contention, and BACKLOG-TERRAIN.md independently logs q15 as
+      chronically load-sensitive). `npm run test:fast` green in full (4296
+      passed / 34 skipped, unchanged skip count). — refs: fb172, fb173,
+      BACKLOG-QUALITY.md q44, QUESTIONS Q200, CLAUDE.md measurement rules.
+
+- [x] (fb172) [bug] **DONE 2026-09-07, found by the loop's own fast-tier run,
+      not by a backlog item.** `tests/q15-command-domain-fuzz.test.ts` was
+      failing its **whole suite at collection** and taking q45's
+      `fuzz-command-domain` case with it:
+      `Cannot find module '.../tools/fuzz-command-domain' imported from
+      .../tools/fuzz-command-domain-worker.ts`. Inside a
+      `worker_threads.Worker`, `execArgv: ['--import', 'tsx/esm']` gets the
+      entry `.ts` file *transformed* but does not give that file's own
+      imports extensionless resolution, so the worker died on its first bare
+      specifier. **Not the documented q15 flake** this file has logged since
+      early sessions (that one is a Windows host-load *timeout*); this is
+      deterministic — same error, every run, and it reproduces on a clean
+      checkout with the session's own diff stashed, so it predates today's
+      work.
+      Diagnosed with a minimal repro (a Worker importing a two-deep
+      extensionless `.ts` chain) rather than by guessing: it fails identically
+      under `--import tsx/esm` **and** `--import tsx`, so the deprecated
+      loader entry point was never the cause; and an explicit `.ts` extension
+      fixes exactly *one* hop before the next bare import (`src/sim/run`)
+      fails, so annotating extensions would have meant annotating the whole
+      transitive `src/sim` graph. The fix is to register the loader **on the
+      worker thread**: new `tools/fuzz-command-domain-worker-boot.mjs` calls
+      `register()` from `tsx/esm/api` and then pulls the real worker in with
+      a dynamic `import()` (static would hoist above `register()`), and
+      `WORKER_PATH` points at it. `.mjs` because it installs the TS loader and
+      so cannot need it; q47's tools census filters non-`.ts` files, so it is
+      invisible there for the same reason `gen-tree.mjs` is.
+      **The 24 q15 cases were not merely red, they were not running** — they
+      counted as "skipped" because the suite never got past collection, and
+      now execute. q15+q45 go from `2 failed / 1 failed / 24 skipped` to
+      **2 passed / 35 passed**. The already-red suites are the regression
+      coverage (CLAUDE.md rule 3's failing-test-first is satisfied by the
+      red that found it) — refs: fb140's CI tier, PROGRESS.md's q15 flake
+      history, which this is *not*.
+
+- [x] (fb171) [bug] **DONE 2026-09-06, filed by code-reviewer on fb161.**
+      fb161's first shape banked ground-fire damage on each **field**, which
+      satisfies the acceptance line ("<= 4 events/second per ground field") and
+      still half-fixes the symptom: fields overlap (a Cinderling keeps ~7.5
+      alive and real geometry covers a point with ~2), measured **30 emits a
+      second**. And a partial bank was stranded until its 3 s field expired —
+      a Warden in the fire for 0.2 s took her only hit at **t = 3.000 s**,
+      wherever she stood by then, and through dash i-frames because the flush is
+      `preGated`. Fixed by moving the bank onto the Warden, fed by the summed
+      dps of every covering field, with the timer advancing on an open bank as
+      well as on live exposure so the tail caps at one interval; totals are
+      unchanged (summing dps and paying once is the same arithmetic). Also
+      closed: the totals case ran at armor 0, where the mitigation factor is 1,
+      so it was blind to the one semantic fb161 changes (nonzero armor now, with
+      a guard); and nothing covered the untouchable window, on which the whole
+      dash/god-mode guarantee for ground fire now rests. Three mutations re-run
+      red. See QUESTIONS Q189a.
+
 ### Feedback — owner-filed items (2026-09-07), processed from `feedback/`
 
 - [x] (fb178) [feat] **DONE 2026-09-07, main-lane slice.** Token economy:
@@ -203,6 +307,31 @@ therefore measure *after* `fb153`, not before.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 
+**p12a-p12e are done; full text archived to `docs/BACKLOG-DONE.md`** (see the
+"Recently completed" pointers above for p12d/p12e). p12d's gate rewrites
+landed measuring G1/G8/G14/G23 at T3 as reference tier with T1/T5 as
+companion bands, per BALANCE DIRECTION v2 §D. p12e re-anchored the
+Warden-Eater's HP fit; carried forward below as its own item is the one
+open follow-up qa-playtester filed on it, p12i.
+
+- [ ] (p12i) [balance] The four residual `npm run status` timeouts p12e left,
+      characterised but not closed (qa-playtester on p12e): cryomancer T1
+      seed 1 (wave 17) and seed 2 (wave 18), animist T1 seed 2 (wave 18),
+      engineer+`corpse` Core T3 seed 2 (wave 20). All four are the **stock
+      unscripted policy** — no class actives fired, no Core upgrades bought —
+      against `tools/status.ts`'s 45-minute cap, and every one of them wins
+      in a ~80s boss fight once the scripted harness plays the kit, so this
+      is the **wave-11-to-17 wall** (p10i, behind G8/G14/most of G23) showing
+      through the snapshot, not a boss-anchor problem: lowering
+      `warden_eater.hp` further to chase them would re-break the >20s
+      fight-length floor for weak kits (p12e measured exactly that at the
+      18250 anchor). Acceptance: either the four run to a terminal outcome
+      inside the snapshot's own cap with no HP-anchor change (name the lever
+      and show the before/after), or the snapshot's cap/policy is restated
+      with a recorded reason so a censored run stops being scored as a loss
+      — and `npm run status` regenerated either way — refs: BACKLOG p12e's
+      acceptance line, p10i, QUESTIONS Q159/Q160/Q184.
+
 - [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS
       Q175). p12a shipped `kitPower` (x3.16 by wave 18) and the x3 base
@@ -233,14 +362,31 @@ therefore measure *after* `fb153`, not before.
 
 ### Feedback — owner-filed items (2026-09-03), processed from `feedback/`
 
-- [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
-      (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
-      rather than a class-key check") cannot be built from the content lane.
-      Acceptance: `summonCap` added to `STAT_KEYS` with its `STAT_KIND`/
-      `Derived` rows (`statkeys.ts`, `stats.ts`) and read at the three
-      `summonCap` sites in `classes.ts`; c004 then closes in its own lane
-      with the number in `data/classes.json` — refs: SPEC-FINAL §2, §4.2,
-      BACKLOG-CONTENT.md c004.
+- [x] (fb084) [feat] **DONE 2026-09-07** (`dcf14b7`, `05631dd`, `9073c0a`).
+      Added `summonCap` to `STAT_KEYS` with `STAT_KIND`/`STAT_DISPLAY`/
+      `STAT_SCALED` rows (flat/point, not fb153a-rescaled) and
+      `Derived.summonCapBonus` (`stats.ts`), folded into all three
+      `classes.ts` summon sites (Pop Turret, Raise Skeletons, Manifest
+      Spirit) alongside the pre-existing `classLineBonus(w)` skill-card
+      bonus. No `/data/classes.json` change — Kinship's `mods` stay `{}`,
+      so today's live caps are unchanged and c004's own clause (`class-
+      spec-numbers.test.ts`'s pinned row) stays genuinely
+      `unimplemented`, just re-pinned to the new source lines; c004 can
+      now close in its own lane by authoring `summonCap: 1` on Kinship.
+      qa-playtester (hostile pass) found a real latent bug the new
+      arbitrarily-signed lever exposed: `spawnClassSummon` reads a
+      `cap <= 0` argument as its own "uncapped" sentinel (Bone Pylons'
+      deliberate literal-0 call), so a large-enough negative
+      `summonCapBonus` would have made Pop Turret/Manifest spawn
+      unboundedly instead of refusing to summon — fixed with an explicit
+      `cap <= 0` guard at both sites (mirroring Raise Skeletons'
+      pre-existing `room <= 0` guard) and a red-first regression test
+      reproducing the exact repro qa-playtester found. code-reviewer
+      APPROVE (one Minor, stale prose in the c008 pin's `why` text, fixed).
+      `npx tsc --noEmit` clean; `npm run test:fast` green apart from the
+      two pre-existing unrelated `q15`/`q45` tsx-worker environment
+      failures (fb119) — refs: SPEC-FINAL §2, §4.2, BACKLOG-CONTENT.md
+      c004.
 - [ ] (fb085) [feat] unblock the five owner items the content lane could
       not reach (BACKLOG-CONTENT.md session-1 Log: fb056/fb057/fb059/fb061/
       fb062 all need `src/sim/content.ts` or other shared files). Acceptance,

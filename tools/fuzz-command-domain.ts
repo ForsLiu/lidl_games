@@ -53,9 +53,12 @@
  * `w.level` counts up without bound. A synchronous while-loop inside the
  * vitest worker that is running this very file cannot be interrupted by a
  * same-thread timer, so the census runs every probe inside its own
- * `worker_threads.Worker` (loaded via `tsx/esm`, confirmed by hand to load a
- * `.ts` worker and to be killable mid-infinite-loop by `Worker#terminate()`)
- * and treats "did not answer within the deadline" as its own verdict,
+ * `worker_threads.Worker` (started through
+ * `fuzz-command-domain-worker-boot.mjs`, which registers the TS loader on the
+ * worker thread — see fb172 and that file's header for why `execArgv` alone
+ * could not; killability mid-infinite-loop by `Worker#terminate()` re-checked
+ * live through the bootstrap) and treats "did not answer within the deadline"
+ * as its own verdict,
  * `'hangs'`, distinct from `'accepted'` (ran to completion but corrupted
  * something) and `'threw'`.
  *
@@ -397,19 +400,48 @@ export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 
 
 /* ------------------------------------------------------------ isolation */
 
-const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker.ts', import.meta.url));
+// The `.mjs` bootstrap, not the `.ts` worker itself: inside a Worker the
+// loader must be registered on the worker thread before anything
+// extensionless is resolved, or the worker dies at its first import. See
+// that file's header for the measurement behind this.
+const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker-boot.mjs', import.meta.url));
 
-interface HangResult {
+export interface HangResult {
   readonly hangs: true;
 }
 
+/**
+ * `setTimeout` clamps a delay above 2**31-1 — and `Infinity`/`NaN` — to **1
+ * ms**, so an unusable deadline does not fail loudly, it produces the
+ * *shortest* possible one and turns every probe into a false `hangs` (fb173,
+ * qa-playtester on fb172; `bench/q44-worker-timing-probe.ts` reported 75/75
+ * "never resolved" at a 3e9 ms ceiling because of exactly this). Rejected
+ * rather than clamped to a default: silently substituting 4000 would hide the
+ * caller's mistake, and this deadline is the instrument other items use to
+ * tell a real hang from a slow one.
+ */
+function assertUsableDeadline(timeoutMs: number): void {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 2 ** 31 - 1) {
+    throw new Error(
+      `fuzz-command-domain: unusable probe deadline ${timeoutMs}ms — must be a finite 1..${2 ** 31 - 1} (setTimeout clamps anything else to 1ms, which reads as a false hang)`,
+    );
+  }
+}
+
 /** Runs one probe in its own worker thread and resolves `{hangs: true}` instead of the real result if it does not answer within `timeoutMs`. */
-export function probeInWorker(fieldKey: string, family: Family, timeoutMs = 4000): Promise<ProbeOutcome | HangResult> {
+export function probeInWorker(fieldKey: string, family: Family, timeoutMs = 8000): Promise<ProbeOutcome | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, {
-      execArgv: ['--import', 'tsx/esm'],
-      workerData: { mode: 'field', fieldKey, family },
-    });
+    assertUsableDeadline(timeoutMs);
+    // `execArgv: []` is deliberate and is not the same as omitting it (fb172,
+    // qa-playtester). A Worker with no `execArgv` **inherits the parent's**,
+    // and under `npx tsx` that is tsx's own `--require preflight.cjs
+    // --import loader.mjs` — so omitting it does not remove the duplicate
+    // registration this fix set out to remove, it just makes it implicit and
+    // dependent on how the parent happened to be launched. Empty means the
+    // bootstrap's `register()` is the one and only loader registration, on
+    // every parent (vitest, `npx tsx`, plain `node`). Measured p50 worker
+    // startup 507 ms empty vs 561 ms inherited.
+    const worker = new Worker(WORKER_PATH, { execArgv: [], workerData: { mode: 'field', fieldKey, family } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
@@ -473,14 +505,61 @@ function describeOutcome(spec: FieldSpec, outcome: ProbeOutcome): string {
   return 'no observable effect';
 }
 
-/** Every `FIELD_SPECS` x `FAMILIES` combination, each isolated in its own worker. */
-export async function runCensus(timeoutMs = 4000, concurrency = 6): Promise<CensusEntry[]> {
+/**
+ * Every `FIELD_SPECS` x `FAMILIES` combination, each isolated in its own worker.
+ *
+ * `prober` is an injection seam (q7's `runCensusA`-style `read` param), not a
+ * tuning knob — tests substitute a fake to prove the retry path below without
+ * paying for a real worker.
+ *
+ * fb174: a concurrent test run competes for the event loop the same as any
+ * other process, and worker startup (~500 ms alone, fb173's `execArgv: []`
+ * measurement) can stretch past the deadline under that contention —
+ * measured 3/3 reproductions at the old 4000 ms default, a *different* combo
+ * set hanging each time, which is the signature of timing contention, not a
+ * real hang in the probed code. Two changes, since fb174's own qa-playtester
+ * pass showed a bare retry is not enough on its own: (1) a single retry —
+ * inline, awaited before this combo's `mapLimit` slot returns, not re-queued
+ * as a fresh work item — gives a load-induced false verdict an independent
+ * second roll of the dice rather than compounding on the same one; (2) the
+ * default deadline is 8000 ms, not 4000 — fb173's own concurrent-load
+ * measurement of `probeInWorker` at this ceiling (`bench/q44-worker-timing-
+ * probe.ts`) found p50 525 / p95 571 / max 612 ms, 0/75 over budget, so this
+ * reuses an already-measured-safe number rather than picking a new one.
+ * Neither change is a contention *guarantee*: qa-playtester reproduced 5/5
+ * failures forcing 5 concurrent `vitest run` processes onto the same file on
+ * a 4-core host (a load level this repo's own CI does not run — one `vitest
+ * run` process per suite, not five stacked on one file) and 1/2 running two
+ * full `npm run test:fast` invocations at once. A combination that still
+ * hangs twice at 8000 ms is recorded as `hangs` for real, which is a loud,
+ * honest test failure — worse for that one CI run than silence, better than
+ * the alternative this item was filed to close (a hole nothing ever reports).
+ * Closing the remaining multi-process-contention gap outright (unbounded
+ * retries, or serializing this file's own concurrency against sibling lanes)
+ * is new scope past what fb174 asked for; logged rather than chased per
+ * CLAUDE.md rule 5, re-measure before inheriting per the measurement rules.
+ */
+export async function runCensus(
+  timeoutMs = 8000,
+  concurrency = 6,
+  prober: (fieldKey: string, family: Family, timeoutMs?: number) => Promise<ProbeOutcome | HangResult> = probeInWorker,
+): Promise<CensusEntry[]> {
   const combos: { spec: FieldSpec; family: Family }[] = [];
   for (const spec of FIELD_SPECS) for (const family of FAMILIES) combos.push({ spec, family });
   return mapLimit(combos, concurrency, async ({ spec, family }) => {
-    const outcome = await probeInWorker(spec.key, family, timeoutMs);
+    let outcome = await prober(spec.key, family, timeoutMs);
+    let retried = false;
     if ('hangs' in outcome) {
-      return { fieldKey: spec.key, family, verdict: 'hangs' as Verdict, detail: `did not settle within ${timeoutMs}ms` };
+      retried = true;
+      outcome = await prober(spec.key, family, timeoutMs);
+    }
+    if ('hangs' in outcome) {
+      return {
+        fieldKey: spec.key,
+        family,
+        verdict: 'hangs' as Verdict,
+        detail: `did not settle within ${timeoutMs}ms${retried ? ' (retried once, still hung)' : ''}`,
+      };
     }
     const verdict = classify(spec, outcome);
     return { fieldKey: spec.key, family, verdict, detail: describeOutcome(spec, outcome) };
@@ -604,7 +683,9 @@ export function runAliasProbe(which: 'upgrade' | 'sell'): AliasProbeResult {
 
 export function aliasProbeInWorker(which: 'upgrade' | 'sell', timeoutMs = 4000): Promise<AliasProbeResult | HangResult> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, { execArgv: ['--import', 'tsx/esm'], workerData: { mode: 'alias', which } });
+    assertUsableDeadline(timeoutMs);
+    // `execArgv: []` for the reason spelled out in `probeInWorker` above.
+    const worker = new Worker(WORKER_PATH, { execArgv: [], workerData: { mode: 'alias', which } });
     let settled = false;
     const timer = setTimeout(() => {
       if (settled) return;

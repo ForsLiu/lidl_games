@@ -1051,7 +1051,9 @@ const LEDGER: readonly Figure[] = [
       tracked: 'c004 (BACKLOG-CONTENT, blocked out of Scope)',
       why:
         "`data/classes.json`'s Kinship row authors only the aura half (`mods: {}`, no `kind`), " +
-        'and the three summon-cap sites in `classes.ts` add only `classLineBonus`.',
+        'and the three summon-cap sites in `classes.ts`, while now also folding in a generic ' +
+        '`summonCapBonus` (fb084), still have nothing to fold in — Kinship\'s own passive ' +
+        'authors no such source.',
       in: 'passive',
       absentKey: /cap|summon|minion|spirit|limit|retinue|kinship/i,
       knownKeys: ['active1.summonCap', 'active1.summonDurationSeconds', 'active1.summonStatMul', 'active1.summonRadius'],
@@ -1059,14 +1061,30 @@ const LEDGER: readonly Figure[] = [
       // implemented it as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at
       // the Manifest cap site and this row stayed green. These are the only
       // three places a summon cap is computed; any added term reddens the row.
+      //
+      // fb084 (2026-09-07) added a *generic* `summonCap` StatKey and folded
+      // `w.derived.summonCapBonus` into all three sites below, so a passive
+      // can grant the bonus without a class-key check — but Kinship's own
+      // `data/classes.json` row still authors `mods: {}`, so the Animist's
+      // live cap is unchanged and this clause is still genuinely
+      // unimplemented. Re-pinned to the new lines (fb084's enabler is the
+      // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
+      // authoring `summonCap: 1` on Kinship's `mods`.
+      //
+      // A qa-playtester pass on fb084 found the generic bonus can drive the
+      // Pop Turret/Manifest total to <=0, which `spawnClassSummon` would
+      // otherwise read as its own "uncapped" sentinel (Bone Pylons' literal
+      // `0` call) — fixed with an explicit `cap <= 0` guard at both sites,
+      // hoisting the expression into a named `const cap` in the process (a
+      // second re-pin, still no `/data` change).
       srcLines: [
         {
           file: CLASSES_TS,
           needle: 'summonCap',
           lines: [
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
-            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w)));',
-            '(eff.summonCap ?? 0) + classLineBonus(w),',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
+            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
+            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
           ],
         },
         // Pinning the three cap lines catches a `+1` folded *into* them, but

@@ -66,20 +66,6 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
       the +1 is expressed on the passive in `/data` rather than a class-key
       check in code - refs: SPEC-FINAL §4.2 (Animist).
 
-- [ ] (c002) [balance] **SKIPPED 2026-09-03, blocked on the Q161 owner
-      verdict. Control half measured in session 2 (see the Log); the tune
-      half is not started, and this item's own premise needs revisiting
-      first.** G8's diversity clause has no item scoped to it.
-      STATUS.md: "top damage source is still only 2 distinct keys
-      (`ballista`/`spreading_plague`) across all 12 classes, far under the
-      >=9/12 the gate asks for", and win-rate retunes (p10s) moved nothing
-      because towers, not kits, do the winning. Raise kit damage share in
-      `data/classes.json` only (the win-rate half is main-lane p10r).
-      Acceptance: a lane-owned test measures the top damage source per class
-      over >=12 seeds and reports the distinct-key count before and after, as
-      a control-run pair per CLAUDE.md's measurement rules; the count rises
-      and no class leaves the 35-70% band it is already in - refs: §14 G8, §4.
-
 - [ ] (c010) [balance] **BLOCKED out of Scope 2026-09-04 — see the Log.**
       Stormcaller *Conduction* is authored on the wrong row.
       The passive names a rule about electric damage *generally* ("+20% per
@@ -176,6 +162,24 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
       and duration scale with charge level per test; numbers land in
       `/data` only — refs: SPEC-FINAL §4.1 (Plaguebringer, amends), owner
       feedback `feature-plaguebringer-charge`.
+
+### Closed 2026-09-07 — c002 superseded by BALANCE DIRECTION v2 §D
+
+- **(c002) [balance] SUPERSEDED, not executed as written.** c002 was
+  "SKIPPED 2026-09-03, blocked on the Q161 owner verdict" — QUESTIONS.md's
+  Q161 entry now carries that verdict: "approved as evidence — resolved by
+  BALANCE DIRECTION v2 §A/§D: kit-growth multiplier + re-anchored kit
+  numbers close the own-kit-share wall this entry found, and G8's diversity
+  clause is rewritten per §D to the own-kit-share target plus a pairwise
+  fingerprint-distance check rather than the unreachable >=9/12
+  distinct-top-source bar." c002's own acceptance text ("the top damage
+  source per class... the distinct-key count rises") measures exactly the
+  `>=9/12` clause the verdict retired — there is no live gate left for that
+  metric to move. The `c032`-`c041` arc already did the real work the
+  verdict's replacement clauses needed (own-kit-share target: `c032`/`c034`;
+  fingerprint-distance check and its measurement method: `c033`/`c039`/
+  `c040`; Bloodlord's specific wall: `c039`). Closed as superseded rather
+  than executed — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D, c032-c041.
 
 ### Filed 2026-09-07 — fb062 cross-lane findings (not this lane's to fix)
 
