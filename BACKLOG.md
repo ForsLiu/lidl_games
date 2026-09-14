@@ -481,26 +481,43 @@ open follow-up qa-playtester filed on it, p12i.
       re-check `tests/boss.test.ts`'s four-seed victory case, whose seed 1
       flipped to `defeat_core` for the same reason — see PROGRESS "Known
       issues" and QUESTIONS Q179.
-- [ ] (p12k) [balance] The four residual `npm run status` timeouts p12e left,
-      characterised but not closed (qa-playtester on p12e): cryomancer T1
-      seed 1 (wave 17) and seed 2 (wave 18), animist T1 seed 2 (wave 18),
-      engineer+`corpse` Core T3 seed 2 (wave 20). All four are the **stock
-      unscripted policy** — no class actives fired, no Core upgrades bought —
-      against `tools/status.ts`'s 45-minute cap, and every one of them wins
-      in a ~80s boss fight once the scripted harness plays the kit, so this
-      is the **wave-11-to-17 wall** (p10i, behind G8/G14/most of G23) showing
-      through the snapshot, not a boss-anchor problem: lowering
-      `warden_eater.hp` further to chase them would re-break the >20s
-      fight-length floor for weak kits (p12e measured exactly that at the
-      18250 anchor). Acceptance: either the four run to a terminal outcome
-      inside the snapshot's own cap with no HP-anchor change (name the lever
-      and show the before/after), or the snapshot's cap/policy is restated
-      with a recorded reason so a censored run stops being scored as a loss
-      — and `npm run status` regenerated either way — refs: BACKLOG p12e's
-      acceptance line, p10i, QUESTIONS Q159/Q160/Q184.
-      (merge note: filed as p12i by origin/master; renumbered p12k here to
-      avoid colliding with this branch's own p12i, the fb077 terrain
-      follow-up below.)
+- [x] (p12i) [balance] **DONE 2026-09-14.** The four residual `npm run status`
+      timeouts p12e left, characterised but not closed (qa-playtester on
+      p12e): cryomancer T1 seed 1 (wave 17) and seed 2 (wave 18), animist T1
+      seed 2 (wave 18), engineer+`corpse` Core T3 seed 2 (wave 20). Chose the
+      acceptance's path (b) — p12e had already spent the one HP-anchor lever
+      available and rejected it (re-breaks the >20s fight-length floor for
+      weak kits) — and landed it structurally: `tools/status.ts`'s `winRate`
+      now excludes `outcome === 'running'` (censored) runs from both halves
+      of the ratio instead of silently folding a hit-the-cap run in as an
+      uncounted loss, and the snapshot names how many of a cell's seeds
+      censored (`t1Censored`/`t3Censored`/`policyComparison[].censored`,
+      rendered as a "(N censored)" suffix) so a reader sees why a cell reads
+      low instead of a bare, misleadingly-flat 0%. Decision logged as
+      **QUESTIONS Q201**. The live re-run this item's acceptance required
+      (`npm run status`, the real 88-run `tools/sweep.ts`-driven snapshot)
+      then found **none of the four originally-named cells censored this
+      time** — cryomancer T1, animist T1 and engineer+`corpse` T3 all
+      resolved cleanly at both seeds; only 1 of 88 runs hit the cap
+      (`carnivorous_plant` T1 seed 2, correctly rendered `1 (1 censored)`
+      rather than a misleading `0.5`). Not root-caused further — this item's
+      job was the display mechanism and a fresh measurement, not diagnosing
+      which of the intervening week's unrelated fixes moved the four seeds
+      off the cap. Both acceptance branches are therefore satisfied: the
+      four named runs reach a terminal outcome inside the cap with no
+      HP-anchor change (found rather than engineered), and the cap/policy is
+      also restated so any future censored cell reads honestly. New tests in
+      `tests/fb038-status.test.ts` pin `winRate`/`decided`/`censoredCount`
+      (none/mixed/all-censored) and the render-level suffix. code-reviewer
+      **APPROVE** (no Critical/Major); qa-playtester **PASS**, independently
+      re-derived the arithmetic against the real regenerated STATUS.md and
+      confirmed `staleGateWarnings`' all-zero heuristic is unaffected.
+      `npx tsc --noEmit` clean; `tests/fb038-status.test.ts` 31/31 (4 new);
+      `tests/fb038-status-cli.test.ts`'s real end-to-end CLI run green
+      (720s, this item's own `npm run status` regeneration); `npm run
+      test:fast` green (4300 passed / 34 skipped, unchanged skip count).
+      STATUS.md regenerated — refs: BACKLOG p12e's acceptance line, p10i,
+      QUESTIONS Q201/Q159/Q160/Q184.
 
 - [x] (fb177) [bug] **DONE 2026-09-07** — re-ran `tests/p6e-class-diversity.
       test.ts`'s full `beforeAll` sweep (12 classes x 12 seeds, ~42 min,

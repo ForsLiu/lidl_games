@@ -1316,3 +1316,31 @@ Q200 did not collide and are unchanged below).
   a real fix needs its own item if the residual load level ever shows up in
   this repo's actual CI, not this session's stress-test rig). — (owner
   verdict: pending)
+
+- **Q201. [p12i] Chose to restate `npm run status`'s balance snapshot rather
+  than chase a lever for the four residual timeout cells.** p12i offered two
+  paths: (a) find a lever that makes cryomancer T1, animist T1 and
+  engineer+`corpse` T3 resolve inside the snapshot's 45-min cap with no
+  HP-anchor change, or (b) restate the cap/policy with a recorded reason so a
+  censored run stops being scored as a loss. p12e (the prior item on this
+  same anchor) already measured that lowering `warden_eater.hp` further to
+  chase these exact four re-breaks the >20s fight-length floor for weak
+  kits — the one HP-shaped lever available was already spent and rejected,
+  and every one of the four wins in a ~80s boss fight once a scripted
+  harness plays the kit, so the cap is genuinely a stock-`hybrid`-policy
+  pacing artifact (the wave-11-to-17 wall, p10i), not evidence the class or
+  Core is weak. Chose (b): `tools/status.ts`'s `winRate` now excludes
+  `outcome === 'running'` (censored) runs from both halves of the ratio
+  instead of folding them in as an uncounted loss, and the snapshot names how
+  many of a cell's seeds censored (`t1Censored`/`t3Censored`/`policyComparison[].censored`,
+  rendered as a "(N censored)" suffix) so a reader sees *why* a cell reads
+  low instead of a bare, misleadingly-flat 0%. A cell where every seed
+  censors still reads 0 by convention (there is no decided seed to compute a
+  real rate from), but the count beside it now says that plainly rather than
+  implying a measured defeat. `npm run status` regenerated against the new
+  code. — Reason: CLAUDE.md rule 5 (never stop to ask, choose and log) and
+  the measurement rules ("check a change's blast radius" — this only changes
+  `tools/status.ts`'s own snapshot arithmetic and rendering, not any `/data`
+  value, any `/src/sim` gate, or any of the real G1/G8/G14/G23 gate tests,
+  which use their own independent scripted harnesses and are unaffected).
+  — (owner verdict: pending)
