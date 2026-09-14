@@ -5,6 +5,19 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-07 — main lane: BACKLOG p12j third follow-up — a second
+  independent code-reviewer agent, dispatched on the doc-correction commit
+  below, came back clean (APPROVE, no findings).** Verified adversarially:
+  `data/classes.json` untouched by that commit (confirmed via diff against
+  its parent — documentation-only); the corrected comment numbers
+  (animist 8%/8-of-12, plaguebringer's three levers) match the live data
+  read directly; `tests/class-wide-grove-reach.test.ts` passes 88/88 against
+  the shipped 8% value; BACKLOG.md/PROGRESS.md/QUESTIONS.md/the test file
+  all tell the same corrected story; `npx tsc --noEmit` clean. This closes
+  out p12j's Full-tier verification with two genuine independent review
+  rounds (one on the recovery commit, one on its own correction) — not the
+  self-review the item shipped with originally.
+
 - **2026-09-07 — main lane: BACKLOG p12j second follow-up — a real independent
   code-reviewer agent (dispatched by the lead session on the container-restart
   recovery commit) found two Major documentation/data mismatches; both

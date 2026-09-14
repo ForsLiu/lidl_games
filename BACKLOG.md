@@ -1159,7 +1159,19 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       cadence bug behind both c018 and c019, and the class-descriptions
       ledger miss) — cosmetic, three failing test cases from two root
       causes, left as-is since both readings are defensible. Full record:
-      QUESTIONS Q196. Original text follows.
+      QUESTIONS Q196.
+      **Third follow-up (2026-09-07): a second independent code-reviewer
+      agent, dispatched on the second-follow-up commit itself, verified the
+      correction adversarially** — confirmed `data/classes.json` untouched
+      by that commit (documentation-only), the new comment numbers match
+      the live data, `tests/class-wide-grove-reach.test.ts` passes at 88/88
+      against the shipped 8% value, all four documents (this file,
+      PROGRESS.md, QUESTIONS.md, the test file) tell the same corrected
+      story, and `npx tsc --noEmit` is clean. **Verdict: APPROVE, no
+      findings.** This item's Full-tier verification is now complete with
+      two real, independent review rounds (round one on the recovery
+      commit, round two on its own correction), not self-review. Original
+      text follows.
       Follow-up from fb177's bisection: G8
       (`tests/p6e-class-diversity.test.ts`) is no longer a roster mostly over
       the win-rate ceiling — after p12a-p12c's `baseHpMul: 20` + T3

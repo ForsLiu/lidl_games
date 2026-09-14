@@ -306,7 +306,8 @@
  *
  * **Follow-up (2026-09-07, found directly by the lead session re-running
  * `npm run test:fast` after this item's own container-restart recovery,
- * independent review pending): engineer's own Pop Turret retune left
+ * since independently reviewed and approved, including this fix's own
+ * cadence math): engineer's own Pop Turret retune left
  * `summonCap: 3` nominally unreachable at its own cast cadence** —
  * `cadenceCeiling(10s duration, 2.5s cooldown) = 4`, one short of
  * `summonCap(3) + maxBonus(2) = 5` — breaking `tests/class-line-bonus.
