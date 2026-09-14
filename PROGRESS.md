@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — BACKLOG p12i done, mechanism landed and a live re-measurement
+  found the four named cells already resolved.** p12e's QA follow-up had
+  characterized four `npm run status` snapshot cells (cryomancer T1 seeds 1+2,
+  animist T1 seed 2, engineer+`corpse` T3 seed 2) as hitting the 45-min cap
+  under the stock `hybrid` policy, and p12i offered two closing paths: find a
+  no-HP-anchor lever, or restate the cap/policy with a recorded reason so a
+  censored run stops being scored as a loss. Chose (b) — p12e had already
+  spent the one HP-anchor lever available and rejected it (re-breaks the
+  >20s fight-length floor for weak kits) — and landed it structurally rather
+  than cosmetically: `tools/status.ts`'s `winRate` now excludes
+  `outcome === 'running'` (censored) runs from both halves of the ratio
+  instead of silently folding them in as an uncounted loss, and the snapshot
+  now names how many of a cell's seeds censored (`t1Censored`/`t3Censored`/
+  `policyComparison[].censored`, rendered as a "(N censored)" suffix) so a
+  reader sees why a cell reads low instead of a bare, misleadingly-flat 0%.
+  Decision and reasoning logged as **QUESTIONS Q201**.
+  **The live re-run this item's own acceptance required (`npm run status`,
+  the real 88-run `tools/sweep.ts`-driven snapshot, ~12 min wall-clock) then
+  found something worth recording: none of the four originally-named cells
+  censored this time** — cryomancer T1, animist T1 and engineer+`corpse` T3
+  all resolved cleanly at both seeds. Only **1 of 88 runs** hit the cap
+  this run (`carnivorous_plant` T1 seed 2), which the new rendering correctly
+  shows as `1 (1 censored)` rather than a flat `0.5`. Not chased further —
+  this item's job was the display mechanism and a fresh measurement, not a
+  root-cause diagnosis of which of the intervening week's unrelated fixes
+  (fb081-fb084, fb153a's rescale, etc.) moved the four seeds off the cap —
+  logged as the honest result rather than a claimed fix for a wall that
+  moved out from under this item on its own. Both of p12i's acceptance
+  branches are therefore satisfied: the four named runs do reach a terminal
+  outcome inside the cap with no HP-anchor change (branch a, found rather
+  than engineered), and the cap/policy is also restated so any future
+  censored cell reads honestly (branch b). New tests in
+  `tests/fb038-status.test.ts` pin `winRate`/`decided`/`censoredCount`
+  directly (none/mixed/all-censored) and the render-level "(N censored)"
+  suffix. `npx tsc --noEmit` clean; `tests/fb038-status.test.ts` 31/31 (4
+  new); `tests/fb038-status-cli.test.ts`'s real end-to-end CLI run green
+  (720s). code-reviewer **APPROVE**, no Critical/Major (three Minor/Nit notes
+  on an already-safe `winRate([])` edge case, the optional-field shortcut on
+  `BalanceSnapshot`, and a truthy-check nit — none blocking). Full tier per
+  this item's `[balance]` type (CLAUDE.md subagent protocol); qa-playtester
+  pass below. STATUS.md regenerated — refs: BACKLOG p12i, p12e, p10i,
+  QUESTIONS Q201/Q159/Q160/Q184.
+
 - **2026-09-14 — fb174 done: q15's whole census suite had been silently
   `.skip`-ed since before fb172, not just noise-band flaky.** The filed
   report (below) was right that a spurious `hangs` under concurrent load
