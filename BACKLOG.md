@@ -74,31 +74,31 @@ still in test headers.
       actually makes the bootstrap's `register()` the single registration on
       every parent — and is faster (p50 507 vs 561 ms).
 
-- [ ] (fb174) [bug] q15's census deadline sits inside the noise band under
-      concurrent load, and a spurious `hangs` **silently removes coverage**:
-      `classify()` short-circuits on that verdict, so those field×family
-      combinations are simply not tested, with nothing red to say so. Filed by
-      qa-playtester on fb172, which made it newly reachable — while q15 died
-      at collection the whole census was inert, so this could not bite.
-      Measured 3/3 reproductions under a concurrent vitest run, **a different
-      combo set each time** (`build.ty:negInf`/`build.ty:negative`/
-      `class_active2.aimY:posInf`/`dev.gold.amount:nan`, then
-      `build.tx:nan`/`build.tx:negInf`/`sell.ty:posInf`, then
-      `dev.fast_forward.amount:nan`/`posInf`/`dev.xp.amount:nan`) — timing,
-      not a real hang. Alone on a quiet host it is 3/3 green with 6-wide
-      startup at 1498 ms against the 4000 ms budget (2.7x); under a concurrent
-      run that startup is 3.0-3.5 s (1.1x). **BACKLOG-QUALITY q44 measured
-      this margin once and deliberately declined to file it** — that deferral
-      predates fb172/fb173 and CLAUDE.md's "a deferral is a measurement with
-      an expiry date" says re-measure it rather than inherit it (fb173's
-      `execArgv: []` has since taken per-worker startup down, so re-measure
-      before choosing a number). Acceptance: a spurious `hangs` can no longer
-      silently drop a combination — either retry a `hangs` verdict once
-      serially before recording it (preferred: keeps fast detection and makes
-      a load-induced verdict self-correcting) or raise `runCensus`'s deadline
-      with the re-measured margin recorded; plus a case proving a dropped
-      combination now surfaces instead of passing quietly — refs: fb172,
-      BACKLOG-QUALITY.md q44, CLAUDE.md measurement rules.
+- [x] (fb174) [bug] **DONE 2026-09-14.** q15's census deadline sat inside the
+      noise band under concurrent load, and a spurious `hangs` silently
+      removed coverage — worse than the filed report knew: the whole 30-test
+      suite was still sitting inside a stale `describe.skip` (fb119's, whose
+      root cause fb172 had already fixed but nobody un-skipped), so nothing
+      was ever red to say a combination had gone untested. Fixed in three
+      parts: (1) removed the stale `.skip` — all 30 pre-existing cases pass;
+      (2) `runCensus()` now retries a `hangs` verdict once, inline, before
+      recording it, with an injectable `prober` param so the retry path is
+      testable without a real worker — three new tests prove a would-be-
+      dropped combination surfaces its real verdict, that a genuine
+      double-hang still records as `hangs` rather than vanishing, and that a
+      hanging combo doesn't affect its concurrently-running `mapLimit`
+      neighbors; (3) qa-playtester's re-check found the retry alone
+      insufficient under heavier concurrent load (5 stacked `vitest run`
+      processes on one file, 5/5 red; two full concurrent `test:fast` runs,
+      1/2 red), so the default deadline is now 8000 ms — fb173's own already-
+      measured concurrent-safe ceiling (`bench/q44-worker-timing-probe.ts`),
+      re-used rather than re-guessed. The residual gap under contention
+      heavier than this repo's actual CI produces is logged as **QUESTIONS
+      Q200** rather than chased further (no bounded retry/deadline survives
+      unbounded contention, and BACKLOG-TERRAIN.md independently logs q15 as
+      chronically load-sensitive). `npm run test:fast` green in full (4296
+      passed / 34 skipped, unchanged skip count). — refs: fb172, fb173,
+      BACKLOG-QUALITY.md q44, QUESTIONS Q200, CLAUDE.md measurement rules.
 
 - [x] (fb172) [bug] **DONE 2026-09-07, found by the loop's own fast-tier run,
       not by a backlog item.** `tests/q15-command-domain-fuzz.test.ts` was
