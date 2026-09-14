@@ -193,6 +193,13 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
     s.addAll(`class:${cfg.classKey}:passive`, cls.passive.mods);
     s.addAll(`class:${cfg.classKey}:towerPassive`, cls.towerPassive.mods);
     if (cls.moveSpeedBonus) s.add(`class:${cfg.classKey}:bands`, 'moveSpeedPct', cls.moveSpeedBonus);
+    // QUESTIONS Q196: per-class survivability bands (BACKLOG fb193) — folded
+    // into the same generic `maxHpPct`/`armor` stats `derive()` already reads,
+    // on `moveSpeedBonus`'s own precedent, rather than a bespoke derive-time read.
+    if (cls.maxHpMul !== undefined) {
+      s.add(`class:${cfg.classKey}:bands`, 'maxHpPct', cls.maxHpMul - 1);
+    }
+    if (cls.defenseBonus) s.add(`class:${cfg.classKey}:bands`, 'armor', cls.defenseBonus);
   }
 
   for (const id of cfg.allocated) {

@@ -1007,6 +1007,10 @@ const ClassSchema = z.object({
   unlockQuest: str.nullable(),
   /** §4's "move" band, resolved to a fractional bonus into the `moveSpeedPct` stat. */
   moveSpeedBonus: num,
+  /** QUESTIONS Q196: per-class survivability band, a multiplier folded into `maxHpPct` (default 1 = no bonus). */
+  maxHpMul: num.positive().optional(),
+  /** QUESTIONS Q196: per-class survivability band, a flat bonus folded into `armor` (default 0 = no bonus). */
+  defenseBonus: num.optional(),
   basicAttack: ClassBasicAttackSchema,
   passive: ClassSlotPassiveSchema,
   active1: ClassEffectSchema,

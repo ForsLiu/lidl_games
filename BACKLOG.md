@@ -308,11 +308,52 @@ therefore measure *after* `fb153`, not before.
 
 **PRIORITY DIRECTIVE:** fb193, fb194, fb195 in that order, then the content-lane
 check (logged in BACKLOG-CONTENT.md's Log), then everything else in queue order.
+**fb196 was found ahead of fb193 while working it and sits above it per
+working rule 3 (a confirmed bug outranks the queue) — the whole roster is
+red, which is what made fb193's own re-measurement clause impossible to
+honor.**
 
-- [ ] (fb193) [balance] **ORDER (Q196)** — per-class survivability bands.
-      Night-1 melee wipes are a survivability problem, not a damage problem
-      (p12j's three damage-rounds moved nothing, per Q196). Add `maxHpMul`
-      and `defenseBonus` fields to `data/classes.json`, read by `derive`
+- [ ] (fb196) [bug] **top priority — found working fb193, outranks it.**
+      `tests/p6e-class-diversity.test.ts` (gate **G8**) is red for nearly the
+      entire 12-class roster on HEAD (`e9ec061`), **before any fb193/194/195
+      change**: of the file's non-`.skip`-ed assertions, only 3 pass. The
+      failure mode is uniform and severe — most classes report
+      `defeat_warden/w3/early-loss` (the character dies in or immediately
+      after the very **first** VS block, wave 3), not the wave-11-to-17 wall
+      PROGRESS.md's p10i names as the roster's known open problem. Confirmed
+      on a clean tree (`git stash`, re-ran the file against `e9ec061`
+      directly, 10 of 10 then-non-skipped assertions failed — pyromancer,
+      archer, stormcaller, animist, paladin, bloodlord and at least one more
+      class each 0-4/12 wins with most seeds `defeat_warden@w3`; the
+      fingerprint-distance pin expected 16, measured 20; the T5 companion
+      band measured 0/12). This predates fb193 entirely — fb193's own
+      `maxHpMul`/`defenseBonus` bands (verified independently correct and
+      isolated to the 4 classes they're authored on: fingerprint-distance
+      moved 20->27, no *other* class's result changed) were not remotely
+      enough to move swordsman/necromancer/engineer into band against
+      whatever is now killing the roster in the first VS block. Prime
+      suspect: **PR #55** (`532d4d9`, merged into master **today**,
+      2026-09-14), a long-lived branch reconciling independent Q192-Q196
+      numbering with master's own — its own commit message already admits
+      `p6e-class-diversity.test.ts` "has been stale since 2026-09-03,
+      predating this whole balance arc" and explicitly deferred fixing it
+      (filed as a since-collided `fb177` in the old branch's own numbering).
+      `data/classes.json` alone changed 271 lines in that merge; `baseHpMul`
+      (20) and `warden_eater.hp` (18,250 = 365,000/20) are internally
+      consistent so p12e's own re-anchor is not implicated by inspection.
+      Not yet root-caused — needs a real bisection (`git bisect` or a
+      targeted control run per class against each file `532d4d9` touched:
+      `data/classes.json`, `src/sim/enemies.ts`) rather than another guess.
+      Acceptance: root cause identified and named with a control-run pair
+      proving it; a regression test pins the specific mechanism (not just
+      re-measures win rate); `tests/p6e-class-diversity.test.ts` re-measured
+      in full afterward with every class's real number recorded (whichever
+      way it lands) before fb193/194/195 resume — refs: SPEC-FINAL §14 G8,
+      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3.
+- [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
+      wipes are a survivability problem, not a damage problem (p12j's three
+      damage-rounds moved nothing, per Q196). Add `maxHpMul` and
+      `defenseBonus` fields to `data/classes.json`, read by `derive`
       (`src/sim/classes.ts` or equivalent) as multiplicative/additive
       modifiers on the class's base max HP and armor, authored ⚖: swordsman
       x1.6 maxHp / +10 defense, bloodlord x1.4 / +5, paladin x1.5 / +10 (on
@@ -324,6 +365,17 @@ check (logged in BACKLOG-CONTENT.md's Log), then everything else in queue order.
       (engineer may be re-tuned within the G14 >20 s boss-fight floor) and
       the before/after numbers recorded — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q196, BACKLOG p12j.
+      **Status (this session): the schema/data/derive half is shipped, the
+      gate-re-measurement half is blocked.** Verified the authored bands
+      land correctly and in isolation (a passing unit test pins `derive()`'s
+      output for all four classes; `npm run test:fast` green; the
+      fingerprint-distance pin moved 20->27, the only roster-wide number
+      this item's own data change should move) — but the re-measurement
+      clause above cannot be honored while fb196's roster-wide regression
+      stands: the authored bands did **not** move swordsman/necromancer/
+      engineer into G8's band, because all three (and nearly every other
+      class besides) are dying in the first VS block regardless of this
+      item's HP/armor bump. Resume the re-measurement once fb196 is closed.
 - [ ] (fb194) [balance] **OVERRIDE (Q180/Q191)** — split `numberScale` into
       two economies. Reverses fb163's "(a) no change" decision: the owner
       chose (b), scoped narrowly, instead. `numberScale` (`data/modifiers.

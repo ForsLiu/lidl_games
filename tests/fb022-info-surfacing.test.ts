@@ -639,8 +639,10 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     const { hud, text } = hudWarden(w);
 
     hud.update(w, undefined, sel);
-    // fb153a: the pool is authored 100 x `numberScale`.
-    expect(text()).toContain(`Health${scaled(100)} / ${scaled(100)}`);
+    // fb153a: the pool is authored 100 x `numberScale`. fb193: swordsman
+    // authors a `maxHpMul` survivability band (x1.6), a `derive()` factor
+    // applied on top of the scaled base pool.
+    expect(text()).toContain(`Health${scaled(160)} / ${scaled(160)}`);
 
     const hp = w.warden.hp;
     w.stats.add('src:test', 'maxHp', scaled(50));
@@ -648,7 +650,7 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     expect(w.warden.hp).toBe(hp);
 
     hud.update(w, undefined, sel);
-    expect(text()).toContain(`Health${scaled(100)} / ${scaled(150)}`);
+    expect(text()).toContain(`Health${scaled(160)} / ${scaled(240)}`);
   });
 
   it('a dash-charge-cap change alone refreshes the Dash row', () => {

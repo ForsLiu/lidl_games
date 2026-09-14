@@ -360,6 +360,11 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].basicAttack.dps': ['fractional'],
   'classes.classes[].basicAttack.interval': ['fractional'],
   'classes.classes[].basicAttack.range': ['fractional'],
+  // fb193 (QUESTIONS Q196): per-class survivability bands, optional with a
+  // neutral default (factor 1 / +0) when absent — `drop-key`/`rename-key`
+  // fall back to that default, same as any other optional field here.
+  'classes.classes[].maxHpMul': ['fractional', 'drop-key', 'rename-key'],
+  'classes.classes[].defenseBonus': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
   'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],

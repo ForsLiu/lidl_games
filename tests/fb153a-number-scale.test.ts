@@ -171,6 +171,7 @@ const UNSCALED_REASONS: Record<string, string> = {
   'towers.towers[].buffAura.attackSpeed': 'a percent aura',
   'towers.towers[].passive.attackSpeedPer': 'a percent per stack',
   'damagetypes.statuses.frost.attackSpeed': 'a percent (-30% attack speed)',
+  'classes.classes[].maxHpMul': 'a multiplier (fb193 per-class survivability band)',
 };
 
 /** Stat-record paths, whose classification comes from `STAT_SCALED` per key. */

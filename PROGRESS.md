@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — fb193 (per-class survivability bands) shipped its
+  schema/data/derive half; gate re-measurement blocked on a newly-found
+  regression, filed top-priority as fb196.** Added `maxHpMul`/
+  `defenseBonus` to `data/classes.json`'s schema (`src/sim/content.ts`),
+  authored per Q196 (swordsman x1.6/+10, bloodlord x1.4/+5, paladin
+  x1.5/+10, necromancer x1.2/+5), and folded them into the existing generic
+  `maxHpPct`/`armor` stats in `baseRunStats` (`src/sim/stats.ts`) — the same
+  pipeline `moveSpeedBonus` already rides, rather than a bespoke read inside
+  `derive()` itself. New `tests/fb193-survivability-bands.test.ts` pins
+  `derive()`'s output for all four classes plus a neutral-class control.
+  Fixed the census/fuzz tests that flag any new `/data` field
+  (`tests/fb153a-number-scale.test.ts`, `tests/q7-loader-holes.ts`) and one
+  hardcoded swordsman HP expectation that predated this item
+  (`tests/fb022-info-surfacing.test.ts`). `npx tsc --noEmit` clean,
+  `npm run test:fast` green (296 files, 4311 passed, 34 pre-existing
+  skips, zero new).
+  **While re-measuring G8 for swordsman/necromancer/engineer (this item's
+  own acceptance clause), found gate G8 is red across nearly the whole
+  12-class roster on HEAD — before any of this item's changes.** Confirmed
+  on a clean tree: `tests/p6e-class-diversity.test.ts` run directly against
+  `e9ec061` (no fb193 changes) fails 10 of its then-10 non-skipped
+  assertions, almost all `defeat_warden/w3/early-loss` — the character
+  dying in or right after the *first* VS block, a much more severe and
+  different failure than the wave-11-to-17 wall p10i named as the roster's
+  known open problem. fb193's own data change is independently verified
+  correct and scoped (only the 4 classes it touches move; the roster
+  fingerprint-distance pin moved 20->27 as expected of a data change to 4
+  classes' stats, nothing else shifted) but nowhere near enough to rescue
+  swordsman/necromancer/engineer from whatever is now killing the whole
+  roster immediately. Prime suspect: PR #55 (`532d4d9`), a long-lived
+  branch merged into master **today**, whose own commit message already
+  flagged this same test file as stale and deferred fixing it. Not
+  root-caused this session — filed as **fb196**, top priority, ahead of
+  fb193/194/195. fb193's schema/data/derive work is kept (correct on its
+  own terms); its gate-re-measurement clause is blocked on fb196.
+
 - **2026-09-14 — feedback/verdicts-q168-205 processed.** All 38 Q168-Q205
   entries (including the Q201 fb162/p12i numbering collision) tagged with
   their owner verdict in QUESTIONS.md, plus a consolidated Verdict log
