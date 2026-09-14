@@ -35,6 +35,24 @@
   — now re-run and correct). Full `tests/terrain*`: 25 files, 410 passed / 2
   skipped. `npx tsc --noEmit` clean.
 
+- **2026-09-14 — fb174 done: q15's whole census suite had been silently
+  `.skip`-ed since before fb172, not just noise-band flaky.** The filed
+  report (below) was right that a spurious `hangs` under concurrent load
+  should self-correct, but the deeper finding this session made was that
+  fb119's `describe.skip` — whose stated root cause fb172 had already fixed
+  — was never removed, so the whole 30-test suite (and the "nothing red to
+  say a combination went untested" problem fb174 named) had a much simpler
+  cause than pure timing noise. Un-skipped it (30/30 green), added a
+  retry-once to `runCensus()` with an injectable `prober` so the retry path
+  is unit-testable, then — after qa-playtester reproduced the retry alone
+  still failing under heavier concurrent load (5 stacked `vitest run`
+  processes: 5/5 red; two full `test:fast` runs at once: 1/2 red) — raised
+  the default deadline to 8000 ms, reusing fb173's own already-measured
+  concurrent-safe ceiling instead of guessing a new one. The residual gap
+  under contention heavier than this repo's CI actually produces is logged
+  as QUESTIONS Q200 rather than chased further. `npm run test:fast` green in
+  full throughout (4296 passed / 34 skipped, unchanged skip count).
+
 - **2026-09-07 — fb173 done; fb174 filed. QA caught fb172 correcting itself
   wrongly.** Two defects, one of them in fb172's own diff an hour old.
   (a) `probeInWorker`'s deadline **silently collapsed to 1 ms** for anything
