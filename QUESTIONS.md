@@ -11,6 +11,56 @@ Entries are numbered **Q1–Q32** so verdicts can be given compactly, e.g.
 
 ## Verdict log
 
+- **2026-09-14 (feedback/verdicts-q168-205)** — Q168–Q205 verdicts applied in
+  full: every entry not named below is **approved** as its chosen default.
+  Q168 approved (additive shape); fb124's full-charge-only variant is not
+  wanted — **closed**. Q171 approved, all nine, including "rock and high
+  ground stop the Warden"; the Act II high-ground residual is accepted as a
+  non-issue and closed, and the Burrower's widened untargetable window is
+  capped at 3 s ⚖ per surfacing (fb129). Q172 **ORDER** fb128 — carry the
+  sub-tick cooldown remainder (control run required, low priority). Q174
+  approved; fb118's global renumbering stays queued at low priority. Q175
+  and Q193 approved as evidence; **DECISION** (amends BALANCE DIRECTION v2
+  §A): the 35% own-kit-share target fought the owner's own VS design (the
+  character wields every tower, so wielded damage is supposed to dominate).
+  Restated: own-kit VS share target = 15% ⚖ from TD wave 12, a BALANCE.md
+  target (not a G8 clause), measured for the nine classes whose kit has a
+  damaging VS Active; bloodlord, engineer and animist are exempt and
+  measured for the record only. Keep `kitPowerMul`/`kitBuildMul` as shipped;
+  do not pursue route (b). G8 = T3 win-rate band + pairwise fingerprint
+  distance (§D) only. Q177 approved (baseHpMul 20, T1 re-anchor). Q180 and
+  Q191 **OVERRIDE** — option (b), scoped narrowly: split the factor.
+  `numberScale` applies only to economy A (enemy HP and damage dealt to
+  enemies); economy B (enemy damage output, character/Core/structure HP,
+  equipment flats, regen) is NOT scaled, and the five crossing constants
+  (lifesteal, Blood Tithe, Wrath, Corpse store, Vampire Heart overheal) take
+  the inverse factor. Revert fb164's prose re-anchoring for economy B
+  numbers — filed as the economy-split item, normal priority. Q181
+  approved; **ORDER** the cheap closer — loader refuses unknown top-level
+  keys in modifiers.json. Q182–Q184, Q192, Q194–Q195, Q197, Q199, Q200,
+  Q202–Q205 approved (final boss spawns at a gate; round-robin cursor;
+  censoring recorded; p12e resolved via Q192; the `/data` re-anchor of
+  `warden_eater.hp`). Q196 approved — p12j's 9/12 stands; **ORDER** (new
+  item, ahead of any further G8 re-tune): per-class survivability bands —
+  add `maxHpMul`/`defenseBonus` to `data/classes.json`, authored ⚖:
+  swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10 (on top of
+  Guardian Stance), necromancer x1.2/+5, all other classes x1.0/+0; then
+  re-measure G8 for swordsman, necromancer and engineer. Q201 (both the
+  `fb162`-merge entry and the `p12i` entry, a numbering collision) approved:
+  master's unconditional overkill clamp stands, and censored runs are
+  excluded from `winRate` and named rather than folded in as a loss.
+  **PRIORITY DIRECTIVE** issued for the batch, in order: (1) the
+  survivability item (Q196); (2) the economy-split item (Q180/Q191); (3)
+  the kit-share target restatement in BALANCE.md and tests (Q193); (4) the
+  queued content-lane items (equipment sets fb056, Madness King fb057,
+  Voltbolt fb059, Plaguebringer charge fb061, poison-barrel pin fb062), and
+  check why `lane/content`'s routine delivered nothing since Sep 3; (5)
+  everything else in queue order. Filed as BACKLOG items **fb193**
+  (survivability bands), **fb194** (economy split), **fb195** (kit-share
+  restatement) in BACKLOG.md ahead of the existing queue, per the
+  directive's order; fb129/fb128 already existed and are unchanged; the
+  content-lane check is logged in BACKLOG-CONTENT.md's Log.
+
 - **2026-09-01 (feedback/verdicts-q134-154)** — Q134–Q154 verdicts applied in
   full: every entry not named below is **approved** as its chosen default.
   Q138 **OVERRIDE**: balance tooling (`tools/sim.ts`, `tools/sweep.ts`,
@@ -1227,7 +1277,7 @@ Q200 did not collide and are unchanged below).
   actual wider corridor a high-Area build already hits with was judged the
   more consistent default than a pinned exception two call sites disagreed
   on (BACKLOG.md fb081b, closed moot by this same alignment). Still
-  owner-vetoable either way.
+  owner-vetoable either way. — (owner verdict: approved.)
 
 - **Q204** (was Q195 on `origin/master`). [fb083] A new tower-only Area stat key (`towerArea`) closes the
   Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit

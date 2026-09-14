@@ -420,6 +420,116 @@ therefore measure *after* `fb153`, not before.
         the sim half and lands **after** both, since flipping the constant
         first would redden two other lanes' suites at their next merge.
 
+### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
+
+**PRIORITY DIRECTIVE:** fb193, fb194, fb195 in that order, then the content-lane
+check (logged in BACKLOG-CONTENT.md's Log), then everything else in queue order.
+**fb196 was found ahead of fb193 while working it and sits above it per
+working rule 3 (a confirmed bug outranks the queue) — the whole roster is
+red, which is what made fb193's own re-measurement clause impossible to
+honor.**
+
+- [ ] (fb196) [bug] **top priority — found working fb193, outranks it.**
+      `tests/p6e-class-diversity.test.ts` (gate **G8**) is red for nearly the
+      entire 12-class roster on HEAD (`e9ec061`), **before any fb193/194/195
+      change**: of the file's non-`.skip`-ed assertions, only 3 pass. The
+      failure mode is uniform and severe — most classes report
+      `defeat_warden/w3/early-loss` (the character dies in or immediately
+      after the very **first** VS block, wave 3), not the wave-11-to-17 wall
+      PROGRESS.md's p10i names as the roster's known open problem. Confirmed
+      on a clean tree (`git stash`, re-ran the file against `e9ec061`
+      directly, 10 of 10 then-non-skipped assertions failed — pyromancer,
+      archer, stormcaller, animist, paladin, bloodlord and at least one more
+      class each 0-4/12 wins with most seeds `defeat_warden@w3`; the
+      fingerprint-distance pin expected 16, measured 20; the T5 companion
+      band measured 0/12). This predates fb193 entirely — fb193's own
+      `maxHpMul`/`defenseBonus` bands (verified independently correct and
+      isolated to the 4 classes they're authored on: fingerprint-distance
+      moved 20->27, no *other* class's result changed) were not remotely
+      enough to move swordsman/necromancer/engineer into band against
+      whatever is now killing the roster in the first VS block. Prime
+      suspect: **PR #55** (`532d4d9`, merged into master **today**,
+      2026-09-14), a long-lived branch reconciling independent Q192-Q196
+      numbering with master's own — its own commit message already admits
+      `p6e-class-diversity.test.ts` "has been stale since 2026-09-03,
+      predating this whole balance arc" and explicitly deferred fixing it
+      (filed as a since-collided `fb177` in the old branch's own numbering).
+      `data/classes.json` alone changed 271 lines in that merge; `baseHpMul`
+      (20) and `warden_eater.hp` (18,250 = 365,000/20) are internally
+      consistent so p12e's own re-anchor is not implicated by inspection.
+      Not yet root-caused — needs a real bisection (`git bisect` or a
+      targeted control run per class against each file `532d4d9` touched:
+      `data/classes.json`, `src/sim/enemies.ts`) rather than another guess.
+      Acceptance: root cause identified and named with a control-run pair
+      proving it; a regression test pins the specific mechanism (not just
+      re-measures win rate); `tests/p6e-class-diversity.test.ts` re-measured
+      in full afterward with every class's real number recorded (whichever
+      way it lands) before fb193/194/195 resume — refs: SPEC-FINAL §14 G8,
+      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3.
+- [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
+      wipes are a survivability problem, not a damage problem (p12j's three
+      damage-rounds moved nothing, per Q196). Add `maxHpMul` and
+      `defenseBonus` fields to `data/classes.json`, read by `derive`
+      (`src/sim/classes.ts` or equivalent) as multiplicative/additive
+      modifiers on the class's base max HP and armor, authored ⚖: swordsman
+      x1.6 maxHp / +10 defense, bloodlord x1.4 / +5, paladin x1.5 / +10 (on
+      top of Guardian Stance's own bonus), necromancer x1.2 / +5, all other
+      classes x1.0 / +0. Acceptance: schema fields land with a loader
+      default of 1.0/0 for every other class; a red-first test pins
+      `derive`'s max HP and armor for at least one non-default class; G8 is
+      re-measured for swordsman, necromancer and engineer specifically
+      (engineer may be re-tuned within the G14 >20 s boss-fight floor) and
+      the before/after numbers recorded — refs: SPEC-FINAL §14 G8, QUESTIONS
+      Q196, BACKLOG p12j.
+      **Status (this session): the schema/data/derive half is shipped, the
+      gate-re-measurement half is blocked.** Verified the authored bands
+      land correctly and in isolation (a passing unit test pins `derive()`'s
+      output for all four classes; `npm run test:fast` green; the
+      fingerprint-distance pin moved 20->27, the only roster-wide number
+      this item's own data change should move) — but the re-measurement
+      clause above cannot be honored while fb196's roster-wide regression
+      stands: the authored bands did **not** move swordsman/necromancer/
+      engineer into G8's band, because all three (and nearly every other
+      class besides) are dying in the first VS block regardless of this
+      item's HP/armor bump. Resume the re-measurement once fb196 is closed.
+- [ ] (fb194) [balance] **OVERRIDE (Q180/Q191)** — split `numberScale` into
+      two economies. Reverses fb163's "(a) no change" decision: the owner
+      chose (b), scoped narrowly, instead. `numberScale` (`data/modifiers.
+      json`) must apply only to **economy A** (enemy HP and damage dealt to
+      enemies: tower/kit/wielded/Core attacks); **economy B** (enemy damage
+      output, Core/structure/character HP, equipment flats, regen) is NOT
+      scaled. The five crossing constants that convert between the two
+      economies — lifesteal, Blood Tithe, Wrath, the Corpse store and
+      Vampire Heart overheal — take the **inverse** factor so their outputs
+      are unchanged. Also reverts fb164's prose re-anchoring (`tests/fb164-
+      prescale-prose.test.ts` and the ~50 re-typed sentences) for every
+      economy-B field, back to authored (unscaled) units. Acceptance: a
+      census test classifies every numeric `/data` leaf as economy A or B
+      (extending `tests/fb153a-number-scale.test.ts`'s existing census);
+      each of the five crossing constants is verified with the existing
+      cross-scale invariant test shape (one control pair each, per the
+      `overhealGoldRatio` precedent); fb164's economy-B sentences are
+      reverted and their test coverage updated; a control pair (`npm run
+      sim -- --seed N --policy hybrid`) shows economy-A-only scaling is
+      still proportional and gate-neutral — refs: SPEC-FINAL §2/§3,
+      QUESTIONS Q180/Q191, BACKLOG fb153a/fb163/fb164.
+- [ ] (fb195) [balance] **DECISION (Q175/Q193)** — restate the own-kit VS
+      share target. Amends BALANCE DIRECTION v2 §A: the shipped >=35%
+      own-kit-share target fought the owner's own VS design (the character
+      wields every tower, so wielded damage is supposed to dominate).
+      Restated target: own-kit VS share **>=15% ⚖ from TD wave 12**, a
+      BALANCE.md target (not a G8 clause), measured for the nine classes
+      whose kit has a damaging VS Active; bloodlord, engineer and animist
+      are exempt (identity via lifesteal/tithe and summons respectively)
+      and are measured for the record only. `kitPowerMul` and
+      `kitBuildMul` stay as shipped; route (b) (cutting wielded-weapon VS
+      scaling) is not pursued. Acceptance: BALANCE.md's "Kit relevance
+      target" section and `tests/class-kit-damage-share.test.ts` re-point
+      to the 15%-from-wave-12 target for the nine in-scope classes and
+      record bloodlord/engineer/animist as exempt/informational; G8's own
+      definition in BALANCE.md/tests is confirmed as T3 win-rate band +
+      pairwise fingerprint distance (§D) only, with no kit-share clause —
+      refs: SPEC-FINAL §14 G8, QUESTIONS Q175/Q193, BACKLOG p12f.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 
@@ -3616,17 +3726,18 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `report.damageByWeapon['class_active'] > 0`; `fuzzRun` gets an
       archer/swordsman config — refs: SPEC-FINAL §14 G10, BACKLOG-CONTENT.md
       c017 Log.
-- [ ] (fb124) [balance] Deadeye Draw's reason to charge collapses at max
+- [x] (fb124) [balance] **CLOSED 2026-09-14 (feedback/verdicts-q168-205,
+      Q168) — no change.** Deadeye Draw's reason to charge collapses at max
       investment: damage per committed second against a 10-wide line, best
       hold vs a one-tick tap, falls from 4.36x (rank 0, no CDR) to 1.10x at
       `archer_class_line` rank 2 plus the 0.40 `cdrCap` — no gate moves (G10
       is closed-form over `chargeCapSeconds`/`compoundPerSecond`/
       `cooldownSeconds` and never reads `pierceCap`). A full-charge-only
       variant of c017's bonus keeps the 6 -> 8 -> 10 ladder and leaves
-      partial charges alone; that is a design call (Q168). Acceptance:
-      decide via QUESTIONS.md; if taken, `/data` or one `classes.ts` clause
-      with `class-deeper-draw` re-pinned and the ratio measured either side
-      — refs: SPEC-FINAL §4.2 Archer, §14 G10, Q168.
+      partial charges alone; that was a design call (Q168), and the owner
+      verdict is **not wanted** — c017's shipped additive shape
+      (`fireDeadeyeDraw`) stands as-is. — refs: SPEC-FINAL §4.2 Archer, §14
+      G10, Q168.
 - [ ] (fb125) [test] four blind spots the content lane measured but could
       not fix outside its Scope: `tests/fb013-timelord.test.ts:498` lands
       every hit back-to-back, so `damageWarden`'s merge can be written as
@@ -3658,17 +3769,19 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       refuses the duplicated one; p6d's G11 ceiling/growth assertions
       re-measured as a control pair — refs: SPEC-FINAL §4.2 Stormcaller,
       §12 rule 4, BACKLOG-CONTENT.md c010.
-- [ ] (fb128) [balance] tower attack speed is quantised to whole 60 Hz
+- [ ] (fb128) [balance] **ORDER (feedback/verdicts-q168-205, Q172, low
+      priority)** — tower attack speed is quantised to whole 60 Hz
       ticks and small bonuses are inert: `tickCooldown` (`types.ts:17`)
       clamps to 0 instead of carrying the sub-tick remainder, so a tower
       fires every `ceil(interval / (dt * speed))` ticks — the Arrow Spire
       fires every 43 ticks at +0% and +2% alike, and +3% is the first step
-      that moves it. Possibly intended; recorded (Q172) because a
-      `towerAttackSpeed` tuning pass in small steps will find some steps do
-      nothing. Acceptance: decide in QUESTIONS.md; if remainder-carrying is
-      taken, a control-run sweep either side and
+      that moves it. The owner verdict is to carry the remainder rather than
+      record the floor as intended. Acceptance: `tickCooldown` banks the
+      sub-tick remainder instead of clamping to 0, a control-run sweep
+      either side of the change is recorded, and
       `tests/class-tower-passive-liveness.test.ts`'s declared tick-floor
-      exception updated — refs: SPEC-FINAL §2, §14 G1/G13, Q172.
+      exception is updated (removed if no longer needed) — refs:
+      SPEC-FINAL §2, §14 G1/G13, Q172.
 - [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
       call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
       (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in

@@ -36,6 +36,17 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+### Checked 2026-09-14 — feedback/verdicts-q168-205 priority (4)
+
+The owner's priority directive asked to check why this lane's routine had
+"delivered nothing since Sep 3" and, if an overlap guard was tripping on a
+stale branch/PR, close it. **Finding: already resolved, no fix needed.**
+`git log` shows this lane merged twice on 2026-09-14 itself — c002 (closed
+as superseded by BALANCE DIRECTION v2 §D, PR #51) and c004 (Animist
+Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
+`lane/content` at the time of this check. The queued owner items below
+(fb056, fb057, fb059, fb061) remain the real backlog, not a broken loop.
+
 ### Actionable in this lane
 
 - [x] (fb180) [polish] **DONE 2026-09-07.** token economy (fb178, main lane):
