@@ -406,7 +406,7 @@ export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 
 // that file's header for the measurement behind this.
 const WORKER_PATH = fileURLToPath(new URL('./fuzz-command-domain-worker-boot.mjs', import.meta.url));
 
-interface HangResult {
+export interface HangResult {
   readonly hangs: true;
 }
 
@@ -517,12 +517,13 @@ function describeOutcome(spec: FieldSpec, outcome: ProbeOutcome): string {
  * measurement) can stretch past a 4000 ms deadline under that contention —
  * measured 3/3 reproductions, a *different* combo set hanging each time,
  * which is the signature of timing contention, not a real hang in the probed
- * code. A single retry, run serially (not re-entering the `concurrency`-wide
- * pool — one probe, awaited alone) after the first `hangs`, gives a
- * load-induced false verdict a clean second shot free of that contention
- * before it is recorded. A combination that hangs twice is recorded as
- * `hangs` for real — this does not hide a genuine hang, it only stops a slow
- * one from being misclassified as one.
+ * code. A single retry — inline, awaited before this combo's `mapLimit` slot
+ * returns, not re-queued as a fresh work item — gives a load-induced false
+ * verdict an independent second roll of the dice rather than compounding on
+ * the same one. It does not remove the external contention (the retry still
+ * runs alongside whatever else is mid-flight), so it is a mitigation, not an
+ * isolation guarantee — a combination that hangs twice in a row is recorded
+ * as `hangs` for real.
  */
 export async function runCensus(
   timeoutMs = 4000,

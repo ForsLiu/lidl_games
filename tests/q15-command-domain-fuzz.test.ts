@@ -196,21 +196,56 @@ describe('q15 command-argument domain fuzz', () => {
     // (default `probeInWorker`) lets this prove the retry path without
     // paying for a real worker or a real timeout.
     it('a hangs verdict on the first attempt does not get recorded — the retried real outcome does', async () => {
-      let calls = 0;
+      // Keyed on the target combo's own fieldKey/family, not on call order —
+      // `runCensus`'s iteration order is an implementation detail this test
+      // should not depend on.
+      const targetKey = FIELD_SPECS[0].key;
+      const targetFamily = FAMILIES[0];
+      let targetCalls = 0;
       const fakeProber = async (fieldKey: string, family: Family) => {
-        calls++;
-        if (calls === 1) return { hangs: true as const };
+        if (fieldKey === targetKey && family === targetFamily) {
+          targetCalls++;
+          if (targetCalls === 1) return { hangs: true as const };
+        }
         // A non-empty `problems` classifies as 'accepted' for either
         // category (see `classify()`), so the expected verdict here does
-        // not depend on which field happens to be combo index 0.
+        // not depend on which field this is.
         return { fieldKey, family, threw: false, problems: ['forced by fb174 test'], digestChanged: false };
       };
       const census = await runCensus(4000, 1, fakeProber);
       const total = FIELD_SPECS.length * FAMILIES.length;
       expect(census.length).toBe(total); // nothing dropped from the output
-      expect(calls).toBe(total + 1); // exactly one retry, for the one combo that hung
-      expect(census[0].verdict).toBe('accepted'); // surfaced the real outcome, not 'hangs'
-      expect(census[0].detail).toContain('forced by fb174 test');
+      expect(targetCalls).toBe(2); // exactly one retry, for the combo that hung
+      const entry = census.find((e) => e.fieldKey === targetKey && e.family === targetFamily)!;
+      expect(entry.verdict).toBe('accepted'); // surfaced the real outcome, not 'hangs'
+      expect(entry.detail).toContain('forced by fb174 test');
+    });
+
+    it('a hangs verdict on one combo does not affect its concurrently-running neighbors', async () => {
+      // The motivating scenario: one combo times out (load contention) while
+      // several others, sharing the same `mapLimit` concurrency pool, resolve
+      // normally at the same time.
+      const targetKey = FIELD_SPECS[0].key;
+      const targetFamily = FAMILIES[0];
+      let targetCalls = 0;
+      const fakeProber = async (fieldKey: string, family: Family) => {
+        if (fieldKey === targetKey && family === targetFamily) {
+          targetCalls++;
+          if (targetCalls === 1) return { hangs: true as const };
+        }
+        return { fieldKey, family, threw: false, problems: [], digestChanged: false };
+      };
+      const census = await runCensus(4000, 6, fakeProber);
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      expect(census.length).toBe(total);
+      expect(targetCalls).toBe(2);
+      const entry = census.find((e) => e.fieldKey === targetKey && e.family === targetFamily)!;
+      expect(entry.verdict).toBe('rejected'); // surfaced, not left as 'hangs'
+      // Every other combo resolved cleanly on its first (only) call, unaffected.
+      for (const e of census) {
+        if (e.fieldKey === targetKey && e.family === targetFamily) continue;
+        expect(e.verdict).toBe('rejected');
+      }
     });
 
     it('a combination that hangs twice is still recorded as hangs, not dropped or retried again', async () => {
