@@ -31,6 +31,8 @@ const FIXTURE: ClassDef = {
   unlockedByDefault: true,
   unlockQuest: null,
   moveSpeedBonus: 0.5,
+  maxHpMul: 1,
+  defenseBonus: 0,
   basicAttack: { dps: 100, range: 6, interval: 0.5, aoe: 2 },
   passive: { name: 'Test Passive', description: 'test', mods: { towerCost: -0.5 } },
   active1: { name: 'Test Active1', kind: 'burst_damage', cooldownSeconds: 4, radius: 3, damage: 40 },

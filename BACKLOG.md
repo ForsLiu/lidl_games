@@ -252,25 +252,62 @@ DIRECTIVE, in its order. Item (4) of that directive (queued content-lane
 items + the lane-content stall check) is handled in BACKLOG-CONTENT.md's Log,
 not here.
 
-- [ ] (p13a) [balance] **top priority** — per-class survivability bands
-      (QUESTIONS Q196 ORDER). Night-1 VS wipes on swordsman/bloodlord/
-      necromancer are a survivability problem, not a damage problem (p12j
-      spent 3 kit-damage rounds on swordsman with zero seed-outcome change).
-      Add `maxHpMul` and `defenseBonus` fields to `data/classes.json`,
-      read by `derive()` alongside the existing `maxHp`/armor stack;
-      authored ⚖: swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10
-      (stacks on top of Guardian Stance), necromancer x1.2/+5, all other
-      classes x1.0/+0 (inert, needs a loader/schema default and a
-      no-op-at-default regression case). Then re-measure G8
-      (`tests/p6e-class-diversity.test.ts`) for swordsman, necromancer and
-      engineer; engineer may be re-tuned within G14's `>20s` boss-fight
-      floor (`tests/boss.test.ts`) if it moves. Acceptance: the two fields
-      load and apply for all 12 classes with a control-pair measurement
-      (before/after, `baseHpMul`/tier ladder untouched); swordsman and
-      necromancer's G8 status re-measured and the file's `.skip` comments
-      updated with real numbers either way; G1/G14 re-confirmed unaffected
-      for classes at the x1.0/+0 default — refs: SPEC-FINAL §14 G8/G14,
-      QUESTIONS Q196, BACKLOG p12j/fb177.
+- [x] (p13a) [balance] **DONE 2026-09-14 — mechanism landed, re-measured
+      honestly, does not close G8 (in fact widens it).** Per-class
+      survivability bands (QUESTIONS Q196 ORDER). `maxHpMul`/`defenseBonus`
+      added to `data/classes.json`'s `ClassSchema` and to all 12 rows
+      (swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10, necromancer
+      x1.2/+5, every other class x1.0/+0), folded into `baseRunStats`
+      (`src/sim/stats.ts`) as one more `maxHpPct`/`armor` source — the same
+      mechanism `moveSpeedBonus` already uses, inert by construction at the
+      shipped default (pinned, `tests/p13a-survivability-bands.test.ts`, 6
+      cases: field presence, the four authored bands, the eight defaults,
+      the derived-stat formula, and multiplicative composition with an
+      independent `maxHpPct` source). Re-measured all four elevated classes
+      live at the real 12-seed T3 cadence before shipping (two, paladin/
+      bloodlord, had non-`.skip` tests going in) — **every one measured
+      worse**: swordsman 2/12->0/12, necromancer 4/12->0/12, paladin
+      5/12->0/12, bloodlord 5/12->3/12, dropping the roster's G8 in-band
+      count from 9/12 to 7/12, under SPEC-FINAL's own >=9/12 floor. Not a
+      null result: the diagnosed Night-1 `defeat_warden`@w3 mode did shrink
+      where it existed (swordsman 10/12->7/12 first-VS-block wipes) — the
+      band buys real survival past wave 3, and those saved seeds fall
+      instead to the roster's other documented wave-11-to-17 `defeat_core`
+      wall (p10i) rather than converting into wins; a seed's fate is
+      RNG-stream-sequenced so more survivability does not monotonically
+      raise its win chance once the run forks earlier (same
+      chaotic-sensitivity property Q157-Q166 already found from the damage
+      side). Engineer (inert, a control per this item's own acceptance)
+      re-confirmed byte-identical, still 4/12, same seed-by-seed pattern.
+      Shipped the owner's literal ⚖ figures rather than silently
+      re-tuning them; all four `.skip`-ed with honest numbers
+      (`tests/p6e-class-diversity.test.ts`); regression logged as
+      **QUESTIONS Q206**, not chased with an un-ordered second retune round
+      inside this item. `npx tsc --noEmit` clean; `Q7_RECORD=1` regenerated
+      `tests/q7-loader-holes.ts`'s census (4 new lines, mechanical, not
+      hand-edited); `npm run test:fast` green — refs: SPEC-FINAL §14 G8/G14,
+      QUESTIONS Q196/Q206, BACKLOG p12j/fb177/p10i.
+
+- [ ] (fb185) [bug] `tests/p6e-class-diversity.test.ts` (fast-tier-excluded)
+      has drifted stale against at least one same-day change: a full run
+      during p13a found `it('animist', ...)` red (8/12 -> 4/12, pinned
+      2026-09-07) and the "T1/T5 companion" `T5` case red (0/12, band
+      [5%,20%]), both using classes p13a's diff cannot touch (animist itself
+      and `engineer` are both at the survivability-band default). Most
+      likely cause: BACKLOG-CONTENT c004 (2026-09-14, merged before this
+      session) added `mods: { summonCap: 1 }` to Animist's Kinship passive
+      — this file was not re-run against it. The pinned fingerprint-distance
+      failure count (16, `it('the current (red) fingerprint-distance
+      failure count is pinned...')`) also moved to 27 as of p13a's own
+      shipped changes (partly expected, per p13a's writeup — swordsman/
+      necromancer/paladin/bloodlord's fingerprints genuinely shifted;
+      unclear how much of the remainder is animist's own drift). Acceptance:
+      re-run the full file fresh; re-diagnose each red case by name (a git
+      worktree control run at the pre-c004 commit isolates whether c004 is
+      really the cause of the animist delta); re-pin every `.skip`/`it`
+      comment with the honest current numbers, same as p13a did for its own
+      four classes — refs: BACKLOG-CONTENT c004, BACKLOG p13a, QUESTIONS
+      Q196/Q206.
 
 - [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
       — priority 2.** The 2026-09-06 "decided (a), no code/data change"

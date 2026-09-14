@@ -1344,3 +1344,47 @@ Q200 did not collide and are unchanged below).
   value, any `/src/sim` gate, or any of the real G1/G8/G14/G23 gate tests,
   which use their own independent scripted harnesses and are unaffected).
   — (owner verdict: approved — censored runs excluded and named.)
+
+- **Q206. [p13a] The owner-ordered per-class survivability bands (Q196)
+  measure red, and drop two previously-in-band classes out — a real
+  regression, shipped as ordered rather than silently re-tuned.** Q196
+  ORDERed `maxHpMul`/`defenseBonus` for swordsman (x1.6/+10), bloodlord
+  (x1.4/+5), paladin (x1.5/+10), necromancer (x1.2/+5), built as a new
+  `baseRunStats` source (`src/sim/stats.ts`) folded into the existing
+  `maxHpPct`/`armor` stat keys, same mechanism `moveSpeedBonus` already
+  uses — inert by construction for the other eight classes (pinned,
+  `tests/p13a-survivability-bands.test.ts`). Re-measured all four at the
+  real 12-seed T3 scripted-kit cadence (`tests/p6e-class-diversity.test.ts`'s
+  own harness) before shipping, since two of the four (paladin, bloodlord)
+  had *live* (non-`.skip`) tests going in. Every one measured **worse**:
+  swordsman 2/12 -> 0/12, necromancer 4/12 -> 0/12, paladin 5/12 -> 0/12,
+  bloodlord 5/12 -> 3/12 — paladin and bloodlord newly out of band,
+  dropping the roster's in-band count from 9/12 to **7/12**, under SPEC-
+  FINAL §14's own G8 floor (>=9/12). Not a wasted mechanism, though: the
+  diagnosed Night-1 `defeat_warden`@w3 mode the order targeted did shrink
+  measurably where it existed (swordsman 10/12 -> 7/12 first-VS-block
+  wipes) — the extra HP/armor buys real survival past wave 3, and those
+  saved seeds fall instead to the roster's other, already-documented
+  wave-11-to-17 `defeat_core` wall (p10i) rather than converting into wins.
+  The mechanism is therefore working as designed; the *outcome* is a second
+  wall the first one was masking, not a wash, and a seed's fate is
+  RNG-stream-sequenced (architecture rule 2) so a strictly-more-survivable
+  sheet does not monotonically raise its win chance once the run's own
+  trajectory forks earlier — the same chaotic-sensitivity property Q157-
+  Q161/Q166 already measured on this exact mechanism from the damage side.
+  Chosen default: **ship the owner's literal ⚖ figures as ordered**, re-pin
+  all four `.skip` (paladin/bloodlord newly, swordsman/necromancer/engineer
+  already were) with the honest post-band numbers, and log the regression
+  here rather than quietly picking different multipliers the owner did not
+  authorize. Not chased with a second round inside this item — a further
+  retune (either the bands themselves, or an attack on the wave-11-to-17
+  wall directly, p10i's own open item) needs a fresh verdict or its own
+  item, not a silent substitution for numbers that were an explicit order.
+  — Reason: CLAUDE.md rule 5 (choose, log, continue) and rule 6 (the
+  bottleneck this order targeted is real and measurably moved; forcing a
+  second, un-ordered round of retuning inside the same item to chase green
+  is exactly the "fragile tune" the measurement rules warn against); the
+  "check a `/data` row's blast radius" rule (paladin/bloodlord were not
+  named in Q196's own re-measurement clause but were directly affected by
+  the same `/data` edit, and were live tests, not skipped ones); SPEC-FINAL
+  §14 G8, QUESTIONS Q196, BACKLOG p13a. — (owner verdict: pending)

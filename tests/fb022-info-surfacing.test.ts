@@ -634,7 +634,11 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
   });
 
   it('a maxHp change alone refreshes the Health row', () => {
-    const w = new World(cfg({ classKey: 'swordsman' }));
+    // p13a: not `swordsman` — its `maxHpMul: 1.6` (QUESTIONS Q196) would move
+    // the hardcoded pool below out from under this test's own numbers, which
+    // have nothing to do with any one class's survivability band. `engineer`
+    // is this codebase's own inert-by-default control class (`maxHpMul: 1`).
+    const w = new World(cfg({ classKey: 'engineer' }));
     const sel: Selection = { kind: 'warden' };
     const { hud, text } = hudWarden(w);
 
