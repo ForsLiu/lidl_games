@@ -55,17 +55,6 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
       `npx vitest run tests/fb038-status.test.ts`. No `/src` or `/data`
       change — refs: feedback/feature-token-economy.md, BACKLOG.md fb178.
 
-- [ ] (c004) [bug] **BLOCKED out of Scope 2026-09-03 — see the Log.** Animist's passive is missing half its SPEC-FINAL §4.2
-      clause. §4.2's Animist row reads "aura effects also affect summons;
-      **summon cap +1**"; `data/classes.json`'s Kinship row authors only the
-      aura half (`"description": "Aura effects also affect summons."`,
-      `mods: {}`), and the three summon-cap sites in `classes.ts` add only
-      `classLineBonus`. Acceptance: a regression test spawns Animist spirits
-      past the authored `summonCap` and asserts the live cap is
-      `summonCap + 1` for the Animist and unchanged for Engineer/Necromancer;
-      the +1 is expressed on the passive in `/data` rather than a class-key
-      check in code - refs: SPEC-FINAL §4.2 (Animist).
-
 - [ ] (c010) [balance] **BLOCKED out of Scope 2026-09-04 — see the Log.**
       Stormcaller *Conduction* is authored on the wrong row.
       The passive names a rule about electric damage *generally* ("+20% per
@@ -210,6 +199,31 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
 
 ### Recently completed
 
+- (c004) [bug] **DONE 2026-09-14.** Animist's Kinship passive now authors
+  `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), closing SPEC-
+  FINAL §4.2's "summon cap +1" clause via the generic `summonCap` StatKey/
+  `Derived.summonCapBonus` fb084 (main lane) had already wired into all three
+  `classes.ts` summon sites — no class-key check added. Found and fixed a
+  real bug while closing it: the unconditional +1 raised Manifest's true top
+  cap from 5 to 6 (3 authored + 2 skill-card max + 1 Kinship), which the
+  shipped 4s cooldown's cadence ceiling (5) could not reach — reopening the
+  exact "cadence cliff" c018 fixed once before. Retuned `active1.
+  cooldownSeconds` 4 -> 3.2 (the one free, non-spec-authored lever), restoring
+  ~20% headroom against the new ~3.997s cliff, the same margin c018/c041
+  recorded pre-fix. Updated the §4 ledger row (`class-spec-numbers.test.ts`,
+  unimplemented -> match, with a `c027` behavioural pointer), the c018
+  cadence-ceiling and c041 headroom re-measurements (`class-line-bonus.test.ts`,
+  `class-active2-cdr.test.ts`) to read the bonus generically off `/data`
+  rather than re-deriving stale numbers, `class-passive-liveness.test.ts`
+  (route 4 -> route 3 reclassification, a new `signal.kinshipSummonCap`, a
+  live-cadence regression proving +1 for Animist and no leak to Engineer/
+  Necromancer), and mechanically regenerated `tests/q7-loader-holes.ts`'s
+  ACCEPTED census (one new line for the newly-non-empty `passive.mods`, via
+  `Q7_RECORD=1`, not hand-edited). code-reviewer APPROVE (two Minor: a stray
+  `package-lock.json` diff from `npm install`, discarded; this BACKLOG/
+  PROGRESS update, done here). `npx tsc --noEmit` clean; targeted `class-*`
+  files and `npm run test:fast` green (4297 passed / 34 pre-existing skips,
+  no new) — refs: SPEC-FINAL §4.2 (Animist), BACKLOG-CONTENT c018/c041.
 - (fb062) [feat] **DONE 2026-09-07 (in-lane portion; tooltip filed above for
   the UI lane).** pin down and enforce Poison Barrel's every-second poison
   mechanic. Found and fixed a real bug while scoping it: `firePoisonBarrel`

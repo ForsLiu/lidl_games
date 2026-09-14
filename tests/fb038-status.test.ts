@@ -16,13 +16,16 @@ import { describe, expect, it } from 'vitest';
 import {
   BALANCE_SEEDS,
   buildGateTable,
+  censoredCount,
   cfgFor,
   classifyHealth,
+  decided,
   feedbackLedger,
   parseHandoffGateTable,
   pendingQuestions,
   renderStatus,
   staleGateWarnings,
+  winRate,
   backlogPaths,
   type BalanceSnapshot,
   type GateRow,
@@ -31,6 +34,11 @@ import { REPO_ROOT } from '../tools/gate-audit';
 import type { CensusRow } from '../tools/content-census';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
+import type { RunOutcome, RunReport } from '../src/sim/types';
+
+function fakeReport(outcome: RunOutcome): RunReport {
+  return { outcome } as RunReport;
+}
 
 function emptyBalance(overrides: Partial<BalanceSnapshot> = {}): BalanceSnapshot {
   return {
@@ -224,6 +232,31 @@ describe('fb038: pendingQuestions', () => {
   });
 });
 
+describe('p12i: winRate/decided/censoredCount exclude censored (`running`) runs from the loss count', () => {
+  it('drops a censored run from both the numerator and the denominator', () => {
+    // Reproduces the exact cryomancer-T1/animist-T1 shape p12e's QA follow-up
+    // named: one real win alongside one run that hit the 45-min cap used to
+    // read as a 50% win rate (a real win folded against an uncounted loss);
+    // it should now read as a clean win.
+    const reports = [fakeReport('victory'), fakeReport('running')];
+    expect(decided(reports)).toEqual([fakeReport('victory')]);
+    expect(winRate(reports)).toBe(1);
+    expect(censoredCount(reports)).toBe(1);
+  });
+
+  it('reads 0 by convention, not as a measured defeat, when every seed censors', () => {
+    const reports = [fakeReport('running'), fakeReport('running')];
+    expect(winRate(reports)).toBe(0);
+    expect(censoredCount(reports)).toBe(2);
+  });
+
+  it('is unaffected when nothing censors (unchanged from the pre-p12i behaviour)', () => {
+    const reports = [fakeReport('victory'), fakeReport('defeat_core')];
+    expect(winRate(reports)).toBe(0.5);
+    expect(censoredCount(reports)).toBe(0);
+  });
+});
+
 describe('fb038: renderStatus (smoke)', () => {
   it('renders every required section with the given data', () => {
     const balance: BalanceSnapshot = {
@@ -256,6 +289,27 @@ describe('fb038: renderStatus (smoke)', () => {
     expect(out).toContain('| a.md | fb001 — done |');
     expect(out).toContain('## Pending QUESTIONS.md entries');
     expect(out).toContain('- **Q999.** an open question');
+  });
+
+  it('p12i: appends a "(N censored)" note beside a cell that had a censored seed, and omits it otherwise', () => {
+    const balance: BalanceSnapshot = {
+      policyComparison: [{ policy: 'hybrid', winRate: 0.5, meanMinutes: 3.2, censored: 1 }],
+      perClass: [
+        { classKey: 'cryomancer', t1: 0, t3: 1, t1Censored: 2 },
+        { classKey: 'engineer', t1: 0.4, t3: 0.1 },
+      ],
+      perCore: [{ coreKey: 'corpse', t1: 1, t3: 0.5, t3Censored: 1 }],
+      damageShare: [],
+      boonPicks: [],
+      meanRunMinutes: 3.2,
+      timeoutCount: 3,
+      totalRuns: 6,
+    };
+    const out = renderStatus([], balance, [], [], []);
+    expect(out).toContain('| hybrid | 0.5 (1 censored) | 3.2 |');
+    expect(out).toContain('| cryomancer | 0 (2 censored) | 1 |');
+    expect(out).toContain('| engineer | 0.4 | 0.1 |');
+    expect(out).toContain('| corpse | 1 | 0.5 (1 censored) |');
   });
 });
 
