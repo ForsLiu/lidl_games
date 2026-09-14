@@ -243,6 +243,85 @@ still in test headers.
 
 Full text for these and all earlier completions: `docs/BACKLOG-DONE.md`.
 
+### Owner priority queue (2026-09-14 verdicts Q168-Q205) — execute top-down
+
+Filed processing `feedback/verdicts-q168-205.md` (moved to `feedback/processed/`
+on the same commit). Verdicts recorded in QUESTIONS.md against each of
+Q168-Q205; the four items below are the verdict file's own PRIORITY
+DIRECTIVE, in its order. Item (4) of that directive (queued content-lane
+items + the lane-content stall check) is handled in BACKLOG-CONTENT.md's Log,
+not here.
+
+- [ ] (p13a) [balance] **top priority** — per-class survivability bands
+      (QUESTIONS Q196 ORDER). Night-1 VS wipes on swordsman/bloodlord/
+      necromancer are a survivability problem, not a damage problem (p12j
+      spent 3 kit-damage rounds on swordsman with zero seed-outcome change).
+      Add `maxHpMul` and `defenseBonus` fields to `data/classes.json`,
+      read by `derive()` alongside the existing `maxHp`/armor stack;
+      authored ⚖: swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10
+      (stacks on top of Guardian Stance), necromancer x1.2/+5, all other
+      classes x1.0/+0 (inert, needs a loader/schema default and a
+      no-op-at-default regression case). Then re-measure G8
+      (`tests/p6e-class-diversity.test.ts`) for swordsman, necromancer and
+      engineer; engineer may be re-tuned within G14's `>20s` boss-fight
+      floor (`tests/boss.test.ts`) if it moves. Acceptance: the two fields
+      load and apply for all 12 classes with a control-pair measurement
+      (before/after, `baseHpMul`/tier ladder untouched); swordsman and
+      necromancer's G8 status re-measured and the file's `.skip` comments
+      updated with real numbers either way; G1/G14 re-confirmed unaffected
+      for classes at the x1.0/+0 default — refs: SPEC-FINAL §14 G8/G14,
+      QUESTIONS Q196, BACKLOG p12j/fb177.
+
+- [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
+      — priority 2.** The 2026-09-06 "decided (a), no code/data change"
+      closure (full text `docs/BACKLOG-DONE.md`) is overridden: ship route
+      (b), scoped narrowly. Split `numberScale` (`data/modifiers.json`) into
+      its two economies: **economy A** (enemy HP and damage dealt to
+      enemies — tower/kit/wielded/Core attacks) stays scaled by
+      `numberScale`; **economy B** (enemy damage output, character/Core/
+      structure HP, equipment flats, regen) is NOT scaled. The five
+      crossing constants — lifesteal, Blood Tithe, Wrath, the Corpse store
+      ratio, Vampire Heart overheal — take the *inverse* factor so their
+      already-correct outputs are unchanged; verify each with the existing
+      cross-scale-invariant test shape `tests/fb153a-number-scale.test.ts`
+      already uses for `overhealGoldRatio` ("an HP-to-gold conversion pays
+      the same gold at every scale"), one control pair per constant. Revert
+      fb164's prose re-anchoring for economy-B sentences (`data/*.json`
+      description text that fb164 rewrote to the post-scale figure) back to
+      their pre-`numberScale` numbers. Acceptance: `tests/fb153a-number
+      -scale.test.ts`'s census updated to classify every numeric leaf by
+      economy (A/B) rather than uniformly; the five crossing-constant control
+      pairs pass; `tests/fb164-prescale-prose.test.ts`'s economy-B cases
+      re-pinned to the reverted text; a fresh proportionality control run
+      (economy A only) shows the same identical-outcome property fb153a's
+      original census proved — refs: SPEC-FINAL §2/§3, QUESTIONS Q180/Q191,
+      BACKLOG fb153a/fb164.
+
+- [ ] (fb183) [balance] **priority 3** — restate the kit-relevance target in
+      BALANCE.md and its tests per QUESTIONS Q175's amendment to BALANCE
+      DIRECTION v2 §A: own-kit VS-damage-share target = **15% ⚖ from TD
+      wave 12** (not 35%, not a G8 clause), measured for the nine classes
+      whose kit has a damaging VS Active; bloodlord, engineer and animist
+      are exempt (identity via lifesteal/tithe/summons respectively) and
+      measured for the record only, not against the target. `kitPowerMul`
+      and `kitBuildMul` stay exactly as shipped (p12a/p12f) — no further
+      route-(b) wielded-scaling cut. Acceptance: BALANCE.md's "Kit relevance
+      target" section rewritten to the 15%-from-wave-12 wording and the
+      nine/three split; `tests/class-kit-damage-share.test.ts`'s assertion
+      re-pointed at the new target and wave cutoff, re-measured live (not
+      carried from the old 35% run) — refs: QUESTIONS Q175/Q193, BALANCE
+      DIRECTION v2 §A, BACKLOG p12a/p12f.
+
+- [ ] (fb184) [bug] **cheap closer** (QUESTIONS Q181 ORDER) — the loader
+      refuses an unknown top-level key in `data/modifiers.json`, closing the
+      `"numberScal3"`-typo class of silent mis-scale Q181 found. Acceptance:
+      a schema/loader rule rejects an unrecognized top-level key in
+      `modifiers.json` with a message naming the field; every currently
+      legitimate top-level key still loads; a regression test pins the
+      typo repro (`numberScal3`) now failing to load instead of silently
+      defaulting `numberScale` to 1.0 — refs: QUESTIONS Q181, SPEC-FINAL
+      §12 rule 4.
+
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
 **Standing note for the p12 balance arc:** `fb153a` divides every damage source
@@ -3564,9 +3643,15 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       residual — Spitters skip structures under `!act2`, so every
       high-ground tower is uncontestable during the VS phase — and the
       Burrower's widened untargetable window are design calls (Q171).
+      **Q171 verdict (2026-09-14): the Act II residual is accepted as a
+      non-issue (towers are inert and enemies hunt the Warden during VS, so
+      an uncontestable inert tower changes nothing) — closed, no code
+      needed.** The Burrower's widened untargetable window is capped at
+      **3s ⚖ per surfacing** — folds into this item's acceptance below.
       Acceptance: rules wired at every listed site with a red-first test
-      per site; the Act II question decided in QUESTIONS.md — refs:
-      SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md fb064d/fb064i/fb064m.
+      per site; the Burrower untargetable-window cap (3s ⚖) pinned by a
+      regression test — refs: SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md
+      fb064d/fb064i/fb064m, QUESTIONS Q171.
 - [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
       migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
       `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,

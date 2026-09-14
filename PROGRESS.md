@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-14 — main lane: processed owner feedback `verdicts-q168-205.md`.**
+  Recorded a verdict tag against all 38 entries QUESTIONS Q168-Q205 (the
+  general "every unnamed pending entry is approved as its chosen default"
+  rule plus explicit named verdicts, two OVERRIDEs, and several ORDERs), all
+  now `approved`/`OVERRIDE`/no remaining `pending` tags in that range. Filed
+  the verdict file's PRIORITY DIRECTIVE as four queue items in priority
+  order: **p13a** (per-class survivability bands, Q196 — swordsman/
+  bloodlord/paladin/necromancer get `maxHpMul`/`defenseBonus`, all others
+  inert at x1.0/+0), **fb163 reopened** (Q180/Q191 OVERRIDE — split
+  `numberScale` into economy A (scaled) and economy B (character/Core/
+  structure HP, equipment flats — not scaled), inverse-factor the five
+  crossing constants, revert fb164's economy-B prose), **fb183** (Q175/Q193
+  — restate BALANCE.md's kit-relevance target at 15% ⚖ from TD wave 12 for
+  the nine damaging-kit classes, bloodlord/engineer/animist record-only),
+  and **fb184** (Q181 — loader refuses an unknown top-level key in
+  `modifiers.json`, closing the `numberScal3`-typo silent-mis-scale class).
+  Directive item (4) (check the lane-content stall) found no stale branch/
+  PR — c004 landed today — and recorded the real blocker (Scope-boundary,
+  not overlap) in BACKLOG-CONTENT.md's new note. Also: fb129's acceptance
+  gained the Q171(b) Burrower-window 3s ⚖ cap; Q171(a)'s Act II high-ground
+  residual closed as a non-issue, no code. Feedback file moved to
+  `feedback/processed/`. — refs: QUESTIONS Q168-Q205, BACKLOG p13a/fb163/
+  fb183/fb184/fb129.
+
 - **2026-09-14 — lane/content: BACKLOG-CONTENT c004 done.** Closed SPEC-
   FINAL §4.2's Animist "summon cap +1" clause: Kinship's passive now authors
   `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), read through the
