@@ -3837,26 +3837,58 @@ was not fabricated.
       generated-map sweep that caught the last false rejection — refs:
       SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
       fb064g Log. **Also (fb064j Log):** the same file's skipped-seed loop (`:678-687`) re-reads the generator's own report instead of measuring degeneracy — `tests/terrain-seed-domain.test.ts` has the stronger shape to copy.
-- [ ] (fb092) [bug] `fb054`'s density pass (owner feedback
-      `balance-siege-density`) broke G13's share-cap measurement, not just
-      its solo-viability clause (`fb076`) — found at **p11b**'s HANDOFF/
-      STATUS regeneration, undocumented until now. `tests/p10c-weapon-
-      share.test.ts`'s live, non-`.skip` "has enough builds banking all 18
-      TD waves to measure" assertion currently fails: only **3 of 10**
-      `BUILDS` reach the pool against a `>=4` floor (measured this session,
-      `npx vitest run tests/p10c-weapon-share.test.ts`), so the already-
-      `.skip`-ed cap clause (pinned 36.5% at `b080`, 1.5 points over the 35%
-      cap) hasn't been re-measurable since. Note for whoever picks this up:
-      `tools/a5probe.ts` run with no arguments uses its own small default
-      seed/build set, not the test's `SEEDS=[1,2,3,4,5]`/`BUILDS`, and reads
-      a misleadingly-healthy 28.8%/frost_obelisk when run standalone — do
-      not use the bare CLI to judge this gate, only the test file's own
-      `collect`/`topTen`/`aggregateShares` call. Acceptance: a `data/
-      waves.json`- or `data/towers.json`-only change (ideally the same pass
-      as `fb076`, since both trace to `fb054`'s density change) restores
-      `top.length>=4`, then re-measures and re-pins (or un-skips, if it
-      closes) the 35% cap clause with the real number — refs: SPEC-FINAL
-      §14 G13, BACKLOG fb054/fb076/b080.
+- [x] (fb092) [bug] **DONE 2026-09-15 — "enough builds" floor restored;
+      cap clause re-pinned red, honestly, not closed.** Re-measured at the
+      start of this session (not inherited): only **1 of 10** `BUILDS`
+      reached the pool, worse than this item's own stale "3 of 10" note —
+      `mortar 52.0%, ballista 23.2%, venom_spore 12.5%, tesla_coil 7.8%,
+      arrow_spire 4.5%`. balance-analyst reused `fb076`'s own lever
+      (`data/towers.json` `attack.damage`, the same six towers, ~10-29%
+      each: arrow_spire 210->270, ballista 216->278, ember_brazier 150->193,
+      frost_obelisk 248->320, mortar 4200->5400, venom_spore 588->650;
+      `tesla_coil` left at 401, `fb076`'s own T1/T3 coupling-wall pin) —
+      `top.length` now measures **4** (`mortar-heavy`, `engineer-mix`,
+      `frost-mix`, `ember-mix`), restoring the assertion this item exists to
+      fix, with the `>=4` floor itself byte-unchanged (verified against
+      `git show HEAD:tests/p10c-weapon-share.test.ts`, not assumed).
+      **The 35% cap clause could not close as a side effect and is recorded
+      worse, not swept under**: leaning on `mortar` to bank the fourth build
+      pushed its own VS share to **55.3%** (from the prior `b080` pin of
+      36.5%), re-pinned in the test file's `.skip`-ed case and header with
+      the honest number, per CLAUDE.md's "record honestly, don't force
+      green." One partial-revert attempt (mortar 5400->4550) was tried and
+      reverted: it dropped the pool back to 2 builds and mortar's *share*
+      rose anyway to 64.2% (less non-mortar damage left in a smaller pool) —
+      logged in the test file rather than silently discarded. Left open for
+      a dedicated `[balance]` item: closing the cap cleanly likely needs
+      either more `/data` rounds diluting share among the four non-mortar
+      towers, or mortar's own magnitude cut while some other lever (not yet
+      found) keeps the four builds over wave 18.
+      **Verification (full tier — /data balance value):** code-reviewer
+      APPROVE (no Critical/Major; spot-checked the data change against the
+      test file's own narrative, confirmed the floor assertion's bytes are
+      unchanged, ran `tests/a4-single-type.test.ts`'s live solo-T3 clause
+      directly — all seven towers, including the six raised here, still
+      measure 0/5, so the "no solo build clears T3" invariant survives).
+      qa-playtester PASS (independently re-ran the probe rather than
+      trusting the diff's own numbers, confirmed the cap clause is still
+      genuinely `.skip`-ed with a real re-measured pin, confirmed
+      `npm run test:fast` shows the identical 20-failure set before/after
+      via its own `git stash` control, spot-checked `tests/boss.test.ts`'s
+      live scripted-win case at 63.5s — comfortably clear of the 20s floor
+      `fb099` once broke on these same six towers). **QA also found one
+      pre-existing, unrelated bug, confirmed byte-identical with and
+      without this diff via `git stash` bisection (not filed as a new
+      BACKLOG item per this run's own standing instruction not to generate
+      backlog items; logged in PROGRESS.md for a future session to file):**
+      `tests/a4-single-type.test.ts`'s live `p12h` case (T1 solo-tower
+      viability with `baseHpMul` reverted to identity) now measures
+      `ember_brazier`/`frost_obelisk` at 0/5 and `venom_spore` at 2/5,
+      against its own docstring's claimed `{5,5,5,5,4,4,5}` table — stale
+      since some `/data` change after p12h landed, undetected because the
+      file sits outside the fast tier (~615s standalone). Not chased here:
+      out of this item's scope and its file is untouched by this diff —
+      refs: SPEC-FINAL §14 G13, BACKLOG fb054/fb076/b080.
 **Lane merge (2026-09-03):** `lane/content` (c001/c003/c005), `lane/terrain`
 (fb064a/fb064g/fb064b) and `lane/ui` (fb055/fb058/fb060/fb067-fb070) merged
 into master. Main wins on shared sim core (one conflict: `fireCrimsonRush`
