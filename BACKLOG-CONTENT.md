@@ -36,6 +36,17 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+### Checked 2026-09-14 — feedback/verdicts-q168-205 priority (4)
+
+The owner's priority directive asked to check why this lane's routine had
+"delivered nothing since Sep 3" and, if an overlap guard was tripping on a
+stale branch/PR, close it. **Finding: already resolved, no fix needed.**
+`git log` shows this lane merged twice on 2026-09-14 itself — c002 (closed
+as superseded by BALANCE DIRECTION v2 §D, PR #51) and c004 (Animist
+Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
+`lane/content` at the time of this check. The queued owner items below
+(fb056, fb057, fb059, fb061) remain the real backlog, not a broken loop.
+
 ### Actionable in this lane
 
 - [x] (fb180) [polish] **DONE 2026-09-07.** token economy (fb178, main lane):
@@ -54,17 +65,6 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
       an id now living in the archive still resolves — verified via
       `npx vitest run tests/fb038-status.test.ts`. No `/src` or `/data`
       change — refs: feedback/feature-token-economy.md, BACKLOG.md fb178.
-
-- [ ] (c004) [bug] **BLOCKED out of Scope 2026-09-03 — see the Log.** Animist's passive is missing half its SPEC-FINAL §4.2
-      clause. §4.2's Animist row reads "aura effects also affect summons;
-      **summon cap +1**"; `data/classes.json`'s Kinship row authors only the
-      aura half (`"description": "Aura effects also affect summons."`,
-      `mods: {}`), and the three summon-cap sites in `classes.ts` add only
-      `classLineBonus`. Acceptance: a regression test spawns Animist spirits
-      past the authored `summonCap` and asserts the live cap is
-      `summonCap + 1` for the Animist and unchanged for Engineer/Necromancer;
-      the +1 is expressed on the passive in `/data` rather than a class-key
-      check in code - refs: SPEC-FINAL §4.2 (Animist).
 
 - [ ] (c010) [balance] **BLOCKED out of Scope 2026-09-04 — see the Log.**
       Stormcaller *Conduction* is authored on the wrong row.
@@ -208,8 +208,51 @@ main-lane (or other-lane) work at the merge — never edited from this lane.
   outside a `[balance]` item or one whose acceptance is a gate
   re-measurement).
 
+### Note 2026-09-14 — lane-content stall check (verdict directive item 4)
+
+The verdict file (`feedback/verdicts-q168-205.md`) asked to check why this
+lane "delivered nothing since Sep 3" and, if an overlap guard is tripping on
+a stale branch/PR, close it and note the fix here. Checked directly against
+GitHub: no stale branch or open PR was blocking the lane — **c004 landed
+today** (2026-09-14, PR #57, merged), so the routine is running. The real
+reason `fb056`/`fb057`/`fb059`/`fb061` have sat "Blocked out of Scope" since
+2026-09-03 is recorded above in this file and in `docs/BACKLOG-DONE.md`
+(session 1, 2026-09-03): each needs a file outside this lane's hard Scope
+(a main-lane-owned test file with a hardcoded equipment census, a closed
+zod enum in `src/sim/content.ts`, a `World` field, `src/sim/classes.ts`'s
+own scope is fine but the supporting schema/test plumbing is not) — not a
+branch/PR overlap problem. No fix applied here since there was nothing
+stale to close; the actual unblock (widening this lane's Scope, or moving
+the five items to BACKLOG.md as main-lane work) is a main-lane call, not
+this lane's to make unilaterally.
+
 ### Recently completed
 
+- (c004) [bug] **DONE 2026-09-14.** Animist's Kinship passive now authors
+  `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), closing SPEC-
+  FINAL §4.2's "summon cap +1" clause via the generic `summonCap` StatKey/
+  `Derived.summonCapBonus` fb084 (main lane) had already wired into all three
+  `classes.ts` summon sites — no class-key check added. Found and fixed a
+  real bug while closing it: the unconditional +1 raised Manifest's true top
+  cap from 5 to 6 (3 authored + 2 skill-card max + 1 Kinship), which the
+  shipped 4s cooldown's cadence ceiling (5) could not reach — reopening the
+  exact "cadence cliff" c018 fixed once before. Retuned `active1.
+  cooldownSeconds` 4 -> 3.2 (the one free, non-spec-authored lever), restoring
+  ~20% headroom against the new ~3.997s cliff, the same margin c018/c041
+  recorded pre-fix. Updated the §4 ledger row (`class-spec-numbers.test.ts`,
+  unimplemented -> match, with a `c027` behavioural pointer), the c018
+  cadence-ceiling and c041 headroom re-measurements (`class-line-bonus.test.ts`,
+  `class-active2-cdr.test.ts`) to read the bonus generically off `/data`
+  rather than re-deriving stale numbers, `class-passive-liveness.test.ts`
+  (route 4 -> route 3 reclassification, a new `signal.kinshipSummonCap`, a
+  live-cadence regression proving +1 for Animist and no leak to Engineer/
+  Necromancer), and mechanically regenerated `tests/q7-loader-holes.ts`'s
+  ACCEPTED census (one new line for the newly-non-empty `passive.mods`, via
+  `Q7_RECORD=1`, not hand-edited). code-reviewer APPROVE (two Minor: a stray
+  `package-lock.json` diff from `npm install`, discarded; this BACKLOG/
+  PROGRESS update, done here). `npx tsc --noEmit` clean; targeted `class-*`
+  files and `npm run test:fast` green (4297 passed / 34 pre-existing skips,
+  no new) — refs: SPEC-FINAL §4.2 (Animist), BACKLOG-CONTENT c018/c041.
 - (fb062) [feat] **DONE 2026-09-07 (in-lane portion; tooltip filed above for
   the UI lane).** pin down and enforce Poison Barrel's every-second poison
   mechanic. Found and fixed a real bug while scoping it: `firePoisonBarrel`

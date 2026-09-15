@@ -183,28 +183,23 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThanOrEqual(0.7);
   });
 
-  // p12e (this session): un-skipped. qa-playtester found 2 of these 24 seeds
-  // sitting at the 45-minute cap as `'running'` — censored *victories*, not
-  // losses (they win at 47.4 and 46.6 min when the cap is lifted), which
-  // silently understates both the win rate this file reports and the mean
-  // it measures. p12c made this worse (6 of 24 at T3), because a run that is
-  // genuinely fought takes longer than one the bot walks. Root cause:
-  // `data/enemies.json`'s `warden_eater` hp (365,000, authored before
-  // `baseHpMul` existed) was taking the roster-wide `baseHpMul: 20` on top
-  // of its own already-fitted value, inflating T1 boss HP 365,000 -> 7.3M
-  // (8.36M at T3) and stretching boss fights from ~50s to 380s-1187s
-  // depending on build — the tail p12e's own diagnosis names. Fixed by
-  // exempting the final boss (`TRAIT.finalBoss`) from `baseHpMul` in
-  // `makeEnemy` (`src/sim/enemies.ts`), restoring the original fitted fight
-  // length instead of compounding it — `data/enemies.json`'s authored
-  // 365,000 is unchanged; the tier ladder still applies as before.
-  // Re-measured live against this exact 24-seed/T3 harness (a standalone
-  // script reusing `runScripted`/`cfg` the same way this file's own
-  // top-level `reports` above does, not kept in `tools/` — q47's crash-
-  // coverage census requires a pinned schema-violation test for anything
-  // permanent there, disproportionate for a one-off measurement script):
-  // 2/24 timeouts before the fix, 0/24 after — this live assertion below is
-  // that same re-measurement, not a separate claim.
+  // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
+  // `'running'` — censored *victories*, not losses (they win at 47.4 and
+  // 46.6 min when the cap is lifted), which silently understates both the
+  // win rate this file reports and the mean it measures. Asserted rather
+  // than left to prose.
+  //
+  // **p12c made this worse, as its contested runs were always going to:
+  // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
+  // takes longer than one the bot walks.
+  //
+  // p12e re-anchored `warden_eater`'s HP (BALANCE.md "Boss HP re-anchor
+  // (p12e)") so its own escalation/pacing ramps see the magnitude they were
+  // fitted to, instead of compounding with the roster-wide `baseHpMul`.
+  // Re-measured over the same 24 seeds at a lifted 120-minute cap: 0 seeds
+  // ever sit at `'running'` (longest run 36.3 min, seed 2's victory) — every
+  // seed resolves well inside this file's own 45-minute cap, so there is
+  // nothing left for a raised cap to censor. Un-skipped.
   it('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
     const stalled = reports.filter((r) => r.outcome === 'running');
     expect(stalled.map((r) => r.seed), detail).toEqual([]);

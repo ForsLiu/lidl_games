@@ -403,6 +403,13 @@ const LEDGER: readonly Figure[] = [
         'of "double" would be a code edit — architecture rule 4 says it should be `/data`.',
       in: 'active2',
       absentKey: /mul|multiplier|factor|scale|boost|double/i,
+      // p13a (QUESTIONS Q196): every class row now carries a top-level
+      // `maxHpMul` (the per-class survivability band), which matches this
+      // row's deliberately broad regex on every class, not just
+      // plaguebringer — a real neighbour, not this figure. Same treatment
+      // as Manifest's `summonCap`/Blood Frenzy's `leech` (this file's own
+      // header comment).
+      knownKeys: ['maxHpMul'],
     },
   },
   {
@@ -548,7 +555,17 @@ const LEDGER: readonly Figure[] = [
     figure: 'a mini arrow turret (30% stats)',
     spec: 0.3,
     path: ['active2', 'summonStatMul'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.38,
+      why:
+        'G8 re-tune: Pop Turret is engineer\'s only VS damage source ' +
+        '(`classBasicAttack` is TD-only) — buffed to close the class\'s ' +
+        'under-floor win rate. The first pass (0.55) cleared G8 but broke ' +
+        'G14\'s boss-kill-too-fast floor (that test\'s own default classKey ' +
+        'is engineer); dialed back to 0.38, the value that keeps both green.',
+    },
   },
   {
     cls: 'engineer',
@@ -564,7 +581,12 @@ const LEDGER: readonly Figure[] = [
     figure: 'cap 2',
     spec: 2,
     path: ['active2', 'summonCap'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 3,
+      why: 'G8 re-tune, same Pop Turret pass as summonStatMul above.',
+    },
   },
   {
     cls: 'engineer',
@@ -695,9 +717,15 @@ const LEDGER: readonly Figure[] = [
     path: ['active1', 'summonStatMul'],
     status: {
       kind: 'retuned',
-      authorised: P6E,
-      actual: 0.65,
-      why: 'Same Raise package. Still 0/12 on G8 afterwards; kept because the failure mode moved.',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.9,
+      why:
+        'p6e/P6E authorised 0.65 originally (still 0/12 on G8 then). p12j\'s ' +
+        'G8 re-tune pushed it further (0.65 -> 0.90) — the one lever, of 3 ' +
+        'rounds tried, that actually helped (3/12 -> 4/12); a cooldown cut ' +
+        'and a cap raise stacked on top of it both measured worse and were ' +
+        'reverted (this file stays at 0.90 alone). Still 1 win short of ' +
+        'band — logged, not forced (QUESTIONS Q196).',
     },
   },
   {
@@ -950,7 +978,16 @@ const LEDGER: readonly Figure[] = [
     figure: 'tower pays 30% current HP once',
     spec: 0.3,
     path: ['active1', 'titheHpFraction'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.1,
+      why:
+        'G8 re-tune: bloodlord\'s kit deals zero direct damage to enemies in ' +
+        'VS (Blood Tithe only buffs a tower\'s permanent damage; Crimson Rush ' +
+        'only heals) — cut the tower-HP cost so a tithed tower survives the ' +
+        'Night-1 swarm better, paired with a much bigger damage payout below.',
+    },
   },
   {
     cls: 'bloodlord',
@@ -958,7 +995,12 @@ const LEDGER: readonly Figure[] = [
     figure: 'permanently +25% dmg',
     spec: 0.25,
     path: ['active1', 'titheDamageMul'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.6,
+      why: 'G8 re-tune, same Blood Tithe pass as titheHpFraction above.',
+    },
   },
   {
     cls: 'bloodlord',
@@ -1001,7 +1043,15 @@ const LEDGER: readonly Figure[] = [
     figure: '+2 HP per enemy passed',
     spec: 2,
     path: ['active2', 'healPerEnemy'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 10,
+      why:
+        'G8 re-tune: bloodlord\'s only direct Warden-HP tool — buffed as ' +
+        'part of the same Blood Tithe pass (this file\'s bloodlord Blood ' +
+        'Tithe rows above) to close its under-floor VS survival gap.',
+    },
   },
   {
     cls: 'bloodlord',
@@ -1044,66 +1094,24 @@ const LEDGER: readonly Figure[] = [
     clause: 'Kinship (passive)',
     figure: 'summon cap +1',
     spec: 1,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'unimplemented',
-      tracked: 'c004 (BACKLOG-CONTENT, blocked out of Scope)',
+    path: ['passive', 'mods', 'summonCap'],
+    status: { kind: 'match' },
+    note:
+      'c004 (BACKLOG-CONTENT) closed this row: fb084 (2026-09-07) first added a generic ' +
+      '`summonCap` `StatKey`/`Derived.summonCapBonus` folded into all three `classes.ts` summon ' +
+      "sites, with nothing yet authored to feed it, so the Animist's live cap stayed unchanged " +
+      "and this row read `unimplemented`. c004 authors `summonCap: 1` on Kinship's own `mods` " +
+      "— no class-key check in code — closing the clause entirely in `/data`, per architecture " +
+      'rule 4. tests/class-passive-liveness.test.ts (c006) carries the behavioural proof: the ' +
+      'live cap is the authored one +1 for the Animist, unchanged for Engineer/Necromancer.',
+    behaviour: {
+      coveredBy: 'tests/class-passive-liveness.test.ts',
+      anchor: /animist Kinship, summon-cap half: c004 grants \+1/,
       why:
-        "`data/classes.json`'s Kinship row authors only the aura half (`mods: {}`, no `kind`), " +
-        'and the three summon-cap sites in `classes.ts`, while now also folding in a generic ' +
-        '`summonCapBonus` (fb084), still have nothing to fold in — Kinship\'s own passive ' +
-        'authors no such source.',
-      in: 'passive',
-      absentKey: /cap|summon|minion|spirit|limit|retinue|kinship/i,
-      knownKeys: ['active1.summonCap', 'active1.summonDurationSeconds', 'active1.summonStatMul', 'active1.summonRadius'],
-      // The clause could just as easily land in code as in `/data` — QA
-      // implemented it as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at
-      // the Manifest cap site and this row stayed green. These are the only
-      // three places a summon cap is computed; any added term reddens the row.
-      //
-      // fb084 (2026-09-07) added a *generic* `summonCap` StatKey and folded
-      // `w.derived.summonCapBonus` into all three sites below, so a passive
-      // can grant the bonus without a class-key check — but Kinship's own
-      // `data/classes.json` row still authors `mods: {}`, so the Animist's
-      // live cap is unchanged and this clause is still genuinely
-      // unimplemented. Re-pinned to the new lines (fb084's enabler is the
-      // reason they changed); c004 (BACKLOG-CONTENT) closes this row by
-      // authoring `summonCap: 1` on Kinship's `mods`.
-      //
-      // A qa-playtester pass on fb084 found the generic bonus can drive the
-      // Pop Turret/Manifest total to <=0, which `spawnClassSummon` would
-      // otherwise read as its own "uncapped" sentinel (Bone Pylons' literal
-      // `0` call) — fixed with an explicit `cap <= 0` guard at both sites,
-      // hoisting the expression into a named `const cap` in the process (a
-      // second re-pin, still no `/data` change).
-      srcLines: [
-        {
-          file: CLASSES_TS,
-          needle: 'summonCap',
-          lines: [
-            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
-            'const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus));',
-            'const cap = (eff.summonCap ?? 0) + classLineBonus(w) + w.derived.summonCapBonus;',
-          ],
-        },
-        // Pinning the three cap lines catches a `+1` folded *into* them, but
-        // not a new line beside them (`const capK = cap + (isAnimist ? 1 : 0)`).
-        // So every mention of the class in the sim is pinned too: today all
-        // five are summon-kind strings and not one is a class-key branch, so
-        // any Animist special case anywhere in `src/sim` reddens this row.
-        {
-          file: 'src/sim',
-          needle: 'animist',
-          lines: [
-            "'animist_spirit',",
-            "w.classSummons = w.classSummons.filter((s) => s.kind !== 'animist_totem');",
-            "kind: 'animist_totem',",
-            "if (s.kind === 'animist_totem' && !w.huntsWarden) {",
-            "const totem = w.classSummons.find((s) => s.id === e.tauntSourceId && s.kind === 'animist_totem');",
-          ],
-        },
-      ],
+        "c027's own pointer: the block proving Kinship's `summonCap` mod is load-bearing, not a " +
+        'dead field — it casts Manifest past the authored cap and asserts the live count is ' +
+        'exactly one more, then repeats the cast loop for Engineer/Necromancer to prove the ' +
+        "bonus does not leak off the Animist's own passive scope.",
     },
   },
   {
@@ -1144,6 +1152,20 @@ const LEDGER: readonly Figure[] = [
     figure: 'all towers +10% area',
     spec: 0.1,
     path: ['towerPassive', 'mods', 'towerArea'],
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.08,
+      why:
+        'G8 re-tune: animist was over the 70% win-rate ceiling (9/12) — a ' +
+        'straightforward towerPassive nerf. First cut to 0.04 (6/12, in ' +
+        'band) but broke `tests/class-wide-grove-reach.test.ts`\'s own ring' +
+        '-probe placement math (its RING constant is `1 + WIDE_GROVE/2`, ' +
+        'derived live from this field, not hardcoded — but a probe placed ' +
+        'that close to the un-widened radius fell inside real-detonation ' +
+        'rounding noise the harness could no longer resolve). 0.08 clears ' +
+        'both: still in G8 band (8/12) and clears the probe harness again.',
+    },
     behaviour: {
       coveredBy: 'tests/class-tower-passive-liveness.test.ts',
       anchor: /Animist \*Wide Grove\* — a spore's splash covers more ground/,
@@ -1157,12 +1179,12 @@ const LEDGER: readonly Figure[] = [
         "via a follow-up `isTowerSource` check. The pointer covers the tower half the sentence " +
         "claims; the rest is c013/c024's measurement, not a second one here.",
     },
-    status: { kind: 'match' },
     note:
-      'The value matches, and the *key* is a tower-only `towerArea` now — fb083 closed the ' +
-      'location question QUESTIONS Q120 item 5 approved as a deferral (item 5, flagged for the P10 ' +
-      'pass). Restated by c009 and sized by c013, whose `tests/class-wide-grove-reach.test.ts` ' +
-      'measures the fix against all twenty-one footprints the global key used to reach.',
+      'The *key* is now a tower-only `towerArea` — fb083 closed the location question QUESTIONS ' +
+      'Q120 item 5 approved as a deferral (item 5, flagged for the P10 pass) rather than an open ' +
+      'bug. Restated by c009 and sized by c013, whose `tests/class-wide-grove-reach.test.ts` ' +
+      'measures the fix against all twenty-one footprints the global key used to reach. The ' +
+      '*value* is now a p12j retune (`status` above), not a match.',
   },
 
   /* ------------------------------------------------------ §4.2 Paladin */
@@ -1240,9 +1262,15 @@ const LEDGER: readonly Figure[] = [
     path: ['active2', 'wrathDamageMul'],
     status: {
       kind: 'retuned',
-      authorised: P6E,
-      actual: 2.2,
-      why: 'Same Paladin package. The largest single multiplier change of the seven.',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 3.2,
+      why:
+        'p6e/P6E authorised 2.2 originally; p12j\'s G8 re-tune pushed it ' +
+        'further (2.2 -> 3.2) to close paladin\'s under-floor win rate ' +
+        '(3/12 -> 5/12, in band) — this class\'s own numeric tuning history ' +
+        '(this file\'s p6e header prose) previously found even an extreme ' +
+        'magnitude left it unmoved on a different lever (Ice-Wall-style ' +
+        'survival numbers); the Wrath payout itself is what moved it.',
     },
   },
   {
@@ -1467,7 +1495,15 @@ const LEDGER: readonly Figure[] = [
     figure: '+10% range',
     spec: 0.1,
     path: ['towerPassive', 'bonusRangeMul'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.05,
+      why:
+        'G8 re-tune: time_lord was over the 70% win-rate ceiling (10/12) — ' +
+        'a straightforward towerPassive nerf, halved alongside bonusAoeMul ' +
+        'below as one conceptual lever. Landed exactly at the ceiling (8/12).',
+    },
   },
   {
     cls: 'time_lord',
@@ -1475,7 +1511,12 @@ const LEDGER: readonly Figure[] = [
     figure: '+10% AoE area',
     spec: 0.1,
     path: ['towerPassive', 'bonusAoeMul'],
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: 'BACKLOG p12j (2026-09-07)',
+      actual: 0.05,
+      why: 'G8 re-tune, same halving as bonusRangeMul above.',
+    },
     note:
       '**The second of the two reach divergences `c027` exists because of, and the larger one — ' +
       'closed by fb083, same as the first.** The figure is right and its *key* was not a `mods` key ' +
@@ -1907,7 +1948,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 68 match · 10 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 0 defect', () => {
+  it('census: 61 match · 18 retuned · 1 elsewhere · 8 in code · 1 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1923,13 +1964,18 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     for (const f of LEDGER) census[f.status.kind] += 1;
     expect(census).toEqual({
       // p12a moved three ⚖-marked figures match -> retuned (pyromancer
-      // flameDps/burnDps, cryomancer shatterDamage). fb082 closed the one
-      // remaining defect (Poison Barrel's cadence) as a match.
-      match: 68,
-      retuned: 10,
+      // flameDps/burnDps, cryomancer shatterDamage). p12j's G8 re-tune moved
+      // eight more (engineer summonStatMul/summonCap, bloodlord
+      // titheHpFraction/titheDamageMul/healPerEnemy, animist area, time_lord
+      // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196. fb082 separately closed
+      // one remaining defect (Poison Barrel's cadence) as a match, and c004
+      // closed Animist Kinship's summon-cap clause the same way, leaving one
+      // other row still unimplemented.
+      match: 61,
+      retuned: 18,
       elsewhere: 1,
       in_code: 8,
-      unimplemented: 2,
+      unimplemented: 1,
       defect: 0,
     });
     expect(LEDGER).toHaveLength(89);
@@ -2045,7 +2091,7 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
       // rather than surfacing later as whichever ledger row happened to
       // reference it (code review).
       const EXPECTED: Readonly<Record<string, number>> = {
-        'tests/class-passive-liveness.test.ts': 4,
+        'tests/class-passive-liveness.test.ts': 5,
         'tests/class-tower-passive-liveness.test.ts': 14,
       };
       expect(
@@ -2053,7 +2099,7 @@ describe('c027 — every §4 figure authored on a stat key points at what that k
         `${file}: the KILLS parse found a different number of mods-deleting entries — the table moved, was reshaped, or grew`,
       ).toBe(EXPECTED[file]);
     }
-    expect(MODS_ROWS.length, 'the ledger has no stat-key rows — the path shape changed').toBe(16);
+    expect(MODS_ROWS.length, 'the ledger has no stat-key rows — the path shape changed').toBe(17);
   });
 
   it('every stat-key row carries a behavioural pointer, and only stat-key rows do', () => {

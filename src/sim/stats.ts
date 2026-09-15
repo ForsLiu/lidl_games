@@ -193,6 +193,12 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
     s.addAll(`class:${cfg.classKey}:passive`, cls.passive.mods);
     s.addAll(`class:${cfg.classKey}:towerPassive`, cls.towerPassive.mods);
     if (cls.moveSpeedBonus) s.add(`class:${cfg.classKey}:bands`, 'moveSpeedPct', cls.moveSpeedBonus);
+    // QUESTIONS Q196 ORDER (p13a): per-class survivability band, additive with
+    // every other `maxHpPct`/`armor` source the same way `moveSpeedBonus` above
+    // already is — 1.0/0 (every class but swordsman/bloodlord/paladin/
+    // necromancer) is inert by construction.
+    if (cls.maxHpMul !== 1) s.add(`class:${cfg.classKey}:bands`, 'maxHpPct', cls.maxHpMul - 1);
+    if (cls.defenseBonus) s.add(`class:${cfg.classKey}:bands`, 'armor', cls.defenseBonus);
   }
 
   for (const id of cfg.allocated) {

@@ -26,29 +26,13 @@ export const cfg = loadTerrain();
  * A fixed, deterministic sample spanning the whole domain, the same shape
  * fb064r's band ledger uses and an eighth of the size: this file times each
  * generation instead of measuring its tiles, and 1500 seeds already put the
- * mean inside 3% run to run (measured at 36x20: 80256 / 82159 / 82476 units).
- *
- * **fb166 addendum: two named retry witnesses.** At 56x32 the domain's retry
- * rate collapsed from ~2/1500 in this exact sample to roughly 1 in 10,000-
- * 20,000 domain-wide (see `tests/terrain-run-provenance.test.ts` and
- * `tests/terrain-verify.test.ts`), so the 1500-seed comb above no longer
- * reliably contains a single retry-taking seed — it found zero. Rather than
- * grow the comb by an order of magnitude (which would blow the sweep well
- * past the fast tier for a rate this low), two seeds known to retry — 310 and
- * 339, the first two retry-takers found scanning 1..5000 for
- * `tests/terrain-verify.test.ts` — are appended as their own named row so
- * `tests/terrain-cost-retry-ratio.test.ts`'s "a seed that generates twice
- * costs about twice" claim has live material rather than running vacuously
- * over an empty set. This makes the sample `SAMPLE_N: 1502`, not a round
- * 1500, and moves every mean/p95/p99 reading below by that same small addition
- * of two above-median-cost seeds.
+ * mean inside 3% run to run (measured: 80256 / 82159 / 82476 units).
  */
 export const SAMPLE: ReadonlyArray<{ name: string; start: number; n: number; step: number }> = [
   { name: 'comb across the whole uint32 domain', start: 0, n: 900, step: 4771397 },
   { name: 'negatives (the signed spelling of the uint32 top)', start: -400, n: 200, step: 1 },
   { name: 'the unsigned half a run draws from', start: 3000000000, n: 200, step: 1 },
   { name: 'the int32 wrap', start: 2 ** 31 - 200, n: 200, step: 1 },
-  { name: 'fb166: named retry witnesses (310, 339), see the note above', start: 310, n: 2, step: 29 },
 ];
 
 export function sampleSeeds(): number[] {
@@ -234,54 +218,70 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  *    tighter number would be a cross-host flake wearing a guard's clothes.
  * A generator or `/data` change is expected to move the recorded readings; the
  * right response is to re-measure and re-record, never to relax a ceiling.
- *
- * **fb166 re-measurement, this host, 56x32 (was 36x20).** The domain comb's
- * own retry rate collapsed to the point of finding zero in 1500 seeds — see
- * the note on `SAMPLE` — so `retryCount`/`retrySeeds` below now name the two
- * witnesses added there (310, 339) rather than two seeds the comb happened to
- * find on its own. Every other reading in this block was re-taken fresh on
- * this host rather than adjusted from the 36x20 numbers, since a bigger grid
- * changes `generateTerrain`'s absolute cost as well as its retry rate.
  */
 export const MEASURED = {
-  /** Mean cost of one generation, calibration units. This host (56x32):
-   * ~66.3k-67.2k across repeated probes this session. Not directly comparable
-   * to the 36x20 reading (~80k) — a 56x32 generation touches ~2.5x the tiles,
-   * so the *raw* cost rose, but the calibration unit itself is unrelated to
-   * grid size, and the two effects do not obviously net to "about the same".
-   * Recorded as observed rather than reasoned about further. */
-  meanUnits: 66_500,
-  /** p95 as a multiple of the same run's mean — the host-free number. Two
-   * probes this session: 1.038, 1.032. Under contention it can read *below*
-   * one, exactly as at 36x20; the ceiling holds either way. */
+  /** Mean cost of one generation, calibration units. This host: 76.0k-83.8k
+   * idle across two agents' probes (~10% spread), rising with load to ~95k at
+   * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
+   * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
+   * spread *within* one is why nothing here is asserted tighter than a
+   * same-run ratio.
+   *
+   * fb166: one reading at 56x32, on this host, ~67.0k — inside the old
+   * grid's own idle spread rather than the ~2.5x rise the tile-count ratio
+   * alone would suggest. Both `attempt()`'s scatter cost (proportional to
+   * `density * interior`) and its corridor-walk cost (proportional to
+   * perimeter) scale with the resize, but calibration units are also a ratio
+   * against host noise — this is not asserted anywhere and is recorded as one
+   * data point, not a new baseline. */
+  meanUnits: 80_000,
+  /** p95 as a multiple of the same run's mean — the host-free number. Three
+   * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
+   * one (0.90-0.95), because there the mean is dragged up by a handful of
+   * interrupted seeds; the ceiling holds either way. */
   p95OverMean: 1.035,
-  /** p99 over mean, same idle reading: 1.06-1.08 this session. */
-  p99OverMean: 1.07,
-  /** The costliest seed in the sample, and what it costs: now one of the two
-   * named retry witnesses (310 or 339 — which one names the argmax swaps
-   * between probes, exactly the host-local instability the 36x20 version of
-   * this note already described), at ~2.0-2.2x the mean. Not asserted, for
-   * the same reason as before: a per-seed maximum is the one statistic no
-   * normalisation can rescue. */
-  worstSeed: 339,
-  worstSeedOtherHost: 310,
-  worstOverMean: 2.1,
-  /** A retry seed's raw cost against the plain population's median. This
-   * session: 2.01-2.19 over the two named witnesses, consistent with the
-   * 36x20 reading's 1.93-2.09 band and comfortably clear of the 1.5x floor.
-   * The same load caveats from 36x20 apply unchanged — this file's `SAMPLE`
-   * note explains why the witnesses are now named rather than comb-found. */
-  retryOverPlain: 2.05,
-  /** The unsatisfiable config, warm, against the same run's mean. Not
-   * re-measured in detail for fb166 — this case (seed 7 against an impossible
-   * `minCoreLegalFrac`) is independent of the sample's retry rate and the
-   * assertion's floor of 4 held comfortably in this session's runs; carried
-   * forward as an observation rather than re-derived precisely. */
+  /** p99 over mean, same idle reading: 1.062, 1.056, 1.059 (4.2-7.0 at
+   * 10-way, which is why it is recorded and not asserted). */
+  p99OverMean: 1.055,
+  /** The costliest seed in the sample, and what it costs: 2.053, 2.033, 2.118
+   * times the mean over idle runs *on this host* (re-measured after both
+   * estimator fixes: 2.012-2.055). Review's host names
+   * the other retry seed at 2.06x on every idle probe, which is why the
+   * identity is recorded per-host and never asserted — a per-seed maximum is
+   * the one statistic no normalisation can rescue. What the test asserts
+   * instead is the aggregate behind it: a retry-taking seed's raw cost against
+   * the plain population's median.
+   *
+   * fb166: NOT re-measured at 56x32 — these two identities predate the grid
+   * resize, and `sampleSeeds()` at the new grid retries at only one of them
+   * (`-329`; see `retrySeeds` below). Neither field is asserted by any test
+   * (`terrain-cost-retry-ratio.test.ts` reads, never asserts, the argmax), so
+   * this is a known-stale timing observation left for whoever next re-runs
+   * the perf tier, not a claim about the current retry set. */
+  worstSeed: 2147483532,
+  worstSeedOtherHost: 2485897837,
+  worstOverMean: 2.07,
+  /** A retry seed's raw cost against the plain population's median. Idle it is
+   * the tightest number in the file and the only one calibration-free on both
+   * sides: 1.93-2.09 over 28 observations across two agents. **Under load it is
+   * not a band at all** — QA measured 9.1, 12.7 and 16.6 at 12- and 24-way
+   * contention, because a population of two has no averaging and a seed
+   * interrupted in all three rounds keeps its inflated minimum. What carries
+   * there is the one-sided floor: contention can only inflate a raw timing, so
+   * `> 1.5` is a claim noise cannot manufacture a failure for, which is the
+   * whole reason this assertion has no upper bound. */
+  retryOverPlain: 2.0,
+  /** The unsatisfiable config, warm, against the same run's mean: 8.42-10.49
+   * across two agents' probes.
+   * Cold it reads 42x, which is V8 specialising for a second config shape and
+   * not the generator — see the test. */
   hostileOverMean: 9.5,
-  /** 2 of 1502 seeds retried, both at 2 attempts — both are the fb166-added
-   * named witnesses (310, 339); the domain comb itself contributed zero. */
-  retryCount: 2,
-  retrySeeds: [310, 339] as const,
+  /** fb166 re-measured at 56x32: 1 of 1500 seeds retried (was 2 at 36x20), at
+   * 2 attempts. The bigger board gives every band more headroom (see
+   * `tests/terrain-band-ledger.test.ts`'s file header), so the retry-taking
+   * share fell along with it. */
+  retryCount: 1,
+  retrySeeds: [-329] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
    * Named apart because `expect(worst).toBe(MEASURED.maxAttemptsObserved)` read as
    * "the cap is 2". */
@@ -319,16 +319,12 @@ export const RETRY_CEILING = 5;
  * The retry ceiling is not decoration, demonstrated rather than argued:
  * setting `density.jitter` to 1 in `data/terrain.json` — the loader's own
  * maximum, and the value fb064l measured as pushing 26.7% of seeds into a
- * retry (that reading is from a different file's sample and grid size, not
- * re-derived here) — takes this sample from 2 retry-taking seeds to **241**
- * (16.0% of 1502; fb166: 56x32, was 370 of 1500 = 24.7% at 36x20 — the lower
- * share at this grid size is consistent with every other retry-rate reading
- * in this lane moving the same direction). That is the shape of change this
- * file exists to catch: a `/data` retune nobody would think of as a cost
- * change. (The first version of this comment also claimed the p95 ceiling
- * went red on that retune. It did here and did *not* on review's host — 113k
- * against a 200k absolute ceiling — which is exactly the cross-host problem
- * that moved p95 onto a ratio.)
+ * retry — takes this sample from 2 retry-taking seeds to **370**. That is the
+ * shape of change this file exists to catch: a `/data` retune nobody would
+ * think of as a cost change. (The first version of this comment also claimed
+ * the p95 ceiling went red on that retune. It did here and did *not* on
+ * review's host — 113k against a 200k absolute ceiling — which is exactly the
+ * cross-host problem that moved p95 onto a ratio.)
  *
  * Layer 1 overlaps `tests/terrain-band-ledger.test.ts` by design and not by
  * accident: fb064r pins retry-taking seeds over a 12,000-seed *superset* of

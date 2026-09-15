@@ -216,12 +216,11 @@ describe('fb064o — the flat arena is the baseline, and it measures exactly 1',
     expect([anchor % flat.w, (anchor / flat.w) | 0]).toEqual([25, 9]);
 
     const m = measureApproach(flat, cfg, anchor, CORE_W, CORE_H);
-    // fb166: re-measured at 56x32. East is now the far gate (was west, at
-    // 36x20) — the flat arena carries a 3.65x gate-to-gate spread at this
-    // grid size (was 2.1x), which is the scale any terrain deviation is read
+    // west is the far gate by design: the flat arena already carries a 2.1x
+    // gate-to-gate spread, which is the scale any terrain deviation is read
     // against.
-    expect(m.perGate).toEqual([274, 98, 358]);
-    expect([m.min, m.mean, m.max, m.spread]).toEqual([98, (274 + 98 + 358) / 3, 358, 260]);
+    expect(m.perGate).toEqual([250, 118, 118]);
+    expect([m.min, m.mean, m.max, m.spread]).toEqual([118, 162, 250, 132]);
 
     for (const g of GATES) {
       const free = freeApproachCost(g.tx, g.ty, anchor, flat.w, CORE_W, CORE_H);
@@ -268,33 +267,29 @@ describe('fb064o — the flat arena is the baseline, and it measures exactly 1',
  * Costs are `Grid`'s path units: 10 per orthogonal step, 14 per diagonal. The
  * flat arena's baseline is `min 118 / mean 162 / max 250`.
  */
-// fb166: re-measured at 56x32 over the same seeds 1..500. Was (36x20):
-// gateMin { min: 100, minSeed: 88, mean: 118.844, max: 136, maxSeed: 136 },
-// gateMean { min: 160.667, minSeed: 258, mean: 166.3613, max: 200,
-// maxSeed: 463 }, gateMax { min: 220, minSeed: 284, mean: 249.588, max: 300,
-// maxSeed: 88 }, detour { min: 1, minSeed: 7, mean: 1.0946, max: 1.5902,
-// maxSeed: 463 } — pre-band; shipped moved gateMean.max to 182 @315,
-// gateMax.max unchanged, detour.max to 1.339 @162.
+// fb166 re-measured both ledgers at 56x32. The flat-map baselines
+// (`gateMin`/`gateMean`/`gateMax`/`detour`'s `flat` column) are unchanged from
+// the old grid — `GATES` and `CORE_X`/`CORE_Y` did not move, and the flat
+// arena's octile distances depend only on those coordinates, not on the grid's
+// span — but the scattered-map statistics moved with the bigger board.
 const LEDGER_500_PRE = {
-  /** Untouched by the band on its minimum; its worst-case now differs (see the
-   * "records the untreated spread" case below — at this grid size the band's
-   * own retry witness, 310, is also this row's untreated worst seed). */
-  gateMin: { min: 78, minSeed: 380, mean: 96.9, max: 174, maxSeed: 310, flat: 98 },
-  gateMean: { min: 240.667, minSeed: 13, mean: 245.915, max: 281.333, maxSeed: 310, flat: 243.333 },
-  gateMax: { min: 338, minSeed: 13, mean: 355.052, max: 392, maxSeed: 459, flat: 358 },
-  /** 1.5536 at seed 310: the worst approach this window offers untreated. */
-  detour: { min: 1, minSeed: 3, mean: 1.0324, max: 1.5536, maxSeed: 310, flat: 1 },
+  /** Untouched by the band: its worst seeds are not the ones the band refuses. */
+  gateMin: { min: 98, minSeed: 141, mean: 115.332, max: 130, maxSeed: 443, flat: 118 },
+  gateMean: { min: 160, minSeed: 408, mean: 170.821, max: 194, maxSeed: 387, flat: 162 },
+  gateMax: { min: 240, minSeed: 33, mean: 272.396, max: 324, maxSeed: 404, flat: 250 },
+  /** 1.590 at seed 387: the worst approach this window offers untreated. */
+  detour: { min: 1, minSeed: 51, mean: 1.0947, max: 1.5902, maxSeed: 387, flat: 1 },
 } as const;
 
 const LEDGER_500 = {
   /** Shortest gate's approach: the fastest lane a wave can leak down. */
-  gateMin: { min: 78, minSeed: 380, mean: 96.596, max: 154, maxSeed: 2, flat: 98 },
+  gateMin: { min: 98, minSeed: 141, mean: 115.332, max: 130, maxSeed: 443, flat: 118 },
   /** Mean over the three gates: the run's overall travel budget. */
-  gateMean: { min: 240.667, minSeed: 13, mean: 245.793, max: 261.333, maxSeed: 2, flat: 243.333 },
+  gateMean: { min: 160, minSeed: 408, mean: 170.792, max: 190.6667, maxSeed: 91, flat: 162 },
   /** Longest gate's approach. */
-  gateMax: { min: 338, minSeed: 13, mean: 354.98, max: 392, maxSeed: 459, flat: 358 },
+  gateMax: { min: 240, minSeed: 33, mean: 272.44, max: 324, maxSeed: 404, flat: 250 },
   /** The banded quantity: worst gate's cost over its obstacle-free cost. */
-  detour: { min: 1, minSeed: 3, mean: 1.0303, max: 1.375, maxSeed: 2, flat: 1 },
+  detour: { min: 1, minSeed: 51, mean: 1.0938, max: 1.303, maxSeed: 336, flat: 1 },
 } as const;
 
 interface LedgerRow {
@@ -358,16 +353,13 @@ describe('fb064o — the ledger over 500 seeds', () => {
     const rows = sweep(cfg);
     checkLedger(rows, LEDGER_500, 'shipped');
 
-    // The band's price over this window, recorded rather than assumed: exactly
-    // two seeds retry, and neither falls through to the flat arena. fb166:
-    // re-measured at 56x32 — both 310 and 339 are new to the retry path *with
-    // the band on*, and neither retries under `NO_BAND` (unlike at 36x20,
-    // where one of the two pair predated fb064o on a density/frac band); at
-    // this grid size the approach band alone accounts for both.
-    expect(rows.filter((r) => r.attempts > 1).map((r) => r.seed)).toEqual([310, 339]);
+    // The band's price over this window, recorded rather than assumed: fb166
+    // re-measured at 56x32 and exactly one seed retries now (was two, at
+    // 36x20), and it does not fall through to the flat arena. 387 is entirely
+    // the approach band's doing — it takes one attempt under `NO_BAND`.
+    expect(rows.filter((r) => r.attempts > 1).map((r) => r.seed)).toEqual([387]);
     expect(rows.filter((r) => r.fallback)).toEqual([]);
-    expect(generateTerrain(310, NO_BAND).attempts, 'the 310 retry is fb064o`s').toBe(1);
-    expect(generateTerrain(339, NO_BAND).attempts, 'the 339 retry is fb064o`s').toBe(1);
+    expect(generateTerrain(387, NO_BAND).attempts, 'the 387 retry is fb064o`s').toBe(1);
   });
 
   it('records the untreated spread too — the control the band is justified by', () => {
@@ -377,40 +369,32 @@ describe('fb064o — the ledger over 500 seeds', () => {
     checkLedger(rows, LEDGER_500_PRE, 'pre-band');
 
     // And the diff, stated rather than left to be computed from two tables.
-    // fb166: `gateMin`'s *floor* is untouched (78 @380 either way), but at
-    // this grid size its *ceiling* moves too — was fully untouched at 36x20,
-    // because there the band's own retry witnesses were never that row's
-    // worst seed; here 310 (one of the two retry witnesses) is also this
-    // row's untreated worst, so the band changes gateMin.max as a side
-    // effect of resolving it.
-    expect(LEDGER_500.gateMin.min).toBe(LEDGER_500_PRE.gateMin.min);
-    expect(LEDGER_500.gateMin.minSeed).toBe(LEDGER_500_PRE.gateMin.minSeed);
-    expect(LEDGER_500_PRE.detour.max - LEDGER_500.detour.max).toBeCloseTo(0.179, 3);
-    expect(LEDGER_500_PRE.gateMean.max - LEDGER_500.gateMean.max).toBe(20);
-    // Seed 310 is the whole difference in this window: it is the pre-band
-    // worst on every moved row, and it is one of the two seeds the band sends
-    // to a retry (was seed 463 at 36x20).
-    expect(LEDGER_500_PRE.detour.maxSeed).toBe(310);
-    expect(LEDGER_500_PRE.gateMean.maxSeed).toBe(310);
-    expect(LEDGER_500_PRE.gateMin.maxSeed).toBe(310);
+    // `gateMin` is untouched — the band's worst seeds are not the fast-lane
+    // ones — while the two ceilings that matter both come down.
+    expect(LEDGER_500.gateMin).toEqual(LEDGER_500_PRE.gateMin);
+    expect(LEDGER_500_PRE.detour.max - LEDGER_500.detour.max).toBeCloseTo(0.2871, 3);
+    expect(LEDGER_500_PRE.gateMean.max - LEDGER_500.gateMean.max).toBeCloseTo(3.3333, 3);
+    // Seed 387 is the whole difference in this window: it is the pre-band worst
+    // on both moved rows, and it is the one seed the band sends to a retry.
+    expect(LEDGER_500_PRE.detour.maxSeed).toBe(387);
+    expect(LEDGER_500_PRE.gateMean.maxSeed).toBe(387);
   });
 });
 
 describe('fb064o — the band, and what it is worth', () => {
   it('holds the worst seeds the full seed domain admits', () => {
     // The witnesses. fb064r's lesson applied at the start rather than after:
-    // over seeds 1..500 the worst detour is 1.375 and the spread looks benign,
+    // over seeds 1..500 the worst detour is 1.303 and the spread looks benign,
     // which is *not* the domain a run draws from (fb064j: the whole int32 /
-    // uint32 range, negatives included). fb166: re-searched at 56x32 — a
-    // 150,000-seed positive scan (from seed 1) and a 150,000-seed scan of the
-    // negative range found 3.3913 and 2.8261 respectively (was 4.3617 and
-    // 3.4464 from an unspecified wider search at 36x20; this file does not
-    // claim these are the domain's true worst, only real, checked witnesses).
-    // Each witness is checked *both* ways: what it measured without the band,
-    // and what it ships with it.
+    // uint32 range, negatives included). fb166 re-measured this at 56x32 with
+    // a 300,000-seed comb (the old grid's two witnesses, 3220035238 and
+    // -616759904, no longer produce these particular maps): sampled across
+    // the domain, terrain could still hand one gate a 3.71x walk. Each witness
+    // is checked *both* ways: what it measured without the band, and what it
+    // ships with it.
     const witnesses: Array<[number, number]> = [
-      [62618, 3.3913],
-      [-1999976448, 2.8261],
+      [2415191998, 3.7143],
+      [418543178, 3.541],
     ];
     for (const [seed, before] of witnesses) {
       const uncapped = generateTerrain(seed, NO_BAND);
@@ -438,28 +422,31 @@ describe('fb064o — the band, and what it is worth', () => {
     // `terrainLegal` now reads a detour measured *to the anchor the tie-break
     // picks*.
     //
-    // fb166: seed 14767, not 1326 — re-found by the same sweep (radius 1 vs 2)
-    // over seeds 1..20000 at 56x32; the anchor moves on many seeds at this
-    // grid size and legality flips on this one. Its two front-runners are
-    // equidistant from `CORE_X/CORE_Y`, so the room key alone separates
-    // them — and they land on opposite sides of the band, same shape as the
-    // 36x20 witness.
-    const map = generateTerrain(14767, cfg);
+    // fb166 re-derived the witness at 56x32: seed 1326 (the old grid's
+    // witness) no longer produces this shape. Found by the same method —
+    // sweeping radius 1 vs 2 over a seed range, here 1..20000 — seed 6832
+    // moves the anchor (650 of 20000 seeds see the anchor move at all, wider
+    // than the old grid's 1..3000 window, so not directly comparable) and
+    // flips legality on this one. Its two front-runners are equidistant from
+    // `CORE_X/CORE_Y`, so the room key alone separates them — and they land on
+    // opposite sides of the band. `tests/terrain-core-placement.test.ts`'s
+    // golden table does not cover this seed.
+    const map = generateTerrain(6832, cfg);
     expect(map.attempts).toBe(1);
     const anchors = legalCoreAnchors(map, cfg);
-    expect(anchors).toContain(531);
-    expect(anchors).toContain(527);
+    expect(anchors).toContain(583);
+    expect(anchors).toContain(418);
 
     // Equidistant, so `ROOM_RADIUS` is the only thing deciding between them.
     const d2 = (a: number) => (((a % map.w) - 25) ** 2 + (((a / map.w) | 0) - 9) ** 2);
-    expect(d2(531)).toBe(d2(527));
+    expect(d2(583)).toBe(d2(418));
 
-    // Radius 2 picks 531, which ships. Radius 1 picks 527, which the band
-    // refuses — so the constant decides which map seed 14767 plays.
-    expect(suggestCoreAnchor(map, cfg, anchors)).toBe(531);
-    expect(maxGateDetour(map, cfg, 531, CORE_W, CORE_H)).toBeCloseTo(1.0612, 3);
-    expect(maxGateDetour(map, cfg, 527, CORE_W, CORE_H)).toBeCloseTo(1.8491, 3);
-    expect(maxGateDetour(map, cfg, 527, CORE_W, CORE_H)).toBeGreaterThan(
+    // Radius 2 picks 583, which ships. Radius 1 picks 418, which the band
+    // refuses — so the constant decides which map seed 6832 plays.
+    expect(suggestCoreAnchor(map, cfg, anchors)).toBe(583);
+    expect(maxGateDetour(map, cfg, 583, CORE_W, CORE_H)).toBeCloseTo(1.15, 3);
+    expect(maxGateDetour(map, cfg, 418, CORE_W, CORE_H)).toBeCloseTo(1.6296, 3);
+    expect(maxGateDetour(map, cfg, 418, CORE_W, CORE_H)).toBeGreaterThan(
       cfg.constraints.maxGateDetour,
     );
   });
@@ -474,11 +461,13 @@ describe('fb064o — the band, and what it is worth', () => {
     }
 
     // The band's edge, on real generator output rather than a hand-mutated
-    // `TerrainMeasure`. fb166: seed 169300 (found scanning seeds 1..800,000 —
-    // was seed 4254486667 at 36x20) measures exactly 1.500000 and ships:
-    // proof that the `<=` is genuinely inclusive where it counts, which a
-    // strict `<` would turn into a silent extra retry.
-    const edge = generateTerrain(169300, cfg);
+    // `TerrainMeasure`. fb166: seed 4254486667 (the old grid's witness) no
+    // longer measures 1.5 at 56x32; seed 240840574, found by the same
+    // 300,000-seed domain comb `tests/terrain-band-ledger.test.ts` uses,
+    // measures exactly 1.500000 and ships: proof that the `<=` is genuinely
+    // inclusive where it counts, which a strict `<` would turn into a silent
+    // extra retry.
+    const edge = generateTerrain(240840574, cfg);
     expect(measureTerrain(edge, cfg).maxGateDetour).toBe(1.5);
     expect(edge.attempts).toBe(1);
     expect(edge.fallback).toBe(false);
@@ -504,12 +493,13 @@ describe('fb064o — the band, and what it is worth', () => {
       sumWorst += seedWorst;
       if (seedWorst > cfg.constraints.maxGateDetour) seedsWithOver++;
     }
-    // fb166: re-measured at 56x32 (was seedsWithOver 104, mean 2.196, worst
-    // 4.969 @ seed 115 anchor 60, at 36x20).
-    expect(seedsWithOver, 'seeds offering a legal anchor outside the band').toBe(106);
-    expect(sumWorst / 120, 'mean worst-over-all-anchors detour').toBeCloseTo(2.545, 3);
-    expect(worst.detour).toBeCloseTo(9.5, 3);
-    expect([worst.seed, worst.anchor]).toEqual([81, 88]);
+    // fb166 re-measured at 56x32: a bigger board offers more legal anchors per
+    // seed, so more of them sit far enough from the suggested one to exceed
+    // the band — both the seed share and the mean worst-case detour rose.
+    expect(seedsWithOver, 'seeds offering a legal anchor outside the band').toBe(115);
+    expect(sumWorst / 120, 'mean worst-over-all-anchors detour').toBeCloseTo(2.4349, 3);
+    expect(worst.detour).toBeCloseTo(7.4444, 3);
+    expect([worst.seed, worst.anchor]).toEqual([64, 841]);
   });
 
   it('`terrainLegal` refuses a measure outside the band, and the `-1` sentinel', () => {
@@ -540,27 +530,27 @@ describe('fb064o — the band, and what it is worth', () => {
     }
 
     // Exactly 1 loads, and must: the flat arena measures 1 and so do real
-    // generated maps (seed 7 is the ledger's minimum), so it is a band no seed
-    // *can* be proved unable to clear — the only kind of ceiling this loader
-    // is allowed to enforce (see `config.ts`'s note on density-derived
-    // ceilings, and fb064a's QA finding that killed them).
+    // generated maps (seed 51 is the ledger's minimum at 56x32), so it is a
+    // band no seed *can* be proved unable to clear — the only kind of ceiling
+    // this loader is allowed to enforce (see `config.ts`'s note on
+    // density-derived ceilings, and fb064a's QA finding that killed them).
     //
     // What it is not is *cheap*, and the honest number belongs next to the
-    // claim rather than behind a cherry-picked seed. Measured over seeds
-    // 1..200 at each band (fb166: re-measured at 56x32 — was 1.0 150/200
-    // retry, 19/200 fallback; 1.1 118/200 retry, 1/200 fallback; 1.2 29/200
-    // retry, 0/200 fallback, at 36x20 — the fallback rate collapsed much
-    // faster here, consistent with every other retry-rate reading in this
-    // lane moving the same direction at this grid size):
-    //   1.0  — 122/200 retry, **1/200 ships the flat fallback**
-    //   1.05 —  35/200 retry, 0/200 fallback
-    //   1.1  —   4/200 retry, 0/200 fallback
-    // So 1.0 is fb064g's failure mode one order milder, accepted at load
-    // because refusing data the generator *does* satisfy is the worse error.
-    // The flagged fallback is the designed answer to a band that strict.
+    // claim rather than behind a cherry-picked seed. fb166 re-measured over
+    // seeds 1..200 at each band, at 56x32:
+    //   1.0  — 73/200 retry, **113/200 ship the flat fallback**
+    //   1.05 — 123/200 retry, 25/200 fallback
+    //   1.08 — 92/200 retry, 0/200 fallback
+    // The bigger board makes `maxGateDetour: 1` a harder cliff than it was at
+    // 36x20 (19/200 fallback there) — the wider spread of possible detours a
+    // bigger board admits pushes more seeds below the floor a strict-1.0 band
+    // would demand — but the shape of the finding is unchanged: 1.0 is
+    // fb064g's failure mode one order milder, accepted at load because
+    // refusing data the generator *does* satisfy is the worse error. The
+    // flagged fallback is the designed answer to a band that strict.
     const tight = withBand({ maxGateDetour: 1 });
     expect(tight.constraints.maxGateDetour).toBe(1);
-    const strict = generateTerrain(7, tight);
+    const strict = generateTerrain(51, tight);
     expect(strict.fallback).toBe(false);
     expect(measureTerrain(strict, tight).maxGateDetour).toBe(1);
     const fallbacksAt = (v: number): number => {
@@ -569,10 +559,8 @@ describe('fb064o — the band, and what it is worth', () => {
       for (let seed = 1; seed <= 200; seed++) if (generateTerrain(seed, c).fallback) n++;
       return n;
     };
-    // fb166: re-measured at 56x32 (was fallbacksAt(1)=19, cliff between 1.1
-    // and 1.15, at 36x20).
-    expect(fallbacksAt(1), 'the recorded cost of maxGateDetour: 1').toBe(1);
-    expect(fallbacksAt(1.01), 'the cliff is between 1.01 and 1.015').toBe(1);
+    expect(fallbacksAt(1), 'the recorded cost of maxGateDetour: 1').toBe(113);
+    expect(fallbacksAt(1.08), 'the cliff is between 1.06 and 1.08').toBe(0);
     // The shipped value, and the reason it is 1.5 rather than as tight as the
     // data allows: it sits clear of that cliff with nothing falling back.
     expect(fallbacksAt(cfg.constraints.maxGateDetour), 'the shipped band').toBe(0);

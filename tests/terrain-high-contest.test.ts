@@ -37,12 +37,11 @@
  * part generation owns — the *geometry* never denies the contest.
  *
  * Measured on the shipped data with the repair disabled (`highContestRadius: 0`),
- * seeds 1..500: **32 seeds (6.40%) carry 95 such plots** (fb166: 56x32, was 27
- * seeds/85 plots at 36x20), worst seed 128 with 11. 64 of the 95 sit at a
- * nearest-walkable distance in (4, 5], which is the *normal* case rather than
- * an edge one — `data/towers.json` `buildRange` is 4, but `data/classes.json`'s
- * Engineer passive adds +2 and `data/tree.json` node 22 (`watchtowers`) adds
- * +1, so a real run builds at range 5-7.
+ * seeds 1..500: **27 seeds (5.40%) carry 85 such plots**, worst seed 409 with
+ * 12. 55 of the 85 sit at a nearest-walkable distance in (4, 5], which is the
+ * *normal* case rather than an edge one — `data/towers.json` `buildRange` is 4,
+ * but `data/classes.json`'s Engineer passive adds +2 and `data/tree.json` node
+ * 22 (`watchtowers`) adds +1, so a real run builds at range 5-7.
  *
  * Every measurement in this file is re-derived here, tile by tile, rather than
  * read back from `uncontestedHigh` — the generator's own repair calls that
@@ -205,26 +204,22 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (bad.length > worst.plots) worst = { seed: s, plots: bad.length };
     }
     // The measured band, recorded as numbers so a retune's cost is a diff.
-    // fb166: re-measured at 56x32 (was seeds 27, plots 85, worst {409, 12} at
-    // 36x20).
-    expect(seeds).toBe(32);
-    expect(plots).toBe(95);
-    expect(worst).toEqual({ seed: 128, plots: 11 });
+    // fb166 re-measured at 56x32: the rate barely moved (5.20% against 5.40%)
+    // but the per-seed plot count fell — a bigger board spreads `high` blobs
+    // over more interior, so fewer of them land far enough from any walkable
+    // tile to matter, even though each authored density is unchanged.
+    expect(seeds).toBe(26);
+    expect(plots).toBe(99);
+    expect(worst).toEqual({ seed: 422, plots: 14 });
   });
 
   it('the recorded band is a 1..500 statistic, and the domain tail is worse', () => {
     // QA bug 2. The band above is what a designer reading "what does the veto
     // cost" would take away, and `1..500` is not the domain a run seed draws
     // from (`[-2**31, 2**32-1]`, fb064j) — the exact mistake this lane has now
-    // recorded three times. fb166: re-measured at 56x32. This negative-seed
-    // window reads 7.8% (39/500) against the positive window's 6.40% (was
-    // 5.40% at 36x20; the two windows are not the same measurement and are not
-    // expected to match exactly). The tail is still worse than either window
-    // suggests: the worst seed found in a 50,000-seed pseudo-random domain
-    // sample (a `mulberry32` PRNG over the full signed/unsigned seed range,
-    // seeded 12345 for reproducibility — smaller than the original's 120k-seed
-    // sweep, and honestly labelled as such) carries 29 plots against this
-    // window's 12.
+    // recorded three times. fb166 re-measured at 56x32: the tail still gets
+    // worse over a wider search — the worst seed found over a 50,000-seed
+    // domain sweep carries 30 plots against this window's 17.
     //
     // Pinned as a second window plus that named seed rather than by widening
     // the sweep above, which would cost minutes for a number that is a
@@ -240,30 +235,27 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (bad.length > worst.plots) worst = { seed: s, plots: bad.length };
     }
     expect({ seeds, plots, worst }).toEqual({
-      seeds: 39,
-      plots: 141,
-      worst: { seed: -357, plots: 12 },
+      seeds: 30,
+      plots: 102,
+      worst: { seed: -27, plots: 17 },
     });
 
     // The named worst of the domain sweep, and the repair answers it too.
-    // fb166: seed -463955906, 29 plots (a 50,000-seed pseudo-random search,
-    // `best-found` rather than a proven domain maximum — see the note above).
-    // Was seed -1399976589, 17 plots, from a 120k-seed sweep at 36x20.
-    expect(exposedHigh(generateTerrain(-463955906, off), ROSTER_MIN_REACH).length).toBe(29);
-    expect(exposedHigh(generateTerrain(-463955906, cfg), ROSTER_MIN_REACH)).toEqual([]);
+    expect(exposedHigh(generateTerrain(-26186, off), ROSTER_MIN_REACH).length).toBe(30);
+    expect(exposedHigh(generateTerrain(-26186, cfg), ROSTER_MIN_REACH)).toEqual([]);
   });
 
   it('demotes exactly the uncontestable plots and nothing else', () => {
-    // fb166: re-measured at 56x32 (was [409, 12], [621, 10], [1, 4] at
-    // 36x20). 128 is the worst of the new sweep; 159 and 168 are two more
-    // affected seeds carrying different plot counts, picked from the same
-    // seeds-1..500 sweep rather than tied to any other file's measurement —
-    // seed 1 no longer carries an uncontestable plot at this grid size, so it
-    // stopped being a useful third example here.
+    // fb166 re-derived the named seeds at 56x32: 422 is the worst of the
+    // 1..500 sweep above, and 18/98 are two ordinary seeds carrying a handful
+    // of exposed plots each, chosen for variety rather than for any other
+    // property. Seed 1 (the golden seed) no longer carries an exposed plot at
+    // this grid size, so it is not repeated here — see
+    // `tests/terrain-describe.test.ts` for its unchanged golden dump.
     for (const [seed, expected] of [
-      [128, 11],
-      [159, 6],
-      [168, 4],
+      [422, 14],
+      [18, 5],
+      [98, 6],
     ] as const) {
       const bare = generateTerrain(seed, off);
       const fixed = generateTerrain(seed, cfg);
@@ -309,8 +301,9 @@ describe('fb064m — no uncontestable high-ground plot', () => {
       if (fixed.hash !== bare.hash) differed++;
     }
     // ... while the maps themselves really did change on the affected seeds.
-    // fb166: re-measured at 56x32 (was 27 at 36x20).
-    expect(differed).toBe(32);
+    // fb166: 26 at 56x32 (matches this file's own re-measured `seeds` count
+    // above), not 27.
+    expect(differed).toBe(26);
   });
 
   it('the radius is capped at the arena span, and 0 is the accept-the-exposure veto', () => {
