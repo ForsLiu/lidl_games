@@ -475,21 +475,53 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       (which would silently reverse the intended exemption) goes red instead
       of quietly changing behavior; the test also documents that this
       specific throw is expected to flip to `.not.toThrow()` once fb181 lands.
-- [ ] (fb178) [feat] the tier-modifier's 5th gate (`MODIFIER_GATES`, shipped by
-      fb156 as the static `south2` at `{tx:3, ty:GRID_H-1}`) is the only one of
-      the (eventual) five gates that never jitters — the base four do
-      (`jitterGates`, fb156), for the owner's stated reason ("jittered along
-      the edge"), and the owner's own text says tier modifiers now take the
-      count to **5**, without carving out the fifth as an exception. Ship a
-      seed-jittered position for it (a sibling function to `jitterGates`, or
-      an optional fifth return value on it — implementer's call, log the
-      choice), verified clear of the base four's jitter zone and every owner
-      band (never sealed, connectivity >=80%, Core clearance >=3 from *every*
-      gate including this one) over a 1000+-seed sweep of the live 5-gate list,
-      matching the rigor `tests/terrain-four-gates.test.ts` already applies to
-      the base four. Acceptance: property tests hold at 5 gates across 1000+
-      seeds; the position is deterministic in seed alone; no collision with
-      any base gate at any seed — refs: fb156, owner feedback
+- [x] (fb178) [feat] **DONE 2026-09-15 — the tier-modifier's 5th gate (`MODIFIER_GATES`,
+      shipped by fb156 as the static `south2` at `{tx:3, ty:GRID_H-1}`) is the
+      only one of the (eventual) five gates that never jitters** — the base
+      four do (`jitterGates`, fb156), for the owner's stated reason ("jittered
+      along the edge"), and the owner's own text says tier modifiers now take
+      the count to **5**, without carving out the fifth as an exception.
+      Shipped `jitterModifierGate(seed): GateDef` (`src/sim/terrain/gates.ts`,
+      exported via `src/sim/terrain/index.ts`), a sibling function to
+      `jitterGates` rather than a fifth return value on it — `MODIFIER_GATES`
+      itself is left as the static default (describeTerrain's header table and
+      other consumers still read it unchanged), matching exactly how
+      `jitterGates` itself shipped as an additive, unwired tool. Draws `tx`
+      from `rng.intRange(1, GATE_JITTER_MARGIN - 1)` = `[1,7]` on the south
+      edge, from its own RNG sub-key (`` `${TERRAIN_STREAM}:gates:south2` ``,
+      distinct from `jitterGates`' own `` `${TERRAIN_STREAM}:gates` ``) so the
+      two draws never share a cursor. The range is disjoint from `jitterGates`'
+      own south `tx ∈ [8,47]` **by construction, not by measurement** — `[1,7]`
+      sits strictly below `GATE_JITTER_MARGIN`, so no seed at any grid size
+      with `GATE_JITTER_MARGIN >= 1` can make the two collide (verified this
+      is a structural property, not a today's-constants coincidence).
+      New `tests/terrain-modifier-gate-jitter.test.ts` mirrors
+      `tests/terrain-four-gates.test.ts`'s own rigor: a 5000-seed structural
+      sweep (determinism, key, RNG-cursor independence from `jitterGates`,
+      real seed-to-seed variance, on-border/non-corner/in-range, no collision
+      with the base four) plus a 1000-seed live 5-gate generation sweep
+      (`terrainLegal`, walkable/buildable fractions, gate reach, Core legality,
+      detour, no-tile-collision across all 5 gates) — stricter than
+      `terrain-four-gates.test.ts`'s own 300-seed five-gate sweep. `npx tsc
+      --noEmit` clean; targeted suite 30/30 green in ~5s (no need for the
+      `vitest.fast.config.ts` exclude list). code-reviewer: APPROVE, no
+      Critical/Major findings (scope, architecture rules, RNG independence and
+      range disjointness all independently re-derived, not just read off the
+      comments). qa-playtester: PASS — independently pushed the sweeps to
+      20,000 structural / 3,000 generation seeds plus a battery of edge-case
+      seeds (`0, -1, -(2**31), 2**31, 0xffffffff, 0x100000000, 1.5, NaN, -0`),
+      confirmed `jitterModifierGate` is not imported or wired into any live
+      path (`world.ts` still builds its own independent gate list), found no
+      bug. **QA also found `npm run test:fast` carries 20 pre-existing failures
+      across 9 files** (`act1.test.ts`, `class-board.test.ts`,
+      `class-passive-liveness.test.ts`, `fb015-equipment.test.ts`,
+      `fb036-path-indicators.test.ts`, `tests/grid.test.ts`,
+      `p6b-swordsman.test.ts`, `p6c-plaguebringer.test.ts`,
+      `p6d-nine-classes.test.ts`) — confirmed via `git stash` (twice,
+      independently, by both this item and QA) to reproduce byte-identical on
+      `origin/master` with fb178's diff removed, so **not** fb178's regression.
+      None of those 9 files are `tests/terrain*`, so none are this lane's Scope
+      to fix; logged below for the main lane — refs: fb156, owner feedback
       `terrain-four-gates` ("tier modifiers that add a gate now go to 5").
 - [ ] (fb179) [test] `tests/terrain-anchor-quality.test.ts`'s header comment
       carries mutant-kill claims that fb166's own commit left "explicitly
@@ -5328,3 +5360,30 @@ file next.
   any of them route through `GATES`/gate-distance fields, worth checking
   when re-deriving the goldens above rather than assuming only the gate-
   literal comparisons moved.
+- (2026-09-15, fb178 shipped — terrain lane) **`npm run test:fast` on this
+  branch (`claude/laughing-hypatia-9fp3cv`, based on current `origin/master`)
+  carries 20 pre-existing failures across 9 files, none of them
+  `tests/terrain*` and none introduced by fb178 — logged here for the main
+  lane, not chased in this item per Scope.** Files: `tests/act1.test.ts`,
+  `tests/class-board.test.ts`, `tests/class-passive-liveness.test.ts`,
+  `tests/fb015-equipment.test.ts`, `tests/fb036-path-indicators.test.ts`,
+  `tests/grid.test.ts` (`rejects a placement that walls a gate off`),
+  `tests/p6b-swordsman.test.ts` (2 cases, both a `buildTower(..., 10, 10).ok`
+  assertion failing), `tests/p6c-plaguebringer.test.ts` (the same
+  `buildTower(..., 10, 10).ok` shape), `tests/p6d-nine-classes.test.ts`
+  (Cryomancer Ice Wall self-cast). Confirmed pre-existing, not fb178's, by
+  `git stash`ing fb178's entire diff (`src/sim/terrain/gates.ts`,
+  `src/sim/terrain/index.ts`) and re-running: identical failures,
+  byte-identical assertion messages, reproduce on the stashed tree — done
+  independently twice, once by this item and once by its own qa-playtester
+  pass. **This is worth the main lane's attention because the entry directly
+  above this one (fb153b, 2026-09-15) records these same files —
+  `tests/grid.test.ts`, `p6d-nine-classes`, `class-board` among them — as
+  fixed and green** as part of that item's own fallout cleanup; either a
+  later main-lane commit on this branch (the `numberScale` economy-split,
+  `fb163`/`fb194`, touches gold/cost fields that a `buildTower(...).ok`
+  assertion at a fixed tile would be sensitive to) reintroduced tile-(10,10)
+  buildability or gold-affordability regressions, or `tests/grid.test.ts`'s
+  gate-sealing case drifted from a later terrain/gate change — worth checking
+  against `fb163`/`fb194`'s own closure notes rather than assumed to be the
+  same fb153b fallout recorded already-fixed above.
