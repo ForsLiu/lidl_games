@@ -86,20 +86,29 @@ describe('fb064n — flatTerrain is the one flat arena', () => {
   it('golden: tiles byte-identical to the map the fallback used to build', () => {
     const flat = flatTerrain();
     expect(Array.from(flat.kind)).toEqual(Array.from(expectedFlatKinds()));
-    // Counts, so a diff reads as a shape rather than as 720 numbers. The border
-    // is the arena's perimeter minus the three gate tiles punched back to
-    // normal: 2*(GRID_W + GRID_H) - 4 = 108, less 3 gates on it.
+    // Counts, so a diff reads as a shape rather than as 1792 numbers. The
+    // border is the arena's perimeter, 2*(GRID_W + GRID_H) - 4 = 172, less
+    // however many of `GATES` actually sit on it. fb166 flipped `GRID_W`/
+    // `GRID_H` to 56x32 without moving `GATES` — that migration is main-lane's
+    // `fb153b`, staged to land after this item — so today only `west` (tx=0)
+    // and `north` (ty=0) still land on the border; `east` (35,17) is a
+    // stranded interior tile at this grid size and punches nothing. Border
+    // gate count is therefore 2, not `GATES.length`, until fb153b repositions
+    // them.
     const border = 2 * (GRID_W + GRID_H) - 4;
+    const borderGates = GATES.filter(
+      (g) => g.tx === 0 || g.tx === GRID_W - 1 || g.ty === 0 || g.ty === GRID_H - 1,
+    ).length;
     let rock = 0;
     for (const k of flat.kind) if (k === TerrainKind.Rock) rock++;
-    expect(rock).toBe(border - GATES.length);
-    expect(rock).toBe(105);
-    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 105);
+    expect(rock).toBe(border - borderGates);
+    expect(rock).toBe(170);
+    expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 170);
     // The hash is the G2 determinism handle, so it is pinned as a literal too:
     // an equal-tiles assertion would still pass if `terrainHash` changed what
     // it folds, and every replay guard downstream reads this string.
     expect(flat.hash).toBe(terrainHash(0, expectedFlatKinds()));
-    expect(flat.hash).toBe('bb4e18dd');
+    expect(flat.hash).toBe('049bf17f');
   });
 
   it('the maxAttempts fallback ships exactly this map', () => {
@@ -180,8 +189,9 @@ describe('fb064n — legality is a question about a config', () => {
     expect(m.corridorsOk).toBe(true);
     expect(m.gateReachFrac).toBe(1);
     // The most permissive layout the arena admits: no walkable tile is
-    // unreachable and every non-border tile is normal.
-    expect(m.walkableCount).toBe(GRID_W * GRID_H - 105);
+    // unreachable and every non-border tile is normal. 170, not 105 — see the
+    // golden test's note on `GATES` not yet being repositioned for this grid.
+    expect(m.walkableCount).toBe(GRID_W * GRID_H - 170);
     expect(m.normalCount).toBe(m.walkableCount);
   });
 
@@ -199,11 +209,15 @@ describe('fb064n — legality is a question about a config', () => {
     // because the walkable ceiling is derived from *this* map's border.
     expect(() =>
       withConfig((raw) => {
-        (raw.constraints as Record<string, number>).minWalkableFrac = 0.86;
+        (raw.constraints as Record<string, number>).minWalkableFrac = 0.91;
       }),
-    ).toThrow(/0\.854/);
-    // And the ceiling really is the flat map's share, to six places.
-    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.854167, 6);
+    ).toThrow(/0\.906/);
+    // The ceiling assumes every one of `GATES.length` gates punches its own
+    // border tile (`(GRID_W-2)*(GRID_H-2) + GATES.length`); at this grid size
+    // only 2 of the 3 do (the golden test above), so the flat map's actual
+    // share sits very slightly under the formula ceiling rather than on it —
+    // 1622/1792, not 1623/1792.
+    expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.905134, 6);
   });
 });
 
@@ -447,7 +461,7 @@ describe('fb064s — the flat arena says so on its own seed line', () => {
       hash: terrainHash(0, k),
     };
     expect(() => parseTerrainDump(describeTerrain(small, cfg))).toThrow(
-      /always 36x20; this dump is 3x3/,
+      /always 56x32; this dump is 3x3/,
     );
   });
 
