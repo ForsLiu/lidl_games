@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import raw from '../../../data/terrain.json';
 import { GATES, GRID_H, GRID_W } from '../grid';
+import { Hasher } from '../hash';
 
 /**
  * The arena's own limits, which several bands are unsatisfiable past.
@@ -597,6 +598,48 @@ export function loadTerrain(): TerrainConfig {
 /** Validate an arbitrary object as a terrain config (tests, Tuner previews). */
 export function parseTerrain(value: unknown): TerrainConfig {
   return TerrainFileSchema.parse(value);
+}
+
+/**
+ * fb065i: a short fingerprint of the `TerrainConfig` a dump was measured
+ * under — `describe.ts`'s own header names the problem this closes: "a dump
+ * is only meaningful next to the config it was taken under", and until this
+ * item a dump carried no trace of one, so a report pasted after a
+ * `data/terrain.json` tune parsed clean and its printed bands quietly
+ * described a rule set nobody's copy of `/data` matches any more.
+ *
+ * The analogue is `contentHash()` (`src/sim/content.ts`, b044/p9a), which
+ * folds this same file's raw bytes into a *replay's* content hash so a stale
+ * replay fails loudly — but a dump's job is weaker on purpose. `contentHash`
+ * hashes `TERRAIN_RAW`, the pre-parse document, specifically so a
+ * loader/schema change that starts keeping (or stops stripping) a field on
+ * byte-identical `/data` cannot move the hash on its own. A dump has no such
+ * document to reach for: `describeTerrain` is handed whatever `TerrainConfig`
+ * its caller already measured with — `loadTerrain()`'s cached one in
+ * production, but a hand-built `parseTerrain(patchedRaw)` in a good third of
+ * this module's own tests, which `TERRAIN_RAW` knows nothing about — so the
+ * only object that is *guaranteed* to be the config the dump's bands were
+ * actually measured against is the parsed `TerrainConfig` itself.
+ *
+ * `JSON.stringify(cfg)` is stable for that purpose even though it is not for
+ * `contentHash`'s: zod's `.parse()` rebuilds an object's keys in the schema's
+ * own declaration order, never the source document's, so this value is
+ * unmoved by a `/data/terrain.json` edit that only reorders fields and moved
+ * by one that changes a value — the property a fingerprint needs, and the
+ * reason this is not simply `TERRAIN_RAW` reused.
+ *
+ * `Hasher` (`../hash`), the same FNV-1a primitive `terrainHash` already
+ * folds a map's tiles through in this module, rather than a `../content`
+ * import: `describeTerrain`/`parseTerrainDump` take a `TerrainConfig`
+ * argument today with no dependency on `content.ts`, and reaching into a
+ * large shared file for one hash primitive already available locally would
+ * be a new coupling this lane's Scope does not need. `Hasher.hex()` also
+ * happens to produce exactly the eight lowercase hex digits `parseTerrainDump`
+ * already validates a `hash` field against, so the dump format gains one
+ * fingerprint shape rather than two.
+ */
+export function terrainConfigFingerprint(cfg: TerrainConfig): string {
+  return new Hasher().str(JSON.stringify(cfg)).hex();
 }
 
 function deepFreeze<T>(value: T): T {
