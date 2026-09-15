@@ -8,6 +8,7 @@ export {
   loadTerrain,
   maxCoreLegalFrac,
   parseTerrain,
+  terrainConfigFingerprint,
   TERRAIN_KEYS,
   TerrainKind,
   type HighGroundFamily,
