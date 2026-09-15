@@ -46,7 +46,12 @@ describe('fb177 — Grid(gates) accepts a custom gate list', () => {
   it('new Grid() defaults to GATES, byte-identical to before this item', () => {
     const g = new Grid();
     const gateIdx = new Set(GATES.map((gt) => gt.ty * GRID_W + gt.tx));
-    expect(gateIdx.size).toBe(3);
+    // fb156 (merged after this item was authored) grew `GATES` from 3 entries
+    // to 4 — one per edge. This assertion is re-pinned to that count rather
+    // than "3," which this item's own title ("byte-identical to before this
+    // item") never meant to freeze; it meant "the constructor's default
+    // behavior is unchanged," which still holds at 4.
+    expect(gateIdx.size).toBe(4);
     for (const i of borderIndices()) {
       expect(g.tile[i], `tile ${i}`).toBe(gateIdx.has(i) ? TileType.Gate : TileType.Border);
     }
@@ -76,12 +81,21 @@ describe('fb177 — Grid(gates) accepts a custom gate list', () => {
     // illegal input to `assertGateListLegal`, not just "different by
     // reference" — this test's assertion is real validation firing on a
     // real bad coordinate, not an arbitrary reference-equality quirk.
-    // Once fb181 corrects `GATES.east`, this exact call stops throwing (a
-    // copy of a legal `GATES` is legal input), and this test's `.toThrow()`
-    // would need to flip to `.not.toThrow()` — which is the intended
-    // signal that the underlying bug was fixed, not a test to weaken now.
-    expect(() => new Grid([...GATES])).toThrow(/not a border tile/);
-    expect(() => new Grid(GATES.slice())).toThrow(/not a border tile/);
+    // fb181 (`GATES.east` corrected to a real border tile as part of the
+    // fb156 4-gate layout, merged after this item was authored) landed, so
+    // per this test's own comment above, the flip is exactly this: a
+    // value-equal copy of `GATES` is legal input now, and the interesting
+    // thing this test still pins is that it is validated (not skipped)
+    // despite being legal — i.e. it does NOT throw, and only fails to be
+    // `===` the literal export, not fails to be valid.
+    expect(() => new Grid([...GATES])).not.toThrow();
+    expect(() => new Grid(GATES.slice())).not.toThrow();
+    // Still genuinely re-validated rather than reference-skipped: a
+    // value-equal copy with one entry nudged off-border is caught, which the
+    // reference-only exemption on the literal default would never observe.
+    const nudged = [...GATES];
+    nudged[nudged.length - 1] = { ...nudged[nudged.length - 1], tx: 12, ty: 10 };
+    expect(() => new Grid(nudged)).toThrow(/not a border tile/);
   });
 
   it('new Grid(jitterGates(1)) opens exactly those 4 tiles as gates and no others', () => {

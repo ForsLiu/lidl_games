@@ -39,7 +39,11 @@ function freeTileNear(w: World): { tx: number; ty: number } {
     for (let dx = -2; dx <= 2; dx++) {
       const tx = Math.floor(w.warden.x) + dx;
       const ty = Math.floor(w.warden.y) + dy;
-      if (w.grid.passable(tx, ty) && !w.structureAt(tx, ty)) return { tx, ty };
+      // fb166/fb153b (BACKLOG-TERRAIN.md Log, 2026-09-07): `passable` is also
+      // true of walkable-but-not-buildable rough ground, so an unlucky real
+      // seed can hand `buildTower` a tile it silently no-ops on — `buildable`
+      // is the actual legality check this helper needs.
+      if (w.grid.buildable(tx, ty) && !w.structureAt(tx, ty)) return { tx, ty };
     }
   }
   throw new Error('no free tile near the Warden');

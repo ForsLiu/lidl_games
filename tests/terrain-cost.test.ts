@@ -102,10 +102,14 @@ import {
 describe('fb064z — the cost of a generated map, sampled across the seed domain', () => {
   it('samples the domain, and every sampled seed is a real generated map', () => {
     const { byAttempts, fellBack } = runLedger();
-    // fb166: 1502, not 1500 — two named retry witnesses were added to
-    // `SAMPLE` (see its own doc comment) since the domain comb alone no
-    // longer reliably contains a retry-taking seed at this grid size.
-    expect(SAMPLE_N).toBe(1502);
+    // Re-measured at the merge with master's own 56x32 pass (2026-09-15):
+    // `SAMPLE` (`terrain-cost-ledger.ts`) is the 900+200+200+200 = 1500-seed
+    // comb this file's own header describes; no extra single-seed retry
+    // witness is actually appended to it (`MEASURED.retrySeeds` below, -273,
+    // falls inside the comb's own "negatives" range, not past it), so
+    // `SAMPLE_N` is 1500, read off the ledger rather than hand-pinned to a
+    // stale count.
+    expect(SAMPLE_N).toBe(1500);
     expect([...byAttempts.values()].reduce((a, b) => a + b, 0)).toBe(SAMPLE_N);
     // The comb must not run off the top of the domain and be silently filtered
     // away, which would leave a smaller sample wearing the same name.
@@ -128,10 +132,8 @@ describe('fb064z — the cost of a generated map, sampled across the seed domain
     const worst = Math.max(...byAttempts.keys());
 
     // The numbers, named so a regression is a diff rather than a hunt. They are
-    // a property of *this sample* — 1502 of ~4.29e9 seeds, 0.000035% of the
-    // domain, two of them named witnesses rather than comb finds (see
-    // `SAMPLE`'s doc comment) — not of the domain, exactly as fb064r says of
-    // its own 12,000.
+    // a property of *this sample* — 1500 of ~4.29e9 seeds, 0.000035% of the
+    // domain — not of the domain, exactly as fb064r says of its own 12,000.
     expect(retries.length, `retry-taking seeds in ${SAMPLE_N}`).toBe(MEASURED.retryCount);
     expect(retries.map(([s]) => s).sort((a, b) => a - b)).toEqual(
       [...MEASURED.retrySeeds].sort((a, b) => a - b),

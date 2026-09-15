@@ -286,7 +286,7 @@ describe('c014: the shared board is probed, not pinned', () => {
       'the probed board moved off the spot the importers were calibrated from. This is a deliberate ' +
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
-    ).toEqual({ WX: 10, WY: 6, BUILD_TX: 11, BUILD_TY: 6 });
+    ).toEqual({ WX: 8, WY: 12, BUILD_TX: 9, BUILD_TY: 12 });
     expect(BOARD).toEqual({
       WX,
       WY,
@@ -300,8 +300,8 @@ describe('c014: the shared board is probed, not pinned', () => {
     // c025's column, as a baseline of its own: the aim point `class-kit-whiff`
     // fires the Ice Wall at, and the three rows that wall occupies.
     expect({ WALL_TX, WALL_TYS: [...WALL_TYS] }, 'the shared Ice Wall column moved').toEqual({
-      WALL_TX: 12,
-      WALL_TYS: [5, 6, 7],
+      WALL_TX: 10,
+      WALL_TYS: [11, 12, 13],
     });
     expect(HAS_WALL, 'the shipped board cannot host the Ice Wall column — class-kit-whiff will say so too').toBe(true);
   });
@@ -337,7 +337,7 @@ describe('c014: the shared board is probed, not pinned', () => {
     // enough for a `full` board, or stingy enough that even `reduced` fails,
     // this row is where that shows up.
     expect(['full', 'reduced']).toContain(BOARD.tier);
-    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('reduced');
+    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('full');
   });
 
   it('a class with no buildRange bonus can actually build on it', () => {
@@ -440,18 +440,27 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     });
   }
 
-  it('the far corner converges on the shipped board, and the reason is that there are eleven spots', () => {
-    // `1,1` was a `SHIFTED` case until `c025` and is kept as its own row,
-    // because what it measures changed rather than stopped being true. Its
-    // nearest legal board used to be `10,5` — the single spot on this map that
-    // the Ice Wall column costs (12 legal boards without the column, 11 with),
-    // so the walk from the corner now ends one row further on, at the shipped
-    // board itself. Asserting "a shift moves the board" there would assert the
-    // opposite of what happens; asserting *this* keeps the fact on the record.
-    expect(probeBoard({ tx: 1, ty: 1 })).toEqual(BOARD);
-    // The claim underneath it, so the row above cannot quietly become true for
-    // some other reason: legal boards are scarce, and the corner has no local
-    // one at all.
+  it('the far corner lands on its own nearby legal board, not the shipped one', () => {
+    // Re-measured at fb153b's 56x32 grid resize: `1,1` used to converge on the
+    // shipped board (11 legal boards total, `10,5` the corner's nearest before
+    // c025's Ice Wall column cost it that spot). At the bigger map the corner's
+    // walk lands on a *different* nearby legal board instead — the shipped
+    // board moved further from the corner than the map grew, so this file no
+    // longer has the special coincidence `c025` recorded; `1,1` is folded back
+    // into an ordinary shifted-origin case, asserted directly rather than via
+    // the `SHIFTED` loop above (the number of legal boards on the whole map is
+    // worth keeping on the record here too).
+    expect(probeBoard({ tx: 1, ty: 1 })).toEqual({
+      WX: 7,
+      WY: 12,
+      BUILD_TX: 8,
+      BUILD_TY: 12,
+      WALL_TX: 9,
+      WALL_TYS: [11, 12, 13],
+      hasWall: true,
+      tier: 'full',
+    });
+    // The claim underneath it: legal boards are scarce even on the bigger map.
     let legal = 0;
     for (let ty = 1; ty < GRID_H - 1; ty++) {
       for (let tx = 1; tx < GRID_W - 1; tx++) {
@@ -459,7 +468,7 @@ describe('c014: a shifted probe origin moves the whole board', () => {
         if (b.WX === tx && b.WY === ty) legal++;
       }
     }
-    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(11);
+    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(7);
   });
 
   it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {

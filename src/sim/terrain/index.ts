@@ -1,6 +1,7 @@
 /** SPEC-FINAL §10.5 (fb064a): terrain generation, public surface. */
 export {
   blocksCharacter,
+  configFingerprint,
   isBuildable,
   isHighGround,
   isWalkable,
@@ -8,7 +9,6 @@ export {
   loadTerrain,
   maxCoreLegalFrac,
   parseTerrain,
-  terrainConfigFingerprint,
   TERRAIN_KEYS,
   TerrainKind,
   type HighGroundFamily,
@@ -32,7 +32,7 @@ export {
   uncontestedHigh,
   walkableFlood,
 } from './analyze';
-export { configFingerprint, describeTerrain, parseTerrainDump, type TerrainDump } from './describe';
+export { describeTerrain, parseTerrainDump, type TerrainDump } from './describe';
 export { BASE_GATE_KEYS, GATE_JITTER_MARGIN, jitterGates, type BaseGateKey } from './gates';
 export {
   suggestCoreAnchor,

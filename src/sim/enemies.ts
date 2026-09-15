@@ -1556,13 +1556,18 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
       const r = def.stompRadius ?? 2;
       w.emit('stomp', e.x, e.y, r, 0);
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= r * r) {
-        damageWarden(w, def.stompDamage ?? 25 * w.content.modifiers.numberScale);
+        // fb163/fb194 (QUESTIONS Q180/Q191): `stompDamage` is the enemy's
+        // damage output — economy B, no longer scaled by `numberScale` at
+        // all — so this fallback (an enemy that omits the field) is the bare
+        // authored magnitude, not `authored * numberScale` (fb153a's own
+        // version, written for the old uniform scheme).
+        damageWarden(w, def.stompDamage ?? 25);
       }
       for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
         for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
           const s = w.structureAt(Math.floor(e.x) + dx, Math.floor(e.y) + dy);
           if (s && dist(e.x, e.y, s.tx + 0.5, s.ty + 0.5) <= r) {
-            damageStructure(w, s, (def.stompDamage ?? 25 * w.content.modifiers.numberScale) * 2);
+            damageStructure(w, s, (def.stompDamage ?? 25) * 2);
           }
         }
       }
@@ -1578,7 +1583,9 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
         x: e.x,
         y: e.y,
         radius: def.trailRadius ?? 0.6,
-        dps: def.trailDps ?? 6 * w.content.modifiers.numberScale,
+        // fb163/fb194: `trailDps` is enemy damage output — economy B, no
+        // longer scaled — so this fallback is the bare authored magnitude.
+        dps: def.trailDps ?? 6,
         remaining: 3,
         type: 'enemyFire',
         source: 'cinderling',
@@ -1594,13 +1601,15 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
       // Spitters harass the Warden when in range, otherwise chew on structures.
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= range * range) {
         e.attackCooldown = def.attackInterval ?? 2;
-        damageWarden(w, def.attackDamage ?? 6 * w.content.modifiers.numberScale);
+        // fb163/fb194: `attackDamage` is enemy damage output — economy B, no
+        // longer scaled — so this fallback is the bare authored magnitude.
+        damageWarden(w, def.attackDamage ?? 6);
         w.emit('spit', e.x, e.y, w.warden.x, w.warden.y);
       } else if (!act2) {
         const s = nearestStructureWithin(w, e.x, e.y, range);
         if (s) {
           e.attackCooldown = def.attackInterval ?? 2;
-          damageStructure(w, s, def.attackDamage ?? 6 * w.content.modifiers.numberScale);
+          damageStructure(w, s, def.attackDamage ?? 6);
           w.emit('spit', e.x, e.y, s.tx + 0.5, s.ty + 0.5);
         }
       }
@@ -1938,12 +1947,12 @@ export function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure,
   e.attackingStructure = s.id;
   const factor = w.content.waves.enemyStructureDpsFactor;
   const mul = def.structureDamageMul ?? 1;
-  // fb153a: the "an enemy with no `coreDamage` still chews walls" floor is a
-  // damage magnitude, so it takes `numberScale` like every other one. Left at a
-  // bare 1 it swallowed the whole rescale here — every enemy floored to the
-  // pre-rescale minimum, which flattened the tier ladder's structure-damage
-  // rung to exactly 1.0 (caught by `tests/p12b-tier-ladder.test.ts`).
-  const dps = Math.max(w.content.modifiers.numberScale, enemyCoreDamage(w, def)) * factor * mul;
+  // fb163/fb194 (QUESTIONS Q180/Q191): `coreDamage` is the enemy's damage
+  // *output* against the Core/structures — economy B, no longer scaled by
+  // `numberScale` at all — so the "an enemy with no `coreDamage` still chews
+  // walls" floor is a bare 1 again. fb153a's own `numberScale` floor assumed
+  // `coreDamage` was economy-A-shaped, which it no longer is.
+  const dps = Math.max(1, enemyCoreDamage(w, def)) * factor * mul;
   damageStructure(w, s, dps * dt);
 }
 
@@ -2002,7 +2011,9 @@ export function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
     const r = def.explodeRadius ?? 1.5;
     w.emit('explode', e.x, e.y, r, 0);
     if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= r * r) {
-      damageWarden(w, def.explodeDamage ?? 25 * w.content.modifiers.numberScale);
+      // fb163/fb194: `explodeDamage` is enemy damage output — economy B, no
+      // longer scaled — so this fallback is the bare authored magnitude.
+      damageWarden(w, def.explodeDamage ?? 25);
     }
     killEnemy(w, e, 'contact');
     return;

@@ -356,19 +356,20 @@ function safeScale(base: number, factor: number): number {
 export function derive(content: Content, s: Stats, residualScale = 1): Derived {
   const armor = BASE.armor + s.total('armor');
   // fb153a: the two HP-denominated warden bases come from *this* Content, not
-  // from the module-level `BASE`, because `numberScale` divides them and a
-  // Content may be built with a different scale (the Tuner, and this item's own
-  // control tests). Everything else here is a cap, a speed or a radius, on an
-  // axis the rescale does not touch.
+  // from the module-level `BASE`, because a Content may be built from a
+  // different `warden.json` document (the Tuner, and this item's own control
+  // tests) — fb163/fb194 (QUESTIONS Q180/Q191) stopped `numberScale` touching
+  // either field at all, but the override reason for reading them off
+  // `content` still holds. Everything else here is a cap, a speed or a
+  // radius, on an axis the rescale does not touch.
   const base = content.warden;
   return {
-    // fb153a: the degenerate-input floor is an HP magnitude and scales with the
-    // pool, so a heavily negative `maxHpPct` cannot floor at a whole
-    // pre-rescale hit point.
-    maxHp: Math.max(
-      content.modifiers.numberScale,
-      safeScale(base.maxHp + s.total('maxHp'), s.factor('maxHpPct')),
-    ),
+    // fb163/fb194 (QUESTIONS Q180/Q191): the Warden's `maxHp` is economy B and
+    // no longer scaled by `numberScale` at all, so this degenerate-input
+    // floor (a heavily negative `maxHpPct`) is a bare 1 HP again — fb153a's
+    // own `numberScale` floor assumed `maxHp` was economy-A-shaped, which it
+    // no longer is.
+    maxHp: Math.max(1, safeScale(base.maxHp + s.total('maxHp'), s.factor('maxHpPct'))),
     hpRegen: base.hpRegen + s.total('hpRegen'),
     armor,
     moveSpeed: safeScale(BASE.moveSpeed, s.factor('moveSpeedPct')),

@@ -35,7 +35,7 @@ import { buildTower } from '../src/sim/towers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import type { Enemy } from '../src/sim/types';
 import type { World } from '../src/sim/world';
-import { cfg, scaled } from './helpers';
+import { cfg } from './helpers';
 
 function act2World(): World {
   // Fixed tower-ring coordinates below only need a buildable arena, not real
@@ -129,10 +129,12 @@ describe('p8d: boss escalation (§9 addendum)', () => {
     // `CHARGE_DAMAGE * dt * 2` every tick): 28/s. A sustain rate well above
     // that is a stalemate for the *base* kit — the run only resolves once
     // escalation's multiplier drags the effective DPS past it.
-    // fb153a: both are damage/HP magnitudes, so they are stated in authored
-    // units and scaled into the units the sim runs on.
-    const BASELINE_DPS = scaled(28);
-    const SUSTAIN_PER_SECOND = scaled(100);
+    // fb163/fb194: both are the boss's damage output and Warden HP healed —
+    // economy B, no longer scaled by `numberScale` at all (fb153a's own
+    // version stated them in authored units and scaled them into sim units;
+    // there is no longer a sim-unit/authored-unit gap on this axis).
+    const BASELINE_DPS = 28;
+    const SUSTAIN_PER_SECOND = 100;
     expect(SUSTAIN_PER_SECOND).toBeGreaterThan(BASELINE_DPS);
 
     const dt = 1; // coarse dt: this drives the pure boss.ts function directly, not the fixed-60Hz sim loop

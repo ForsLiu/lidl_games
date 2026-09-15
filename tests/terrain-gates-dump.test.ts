@@ -25,9 +25,17 @@
  * The parser side is the harder half. `parseTerrainDump` refuses what the
  * writer never emits (fb064w), and its `gates` line had a *fixed* key set
  * taken from `GATES`, so a four-gate dump was rejected outright as an unknown
- * key. It now reads a variable set: the three base gates must be present, in
+ * key. It now reads a variable set: the base gates must be present, in
  * `GATES` order, at this build's positions — that check is unchanged, and so is
  * its message — and any further gate follows them, read as written.
+ *
+ * **fb156** grew the base list itself from three positions (west/north/east)
+ * to four (west/north/east/south), one per edge, and jittered each off its
+ * edge's exact midpoint. The one gate a tier modifier can add on top of that
+ * is `MODIFIER_GATES`'s `south2` — renamed from `south`, which the base list
+ * now owns. Every literal gate coordinate and the "not the base N" counts
+ * below were re-measured against the shipped generator for that layout, not
+ * hand-computed.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -46,47 +54,31 @@ import { cfg as runCfg } from './helpers';
 
 const cfg = loadTerrain();
 
-/**
- * A stand-in for `world.ts`'s Fourth Gate list, in the order `World` builds
- * it — the base three plus one more gate.
- *
- * fb166 logged `MODIFIER_GATES`' old `south` entry, `{ tx: 12, ty: 19 }`, as a
- * literal sized for the 36x20 grid (`ty: 19` was `GRID_H - 1`) that had become
- * an ordinary interior tile at 56x32, so this file built its own corrected
- * stand-in rather than import a known-broken constant. fb156 fixed that
- * constant in place — `MODIFIER_GATES` is now `{ key: 'south2', tx: 3, ty:
- * GRID_H - 1 }`, a real border tile — and renamed its key (a *base* gate now
- * legitimately answers to `'south'`; see `grid.ts`'s own doc comment). This
- * file tests the describe/parse format's four-gate handling generically, not
- * the Fourth Gate's specific position, so `MODIFIER_GATES` itself is now a
- * fine stand-in again everywhere except the one test that exercises the real
- * `World` integration directly (which plays `world.ts`'s own still-unfixed
- * `{ key: 'south', tx: 12, ty: 19 }` literal) — see its own skip note.
- */
+/** `world.ts`'s Fourth Gate list, in the order `World` builds it. */
 const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 describe('fb065f — describeTerrain carries its gate list', () => {
-  it('prints the gates it was given, not the base three', () => {
+  it('prints the gates it was given, not the base four', () => {
     const map = generateTerrain(40, cfg, FOUR);
     const line = describeTerrain(map, cfg, FOUR).split('\n')[2];
-    expect(line).toBe('gates west=0,10 north=18,0 east=35,17 south2=3,31');
+    expect(line).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31 south2=3,31');
     // Unchanged when no list is given: the default is still `GATES`, so every
     // existing dump in every existing golden is byte-identical.
     expect(describeTerrain(map, cfg).split('\n')[2]).toBe(
-      'gates west=0,10 north=18,0 east=35,17',
+      'gates west=0,12 north=24,0 east=55,20 south=33,31',
     );
   });
 
   it('measures its bands against that list, which is the defect', () => {
     // The half that actually misleads a reader. The gate line being short is
     // visible; the bands being measured against a different arena is not.
-    // fb156: seed 5, not seed 2 — `MODIFIER_GATES`' fb156 reposition (12,19 ->
-    // 3,31, alongside its rename to `south2`) moves the map `FOUR` generates
-    // for every seed, and seed 2's four-gate and three-gate detour coincide
-    // at the new position (both 1.142857...). Seed 5 is a fresh witness where
-    // they genuinely differ (1.197279 against 1.016667), re-checked by search
-    // rather than guessed.
-    const map = generateTerrain(5, cfg, FOUR);
+    // Seed 40, not 1: re-measured at the merge with master's own
+    // `MODIFIER_GATES` reposition (`south2` moved to `(3, GRID_H - 1)`, out of
+    // `jitterGates`' own jitter band — `grid.ts`'s doc comment). Seed 1's
+    // `maxGateDetour` happens to read identically with and without the
+    // modifier gate at the new position, so it no longer demonstrates the
+    // defect this test exists to show; seed 40 still does.
+    const map = generateTerrain(40, cfg, FOUR);
     const truth = measureTerrain(map, cfg, FOUR);
     const bands = (dump: string): string => dump.split('\n')[3];
 
@@ -103,6 +95,12 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     );
   });
 
+  // Re-enabled at fb156: `MODIFIER_GATES`'s gate (now keyed `south2`) sits at
+  // (3,31), on the resized 56x32 border, so `parseTerrainDump`'s border check
+  // no longer refuses this file's own `FOUR` list. (Was skipped at fb166,
+  // when `MODIFIER_GATES`'s literal `south` coordinate had drifted off the
+  // border along with the resize; see BACKLOG-TERRAIN.md's 2026-09-06
+  // fb166-filing entry for that history.)
   it('round-trips a four-gate dump byte-identically', () => {
     for (const seed of [1, 7, 40, 4426]) {
       const map = generateTerrain(seed, cfg, FOUR);
@@ -119,42 +117,41 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     }
   });
 
-  it('keeps every refusal the three-gate line already made', () => {
+  it('keeps every refusal the four-gate line already made', () => {
     const map = generateTerrain(7, cfg);
     const dump = describeTerrain(map, cfg);
     const swap = (from: string, to: string): string => dump.replace(from, to);
 
     // A base gate at the wrong place: the message is unchanged, verbatim.
-    expect(() => parseTerrainDump(swap('west=0,10', 'west=0,11'))).toThrow(
-      /gate "west" is at 0,11, this build has it at 0,10/,
+    expect(() => parseTerrainDump(swap('west=0,12', 'west=0,11'))).toThrow(
+      /gate "west" is at 0,11, this build has it at 0,12/,
     );
     // A base gate missing entirely.
-    expect(() => parseTerrainDump(swap(' north=18,0', ''))).toThrow(/north/);
+    expect(() => parseTerrainDump(swap(' north=24,0', ''))).toThrow(/north/);
     // Malformed coordinates.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=x'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,20', 'east=x'))).toThrow(
       /gate "east" is not "tx,ty"/,
     );
     // Duplicates, still refused rather than last-write-wins.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=35,17 east=35,17'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,20', 'east=55,20 east=55,20'))).toThrow(
       /duplicate "east" on the "gates" line/,
     );
   });
 
-  // fb166 Known-issue (out of this lane's scope): `world.ts:591` hardcodes the
-  // Fourth Gate's south position as `{ tx: 12, ty: 19 }`, independently of
-  // `MODIFIER_GATES` — a literal sized for the 36x20 grid (`ty: 19` was
-  // `GRID_H - 1`) that is now an ordinary interior tile at 56x32. `World`
-  // writes it straight into `grid.tile[]` (bypassing `Grid.openGate`'s border
-  // guard, `world.ts:593`), so building a `World` with the `gate` modifier
-  // does not throw — but the resulting arena's dump correctly fails
-  // `parseTerrainDump`'s border check on read-back (`gate "south" is at
-  // 12,19, which is not on the arena border`), because that position really
-  // is invalid at this grid size. This is the validator doing exactly its
-  // documented job — "where a gate can be, not merely that it is a tile" —
-  // catching a real defect in `world.ts`, which lives outside `src/sim/
-  // terrain/**` and this lane's Scope. Logged in BACKLOG-TERRAIN.md's Log for
-  // the main lane; re-enable once `world.ts:591` reads a real border
-  // position for the resized grid.
+  // Still skipped at fb156, for a NEW reason (the fb166-era border cause
+  // above is fixed): `World`'s constructor (`src/sim/world.ts`, out of this
+  // lane's Scope) does not read `GATES`/`MODIFIER_GATES` at all here — it
+  // hardcodes `this.gates = GATES.slice(0, 3)` (dropping `GATES`'s own,
+  // real `south` at (33,31) entirely, gate modifier or not) and, when the
+  // `gate` modifier is active, pushes its own literal `{ key: 'south', tx:
+  // 12, ty: 19 }` — a position fb156 never touched and that is not on the
+  // resized border. So `w.gates` is `[west, north, east, south]` by key, as
+  // this test still expects, but `south` is at the wrong place and the real
+  // fourth base gate is never opened at all, with or without the modifier.
+  // That is a real bug and out of this lane's Scope (grid.ts/terrain data
+  // only) to fix — filed in BACKLOG-TERRAIN.md's Log for main-lane, which
+  // owns `world.ts`. Re-enable once `World` builds its gate list from
+  // `GATES`/`MODIFIER_GATES` instead of its own copy.
   it.skip('describes a live Fourth Gate run correctly — the case that motivated it', () => {
     // The defect end to end, on the artefact fb065c built. A run under the
     // `gate` modifier plays four gates; before fb065f its repro printed three
@@ -177,23 +174,23 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     expect(parsed.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south']);
     expect(parsed.provenance).toBeNull();
 
-    // And the three-gate reading really was different on this run, so the
-    // assertions above are not pinning a distinction without one.
+    // And the default-gate-list reading really was different on this run, so
+    // the assertions above are not pinning a distinction without one.
     const wrong = measureTerrain(view, cfg);
     expect(wrong.legalCoreCount).not.toBe(truth.legalCoreCount);
   });
 
-  it('leaves a three-gate dump alone: declared is not required', () => {
+  it('leaves a four-gate dump alone: the optional modifier key is not required', () => {
     // QA's M4: making the optional key *required* passed this whole file,
-    // because every three-gate case in it expected a throw for some other
+    // because every base-gate case in it expected a throw for some other
     // reason and none ever parsed one successfully. The claim the item rests on
     // — that a declared key need not be emitted — was therefore pinned nowhere
     // in the file that makes it.
     const map = generateTerrain(7, cfg);
     const dump = describeTerrain(map, cfg);
-    expect(dump.split('\n')[2]).toBe('gates west=0,10 north=18,0 east=35,17');
+    expect(dump.split('\n')[2]).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31');
     const parsed = parseTerrainDump(dump);
-    expect(parsed.gates).toHaveLength(3);
+    expect(parsed.gates).toHaveLength(4);
     expect(Array.from(parsed.kind)).toEqual(Array.from(map.kind));
   });
 
@@ -221,20 +218,23 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('refuses an extra gate that is not a gate', () => {
     const map = generateTerrain(7, cfg, FOUR);
     const dump = describeTerrain(map, cfg, FOUR);
+    // fb156: the modifier key is `south2` now, not `south` — the base list
+    // grew a real `south` of its own, at (33,31), and the modifier gate
+    // sits at (3,31).
     const swap = (to: string): string => dump.replace('south2=3,31', to);
 
-    expect(() => parseTerrainDump(swap('south2=3'))).toThrow(/gate "south2" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap('south2=1.5,31'))).toThrow(/gate "south2" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap(`south2=${GRID_W},31`))).toThrow(/off the .* arena/);
-    expect(() => parseTerrainDump(swap(`south2=3,${GRID_H}`))).toThrow(/off the .* arena/);
+    expect(() => parseTerrainDump(swap('south2=12'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=1.5,19'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap(`south2=${GRID_W},19`))).toThrow(/off the .* arena/);
+    expect(() => parseTerrainDump(swap(`south2=12,${GRID_H}`))).toThrow(/off the .* arena/);
     expect(() => parseTerrainDump(swap('south2=3,31 south2=3,31'))).toThrow(/duplicate "south2"/);
-    // One spelling per value. The base three survive a padded or `-0` spelling
+    // One spelling per value. The base gates survive a padded or `-0` spelling
     // only because their parsed value is discarded — a modifier gate's is what
-    // the dump carries, so `003,031` would round-trip to different text and
-    // `-0,31` would land a negative zero in a `GateDef`. Both measured before
+    // the dump carries, so `045,031` would round-trip to different text and
+    // `-0,19` would land a negative zero in a `GateDef`. Both measured before
     // this guard existed.
-    expect(() => parseTerrainDump(swap('south2=003,031'))).toThrow(/gate "south2" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap('south2=-0,31'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=045,031'))).toThrow(/gate "south2" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south2=-0,19'))).toThrow(/gate "south2" is not "tx,ty"/);
     // **Where a gate can be, not merely that it is a tile.** The first version
     // of this parser said "nothing in this build knows where a modifier gate
     // belongs", which was false: `Grid.openGate` (fb065e, one commit earlier)
@@ -248,13 +248,13 @@ describe('fb065f — describeTerrain carries its gate list', () => {
       expect(() => parseTerrainDump(swap(`south2=${corner}`)), corner).toThrow(/is a corner/);
     }
     // ...and not on top of a gate that is already there.
-    expect(() => parseTerrainDump(swap('south2=0,10'))).toThrow(
+    expect(() => parseTerrainDump(swap('south2=0,12'))).toThrow(
       /where gate "west" already is/,
     );
-    // A modifier gate ahead of the base three is not something the writer
+    // A modifier gate ahead of the base gates is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.
     expect(() =>
-      parseTerrainDump(dump.replace('gates west=0,10', 'gates south2=3,31 west=0,10')),
+      parseTerrainDump(dump.replace('gates west=0,12', 'gates south2=3,31 west=0,12')),
     ).toThrow(/fields are in a fixed order/);
     // And a name the format does not declare is still an unknown key, with
     // fb064w's own message rather than a confusing complaint about coordinates.

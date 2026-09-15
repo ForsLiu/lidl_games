@@ -71,13 +71,28 @@ const FIRE_DPS = 8;
 /**
  * fb153a: the four boss magnitudes below are rule-4 debt — authored as literals
  * here rather than in `/data` (the §5.5 ledger in `tests/class-spec-numbers.ts`
- * calls this shape `in_code`). They are still HP/damage numbers, so they take
- * `numberScale` like every authored one; without this the boss would hit for
- * pre-rescale magnitudes against a rescaled Warden — measured as an instant
- * kill that flattened `tests/p8d-boss-termination.test.ts`'s escalation case.
+ * calls this shape `in_code`).
+ *
+ * fb163/fb194 (QUESTIONS Q180/Q191): every call site below is the boss's
+ * damage *output* — against the Warden (`damageWarden`, `CHARGE_DAMAGE`/
+ * `SLAM_DAMAGE`/`FIRE_DPS`) or a structure/the Core (`damageStructure`,
+ * `UNREACHABLE_DPS`, and `SLAM_DAMAGE` again when the Warden is out of the
+ * ring) — economy B, no longer scaled by `numberScale` at all, so `mag` is
+ * now the identity. (One `SLAM_DAMAGE` call also splashes onto *other
+ * enemies* caught in the ring, `damageEnemy` — economy A on every other
+ * enemy attack, but the boss's own numbers are authored and balanced as a
+ * single "damage this deals" figure shared by every target it can hit, the
+ * same way every other enemy's `attackDamage`/`stompDamage` is; splitting
+ * one boss ability's number by who it happens to hit would be a real design
+ * change, not a rescale, so it stays uniform and this incidental splash is
+ * now proportionally harder on bystanders than it was under fb153a's
+ * uniform scheme — logged, not chased further here.) fb153a's own version
+ * multiplied by `numberScale` because the Warden it hits was economy-A-shaped
+ * under the old uniform scheme; it no longer is — without this fix the boss
+ * would hit for `1 / numberScale` too little against the now-unscaled Warden.
  */
-function mag(w: World, authored: number): number {
-  return authored * w.content.modifiers.numberScale;
+function mag(authored: number): number {
+  return authored;
 }
 
 /** Boss action ids, stored on `bossAction`. */
@@ -195,7 +210,7 @@ function updateUnreachable(w: World, e: Enemy, dt: number): void {
   e.bossUnreachableTime += dt;
   if (e.bossUnreachableTime < UNREACHABLE_THRESHOLD) return;
 
-  const dps = mag(w, UNREACHABLE_DPS) * escalationDamageMul(w);
+  const dps = mag(UNREACHABLE_DPS) * escalationDamageMul(w);
   let nearest: Structure | null = null;
   let nearestD2 = UNREACHABLE_STRUCTURE_RANGE * UNREACHABLE_STRUCTURE_RANGE;
   for (const s of w.structures) {
@@ -290,7 +305,7 @@ function updateCharge(w: World, e: Enemy, dt: number, phase: number): boolean {
     e.x = nx;
     e.y = ny;
     if (dist(e.x, e.y, wd.x, wd.y) <= CHARGE_WIDTH + e.radius) {
-      damageWarden(w, mag(w, CHARGE_DAMAGE) * dt * 2 * escalationDamageMul(w));
+      damageWarden(w, mag(CHARGE_DAMAGE) * dt * 2 * escalationDamageMul(w));
     }
     if (e.bossTimer <= 0) {
       e.bossAction = IDLE;
@@ -358,7 +373,7 @@ export function slam(w: World, e: Enemy): void {
     x: e.x,
     y: e.y,
     radius: SLAM_START_RADIUS,
-    dps: mag(w, SLAM_DAMAGE),
+    dps: mag(SLAM_DAMAGE),
     remaining: (slamRadius(e) - SLAM_START_RADIUS) / SLAM_EXPAND,
     type: 'bossSlam',
     source: 'warden_eater',
@@ -379,11 +394,11 @@ export function updateBossSlam(w: World, dt: number): void {
     const wd = w.warden;
     const d = Math.sqrt(dist2(a.x, a.y, wd.x, wd.y));
     // Only the leading edge of the ring hurts.
-    if (Math.abs(d - a.radius) <= 0.8) damageWarden(w, mag(w, SLAM_DAMAGE) * dt * 2 * escalationDamageMul(w));
+    if (Math.abs(d - a.radius) <= 0.8) damageWarden(w, mag(SLAM_DAMAGE) * dt * 2 * escalationDamageMul(w));
     for (const en of w.enemiesInRadius(a.x, a.y, a.radius + 1)) {
       if (en.dead || en.boss) continue;
       const ed = Math.sqrt(dist2(a.x, a.y, en.x, en.y));
-      if (Math.abs(ed - a.radius) <= 0.8) damageEnemy(w, en, mag(w, SLAM_DAMAGE) * dt * 2, 'warden_eater');
+      if (Math.abs(ed - a.radius) <= 0.8) damageEnemy(w, en, mag(SLAM_DAMAGE) * dt * 2, 'warden_eater');
     }
   }
 }
@@ -403,7 +418,7 @@ function updateArenaFire(w: World, dt: number): void {
   const cx = GRID_W / 2;
   const cy = GRID_H / 2;
   const r = w.arenaFireRadius;
-  if (dist2(w.warden.x, w.warden.y, cx, cy) > r * r) damageWarden(w, mag(w, FIRE_DPS) * dt * escalationDamageMul(w));
+  if (dist2(w.warden.x, w.warden.y, cx, cy) > r * r) damageWarden(w, mag(FIRE_DPS) * dt * escalationDamageMul(w));
 }
 
 export function clearArenaFire(w: World): void {

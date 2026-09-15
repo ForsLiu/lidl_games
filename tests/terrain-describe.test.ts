@@ -56,7 +56,10 @@ const cfg = loadTerrain();
 /**
  * fb065f: `world.ts`'s Fourth Gate list, in the order `World` builds it. The
  * `gates` header line is the one line whose key set is not closed, so a few
- * cases here need the maximal dump rather than the default three-gate one.
+ * cases here need the maximal dump rather than the default four-gate one
+ * (fb156 grew the base list from three positions to four; the modifier gate
+ * on top of it is the fifth, keyed `south2` since the base list now owns
+ * `south`).
  */
 const FOUR_GATES: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
@@ -116,17 +119,8 @@ function field(text: string, head: string, key: string): string {
  *
  * **Moved a second time, at fb064s**, which added the `source` field to the
  * seed line. Nothing about seed 1's map changed — the hash, the bands, the
- * counts and all twenty rows are byte-identical; only the one header line grew
+ * counts and all thirty-two rows are byte-identical; only the one header line grew
  * the mark that tells a reader whether `requested` is a seed they can paste.
- *
- * **Moved a third time, at fb065i**, which appends `cfgFingerprint` to the
- * `bands` line — an 8-hex-digit fold of the shipped `TerrainConfig`
- * (`configFingerprint(loadTerrain())`), regenerated honestly by running the
- * real `describeTerrain` rather than typed by hand. Nothing about the map or
- * any other field moved; `08d7d0c0` is `/data/terrain.json`'s own fingerprint
- * today; a `/data/terrain.json` tune that changes any folded field changes it
- * and this golden goes red until re-recorded, which is the fingerprint field
- * doing its job on its own test.
  *
  * **Moved once, at fb064m**, which demotes a `high` tile with no walkable tile
  * inside `highContestRadius` to rock — seed 1 carries four, all in the
@@ -139,45 +133,45 @@ function field(text: string, head: string, key: string): string {
  */
 const GOLDEN_SEED_1 = [
   'terrain 56x32',
-  'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=164edd68',
-  'gates west=0,10 north=18,0 east=35,17',
-  'bands walkable=0.736607 buildableNormal=0.553571 gateReach=1.000000 coreLegal=0.526210 gateDetour=1.050847 corridors=true gatesOpen=true gatesConnected=true cfgFingerprint=08d7d0c0',
-  'counts walkable=1320 normal=992 coreAnchors=522',
-  'tiles normal=992 rough=328 rock=354 high=118',
+  'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=c49b8ecb',
+  'gates west=0,12 north=24,0 east=55,20 south=33,31',
+  'bands config=c39bcb68 walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
+  'counts walkable=1267 normal=1016 coreAnchors=558',
+  'tiles normal=1016 rough=251 rock=429 high=96',
   'legend normal=. rough=, rock=# high=^',
   'map',
-  '##################.#####################################',
-  '#.....###.........................^^.....,,,,,^^^,,.,..#',
-  '#....###.,...........,,........^^^^^...#...,,.,...,,,..#',
-  '#.....###,,..........,,,.......^^^^^.####,,,,,,##,,,...#',
-  '#.......,,...........^,,..,,,,..,,^^..####,,,,###,,....#',
-  '#........,,,...............,,,..,,^^.,.#...,######.....#',
-  '#.....,,..,,.,...............,..,,^^.,.........###...^.#',
-  '#^^^^^,,.,,,,,...#................^,,,.........######^.#',
-  '#...^.,,.........###.........,,.,,,,,,.......########^^#',
-  '#.....,,.........#.#,........,,..,..,........########^^#',
-  '.......,.......#.#.#,,.......,,,,,...........######,^^^#',
-  '#.................,,,.........,,##...........###,.,,^^^#',
-  '#..............................####.........^^.,,,,,...#',
-  '#...................,,.^^........###..,.,...^^^,.,,....#',
-  '#..,,...............,,..^..........#..,,,.....^.,,,#...#',
-  '#.,,,.................................^....^^^^^.####..#',
-  '#.,^^^......................................##...####..#',
-  '#.,^^........................................##....#####',
-  '###...^.....................................###....###^#',
-  '####.^^.............,^^^^.................,,^^##...#^^^#',
-  '#^###^^^###.........,,.^,,,,...........,...,,......##^^#',
-  '#^###^#####..........,.^,,,,...........,,,,,..^......,,#',
-  '#.....##.......,........#,#..........,,,.,,..^^.^^^^,,,#',
-  '#^^^..##.......,,,.....####..,,,.##..,,,,,..,^^...^.,,.#',
-  '#^^,,.....#.....,,,,.....##..,,###....,,,,..,,^..^^,,,,#',
-  '#^,,,,.####....^^^.,,.###.,,,,,##...........,,...^^,.^.#',
-  '#^,,,....#......,.....##...,,,.,,.....,......,..^^.,.^.#',
-  '#^..,....###....,,.....#...,,,,,,,...,,,,,,.,,...^.,,^^#',
-  '#^,,,,..###.....,,...,,##.#,,,,,......,...,..,.....,,..#',
-  '#,,,,,,,.,.....,,,....,,####,,,,,......###.,,,,,.,..,,,#',
-  '#,,,,,,,,,.....,,,,,,..,,,,,,,,,,,,....####,,,,,,,###..#',
-  '########################################################',
+  '########################.###############################',
+  '##############^#^^...................#,,.,,........###.#',
+  '##############^^^^^^.,........#......#,,,,,,,,....####,#',
+  '###############^^.^^^,.......##.....###.,,,.,,.######,,#',
+  '###############^^.^^^^##......#.,...###..,.#...#^^^.#,,#',
+  '###############^^...####......#.,,,...#..#####.......,,#',
+  '##########..^^^^^.....#...........,...,..###.###.....,.#',
+  '####...##.....^...,,,.#...........,..,,,.....^##.......#',
+  '#####..#.....^^...,.,.###.........,,,,..##..^^.........#',
+  '#..##.......^^^....,,.###.........,,,,.###..^..........#',
+  '#...........^^^^^,,,,##,,,^.....,,,....#,.##^..........#',
+  '#...........^^^^^,.,.,..,,,.....,,,....#,.,##.....,,,,.#',
+  '..............^,..,,,,,,,,,.....,,,...,,,.,,##.....,,..#',
+  '#.............^,....,,,,,........,....,,,.,,.##....,,..#',
+  '#..............,....,,,,,..............,,,...##...####.#',
+  '#......................................................#',
+  '#..,,..................................................#',
+  '#..,,,.................................................#',
+  '#...,,,........,..#^^......................####........#',
+  '#^^^,.###.##..,,,.##^^................##....####.......#',
+  '#^^........#.#....#^^^.,,,,..........##,....##....,,....',
+  '#^^^.......###..####^^.,,,,...,......##,,,,####,,,,....#',
+  '#^,,,,,,..####.,........,,....,......##,,..####..,.....#',
+  '#^,,..,,,,#..,,,...............,....###,,..####..,.,,..#',
+  '#^,,...,....,,,^...............,...^^^#.##.,,,#..,,,,..#',
+  '#............,,.......###..........^^^^.####,,###..,,,.#',
+  '#.............,,,,,,..##^^...........^^^.#.#..###......#',
+  '#..............,,,.,,.,#^^...........^^..#....###.,,^..#',
+  '#,.,,..........,,,..,.,.^^..........,....#.....#..,,,,,#',
+  '#..,,.....#....,....,.,^^...........,,...#........##,,,#',
+  '#..,......##...,,.....,,,...........,..............#,,.#',
+  '#################################.######################',
 ].join('\n')
   .concat('\n');
 
@@ -425,9 +419,9 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
     const lines = good.replace(/\n$/, '').split('\n');
     const top = lines.indexOf('map') + 1;
     expect(lines[top][0]).toBe('#');
-    expect(lines[top + 10][0]).toBe('.');
+    expect(lines[top + 12][0]).toBe('.');
     lines[top] = `.${lines[top].slice(1)}`;
-    lines[top + 10] = `#${lines[top + 10].slice(1)}`;
+    lines[top + 12] = `#${lines[top + 12].slice(1)}`;
     const broken = `${lines.join('\n')}\n`;
     expect(broken).not.toBe(good);
 
@@ -447,14 +441,22 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       ['blank line only', '\n', /expected a "terrain WxH" header/],
       ['bad header', good.replace('terrain 56x32', 'terrain 56 by 32'), /terrain WxH/],
       ['missing rows', good.split('\n').slice(0, -3).join('\n'), /header says 32 rows/],
-      ['extra row', `${good}${'#'.repeat(GRID_W)}\n`, /header says 32 rows/],
-      ['short row', good.replace(`${'#'.repeat(GRID_W)}\n`, '#....#\n'), /glyphs/],
+      ['extra row', `${good}${'#'.repeat(56)}\n`, /header says 32 rows/],
+      [
+        'short row',
+        // A full 56-wide border row of pure `#` no longer exists in the golden:
+        // fb156 put a gate on every edge, so both the top and bottom rows have
+        // a gap. Any single golden row is still unique (checked below), so one
+        // is used verbatim instead of a repeated-glyph pattern.
+        good.replace(`${rowsOf(good)[5]}\n`, '#....#\n'),
+        /glyphs/,
+      ],
       ['unknown glyph', good.replace('##################.#', '##################?#'), /unknown glyph/],
       ['renamed legend', good.replace('normal=.', 'normal=o'), /legend says normal="o"/],
       ['no map marker', good.replace('\nmap\n', '\nmapp\n'), /expected a "map" line/],
       ['no gates line', good.replace(/^gates .*\n/m, ''), /expected "gates" line/],
-      ['gate not a pair', good.replace('west=0,10', 'west=0'), /gate "west" is not "tx,ty"/],
-      ['non-numeric band', good.replace('walkable=0.736607', 'walkable=lots'), /non-numeric/],
+      ['gate not a pair', good.replace('west=0,12', 'west=0'), /gate "west" is not "tx,ty"/],
+      ['non-numeric band', good.replace('walkable=0.707031', 'walkable=lots'), /non-numeric/],
       ['non-boolean band', good.replace('corridors=true', 'corridors=yes'), /non-boolean/],
       ['field with no value', good.replace('attempts=1', 'attempts'), /malformed field/],
       ['field with no key', good.replace('attempts=1', '=1'), /malformed field/],
@@ -466,7 +468,7 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       ['duplicate field', good.replace(/^(seed .*)$/m, '$1 hash=-'), /duplicate "hash"/],
       [
         'duplicate band',
-        good.replace('walkable=0.736607', 'walkable=0.736607 walkable=9'),
+        good.replace('walkable=0.707031', 'walkable=0.736607 walkable=9'),
         /duplicate "walkable"/,
       ],
       // Provenance is all-or-nothing; a half-dashed seed line silently dropped
@@ -504,7 +506,7 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       // reloaded and re-dumped with a different string than it went in with.
       ['minus zero', good.replace('attempts=1', 'attempts=-0'), /-0 and 0 are one value/],
       ['leading zero', good.replace('attempts=1', 'attempts=01'), /non-numeric/],
-      ['gate moved', good.replace('west=0,10', 'west=9,9'), /gate "west" is at 9,9/],
+      ['gate moved', good.replace('west=0,12', 'west=9,9'), /gate "west" is at 9,9/],
       // fb064s. Same rule as the legend check one line of reasoning above: a
       // dump written by a future version with a third source is refused rather
       // than decoded as one of today's two.
@@ -549,8 +551,8 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
 
     // And the `counts normal=` field is cross-checked too, independently of the
     // `tiles` line, since `normal` is a kind count wearing another name.
-    expect(() => parseTerrainDump(good.replace('normal=992 coreAnchors', 'normal=991 coreAnchors')))
-      .toThrow(/"counts" line says normal=991/);
+    expect(() => parseTerrainDump(good.replace('normal=1016 coreAnchors', 'normal=1015 coreAnchors')))
+      .toThrow(/"counts" line says normal=1015/);
   });
 
   it('refuses a "-0" seed rather than normalising it', () => {
@@ -665,7 +667,7 @@ describe('fb064w — a header line is refused unless its fields are exactly what
 
   it('refuses an unknown field on every header line, naming the key and the line', () => {
     // `fields()` used to collect any `key=value` into a `Map` that only named
-    // readers ever looked in, so `hash=54fad3db bogus=1` parsed clean — the one
+    // readers ever looked in, so `hash=164edd68 bogus=1` parsed clean — the one
     // shape of damage the format did not refuse, in a parser written to
     // "refuse what the writer never emits rather than reinterpret it".
     for (const head of HEADS) {
@@ -738,7 +740,7 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(() => parseTerrainDump(good.replace(/^counts /m, 'counts coreLegal=1 '))).toThrow(
       /unknown "coreLegal" on the "counts" line/,
     );
-    expect(() => parseTerrainDump(good.replace(/^tiles /m, 'tiles west=0,10 '))).toThrow(
+    expect(() => parseTerrainDump(good.replace(/^tiles /m, 'tiles west=0,12 '))).toThrow(
       /unknown "west" on the "tiles" line/,
     );
   });
@@ -819,16 +821,21 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     // it, because the existing coverage pins only the `seed` and `counts`
     // lines. Pinned here so the next modifier gate makes the text change
     // visible in review instead of in a QA report.
+    //
+    // fb156 widened the base list again — `GATES` grew a fourth entry
+    // (`south`), so the modifier's key moved from `south` to `south2` — which
+    // is why the enumeration below is `west north east south south2`, not the
+    // `west north east south` this comment used to end on.
     const dump = describeTerrain(generateTerrain(7, cfg), cfg);
     const line = headerLine(dump, 'gates');
     expect(() => parseTerrainDump(dump.replace(line, `${line} bogus=1,1`))).toThrow(
-      'parseTerrainDump: unknown "bogus" on the "gates" line; expected west north east south',
+      'parseTerrainDump: unknown "bogus" on the "gates" line; expected west north east south south2',
     );
     expect(() =>
-      parseTerrainDump(dump.replace(line, 'gates north=18,0 west=0,10 east=35,17')),
+      parseTerrainDump(dump.replace(line, 'gates north=24,0 west=0,12 east=55,20 south=33,31')),
     ).toThrow(
       'parseTerrainDump: "gates" line has "west" after "north"; ' +
-        'fields are in a fixed order, expected west north east south',
+        'fields are in a fixed order, expected west north east south south2',
     );
   });
 
@@ -843,17 +850,12 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(HEADER_KEYS.gates.slice(0, base.length)).toEqual(base);
     // Every optional key trails the required ones. A *second* trailing optional
     // key would still be safe by the same argument — one declared among the
-    // base three would not, and that is what this pins.
+    // base four would not, and that is what this pins.
     expect(HEADER_KEYS.gates.slice(base.length)).toEqual(MODIFIER_GATES.map((g) => g.key));
     // ...and it really is refused out of order, not merely declared last.
     const four = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
-    // fb156: `south2`, not `south` — `MODIFIER_GATES`' fb156 rename means
-    // `south` is no longer a key this format declares at all (a *base*
-    // jittered gate answers to that name now; see `grid.ts`), so the
-    // malformed-order fixture has to spell the declared key or the parser
-    // reports "unknown key" instead of the order violation this test targets.
     expect(() =>
-      parseTerrainDump(four.replace('gates west=0,10', 'gates south2=3,31 west=0,10')),
+      parseTerrainDump(four.replace('gates west=0,12', 'gates south2=3,31 west=0,12')),
     ).toThrow(/fields are in a fixed order/);
   });
 
@@ -911,10 +913,10 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect(() => parseTerrainDump(good.replace('source=generator ', ''))).toThrow(
       /predates the field/,
     );
-    expect(() => parseTerrainDump(good.replace(' coreAnchors=522', ''))).toThrow(
+    expect(() => parseTerrainDump(good.replace(' coreAnchors=558', ''))).toThrow(
       /"counts" line has no "coreAnchors"/,
     );
-    expect(() => parseTerrainDump(good.replace(' high=118', ''))).toThrow(
+    expect(() => parseTerrainDump(good.replace(' high=96', ''))).toThrow(
       /"tiles" line has no "high"/,
     );
   });
@@ -927,7 +929,7 @@ describe('fb064w — a header line is refused unless its fields are exactly what
       /duplicate "hash"/,
     );
     expect(() =>
-      parseTerrainDump(good.replace('walkable=0.736607', 'walkable=0.736607 walkable=9')),
+      parseTerrainDump(good.replace('walkable=0.707031', 'walkable=0.736607 walkable=9')),
     ).toThrow(/duplicate "walkable"/);
 
     // ...and the other way round for a key the format never had: `unknown` is
@@ -939,141 +941,82 @@ describe('fb064w — a header line is refused unless its fields are exactly what
   });
 });
 
-/**
- * fb065i — a dump carries a fingerprint of the `TerrainConfig` it was written
- * under, and `parseTerrainDump` reports (never throws on) a mismatch against
- * whatever config it is read next to.
- */
-describe('fb065i — the dump carries a fingerprint of the config it was measured under', () => {
+describe('fb065i — a dump carries a fingerprint of the config it was measured under', () => {
   const good = GOLDEN_SEED_1;
-
-  it('refuses a malformed cfgFingerprint the way every other header field is refused', () => {
-    expect(() => parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=lots'))).toThrow(
-      /"bands" line has non-hex cfgFingerprint="lots"/,
-    );
-    expect(() =>
-      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08D7D0C0')),
-    ).toThrow(/non-hex cfgFingerprint="08D7D0C0"/);
-    expect(() =>
-      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08d7d0c')),
-    ).toThrow(/non-hex cfgFingerprint="08d7d0c"/);
-    expect(() =>
-      parseTerrainDump(good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=08d7d0c00')),
-    ).toThrow(/non-hex cfgFingerprint="08d7d0c00"/);
-    // Every fingerprint the writer emits satisfies the shape it refuses on.
-    expect(configFingerprint(cfg)).toMatch(/^[0-9a-f]{8}$/);
+  // A config that measures real bands differently from the shipped one, so a
+  // fingerprint mismatch is checked against something that would actually
+  // change `measure` if this file re-measured (it must not).
+  const otherCfg: TerrainConfig = withConfig((raw) => {
+    (raw as Record<string, unknown>).coreGateClearance = 4;
   });
 
-  it('refuses a dump that predates the field, naming fb065i and the fix', () => {
-    // Simulates a dump written before this item: the trailing field is simply
-    // absent, same as every other missing-field case in this file.
-    const legacy = good.replace(' cfgFingerprint=08d7d0c0', '');
-    expect(legacy).not.toBe(good);
-    expect(() => parseTerrainDump(legacy)).toThrow(
-      'parseTerrainDump: "bands" line has no "cfgFingerprint"; a dump written before fb065i ' +
-        'predates the field — re-describe the map (under the config it was measured against) ' +
-        'with a version of describeTerrain that emits it; there is no value to add by hand',
-    );
+  it('the bands line carries config=<fingerprint>, first field, matching configFingerprint(cfg)', () => {
+    const map = generateTerrain(1, cfg);
+    const dump = describeTerrain(map, cfg);
+    const bandsLine = dump.split('\n')[3];
+    expect(bandsLine.startsWith(`bands config=${configFingerprint(cfg)} `)).toBe(true);
   });
 
-  it('reports rather than throws on a mismatch, leaving the rest of the dump readable', () => {
-    // `good` is seed 1 dumped under the shipped config, so mangling the digits
-    // to a value that is shaped right but simply wrong is exactly "stale" —
-    // the fingerprint no longer matches `configFingerprint(loadTerrain())`.
-    const stale = good.replace('cfgFingerprint=08d7d0c0', 'cfgFingerprint=deadbeef');
-    let parsed: ReturnType<typeof parseTerrainDump> | undefined;
-    expect(() => {
-      parsed = parseTerrainDump(stale);
-    }).not.toThrow();
-    expect(parsed!.configFingerprint).toBe('deadbeef');
-    expect(parsed!.configStale).toBe(true);
-    // The rest of the dump is unaffected — same tiles, same bands, same
-    // provenance as a parse of the honest dump. Only the staleness verdict
-    // differs, exactly the split the item asks for: report, don't re-measure.
-    const honest = parseTerrainDump(good);
-    expect(Array.from(parsed!.kind)).toEqual(Array.from(honest.kind));
-    expect(parsed!.measure).toEqual(honest.measure);
-    expect(parsed!.provenance).toEqual(honest.provenance);
-    expect(parsed!.gates).toEqual(honest.gates);
-    expect(honest.configStale).toBe(false);
-    expect(honest.configFingerprint).toBe(configFingerprint(cfg));
-
-    // And a `cfg` argument controls what "current" means: the same dump reads
-    // as stale or fresh depending only on what it is compared against.
-    const roomier = withConfig((raw) => {
-      (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 3;
-    });
-    expect(parseTerrainDump(good, roomier).configStale).toBe(true);
-    expect(parseTerrainDump(good, cfg).configStale).toBe(false);
-    // The default argument is `loadTerrain()`, so the one-argument call every
-    // existing call site makes is unchanged.
-    expect(parseTerrainDump(good).configStale).toBe(false);
-  });
-
-  it('round trip: byte-identical for a same-config dump/parse/describe cycle', () => {
-    // The fingerprint is a pure function of `cfg` alone, so re-describing a
-    // parsed dump under the same `cfg` must reproduce it exactly — this is the
-    // acceptance criterion's own round-trip clause, isolated to the new field
-    // rather than inherited from the generic round-trip test above.
-    const map = generateTerrain(4242, cfg);
-    const text = describeTerrain(map, cfg);
-    const parsed = parseTerrainDump(text);
-    const reflated: TerrainGrid =
-      parsed.provenance === null
-        ? { w: parsed.w, h: parsed.h, kind: parsed.kind }
-        : { ...parsed.provenance, ...parsed };
-    expect(describeTerrain(reflated, cfg)).toBe(text);
-    expect(describeTerrain(reflated, cfg)).toContain(`cfgFingerprint=${configFingerprint(cfg)}`);
-  });
-
-  it('two configs differing in one field fingerprint differently; the same config fingerprints the same twice', () => {
+  it('two configs that differ fingerprint differently; the same config is stable across calls', () => {
     expect(configFingerprint(cfg)).toBe(configFingerprint(cfg));
-    expect(configFingerprint(parseTerrain(JSON.parse(JSON.stringify(cfg))))).toBe(
-      configFingerprint(cfg),
+    expect(configFingerprint(otherCfg)).not.toBe(configFingerprint(cfg));
+    // And it really is a different config, not a no-op edit.
+    expect(otherCfg.coreGateClearance).not.toBe(cfg.coreGateClearance);
+  });
+
+  it('parsing against the config the dump was written under reports no mismatch', () => {
+    const parsed = parseTerrainDump(good, cfg);
+    expect(parsed.configFingerprint).toBe(configFingerprint(cfg));
+    expect(parsed.configMismatch).toBe(false);
+  });
+
+  it('parsing against a different config reports a mismatch — reported, not thrown', () => {
+    // The whole point of fb065i: a stale dump must stay readable.
+    const parsed = parseTerrainDump(good, otherCfg);
+    expect(parsed.configFingerprint).toBe(configFingerprint(cfg)); // unchanged: it is the dump's own claim
+    expect(parsed.configMismatch).toBe(true);
+    // And the tiles/measure are exactly as printed either way — a mismatch
+    // reports, it does not re-measure or otherwise alter the parsed result.
+    const parsedSameCfg = parseTerrainDump(good, cfg);
+    expect(Array.from(parsed.kind)).toEqual(Array.from(parsedSameCfg.kind));
+    expect(parsed.measure).toEqual(parsedSameCfg.measure);
+  });
+
+  it('defaults the comparison config to loadTerrain(), like describeTerrain defaults its cfg', () => {
+    expect(parseTerrainDump(good).configMismatch).toBe(parseTerrainDump(good, loadTerrain()).configMismatch);
+  });
+
+  it('refuses a missing, duplicate, or malformed config field the way every other field is refused', () => {
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8} /, ''))).toThrow(
+      /"bands" line has no "config"/,
     );
+    expect(() =>
+      parseTerrainDump(good.replace(/(config=[0-9a-f]{8})/, '$1 config=00000000')),
+    ).toThrow(/duplicate "config" on the "bands" line/);
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8}/, 'config=not-a-hash'))).toThrow(
+      /"bands" line has non-hash config="not-a-hash"; expected eight lowercase hex digits/,
+    );
+    // Well-formed but wrong length (seven digits, not eight) — still a shape
+    // refusal, not a mismatch report, exactly like `hash` on the seed line.
+    expect(() => parseTerrainDump(good.replace(/config=[0-9a-f]{8}/, 'config=1234567'))).toThrow(
+      /non-hash config=/,
+    );
+  });
 
-    // One field changed at a time, spanning a scalar, a nested object's field,
-    // an array-of-objects field (`tiles[].color`), and the high-ground family
-    // table — the two array-shaped fields the fold has to walk explicitly.
-    const variants: ReadonlyArray<[string, TerrainConfig]> = [
-      [
-        'coreGateClearance',
-        withConfig((raw) => {
-          (raw as { coreGateClearance: number }).coreGateClearance = cfg.coreGateClearance + 1;
-        }),
-      ],
-      [
-        'density.jitter',
-        withConfig((raw) => {
-          (raw.density as Record<string, number>).jitter =
-            cfg.density.jitter > 0 ? cfg.density.jitter / 2 : 0.01;
-        }),
-      ],
-      [
-        'tiles[0].color',
-        withConfig((raw) => {
-          const tiles = raw.tiles as Array<Record<string, unknown>>;
-          tiles[0].color = tiles[0].color === '#zzz' ? '#yyy' : '#zzz';
-        }),
-      ],
-      [
-        'highGround.families last family key',
-        withConfig((raw) => {
-          const hg = raw.highGround as { families: Array<Record<string, unknown>> };
-          const last = hg.families[hg.families.length - 1];
-          last.key = `${last.key as string}-x`;
-        }),
-      ],
-    ];
-    for (const [name, variant] of variants) {
-      expect(configFingerprint(variant), name).not.toBe(configFingerprint(cfg));
-    }
-
-    // A no-op edit that restores the original value round-trips the
-    // fingerprint back too — this is a fold of values, not a "has this object
-    // ever been touched" flag.
-    const untouched = withConfig(() => {});
-    expect(configFingerprint(untouched)).toBe(configFingerprint(cfg));
+  it('round-trips byte-identically regardless of match or mismatch', () => {
+    const map = generateTerrain(1, cfg);
+    const dump = describeTerrain(map, cfg);
+    const matched = parseTerrainDump(dump, cfg);
+    const mismatched = parseTerrainDump(dump, otherCfg);
+    expect(matched.configMismatch).toBe(false);
+    expect(mismatched.configMismatch).toBe(true);
+    expect(Array.from(matched.kind)).toEqual(Array.from(map.kind));
+    expect(Array.from(mismatched.kind)).toEqual(Array.from(map.kind));
+    // Re-describing either parsed result reproduces the dump body byte for
+    // byte (fb065c's rule) — a mismatch does not fork the round trip.
+    const body = (d: string): string => d.split('\n').slice(2).join('\n');
+    expect(body(describeTerrain(matched, cfg))).toBe(body(dump));
+    expect(body(describeTerrain(mismatched, cfg))).toBe(body(dump));
   });
 });
 

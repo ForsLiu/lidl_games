@@ -200,27 +200,38 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
 };
 
 /**
- * fb153a (owner order `balance-damage-rescale-and-bigger-map`): which flat
- * stats are denominated in **HP or damage**, and so must be divided by
- * `numberScale` along with every other HP and damage number in `/data`. A
- * stat that is a point total on some other axis (armor points, build range,
- * gold, radii) or a fraction in disguise (`leech`, `cdr`, the booleans) keeps
- * its authored value: rescaling those would change the game rather than
- * change what the numbers read.
+ * fb153a (owner order `balance-damage-rescale-and-bigger-map`), reworked by
+ * fb163/fb194 (QUESTIONS Q180/Q191 OVERRIDE) into **two economies**: economy
+ * A is enemy HP and damage *dealt to* enemies (what `numberScale` still
+ * divides); economy B is enemy damage *output*, Core/structure/character HP
+ * and regen (left at authored magnitude — fb163/fb194 stop scaling it, they
+ * do not compensate for the old scaling some other way). A stat that is a
+ * point total on some other axis entirely (armor points, build range, gold,
+ * radii) or a fraction in disguise (`cdr`, the booleans) keeps its authored
+ * value regardless of economy: rescaling those would change the game rather
+ * than change what the numbers read.
  *
- * `mul` stats are percentages of a base that is itself scaled, so they are all
- * `false` by construction — stated row by row anyway, because
- * `Record<StatKey, boolean>` makes adding a stat without deciding this a
- * compile error rather than a silent "not scaled", the same reason
+ * `mul` stats are percentages of a base that is itself in one economy or the
+ * other, so they are all `false` by construction — stated row by row anyway,
+ * because `Record<StatKey, boolean>` makes adding a stat without deciding
+ * this a compile error rather than a silent "not scaled", the same reason
  * `STAT_KIND` and `STAT_DISPLAY` are exhaustive.
+ *
+ * `atkFlat`/`towerAtkFlat` are the one pair that *stays* economy A: both are
+ * added to a character/tower hit *against an enemy* (`characterDamage`,
+ * `fireTower`), the same axis as `power`'s own base. `maxHp`/`hpRegen`/
+ * `coreHp` move the other way — fb163/fb194's own audit found they are the
+ * character's/Core's own HP pool (economy B), not a damage magnitude.
  */
 export const STAT_SCALED: Record<StatKey, boolean> = {
-  // HP- and damage-denominated point totals: the whole point of the order.
-  maxHp: true,
-  hpRegen: true,
-  coreHp: true,
+  // HP- and damage-denominated point totals **dealt to enemies** (economy A).
   atkFlat: true,
   towerAtkFlat: true,
+
+  // Economy B: the character's/Core's own HP pool and regen, left unscaled.
+  maxHp: false,
+  hpRegen: false,
+  coreHp: false,
 
   // Point totals on another axis entirely.
   armor: false,
@@ -234,7 +245,9 @@ export const STAT_SCALED: Record<StatKey, boolean> = {
   luck: false,
   startingGold: false,
   summonCap: false,
-  // Fractions and booleans authored like point totals.
+  // Fractions and booleans authored like point totals. `leech` is a crossing
+  // constant (economy-A damage dealt -> economy-B character HP healed) —
+  // `STAT_INVERSE_SCALED` below carries its correction, not this table.
   leech: false,
   cdr: false,
   secondWind: false,
@@ -242,6 +255,67 @@ export const STAT_SCALED: Record<StatKey, boolean> = {
   bleedLifesteal: false,
 
   // Percentages of a base that is scaled already.
+  power: false,
+  attackSpeed: false,
+  area: false,
+  towerArea: false,
+  moveSpeedPct: false,
+  maxHpPct: false,
+  pickupPct: false,
+  goldFind: false,
+  ailmentPotency: false,
+  towerCost: false,
+  towerDamage: false,
+  towerRange: false,
+  towerAttackSpeed: false,
+  towerPoisonDamage: false,
+  towerHp: false,
+  wallHp: false,
+  sproutGold: false,
+  residualPotency: false,
+  modRewardBonus: false,
+  burnDamage: false,
+  slowPotency: false,
+  chilledDamageTaken: false,
+  xpGain: false,
+  charRange: false,
+};
+
+/**
+ * fb163/fb194 (QUESTIONS Q180/Q191): the crossing constants that convert an
+ * economy-A magnitude (damage dealt to an enemy, scaled down by
+ * `numberScale`) into an economy-B one (character HP healed, left at
+ * authored magnitude) need the *inverse* factor (`1 / numberScale`) so their
+ * real healing output is unchanged by the split — see
+ * `applyTowerLifesteal`/`enemies.ts`'s `damageEnemy` for the conversion this
+ * corrects. `leech` is the only `StatKey` that does this today (`vsLifestealPct`/
+ * `towerLifestealPct`/`towerLifestealBonus` are Core-effect fields, corrected
+ * directly in `content.ts`, not `StatKey`s). Exhaustive for the same
+ * compile-error-not-silent-default reason `STAT_SCALED` is.
+ */
+export const STAT_INVERSE_SCALED: Record<StatKey, boolean> = {
+  leech: true,
+
+  atkFlat: false,
+  towerAtkFlat: false,
+  maxHp: false,
+  hpRegen: false,
+  coreHp: false,
+  armor: false,
+  towerDefenseBonus: false,
+  buildRange: false,
+  goldPerKill: false,
+  beaconRadius: false,
+  teslaLinks: false,
+  dashCharges: false,
+  burnSpread: false,
+  luck: false,
+  startingGold: false,
+  summonCap: false,
+  cdr: false,
+  secondWind: false,
+  lastStandSundering: false,
+  bleedLifesteal: false,
   power: false,
   attackSpeed: false,
   area: false,

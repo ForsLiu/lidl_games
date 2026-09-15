@@ -51,38 +51,135 @@
   owner-directed via the same Q181 order) was taken instead per "skip only
   with a logged reason."
 
-- **2026-09-15 — main lane: BACKLOG fb193 done — closed on already-measured
-  numbers, no new data/src change.** fb193's schema/data/derive half (the
-  `maxHpMul`/`defenseBonus` bands) had already shipped under **p13a**, and
-  its gate-re-measurement half (G8 for swordsman/necromancer/engineer,
-  before/after recorded) had already been run three independent times —
-  p13a's own shipping measurement, fb196's fresh full sweep, and fb185's
-  re-pin — all agreeing: swordsman 2/12->0/12, necromancer 4/12->0/12 (both
-  worse, swamped by fb196's roster-wide Night-1 `baseHpMul` mechanism, same
-  as p12j's damage levers before them), engineer byte-identical 4/12 across
-  all three sessions (inert by construction, confirmed control). Engineer's
-  "may be re-tuned within the G14 floor" clause was not exercised again:
-  p12j already spent two materially different rounds on its one lever (Pop
-  Turret `summonStatMul`/cooldown) against that exact floor, and a third
-  blind round without first addressing the shared `baseHpMul` mechanism
-  isn't expected to move it (CLAUDE.md working rule 6). Root-cause fix for
-  the Night-1 mechanism stays fb196's own open acceptance. Touches no
-  `/data` or `/src` file — BACKLOG.md text only, same precedent fb185 set.
-  **Also found while verifying:** `npm run test:fast` currently fails 40
-  tests across 13 files, entirely inside `tests/ui-input.test.ts` and
-  sibling UI-lane suites, all of them the known, already-tracked
-  consequence of `fb166`'s grid resize (36x20 -> 56x32, merged) landing
-  without its paired `fb167` camera/canvas-mapping fix — `fb167` is
-  BACKLOG-UI.md's own item (`tests/ui*` is lane/ui's exclusive Scope, not
-  main lane's), already unblocked now that `fb166` merged, and a fix for it
-  already exists on an unmerged, PR-less branch (`claude/brave-cray-wj593v`,
-  commits titled `fb167`/`fb168`) — not something this session introduced
-  or is scoped to fix. Confirmed by inspection (`pointerToTile`'s failing
-  assertions hard-code the old 1152x640 logical canvas size in their own
-  comments) and by `git diff --stat` showing zero non-`BACKLOG.md` changes
-  this item made. Flagged to the owner rather than silently worked around
-  or merged in from the main lane — refs: BACKLOG fb193, p13a, fb196,
-  fb185, BACKLOG-UI.md fb167/fb166.
+- **2026-09-15 — main lane: BACKLOG fb153b done — the grid resize's last
+  lane share (GATES.east/world.ts Fourth Gate coordinate fix), found and
+  shipped as a confirmed-bug detour while starting fb194.** `npm run
+  test:fast` was red on this branch before this item touched anything:
+  `GATES.east` (`src/sim/grid.ts`) was still the 36x20 grid's
+  `{tx:35,ty:17}`, an ordinary interior tile at the shipped 56x32 size, and
+  `world.ts:591`'s independent Fourth Gate `south` literal had the same
+  defect — both already logged by BACKLOG-TERRAIN.md's own fb166 QA round
+  as a live gameplay bug (roughly a third of Act I spawns entering far
+  closer to the Core than intended) and named "outside this lane's Scope,
+  for the main lane." Fixed to real border tiles at any grid size
+  (`GRID_W-1`/`GRID_H-1`-relative, not hardcoded). `data/towers.json`'s
+  `breach.base` also retuned (8000 -> 27000): the bigger map's longest
+  walkable route (22680) had blown through the old margin on the §10/G7
+  "breach outprices any open detour" invariant.
+  **Blast radius, the point of this entry.** `generateTerrain` takes the
+  gate list as an RNG input, so the fix regenerates real terrain, not just
+  moves two coordinates. BACKLOG-TERRAIN.md's own suite: **17 `tests/
+  terrain*` files, ~88 assertions, now red** — entirely that lane's Scope
+  (goldens and statistical ledgers keyed to the old gate position), logged
+  in that file's Log for the terrain lane's own tooling to re-derive, never
+  touched here. This lane's own share: `content-complete`, `class-board`/
+  `class-board-windows`, `p6d-nine-classes`, `c4-stacking`,
+  `fb034-max-towers`, `hud-controls`, `p2c-vs-specials`, `p3b-multi-summon`,
+  `b007-tile-bounds` (a bonus fix — pre-existing, unrelated to this item,
+  but named in fb153b's own acceptance scope) all had a real-generated-
+  terrain tile assumption broken by the corrected seed-1 map, re-fitted the
+  same way a moved baseline always gets re-fitted here (practice mode where
+  organic terrain wasn't the point, a re-measured real tile where it was).
+  `fb077-terrain-wiring.test.ts` needed its own re-derivation (a latent gap
+  in its structural-tile comparison, the Warden's 3x3 spawn-clear block;
+  fresh `STRANDED_CORE_SEEDS`). Also fixed, unrelated to the gate coordinate:
+  `tests/fb027-selection-panels.test.ts`'s ~43%-flaky `freeTileNear` helper
+  (`passable` -> `buildable`), a pre-existing bug BACKLOG-TERRAIN.md's fb166
+  QA round had already diagnosed and logged here — 5/5 reruns green after.
+  **The one finding this item does not close, and the reason fb197 exists:**
+  `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair (seed
+  1, T3) flips post-fix (swordsman `defeat_warden` -> `victory`; pyromancer
+  `defeat_warden` -> `defeat_core`) at the exact seed/config the
+  fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against —
+  the *intended* effect of fixing a real spawn-distance bug, not noise, but
+  it means that whole chain's numbers (and this file's own recent fb193/
+  fb196/fb185 entries below) now describe a run against a buggy gate
+  position. Both `fb196-night1-basehpmul.test.ts` assertions `.skip`'d with
+  the finding; **fb197** (BACKLOG.md) asks for the fresh roster-wide
+  re-measurement — treat every G8 number in this file's recent history as
+  pre-fb153b until fb197 lands, the same "stale until re-measured"
+  discipline fb196 itself applied to fb177's numbers.
+  `npx tsc --noEmit` clean (one pre-existing, unrelated error in the UI
+  lane's `tests/ui-fb102-bossbar-rail-overlap.test.ts`, untouched). Full
+  write-up, including the exact coordinate math and the complete fallout
+  file list: BACKLOG.md fb153b.
+
+- **2026-09-15 — main lane: BACKLOG fb163/fb194 done — `numberScale` split
+  into two economies (QUESTIONS Q180/Q191 OVERRIDE), reversing fb163's
+  original 2026-09-06 "(a) no change" closure.** Economy A (enemy HP, damage
+  dealt to enemies) stays divided by `numberScale`; economy B (enemy damage
+  output, Core/structure/character HP and regen, equipment flats on that
+  axis) is left unscaled. Reclassified `ENEMY_SCALED_FIELDS`/
+  `CLASS_ACTIVE_SCALED_FIELDS`/`CORE_EFFECT_SCALED_FIELDS`/
+  `CORE_STEP_SCALED_FIELDS`/`WARDEN_SCALED_FIELDS`/`STAT_SCALED`
+  (content.ts/statkeys.ts) and, found by re-reading `applyNumberScale`
+  directly rather than trusting the item's own field-list background, moved
+  a tower's own `hp` (a structure's HP) to economy B too — `breach.perEhp`'s
+  fb153a-era inversion is removed outright since both sides of `perEhp x ehp`
+  are unscaled together now. Of the five owner-named crossing constants,
+  only two (lifesteal, `leech`/`towerLifestealPct`/`vsLifestealPct`/
+  `towerLifestealBonus`) actually needed the inverse factor the item's text
+  guessed for all five: Wrath's `wrathDamageMul` needed the **forward**
+  factor instead (the algebraic mirror of lifesteal — its *input* side
+  stopped scaling, not its output side); Blood Tithe's `titheHpFraction` and
+  the Corpse Core's `corpseStoreRatio` needed **no correction** (both
+  self-referential/same-economy on both ends); Vampire Heart's
+  `overhealGoldRatio` needed its existing forward-scaling **removed**, not
+  confirmed unchanged as guessed — the HP pool it converts moved to economy
+  B, so the conversion no longer crosses a scaled boundary at all. Reverted
+  fb164's economy-B prose (`vsupgrades.json`, `tree.json`, `equipment.json`,
+  `cores.json`, `modifiers.json`) to authored units, plus two sentences the
+  lifesteal inverse fix newly requires (Bleeding Ring "+0.1% lifesteal",
+  Bloodlord Blood Frenzy "30% lifesteal on normal damage") that were never
+  in fb164's original set. `tests/fb153a-number-scale.test.ts` rewritten
+  around the split (economy-aware census, five new crossing-constant control
+  pairs); knock-on `/data`-value assertions fixed across a dozen other test
+  files. `npx tsc --noEmit` clean; `npm run test:fast` green against a
+  clean-tree control (no new failures beyond terrain-grid-size and
+  canvas/pointer-mapping issues already red before this item).
+  `tests/boss.test.ts`'s G14 gate (excluded from the fast tier) measures
+  worse when run standalone post-split — logged as a follow-up, not chased
+  here per CLAUDE.md rule 8. code-reviewer's pre-commit pass caught one
+  Major issue outside the item's own `/src/sim` scope: `src/render/
+  canvas.ts`'s `damageFloor()` still floored `wardenhit`'s screen-shake and
+  number-visibility gate at `numberScale`, now economy-A-shaped, while
+  `wardenhit` itself carries economy-B (unscaled) damage — shake saturated
+  to its cap on nearly every hit. Fixed with a new `wardenDamageFloor()`
+  (bare authored point, 1); new regression test `tests/fb194-wardenhit-
+  render-floor.test.ts` confirmed red pre-fix via `git stash`, green after.
+  Full classification table and per-constant findings: BACKLOG fb163/fb194's
+  own closure text.
+
+- **2026-09-15 — main lane: BACKLOG fb193 closed, no new code/data — already
+  satisfied by p13a, confirmed by fb196.** fb193 ordered the
+  `maxHpMul`/`defenseBonus` survivability bands plus a G8 re-measurement for
+  swordsman/necromancer/engineer. Both halves were already done under p13a's
+  own commit (schema/data/derive shipped and pinned by
+  `tests/p13a-survivability-bands.test.ts`; G8 re-measured live at 12 seeds
+  for all four elevated classes plus engineer as control, recorded as a
+  regression not a fix — swordsman 2/12->0/12, necromancer 4/12->0/12,
+  paladin 5/12->0/12, bloodlord 5/12->3/12, engineer unchanged 4/12, logged
+  QUESTIONS Q206). fb196's later bisection re-affirmed those numbers and
+  explicitly handed resumption back to fb193 with nothing new to measure.
+  Closed as a bookkeeping item, not a re-tune: the broader Night-1
+  `baseHpMul` root cause stays open and unqueued per fb196. Targeted tests
+  (`tests/p13a-survivability-bands.test.ts`, `tests/fb196-night1-
+  basehpmul.test.ts`) both green on this commit; BACKLOG fb193.
+  **Also found while independently verifying fb193 (main-lane parallel
+  session):** `npm run test:fast` currently fails 40 tests across 13 files,
+  entirely inside `tests/ui-input.test.ts` and sibling UI-lane suites, all
+  of them the known, already-tracked consequence of `fb166`'s grid resize
+  (36x20 -> 56x32, merged) landing without its paired `fb167` camera/canvas-
+  mapping fix — `fb167` is BACKLOG-UI.md's own item (`tests/ui*` is
+  lane/ui's exclusive Scope, not main lane's), already unblocked now that
+  `fb166` merged, and a fix for it already exists on an unmerged, PR-less
+  branch (`claude/brave-cray-wj593v`, commits titled `fb167`/`fb168`) — not
+  something this session introduced or is scoped to fix. Confirmed by
+  inspection (`pointerToTile`'s failing assertions hard-code the old
+  1152x640 logical canvas size in their own comments) and by `git diff
+  --stat` showing zero non-`BACKLOG.md` changes this item made. Flagged to
+  the owner rather than silently worked around or merged in from the main
+  lane — refs: BACKLOG fb193, p13a, fb196, fb185, BACKLOG-UI.md fb167/fb166.
 
 - **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
   nearly all red" alarm; PR #55 exonerated, not a new regression.**
@@ -4700,6 +4797,17 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb153b/fb197: `tests/fb196-night1-basehpmul.test.ts`'s two scripted-bot
+  control-pair assertions (swordsman, pyromancer) are `.skip`-ed, re-enable
+  point fb197.** fb153b's `GATES.east`/`world.ts:591` coordinate fix changes
+  real spawn-to-Core travel distance, and so real combat outcomes, at every
+  seed — the exact seed/config this file measured G8 against now produces
+  `victory`/`defeat_core` instead of the pinned `defeat_warden`. Not rescale
+  noise: the intended effect of fixing a live gameplay bug BACKLOG-TERRAIN.md's
+  fb166 QA round already measured (spawns entering too close to the Core).
+  Every number the fb196/fb193/fb185/p13a Night-1 bisection chain produced
+  was measured against that buggy gate position — treat G8's recorded state
+  as pre-fb153b until fb197 lands.
 - ~~**fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
   cycles 3 resolves instead of hanging forever" is `.skip`-ed, re-enable point
   p12e.**~~ **RESOLVED by p12e (2026-09-07).** `warden_eater.hp` re-anchored
