@@ -429,7 +429,7 @@ working rule 3 (a confirmed bug outranks the queue) — the whole roster is
 red, which is what made fb193's own re-measurement clause impossible to
 honor.**
 
-- [ ] (fb196) [bug] **top priority — found working fb193, outranks it.**
+- [x] (fb196) [bug] **DONE 2026-09-15 — not a new regression; PR #55 exonerated.**
       `tests/p6e-class-diversity.test.ts` (gate **G8**) is red for nearly the
       entire 12-class roster on HEAD (`e9ec061`), **before any fb193/194/195
       change**: of the file's non-`.skip`-ed assertions, only 3 pass. The
@@ -457,15 +457,41 @@ honor.**
       `data/classes.json` alone changed 271 lines in that merge; `baseHpMul`
       (20) and `warden_eater.hp` (18,250 = 365,000/20) are internally
       consistent so p12e's own re-anchor is not implicated by inspection.
-      Not yet root-caused — needs a real bisection (`git bisect` or a
-      targeted control run per class against each file `532d4d9` touched:
-      `data/classes.json`, `src/sim/enemies.ts`) rather than another guess.
-      Acceptance: root cause identified and named with a control-run pair
-      proving it; a regression test pins the specific mechanism (not just
-      re-measures win rate); `tests/p6e-class-diversity.test.ts` re-measured
-      in full afterward with every class's real number recorded (whichever
-      way it lands) before fb193/194/195 resume — refs: SPEC-FINAL §14 G8,
-      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3.
+      **Bisected — not root-caused to PR #55 or anything in it.**
+      Git-worktree control runs of the scripted-kit harness at five points —
+      `9b7911c` (2026-09-07, before the entire p12a-p12j arc even starts),
+      `53f58ab` (immediately before PR #41, where p12a-c actually landed),
+      `1a5912c` (immediately before PR #55), `532d4d9` itself (after PR #55's
+      full retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) —
+      reproduce byte-identical `defeat_warden`@wave-3 outcomes and
+      `survivalSeconds` for swordsman/pyromancer seeds 1-3 at every single
+      point. PR #55's diff, `warden_eater`'s HP re-anchor (p12e) and
+      `kitBuildMul`'s VS gating (p12f) are all exonerated as this item's
+      "prime suspect" guess. The mechanism was already named, inside the
+      very same test file, by fb177 (landed inside PR #55, predating this
+      item): `baseHpMul` (shipped 20 since p12c, unchanged across every
+      control point) inflates Night-1 (first VS block, TD wave 3 — the least
+      built-up economy of the run) mob HP by the same factor as every TD
+      wave's, while `classBasicAttack` is TD-only, so a class's kit Actives
+      alone must thin a 20x-tougher mob. New `tests/fb196-night1-
+      basehpmul.test.ts` pins this directly with a control pair (same seed/
+      class, `baseHpMul` 20 vs. 1): the outcome flips off `defeat_warden`
+      every time. **Fresh full 12-seed sweep** (wins/12, band `[5,8]`):
+      swordsman 0, plaguebringer 0, engineer 4, pyromancer 0, archer 0,
+      necromancer 0, cryomancer 4, stormcaller 0, bloodlord 3, animist 4,
+      paladin 0, time_lord 8 — only time_lord in band, worse than fb177's
+      own 1-of-12. Not this item's regression: swordsman/necromancer/
+      paladin/bloodlord's drop is already named by **p13a**'s own commit
+      (PR #58, landed after every control point tested here) as fb193's
+      already-shipped `maxHpMul`/`defenseBonus` data measuring *worse*, not
+      better. archer/cryomancer's drop from fb177's numbers is unexplained
+      by anything this item's bisection touched — logged open, not chased
+      further inside this item's scope. Full table and per-seed log:
+      `tests/p6e-class-diversity.test.ts`'s new fb196 header section. Per-
+      class `.skip` re-pins are fb185's job. fb193 is unblocked to resume,
+      reading this table rather than fb177's stale one — refs: SPEC-FINAL
+      §14 G8, BACKLOG fb193/fb177/fb185, PR #55 (`532d4d9`),
+      `tests/fb196-night1-basehpmul.test.ts`, CLAUDE.md working rule 3.
 - [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
       wipes are a survivability problem, not a damage problem (p12j's three
       damage-rounds moved nothing, per Q196). Add `maxHpMul` and
