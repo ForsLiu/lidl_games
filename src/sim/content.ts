@@ -712,7 +712,11 @@ const ModifiersFileSchema = z.object({
     z.object({ key: str, name: str, desc: str, effect: recordWithKeys(MODIFIER_EFFECT_KEYS), rewardBonus: num }),
     ['key'],
   ),
-});
+  // fb184 (QUESTIONS Q181): `.strict()` so a typo'd top-level key (`numberScal3`
+  // silently parsed as an unrecognized key and left `numberScale` at its
+  // `default(1)`, masking the rescale entirely) is a load error naming the
+  // field, rather than a silent no-op.
+}).strict();
 
 /* ----------------------------------------------------------------- classes */
 

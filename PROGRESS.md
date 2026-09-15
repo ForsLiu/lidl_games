@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb184 done — loader closes the
+  `numberScal3`-typo class of silent mis-scale (QUESTIONS Q181).**
+  `ModifiersFileSchema` (`src/sim/content.ts`) now carries `.strict()`, the
+  same convention already used elsewhere in that file, so an unrecognized
+  top-level key in `data/modifiers.json` is a load error naming the field
+  instead of a silent drop that leaves `numberScale` at its `default(1)`.
+  New `tests/fb184-modifiers-unknown-key.test.ts` pins the typo repro
+  (confirmed red-first) and confirms every legitimate key still loads.
+  `tests/q7-loader-holes.ts` updated to drop the now-closed `'rename-key'`
+  hole for `modifiers.numberScale`. code-reviewer approved (no Critical/
+  Major); qa-playtester confirmed acceptance and traced every writer of
+  `modifiers.json` (the Tuner's save path validates through the same
+  now-strict schema) for a false-rejection risk — found none. `npm run
+  test:fast` baseline unchanged (22 pre-existing terrain/grid/class-board
+  failures from fb166's grid resize, none new).
+  **Skipped this cycle, logged reason:** the priority-directive item after
+  fb193 is **fb194** (and the file's separately-reopened **fb163** asks for
+  the identical fix under Q180/Q191 — split `numberScale` into two
+  independently-scaled economies, five crossing-constant inverse factors,
+  and a ~50-sentence fb164 prose reversion). That is a multi-hour balance
+  rewrite spanning the whole content loader plus a full census/control-run
+  verification pass — too large to land safely inside this run's bounded
+  window (stop after 6 items or 45 minutes). Left open at the top of the
+  queue for a dedicated session; fb184 (small, contained, still
+  owner-directed via the same Q181 order) was taken instead per "skip only
+  with a logged reason."
+
 - **2026-09-15 — main lane: BACKLOG fb193 done — closed on already-measured
   numbers, no new data/src change.** fb193's schema/data/derive half (the
   `maxHpMul`/`defenseBonus` bands) had already shipped under **p13a**, and
