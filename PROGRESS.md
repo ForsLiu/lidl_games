@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
+  nearly all red" alarm; PR #55 exonerated, not a new regression.**
+  fb196 found only 3 of `tests/p6e-class-diversity.test.ts`'s non-`.skip`
+  assertions passing on HEAD and named PR #55 (`532d4d9`) as the prime
+  suspect. Git-worktree control runs at five points spanning before p12a-c
+  through HEAD reproduce byte-identical Night-1 `defeat_warden` outcomes for
+  swordsman/pyromancer — PR #55's diff, the `warden_eater` HP re-anchor and
+  `kitBuildMul`'s VS gating are all exonerated. The mechanism was already
+  named by fb177 (inside PR #55, predating fb196): `baseHpMul` (20 since
+  p12c) inflates Night-1 mob HP the same as every TD wave's while
+  `classBasicAttack` is TD-only, so kit Actives alone must thin a
+  20x-tougher mob. New `tests/fb196-night1-basehpmul.test.ts` pins this with
+  a direct control pair (`baseHpMul` 20 vs. 1, same seed/class). A fresh
+  full 12-seed sweep is far worse than fb177's own table: only `time_lord`
+  (8/12) is in G8's `[5,8]` band, not fb177's `archer` (now 0/12,
+  unexplained by anything this item's bisection touched — logged open).
+  The four p13a-elevated classes' drop matches p13a's own commit message
+  (fb193's `maxHpMul`/`defenseBonus` data, already shipped, measures worse
+  not better) — not a new cause. fb193 is unblocked to resume, reading this
+  item's table rather than fb177's stale one. `npm run test:fast` green
+  (4320 passed / 34 pre-existing skips, no new failures). Full table:
+  `tests/p6e-class-diversity.test.ts`'s new fb196 header section; BACKLOG
+  fb196.
+
 - **2026-09-15 — main lane: BACKLOG fb185 done — full fresh re-run of
   `tests/p6e-class-diversity.test.ts` finds the roster-wide Night-1 wipe
   (fb196) is far broader than fb185's own animist/T5 framing assumed, and

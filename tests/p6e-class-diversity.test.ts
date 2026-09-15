@@ -405,6 +405,62 @@
  * see that block's own comment for the scope reasoning, logged in
  * QUESTIONS Q197).
  *
+ * **fb196 (2026-09-15) — bisected the "roster is nearly all red" alarm;
+ * exonerated PR #55.** A fresh full sweep on HEAD (`e9ec061`, before
+ * fb193/194/195) found only 3 of this file's non-`.skip`-ed assertions
+ * passing and named **PR #55** (`532d4d9`) as the prime suspect for a *new*
+ * regression, since its own commit history touches `data/classes.json` and
+ * `src/sim/enemies.ts` heavily. **Not a new regression.** Git-worktree
+ * control runs of the same scripted-kit shape at five points on master's
+ * first-parent history — `9b7911c` (2026-09-07 04:58 UTC-4, PR #40),
+ * `53f58ab` (2026-09-07 05:21 UTC-4, PR #41's own merge commit —
+ * **correction**: an earlier version of this section claimed p12a-c
+ * "actually landed" in PR #41; that PR's own squashed items (fb139/fb079/
+ * fb080/fb082/fb083) are unrelated to p12a-c, and this section does not
+ * claim to know which PR is — the finding below holds regardless), `1a5912c`
+ * (immediately before PR #55), `532d4d9` itself (after PR #55's full
+ * retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) — reproduce
+ * byte-identical `defeat_warden`@wave-3 outcomes and `survivalSeconds` for
+ * swordsman/pyromancer seed 1 at every single point (seeds 2-3 were also
+ * spot-checked the same way via a throwaway `tools/` probe, deleted after
+ * use — only seed 1 per class is pinned by the committed
+ * `tests/fb196-night1-basehpmul.test.ts`). PR #55's diff, `warden_eater`'s
+ * HP re-anchor (p12e) and `kitBuildMul`'s VS gating (p12f) are all
+ * exonerated.
+ *
+ * The mechanism was already named, inside this same file, by **fb177**
+ * above: `baseHpMul` (shipped 20 since p12c, unchanged across every control
+ * point) inflates Night-1 (first VS block, TD wave 3 — the block with the
+ * least built economy of the run) mob HP by the same factor as every TD
+ * wave's, while `classBasicAttack` is TD-only, so a class's kit Actives
+ * alone must thin a 20x-tougher mob. `tests/fb196-night1-basehpmul.test.ts`
+ * pins this directly with a control pair (same seed/class, `baseHpMul` 20
+ * vs. 1): the outcome flips off `defeat_warden` every time, isolating the
+ * one lever rather than inferring it from cross-commit correlation.
+ *
+ * **Fresh full 12-seed sweep, recorded honestly** (wins/12, band `[5,8]`):
+ * swordsman 0, plaguebringer 0, engineer 4, pyromancer 0, archer 0,
+ * necromancer 0, cryomancer 4, stormcaller 0, bloodlord 3, animist 4,
+ * paladin 0, **time_lord 8 (only class in band)** — 1 of 12, not fb177's
+ * 1-of-12 (`archer`, now 0) or SPEC-FINAL's own >=9/12 floor. This is not
+ * this item's own regression either: the four elevated classes' drop is
+ * already named by **p13a**'s own commit message (PR #58, landed between
+ * `532d4d9` and HEAD, *after* every control point above) — "every one
+ * measured worse, not better: swordsman 2/12->0/12, necromancer 4/12->0/12,
+ * paladin 5/12->0/12, bloodlord 5/12->3/12" — fb193's `maxHpMul`/
+ * `defenseBonus` bands are already live (its "schema/data/derive half…
+ * shipped" status note) and, measured honestly, made Night-1 survival worse
+ * for the classes they targeted, not better. `archer`'s and `cryomancer`'s
+ * drop from fb177's 5/12 and 9/12 is unexplained by any data change this
+ * item's own bisection found (both classes are `x1.0/+0`, inert defaults on
+ * `maxHpMul`/`defenseBonus`) — logged as open rather than chased further
+ * inside this item's own scope; `archer`'s seed-by-seed outcomes (all
+ * `defeat_warden`/`defeat_core`, zero `victory`) are in this item's own
+ * sweep log, available on request. Per-class `.skip` comment re-pins against
+ * this table are **fb185**'s job (already filed, broader in scope). fb193
+ * is unblocked to resume — its own re-measurement clause should read this
+ * table's numbers, not fb177's stale ones.
+ *
  * **fb185 (2026-09-15) — full fresh re-run, QUESTIONS Q207.** This file had
  * drifted stale again: six previously in-band/live classes (cryomancer,
  * plaguebringer, pyromancer, archer, stormcaller, animist) are all freshly
