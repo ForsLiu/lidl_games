@@ -8,7 +8,7 @@
  *   (1) `World` generates and applies terrain from `RunConfig.seed` before
  *       any structure exists;
  *   (2) the run's real gate list (base 3, plus the Fourth Gate modifier's
- *       south gate at (12,19)) is threaded into generation, closing the
+ *       south gate at (12,GRID_H-1)) is threaded into generation, closing the
  *       measured 138/500-seed burial bug;
  *   (3) a reachable Core is a hard precondition — the four seeds that strand
  *       the hardcoded Core (4426/4515/5516 post-merge; 97/2055/2845/3098 pre-merge) resolve via `applyRunTerrain`'s
@@ -41,12 +41,14 @@ import { loadContent } from '../src/sim/content';
 
 const terrainCfg = loadTerrain();
 
-/** Seeds `BACKLOG.md` fb077 pins as stranding the hardcoded Core (of 1..5000). */
-// Re-found at the lane/terrain merge (2026-09-04): fb064l's per-seed density
-// bands and fb064m's high-plot demotion re-drew every map, so the pre-merge
-// four (97/2055/2845/3098) no longer strand; these are the only three of
-// seeds 1..6000 that do under the merged generator.
-const STRANDED_CORE_SEEDS = [4426, 4515, 5516];
+/** Seeds `BACKLOG.md` fb077 pins as stranding the hardcoded Core (of 1..8000). */
+// Re-found at fb153b's grid-resize fix (2026-09-15): correcting `GATES.east`
+// (stale 36x20-era `{tx:35,ty:17}`, an interior tile at 56x32) changes what
+// `generateTerrain` feeds its gate-distance fields, which redraws every map —
+// none of the prior (post-merge 4426/4515/5516, pre-merge 97/2055/2845/3098)
+// still strand under the corrected 3-gate list; these four are the first
+// that do, of seeds 1..8000.
+const STRANDED_CORE_SEEDS = [2722, 6377, 6736, 7916];
 
 function coreTileIndices(w: number): number[] {
   const out: number[] = [];
@@ -62,11 +64,19 @@ describe('fb077 — World generates and applies real terrain', () => {
     const gates = GATES.slice(0, 3);
     const expected = generateTerrain(1, terrainCfg, gates);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
+    // applyRunTerrain also force-clears a 3x3 block around the Warden's own
+    // spawn tile (clearOverlayBlock, world.ts) — a structural position that
+    // is neither a GateDef nor TileType.Core, so it needs its own exclusion
+    // here the same way Gate/Core tiles get one below.
+    const { tx: wtx, ty: wty } = wardenSpawnTile();
     for (let i = 0; i < expectedOverlay.kind.length; i++) {
       // Gate/Core tiles are forced back to normal ground by `Grid.applyTerrain`
       // regardless of what the raw map painted there; everywhere else the
       // Grid's terrain kind must match the generator's output byte-for-byte.
       if (w.grid.tile[i] === TileType.Gate || w.grid.tile[i] === TileType.Core) continue;
+      const tx = i % GRID_W;
+      const ty = Math.floor(i / GRID_W);
+      if (Math.abs(tx - wtx) <= 1 && Math.abs(ty - wty) <= 1) continue;
       expect(w.grid.terrainKind[i]).toBe(expectedOverlay.kind[i]);
     }
     expect(w.terrainFallback).toBe(false);
@@ -128,9 +138,9 @@ describe('fb077 — stranded-Core seeds resolve via seed+1 retry (item 3)', () =
     });
   }
 
-  it('the raw generated map at seed 4426 really does strand the hardcoded Core (documents the bug applyRunTerrain works around)', () => {
+  it('the raw generated map at seed 2722 really does strand the hardcoded Core (documents the bug applyRunTerrain works around)', () => {
     const gates = GATES.slice(0, 3);
-    const map = generateTerrain(4426, terrainCfg, gates);
+    const map = generateTerrain(STRANDED_CORE_SEEDS[0], terrainCfg, gates);
     const grid = new Grid();
     grid.applyTerrain(terrainOverlay(map, terrainCfg));
     grid.refresh();
@@ -144,7 +154,7 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
       expect(w.gates).toHaveLength(4);
-      expect(w.gates.some((g) => g.key === 'south' && g.tx === 12 && g.ty === 19)).toBe(true);
+      expect(w.gates.some((g) => g.key === 'south' && g.tx === 12 && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
     }
   });
@@ -157,7 +167,7 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     let buried = 0;
     for (let seed = 1; seed <= 200; seed++) {
       const map = generateTerrain(seed, terrainCfg, base3);
-      if (map.kind[19 * map.w + 12] !== TerrainKind.Normal) buried++;
+      if (map.kind[(GRID_H - 1) * map.w + 12] !== TerrainKind.Normal) buried++;
     }
     expect(buried).toBeGreaterThan(0);
   });
@@ -168,16 +178,17 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     // `applyRunTerrain`'s 16-retry loop restores `allGatesReachable()` even
     // when generation never saw the south gate. This measures the generator
     // directly: with the run's 4-gate list the south gate's only interior
-    // neighbour (12,18) sits on a protected main and is never buried; drop
-    // `gates` from any of `attempt`/`flatKinds`/`sealPockets`/`measureTerrain`
-    // and it is buried on ~90/200 seeds (code-reviewer measurement).
-    const gates4 = [...GATES.slice(0, 3), { key: 'south', tx: 12, ty: 19 }];
+    // neighbour (12,GRID_H-2) sits on a protected main and is never buried;
+    // drop `gates` from any of `attempt`/`flatKinds`/`sealPockets`/
+    // `measureTerrain` and it is buried on ~90/200 seeds (code-reviewer
+    // measurement).
+    const gates4 = [...GATES.slice(0, 3), { key: 'south', tx: 12, ty: GRID_H - 1 }];
     let buried = 0;
     for (let seed = 1; seed <= 200; seed++) {
       const map = generateTerrain(seed, terrainCfg, gates4);
       expect(map.fallback, `seed ${seed}`).toBe(false);
-      if (map.kind[18 * map.w + 12] !== TerrainKind.Normal) buried++;
-      if (map.kind[19 * map.w + 12] !== TerrainKind.Normal) buried++;
+      if (map.kind[(GRID_H - 2) * map.w + 12] !== TerrainKind.Normal) buried++;
+      if (map.kind[(GRID_H - 1) * map.w + 12] !== TerrainKind.Normal) buried++;
     }
     expect(buried).toBe(0);
   });
@@ -334,8 +345,9 @@ describe('fb077 — real terrain never strands a ground horde in Act II (qa-play
 });
 
 describe('fb077 — a live structure wall is chewed, not ghosted through (qa-playtester finding, post-close)', () => {
-  // qa-playtester repro: a solid Palisade column at tx=17 spanning ty 1..18
-  // (the border already blocks rows 0/19) fully separates the grid into two
+  // qa-playtester repro: a solid Palisade column at tx=17 spanning ty
+  // 1..GRID_H-2 (the border already blocks rows 0/GRID_H-1) fully separates
+  // the grid into two
   // halves. `updateGroundUnreachable`'s reachability check cannot tell this
   // apart from a genuinely terrain-sealed pocket (both report no route,
   // Act II's field being purely physical) — the walker's own 12-tile approach
@@ -351,7 +363,7 @@ describe('fb077 — a live structure wall is chewed, not ghosted through (qa-pla
     w.gold = 999999;
     w.derived.buildRange = 9999;
     const palisade = w.content.towerByKey.get('palisade')!;
-    for (let ty = 1; ty <= 18; ty++) {
+    for (let ty = 1; ty <= GRID_H - 2; ty++) {
       const res = buildTower(w, palisade.id, 17, ty, { ignorePhase: true });
       expect(res.ok, `wall tile ty ${ty}`).toBe(true);
     }

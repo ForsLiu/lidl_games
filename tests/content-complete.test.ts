@@ -90,11 +90,24 @@ describe('content completeness', () => {
 describe('enemy behaviours', () => {
   it('the Gatebreaker chews structures twice as fast as a Husk', () => {
     const damageTo = (key: string): number => {
-      const w = new World(cfg());
-      w.gold = 10000;
+      // fb153b (56x32 grid): real generated terrain gives a lone tower at
+      // (10,10) plenty of open room to detour around, so the enemy no longer
+      // reliably routes into it (a single-tile block used to sit in a
+      // corridor at the old 36x20 size). Practice mode's flat board plus a
+      // 7-tile pocket sealed on every side but the measured tower forces the
+      // walker to breach that exact tile regardless of map size.
+      const w = new World(cfg({ practice: true }));
+      w.gold = 100000;
       w.warden.x = 10.5;
       w.warden.y = 10.5;
-      expect(buildTower(w, 1, 10, 10).ok).toBe(true);
+      for (const [tx, ty] of [
+        [7, 9], [8, 9], [9, 9],
+        [7, 10],
+        [7, 11], [8, 11], [9, 11],
+      ] as const) {
+        expect(buildTower(w, 1, tx, ty, { ignorePhase: true }).ok, `wall ${tx},${ty}`).toBe(true);
+      }
+      expect(buildTower(w, 1, 10, 10, { ignorePhase: true }).ok).toBe(true);
       const s = w.structureAt(10, 10)!;
       s.hp = 1e9;
       s.maxHp = 1e9;

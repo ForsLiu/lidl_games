@@ -520,7 +520,9 @@ describe('T2: the selection gets a stats panel', () => {
     // (the p2d-weapon-lineage.test.ts pattern) rather than through
     // `finishSundering`, whose pocket-clear/lane logic can remove a tower
     // built this close to the Core.
-    const w = new World(cfg());
+    // fb153b (56x32 grid): (5,5) is real generated terrain here, no longer
+    // guaranteed open at seed 1 — practice mode keeps it deterministic.
+    const w = new World(cfg({ practice: true }));
     w.gold = 99999;
     const def = w.content.towerByKey.get('ballista')!;
     const tx = 5;

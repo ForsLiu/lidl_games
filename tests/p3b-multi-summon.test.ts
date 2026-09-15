@@ -147,7 +147,9 @@ describe('p3b: multi-summon (gate G6 stacking half)', () => {
   });
 
   it('a stacked clear pays every merged wave\'s own Sprout income, not just one wave\'s worth (code review regression)', () => {
-    const run = new Run(cfg({ cycles: 6, seed: 1 }));
+    // fb153b (56x32 grid): (5,5) is real generated terrain here, no longer
+    // guaranteed open at seed 1 — practice mode keeps it deterministic.
+    const run = new Run(cfg({ cycles: 6, seed: 1, practice: true }));
     const w = run.world;
     w.invulnerable = true;
     w.godMode = true;

@@ -5,6 +5,59 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb153b done — the grid resize's last
+  lane share (GATES.east/world.ts Fourth Gate coordinate fix), found and
+  shipped as a confirmed-bug detour while starting fb194.** `npm run
+  test:fast` was red on this branch before this item touched anything:
+  `GATES.east` (`src/sim/grid.ts`) was still the 36x20 grid's
+  `{tx:35,ty:17}`, an ordinary interior tile at the shipped 56x32 size, and
+  `world.ts:591`'s independent Fourth Gate `south` literal had the same
+  defect — both already logged by BACKLOG-TERRAIN.md's own fb166 QA round
+  as a live gameplay bug (roughly a third of Act I spawns entering far
+  closer to the Core than intended) and named "outside this lane's Scope,
+  for the main lane." Fixed to real border tiles at any grid size
+  (`GRID_W-1`/`GRID_H-1`-relative, not hardcoded). `data/towers.json`'s
+  `breach.base` also retuned (8000 -> 27000): the bigger map's longest
+  walkable route (22680) had blown through the old margin on the §10/G7
+  "breach outprices any open detour" invariant.
+  **Blast radius, the point of this entry.** `generateTerrain` takes the
+  gate list as an RNG input, so the fix regenerates real terrain, not just
+  moves two coordinates. BACKLOG-TERRAIN.md's own suite: **17 `tests/
+  terrain*` files, ~88 assertions, now red** — entirely that lane's Scope
+  (goldens and statistical ledgers keyed to the old gate position), logged
+  in that file's Log for the terrain lane's own tooling to re-derive, never
+  touched here. This lane's own share: `content-complete`, `class-board`/
+  `class-board-windows`, `p6d-nine-classes`, `c4-stacking`,
+  `fb034-max-towers`, `hud-controls`, `p2c-vs-specials`, `p3b-multi-summon`,
+  `b007-tile-bounds` (a bonus fix — pre-existing, unrelated to this item,
+  but named in fb153b's own acceptance scope) all had a real-generated-
+  terrain tile assumption broken by the corrected seed-1 map, re-fitted the
+  same way a moved baseline always gets re-fitted here (practice mode where
+  organic terrain wasn't the point, a re-measured real tile where it was).
+  `fb077-terrain-wiring.test.ts` needed its own re-derivation (a latent gap
+  in its structural-tile comparison, the Warden's 3x3 spawn-clear block;
+  fresh `STRANDED_CORE_SEEDS`). Also fixed, unrelated to the gate coordinate:
+  `tests/fb027-selection-panels.test.ts`'s ~43%-flaky `freeTileNear` helper
+  (`passable` -> `buildable`), a pre-existing bug BACKLOG-TERRAIN.md's fb166
+  QA round had already diagnosed and logged here — 5/5 reruns green after.
+  **The one finding this item does not close, and the reason fb197 exists:**
+  `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair (seed
+  1, T3) flips post-fix (swordsman `defeat_warden` -> `victory`; pyromancer
+  `defeat_warden` -> `defeat_core`) at the exact seed/config the
+  fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against —
+  the *intended* effect of fixing a real spawn-distance bug, not noise, but
+  it means that whole chain's numbers (and this file's own recent fb193/
+  fb196/fb185 entries below) now describe a run against a buggy gate
+  position. Both `fb196-night1-basehpmul.test.ts` assertions `.skip`'d with
+  the finding; **fb197** (BACKLOG.md) asks for the fresh roster-wide
+  re-measurement — treat every G8 number in this file's recent history as
+  pre-fb153b until fb197 lands, the same "stale until re-measured"
+  discipline fb196 itself applied to fb177's numbers.
+  `npx tsc --noEmit` clean (one pre-existing, unrelated error in the UI
+  lane's `tests/ui-fb102-bossbar-rail-overlap.test.ts`, untouched). Full
+  write-up, including the exact coordinate math and the complete fallout
+  file list: BACKLOG.md fb153b.
+
 - **2026-09-15 — main lane: BACKLOG fb193 done — closed on already-measured
   numbers, no new data/src change.** fb193's schema/data/derive half (the
   `maxHpMul`/`defenseBonus` bands) had already shipped under **p13a**, and
@@ -4654,6 +4707,17 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb153b/fb197: `tests/fb196-night1-basehpmul.test.ts`'s two scripted-bot
+  control-pair assertions (swordsman, pyromancer) are `.skip`-ed, re-enable
+  point fb197.** fb153b's `GATES.east`/`world.ts:591` coordinate fix changes
+  real spawn-to-Core travel distance, and so real combat outcomes, at every
+  seed — the exact seed/config this file measured G8 against now produces
+  `victory`/`defeat_core` instead of the pinned `defeat_warden`. Not rescale
+  noise: the intended effect of fixing a live gameplay bug BACKLOG-TERRAIN.md's
+  fb166 QA round already measured (spawns entering too close to the Core).
+  Every number the fb196/fb193/fb185/p13a Night-1 bisection chain produced
+  was measured against that buggy gate position — treat G8's recorded state
+  as pre-fb153b until fb197 lands.
 - ~~**fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
   cycles 3 resolves instead of hanging forever" is `.skip`-ed, re-enable point
   p12e.**~~ **RESOLVED by p12e (2026-09-07).** `warden_eater.hp` re-anchored

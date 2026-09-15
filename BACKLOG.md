@@ -404,7 +404,7 @@ therefore measure *after* `fb153`, not before.
         moves a gate is a bug in the rescale); determinism holds — refs:
         SPEC-FINAL §2/§3, BALANCE.md, owner feedback
         `balance-damage-rescale-and-bigger-map` item 1.
-  - [ ] (fb153b) [feat] bigger map to widen engagements: default grid **36x20 ->
+  - [x] (fb153b) [feat] **DONE 2026-09-15.** bigger map to widen engagements: default grid **36x20 ->
         56x32** ⚖, terrain-generator constraint bands scaling with it, and the
         camera following the character with zoom limits. Core placement
         legality rules are unchanged (they are expressed in tiles, not in map
@@ -430,6 +430,102 @@ therefore measure *after* `fb153`, not before.
         the camera/render half as **fb167** in BACKLOG-UI.md; this item keeps
         the sim half and lands **after** both, since flipping the constant
         first would redden two other lanes' suites at their next merge.
+        **Landed 2026-09-15, after both other lanes' halves.** Found while
+        starting the owner-priority queue's next item (fb194) that `npm run
+        test:fast` was red on this branch (a confirmed bug per CLAUDE.md
+        working rule 3, so it outranked the queue): `GATES.east`
+        (`src/sim/grid.ts`) was still `{tx:35,ty:17}`, the old 36x20 grid's
+        east border column, now an ordinary interior tile at the shipped
+        56x32 size (`35` is neither `0` nor `GRID_W-1=55`) — a live gameplay
+        bug BACKLOG-TERRAIN.md's own fb166 QA round measured and logged for
+        this lane (roughly a third of Act I spawns entering far closer to the
+        Core than the other two gates). `world.ts:591`'s independent Fourth
+        Gate `south` literal (`{tx:12,ty:19}`) had the identical defect
+        (`19` was `GRID_H-1` pre-resize, an interior tile at `GRID_H=32`).
+        Both fixed to `GATES.east: {tx: GRID_W-1, ty: 17}` and `world.ts`'s
+        `{tx:12, ty:GRID_H-1}` — real border tiles at every grid size, not
+        just today's. `data/towers.json`'s `breach.base` (8000 -> 27000)
+        also needed retuning: `tests/p1a-sealing.test.ts`'s own §10/G7
+        invariant ("the cheapest possible breach outprices the longest
+        walkable route") had a ~4% margin at 36x20 that the bigger map's
+        area (54×30×14=22680 vs the old 34×18×14=8568) blew a hole through
+        — `perEhp` (the HP-scaled term) stayed at 10; only the flat term
+        moved, so relative breach costs between towers are unchanged, and
+        the new margin is a comfortable ~24% rather than a repeat of the
+        old thin one.
+
+        **Blast radius, measured rather than assumed.** Because
+        `generateTerrain` takes the gate list as an RNG-relevant input (not
+        just a legality check), correcting `GATES.east` regenerates a
+        materially different map at every seed — this rippled far past the
+        two literal coordinates. `npm run test:fast` immediately after the
+        coordinate fix: **17 `tests/terrain*` files red (~88 assertions)** —
+        entirely `BACKLOG-TERRAIN.md`'s Scope (goldens, statistical ledgers
+        over hundreds/thousands of seeds keyed to the old gate position),
+        left untouched and logged in that file's Log for the terrain lane to
+        re-derive with its own tooling, per the lane-boundary rule (its own
+        fb166 entry anticipated exactly this dependency). In this lane's own
+        Scope, real-generated-terrain fixture tests that hardcoded a tile
+        assumed buildable at seed 1 under the *old* (buggy) map needed
+        re-fitting the same way this project always re-fits a moved
+        baseline: `tests/content-complete.test.ts` (Gatebreaker-chews-faster
+        repro — switched to practice mode plus a 7-tile sealed pocket around
+        the measured tower, since the lone tower no longer sits in the only
+        route at the bigger map), `tests/class-board.test.ts`/`class-board-
+        windows.test.ts` (the shared probed board moved from `10,6`/tier
+        `reduced` to `8,12`/tier `full`; re-pinned with the same "probed,
+        not pinned" baseline-tripwire convention the
+        file's own header documents, including the corner-convergence
+        property no longer holding at the bigger map — 7 legal boards now,
+        not 11, and the corner's nearest legal board is a different one, not
+        the shipped board), `tests/p6d-nine-classes.test.ts` (3 Cryomancer
+        Ice Wall cases needed practice mode for a deterministic aim tile),
+        `tests/c4-stacking.test.ts`/`fb034-max-towers.test.ts`/`hud-controls.
+        test.ts`/`p2c-vs-specials.test.ts`/`p3b-multi-summon.test.ts`/
+        `t2-selection.test.ts`/`b007-tile-bounds.test.ts` (same pattern —
+        practice mode or a re-measured tile; `b007-tile-bounds` was already
+        broken this way *before* this item, an unrelated pre-existing bug
+        this item fixed as a bonus since it is explicitly named in this
+        item's own acceptance scope). `fb077-terrain-wiring.test.ts` needed
+        its own re-derivation: the Warden's 3x3 spawn-clear block
+        (`clearOverlayBlock`, `world.ts`) was a latent gap in its "byte-for-
+        byte off the structural tiles" comparison, invisible only because
+        the old broken map happened to agree there by coincidence; its three
+        `STRANDED_CORE_SEEDS` no longer strand the Core under the corrected
+        gate list (re-found: 2722/6377/6736/7916, replacing 4426/4515/5516)
+        and its "distant live wall" repro's Palisade column needed to span
+        the full new height (`GRID_H-2`, not the old grid's `18`) to still
+        fully seal the grid. A separate, unrelated pre-existing flake this
+        lane's own fb166 QA round already diagnosed and logged for the main
+        lane — `tests/fb027-selection-panels.test.ts`'s `freeTileNear` helper
+        checked `passable` (true of walkable-but-not-buildable rough ground)
+        instead of `buildable`, ~43% flaky since the bigger map has more
+        rough terrain variety — fixed the same one-word way that Log entry
+        named; re-ran 5x green after the fix (was previously reproducible
+        failing).
+
+        **The one finding this item does not close: real full-run combat
+        outcomes moved, not just terrain shape.**
+        `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
+        (seed 1, T3) flips post-fix — swordsman `defeat_warden` -> `victory`,
+        pyromancer `defeat_warden` -> `defeat_core` (a different failure
+        mode) — at the exact seed/config the fb196/fb193/fb185/p13a Night-1
+        bisection chain measured G8 against. This is the *intended* effect
+        of fixing a live spawn-distance bug, not rescale noise, but it means
+        that whole chain's recorded numbers (and G8's state in this file's
+        "Owner priority queue (2026-09-14 directive)" section) were measured
+        against a buggy gate position and need a fresh re-measurement, not a
+        quick re-pin inside this item. Both assertions `.skip`'d with the
+        finding (CLAUDE.md working rule 6); filed as **fb197** below.
+
+        Verified: `npx tsc --noEmit` clean (one pre-existing unrelated error
+        in `tests/ui-fb102-bossbar-rail-overlap.test.ts`, UI lane, untouched
+        by this item). `npm run test:fast`: every file this item's own Scope
+        names is green, plus the fallout list above; the 17 terrain files and
+        the 2 `.skip`'d fb196 assertions are the only remaining reds, both
+        logged as this item's own out-of-scope findings rather than silently
+        worked around — refs: SPEC-FINAL §10, BACKLOG-TERRAIN.md fb166 Log
+        (2026-09-06/09-07 entries), BACKLOG-TERRAIN.md fb181, BACKLOG fb197.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
@@ -596,6 +692,42 @@ honor.**
       definition in BALANCE.md/tests is confirmed as T3 win-rate band +
       pairwise fingerprint distance (§D) only, with no kit-share clause —
       refs: SPEC-FINAL §14 G8, QUESTIONS Q175/Q193, BACKLOG p12f.
+
+- [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
+      shipping fb153b (working rule 3: a confirmed bug outranks the
+      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
+      `south` literal — both stale 36x20-era coordinates that had drifted
+      onto ordinary interior tiles at the shipped 56x32 grid, a live
+      gameplay bug (roughly a third of Act I spawns entering far closer to
+      the Core than the other two gates). Because `generateTerrain` takes
+      the gate list as an RNG-relevant input, the fix changes real
+      spawn-to-Core travel distance, and therefore real combat outcomes, at
+      every seed — not just terrain shape. Measured directly:
+      `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
+      (seed 1, T3) flips — swordsman `defeat_warden` -> `victory`, pyromancer
+      `defeat_warden` -> `defeat_core` — at the exact seed/config the
+      fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against
+      (both assertions `.skip`'d in that file with this finding, pending
+      this item). Every number that chain produced — fb196's fresh 12-seed
+      sweep (`tests/p6e-class-diversity.test.ts`'s header table), fb193's
+      before/after swordsman/necromancer/engineer bands, fb185's re-pin,
+      p13a's own shipping measurement — was measured against the *buggy*
+      gate position and is now stale, including this file's own "Owner
+      priority queue (2026-09-14 directive)" section text describing that
+      state. Acceptance: a fresh full 12-seed sweep of
+      `tests/p6e-class-diversity.test.ts` against the corrected gate
+      position, roster-wide (not just swordsman/pyromancer); the two
+      `fb196-night1-basehpmul.test.ts` assertions re-pinned to the newly
+      measured outcomes (or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect, if the corrected gate position
+      changes the control pair's own premise) and un-`.skip`-ed; G8's
+      recorded state in BACKLOG.md's owner-priority section text updated to
+      the fresh numbers with the before/after pair written down per
+      CLAUDE.md's measurement rules ("my change improved X needs the control
+      run, not the plausible story"); `tests/p13a-survivability-bands.test.ts`
+      and `tests/fb193`-adjacent measurements spot-checked for the same
+      dependency — refs: SPEC-FINAL §14 G8, BACKLOG fb153b/fb196/fb193/
+      fb185/p13a, QUESTIONS Q196/Q207.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 

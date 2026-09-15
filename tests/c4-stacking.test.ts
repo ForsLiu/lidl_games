@@ -319,7 +319,10 @@ describe('C4 — the real stat pipeline carries sources', () => {
  */
 describe('C4 — every rebased consumer reads a finished multiplier', () => {
   function boosted(stat: StatKey, a = 0.5, b = 0.6): World {
-    const w = new World(cfg());
+    // fb153b (56x32 grid): this describe block is about stat-stacking math,
+    // not terrain — practice mode's flat board keeps (5,5) reliably
+    // buildable regardless of what seed 1's real map generates.
+    const w = new World(cfg({ practice: true }));
     w.stats.add('src:a', stat, a);
     w.stats.add('src:b', stat, b);
     w.recomputeDerived();
@@ -462,7 +465,8 @@ describe('C4 — origins that are not the boon/tree/equipment stack (QA bugs 1, 
   });
 
   it('tower buff auras multiply the tower stack too (QA bug 3)', () => {
-    const w = new World(cfg());
+    // fb153b (56x32 grid): practice mode keeps (5,5) reliably buildable.
+    const w = new World(cfg({ practice: true }));
     w.stats.add('boon:haste', 'attackSpeed', 0.4);
     w.recomputeDerived();
     w.warden.x = 5.5;

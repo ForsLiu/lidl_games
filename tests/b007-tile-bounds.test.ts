@@ -25,7 +25,11 @@ const TX = 20;
 const TY = 10;
 
 function worldWithTower(): { w: World; towerId: number } {
-  const w = new World(cfg());
+  // fb153b (56x32 grid): (20,10) is real generated terrain here and is not
+  // guaranteed open at seed 1 — practice mode's flat board keeps this
+  // aliasing-defect anchor deterministic regardless of what the terrain
+  // generator does with that tile.
+  const w = new World(cfg({ practice: true }));
   const towerId = w.content.towerByKey.get('arrow_spire')!.id;
   const res = buildTower(w, towerId, TX, TY);
   expect(res.ok).toBe(true);
@@ -75,7 +79,8 @@ describe('b007: tile-coordinate bounds/integer checks', () => {
   });
 
   it('both aliasing directions are rejected via the real Command path too', () => {
-    const w = new World(cfg());
+    // fb153b: same practice-mode reasoning as worldWithTower above.
+    const w = new World(cfg({ practice: true }));
     const towerId = w.content.towerByKey.get('arrow_spire')!.id;
     applyCommand(w, { k: 'build', tower: towerId, tx: TX, ty: TY });
     expect(w.structureAt(TX, TY)).not.toBeNull();
