@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb184 done — loader closes the
+  `numberScal3`-typo class of silent mis-scale (QUESTIONS Q181).**
+  `ModifiersFileSchema` (`src/sim/content.ts`) now carries `.strict()`, the
+  same convention already used elsewhere in that file, so an unrecognized
+  top-level key in `data/modifiers.json` is a load error naming the field
+  instead of a silent drop that leaves `numberScale` at its `default(1)`.
+  New `tests/fb184-modifiers-unknown-key.test.ts` pins the typo repro
+  (confirmed red-first via `git stash`) and confirms every legitimate key
+  still loads. `tests/q7-loader-holes.ts` updated to drop the now-closed
+  `'rename-key'` hole for `modifiers.numberScale`, checked against
+  `tools/fuzz-data.ts`'s actual mutation, not just read. code-reviewer
+  approved (no Critical/Major); qa-playtester independently re-verified all
+  three acceptance clauses directly and traced every writer of
+  `modifiers.json` (the Tuner's save path validates through the same
+  now-strict schema and only ever persists successfully-parsed output, so no
+  transient key can reach disk) — no false-rejection risk found.
+  `npm run test:fast` shows 20 pre-existing failures across 9 files (`act1`,
+  `class-board`, `p6b-swordsman`, `p6c-plaguebringer`, `p6d-nine-classes`,
+  `class-passive-liveness`, `fb015-equipment`, `fb036-path-indicators`,
+  `grid`) — both subagents and this session independently confirmed via
+  `git stash` that every one reproduces identically without this item's
+  change, none touching `modifiers.json`; zero new failures introduced.
+  **Priority-queue note:** the file's "Owner priority queue (2026-09-14
+  directive)" PRIORITY DIRECTIVE (fb193 → fb194 → fb195) has fb193/fb194
+  already done; its next step, **fb195**, and the confirmed-bug **fb197**
+  that jumped ahead of it (working rule 3) both require a fresh full
+  12-seed roster-wide sweep of `tests/p6e-class-diversity.test.ts` as their
+  own stated acceptance criterion — that file's own `beforeAll` carries a
+  100-minute timeout budget, and its own doc history records prior full
+  sweeps taking on the order of an hour or more of wall clock. Both are
+  correctly gated behind `[balance]`/gate-re-measurement per CLAUDE.md rule
+  8, but neither fits this run's 45-minute bounded window, so fb184 (small,
+  contained, still owner-directed via the same Q181 order, next in file
+  order after the near-duplicate fb183/fb195 pair) was taken instead, per
+  "skip only with a logged reason." Left open at the top of the queue for a
+  session with a larger time budget.
+
 - **2026-09-15 — main lane: BACKLOG fb153b done — the grid resize's last
   lane share (GATES.east/world.ts Fourth Gate coordinate fix), found and
   shipped as a confirmed-bug detour while starting fb194.** `npm run

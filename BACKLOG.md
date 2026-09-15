@@ -364,15 +364,40 @@ not here.
       carried from the old 35% run) — refs: QUESTIONS Q175/Q193, BALANCE
       DIRECTION v2 §A, BACKLOG p12a/p12f.
 
-- [ ] (fb184) [bug] **cheap closer** (QUESTIONS Q181 ORDER) — the loader
-      refuses an unknown top-level key in `data/modifiers.json`, closing the
-      `"numberScal3"`-typo class of silent mis-scale Q181 found. Acceptance:
-      a schema/loader rule rejects an unrecognized top-level key in
-      `modifiers.json` with a message naming the field; every currently
-      legitimate top-level key still loads; a regression test pins the
-      typo repro (`numberScal3`) now failing to load instead of silently
-      defaulting `numberScale` to 1.0 — refs: QUESTIONS Q181, SPEC-FINAL
-      §12 rule 4.
+- [x] (fb184) [bug] **DONE 2026-09-15 — cheap closer** (QUESTIONS Q181 ORDER) —
+      the loader refuses an unknown top-level key in `data/modifiers.json`,
+      closing the `"numberScal3"`-typo class of silent mis-scale Q181 found.
+      Shipped as `.strict()` on `ModifiersFileSchema` (`src/sim/content.ts`),
+      the same convention already used elsewhere in that file for exactly
+      this purpose (architecture rule 4). New
+      `tests/fb184-modifiers-unknown-key.test.ts` pins the `numberScal3` typo
+      repro (confirmed red-first via `git stash`: throws without `.strict()`,
+      passes with it) and confirms every currently-legitimate top-level key
+      still loads. `tests/q7-loader-holes.ts`'s `modifiers.numberScale`
+      census entry updated to drop the now-closed `'rename-key'` hole
+      (`'fractional'`/`'drop-key'` stay open, unaffected) — verified against
+      `tools/fuzz-data.ts`'s actual `rename-key` mutation, not just read.
+      code-reviewer found no Critical/Major issues (APPROVE; two non-blocking
+      nits, not applied — the census wording and that BACKLOG/PROGRESS get
+      updated at commit time, both already true here); qa-playtester (PASS)
+      independently re-verified all three acceptance clauses directly
+      (unrecognized-key rejection naming the field, the real file still
+      loading, red-first via its own `git stash`), and traced every writer of
+      `modifiers.json` (the Tuner's `saveTunerFile` validates through this
+      same now-strict schema and only ever persists `safeParse`'s own output,
+      so no transient key can reach disk to be falsely rejected later).
+      `npx tsc --noEmit` clean; targeted tests green
+      (`fb184-modifiers-unknown-key.test.ts`, `q7-data-fuzz.test.ts`,
+      `p9c-tuner-save.test.ts`). `npm run test:fast` shows 20 pre-existing
+      failures across 9 files (`act1`, `class-board`, `p6b-swordsman`,
+      `p6c-plaguebringer`, `p6d-nine-classes`, `class-passive-liveness`,
+      `fb015-equipment`, `fb036-path-indicators`, `grid`) — both subagents
+      and this session independently confirmed via `git stash` that every
+      one reproduces identically on the pre-fb184 tree; none touch
+      `modifiers.json`/`ModifiersFileSchema`. This item introduces zero new
+      failures; the baseline itself predates this item and is out of its
+      scope, not chased further here — refs: QUESTIONS Q181, SPEC-FINAL §12
+      rule 4.
 
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
