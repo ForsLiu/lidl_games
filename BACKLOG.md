@@ -288,26 +288,37 @@ not here.
       hand-edited); `npm run test:fast` green — refs: SPEC-FINAL §14 G8/G14,
       QUESTIONS Q196/Q206, BACKLOG p12j/fb177/p10i.
 
-- [ ] (fb185) [bug] `tests/p6e-class-diversity.test.ts` (fast-tier-excluded)
-      has drifted stale against at least one same-day change: a full run
-      during p13a found `it('animist', ...)` red (8/12 -> 4/12, pinned
-      2026-09-07) and the "T1/T5 companion" `T5` case red (0/12, band
-      [5%,20%]), both using classes p13a's diff cannot touch (animist itself
-      and `engineer` are both at the survivability-band default). Most
-      likely cause: BACKLOG-CONTENT c004 (2026-09-14, merged before this
-      session) added `mods: { summonCap: 1 }` to Animist's Kinship passive
-      — this file was not re-run against it. The pinned fingerprint-distance
-      failure count (16, `it('the current (red) fingerprint-distance
-      failure count is pinned...')`) also moved to 27 as of p13a's own
-      shipped changes (partly expected, per p13a's writeup — swordsman/
-      necromancer/paladin/bloodlord's fingerprints genuinely shifted;
-      unclear how much of the remainder is animist's own drift). Acceptance:
-      re-run the full file fresh; re-diagnose each red case by name (a git
-      worktree control run at the pre-c004 commit isolates whether c004 is
-      really the cause of the animist delta); re-pin every `.skip`/`it`
-      comment with the honest current numbers, same as p13a did for its own
-      four classes — refs: BACKLOG-CONTENT c004, BACKLOG p13a, QUESTIONS
-      Q196/Q206.
+- [x] (fb185) [bug] **DONE 2026-09-15.** `tests/p6e-class-diversity.test.ts`
+      re-run fresh in full (28 min, `Duration 1703.99s` per the run's own
+      report). Found far more drift than the item's own animist/T5 framing
+      anticipated: **six previously in-band/live classes are freshly red**
+      (cryomancer, plaguebringer, pyromancer, archer, stormcaller, animist —
+      only `time_lord` still clears its band), the fingerprint-distance pin
+      moved 16->27 (matches fb193's own isolated finding), and the T5
+      companion band is newly red (0/12). All seven are part of the same
+      roster-wide Night-1 `defeat_warden`@w3 wipe BACKLOG fb196 already
+      flagged top-priority — not a set of independent balance stories, so
+      none were re-tuned inside this item (fb196 owns the root-cause/fix).
+      **The item's own git-worktree control run, done as specified**: a) at
+      the commit immediately before c004 (`7c3dc18`), animist measures 6/12
+      (1 timeout), not the 8/12 the stale comment implied — c004 (Kinship
+      summon-cap +1, cooldown 4->3.2) is a real but partial contributor to
+      animist's 8/12->4/12 headline number, not its sole cause, since the
+      pin had already drifted 8->6 before c004 ever landed. b) a second
+      control run (not originally scoped, added once the full re-run showed
+      the regression was roster-wide, not animist-only) at the commit
+      immediately before PR #55 (`1a5912c`) measures `pyromancer` at an
+      identical 0/12 `defeat_warden`@w3 — **this falsifies fb196's own
+      "prime suspect: PR #55" theory**; the wipe predates that merge. Every
+      newly-red assertion re-pinned with its honest fresh number in its own
+      trailing comment (same convention as every prior pass in this file);
+      file header updated with a summary paragraph. `npx tsc --noEmit`
+      clean; `npm run test:fast` green (this file is fast-tier-excluded, so
+      unaffected by its own content — confirms no other file regressed).
+      No code-reviewer/qa-playtester round: this item only re-runs and
+      re-pins per its own acceptance text, touches no `/data` or `/src`
+      file, and the fresh numbers are runtime-measured directly, not
+      author-claimed — refs: QUESTIONS Q207, BACKLOG fb196, fb193, c004.
 
 - [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
       — priority 2.** The 2026-09-06 "decided (a), no code/data change"

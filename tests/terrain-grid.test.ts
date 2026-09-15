@@ -408,28 +408,25 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // fb064c can *place* it. Until then a seed may legally strand it, and the
     // grid must say so rather than paper over it.
     //
-    // Measured over seeds 1..5000: two seeds strand it — 4426 and 4515, about
-    // 1 run in 2500. Seed 4426 is pinned by name below as fb064c's fixture.
-    // The *count* over this window is deliberately a bound, not a golden: it
+    // fb166 re-measured this at 56x32: the board is bigger and `CORE_X/CORE_Y`
+    // stay at their 36x20-fitted position until main-lane `fb153b` moves them,
+    // so stranding is rarer here than at the old grid — 0 seeds in 1..5000
+    // (where fb065b's own seeds 4426/4515 no longer strand it), first hit at
+    // seed **7120** over a 1..50000 scan (14 stranded in that window, about 1
+    // run in 3570). Seed 7120 is pinned by name below as fb064c's fixture.
+    // The *count* over any window is deliberately a bound, not a golden: it
     // moves on any density or `blob` retune (fb064f puts both under live Tuner
     // editing) with no bug behind it, which is the trap this lane already fell
     // into twice — see BACKLOG-TERRAIN.md on `walkableFrac` headroom and the
     // `paint()` timing bound.
     //
-    // fb064l re-measured it against a control instead of inheriting it, and
-    // the control is worth recording: at `density.jitter: 0` — fb064a's
-    // generator exactly — the same sweep still reports 4 seeds (97, 2055,
-    // 2845, 3098), so the per-seed density budgets *lowered* the stranding
-    // rate rather than raising it. Worth checking rather than assuming: a
-    // wider rock budget was the obvious way to seal the legacy Core off, and
-    // the number went the other way.
-    //
-    // A first pass measured this on the raw generated map instead of on the
-    // Grid and read 434/5000. That is a different question with a different
-    // answer: `Grid` keeps the Core's own 2x2 unblocked whatever the terrain
-    // says (see `legalCoreAnchors`), so the map-level count is dominated by
-    // seeds that merely scatter rock *onto* the Core footprint. What strands
-    // the Core in the game is the ring around it, which is what this measures.
+    // fb064l re-measured it against a `density.jitter: 0` control at the old
+    // 36x20 grid (4 of 5000 seeds stranded — jitter lowered the rate rather
+    // than raising it) and a raw-map-level control (434/5000, a different and
+    // looser question since `Grid` keeps the Core's own 2x2 unblocked whatever
+    // the terrain says). Neither control was re-run at fb166's 56x32 grid —
+    // out of this item's budget — so both numbers above are 36x20 history,
+    // kept for the method they demonstrate rather than as current fact.
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
@@ -449,7 +446,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // than tightened to 0, per this lane's own logged lesson that a count over
     // a seed window is not a golden. (Review.)
     expect(stranded).toBeLessThanOrEqual(3);
-    const stranding = applied(generateTerrain(4426, cfg));
+    const stranding = applied(generateTerrain(7120, cfg));
     expect(stranding.allGatesReachable()).toBe(false);
     for (const gate of GATES) expect(stranding.distAt(gate.tx, gate.ty)).toBe(-1);
   });
@@ -665,11 +662,13 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       ]),
     );
     // The aliasing shape (b007): GRID_W is even, so `.5` in `ty` cancels its
-    // own fraction. `1.5 * GRID_W + 3` is tile (21, 1) — open ground — so
+    // own fraction. `1.5 * GRID_W + 3` is tile (31, 1) — open ground — so
     // `passable(3, 1.5)` used to answer `true` about the mountain at (3, 1).
+    // (fb166: GRID_W moved 36 -> 56, still even, so the bug class and the
+    // computation are unchanged — only the aliased tile's column moved.)
     const alias = 1.5 * GRID_W + 3;
     expect(Number.isInteger(alias)).toBe(true);
-    expect(alias).toBe(57);
+    expect(alias).toBe(87);
     expect(g.tile[alias]).toBe(TileType.Open);
     expect(g.blocked[alias]).toBe(0);
     expect(g.passable(3, 1)).toBe(false);
@@ -759,10 +758,10 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     // balance-analyst editing densities should read "the map changed" rather
     // than a bare field-hash mismatch on a Grid test (QA bug 4).
     const GOLDEN: ReadonlyArray<readonly [number, string, string, string]> = [
-      [1, '54fad3db', 'ebcc9078', 'de5c7d1b'],
-      [4, '131ee8f2', 'b2d3934d', '462315b5'],
-      [11, '5064cfc5', '09546a0e', '16f18023'],
-      [137, '2184cf89', '0e3776a5', '66ee4ee2'],
+      [1, '164edd68', 'f0b35203', '6b942063'],
+      [4, '3d7c70c8', '584805a6', '1d4311d3'],
+      [11, '942f7549', 'edd34ea6', '464fae91'],
+      [137, 'fc1b1ea9', '75347292', 'a94f93c4'],
     ];
     for (const [seed, map, bare, dense] of GOLDEN) {
       const generated = generateTerrain(seed, cfg);
@@ -1111,15 +1110,15 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
     // is worse than over a read: a read reports the wrong tile, a write
     // silently occupies one and re-routes the flow field around it.
     const g = applied(handMap([]));
-    expect(g.occ[57]).toBe(0);
+    expect(g.occ[87]).toBe(0);
     g.setOcc(3, 1.5, 7);
-    // Tile (21, 1), not (3, 1): `1.5 * GRID_W` cancels its own fraction.
-    expect(g.idx(21, 1)).toBe(57);
-    expect(g.occ[57]).toBe(7);
-    expect(g.blocked[57]).toBe(1);
+    // Tile (31, 1), not (3, 1): `1.5 * GRID_W` cancels its own fraction.
+    expect(g.idx(31, 1)).toBe(87);
+    expect(g.occ[87]).toBe(7);
+    expect(g.blocked[87]).toBe(1);
     expect(g.occ[g.idx(3, 1)]).toBe(0);
     g.setBreach(3, 1.5, 99);
-    expect(g.breach[57]).toBe(99);
+    expect(g.breach[87]).toBe(99);
     // The exposure is real and it is call-site-owned: nothing in `src/` or
     // `tools/` reaches either write with a non-integer, because every path in
     // goes through `buildable`. Recorded here so that stays a checked claim.
@@ -1154,7 +1153,7 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
     expect(g.idx(3, 1)).toBe(1 * GRID_W + 3);
     // The alias, stated as an assertion so nobody has to re-derive it: a
     // fractional ty produces a legal index for a different tile.
-    expect(g.idx(3, 1.5)).toBe(57);
+    expect(g.idx(3, 1.5)).toBe(87);
     expect(Number.isInteger(g.idx(3, 1.5))).toBe(true);
     expect(g.idx(3, 1.5)).not.toBe(g.idx(3, 1));
     // A fractional tx does not alias — it produces a non-integer index, which

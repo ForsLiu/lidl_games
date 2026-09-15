@@ -28,6 +28,61 @@
   (4320 passed / 34 pre-existing skips, no new failures). Full table:
   `tests/p6e-class-diversity.test.ts`'s new fb196 header section; BACKLOG
   fb196.
+
+- **2026-09-15 — main lane: BACKLOG fb185 done — full fresh re-run of
+  `tests/p6e-class-diversity.test.ts` finds the roster-wide Night-1 wipe
+  (fb196) is far broader than fb185's own animist/T5 framing assumed, and
+  falsifies fb196's "prime suspect: PR #55" theory.** fb185 was filed
+  narrowly, expecting only animist and the T5 companion band to have
+  drifted. The item's own acceptance (re-run the file fresh, worktree
+  control run) found six more previously in-band/live classes also freshly
+  red — cryomancer, plaguebringer, pyromancer, archer, stormcaller — all
+  the same `defeat_warden`@w3 first-VS-block wipe fb196 already flagged
+  top-priority; only `time_lord` still clears its band; fingerprint-distance
+  moved 16->27. Two git-worktree control runs: (a) animist at the commit
+  immediately before c004 (`7c3dc18`) measures 6/12 (was already stale from
+  8/12 before c004 landed) — c004 is a real but partial contributor, not
+  the sole cause; (b) `pyromancer` at the commit immediately before PR #55
+  (`1a5912c`) measures 0/12 with the identical wipe signature — **the wipe
+  predates that merge**, falsifying fb196's own suspect. Every newly-red
+  assertion re-pinned honestly with its fresh number (fb185's own
+  acceptance, nothing more); fb196 updated with the falsifying result and a
+  narrowed next-bisection suggestion. Root cause of the roster-wide wipe is
+  still open — fb196's own acceptance (root-cause + regression test),
+  unresolved. `npx tsc --noEmit` clean; `npm run test:fast` green (this
+  file is fast-tier-excluded). Logged as **QUESTIONS Q207** — refs: BACKLOG
+  fb185/fb196/fb193/c004, SPEC-FINAL §14 G8.
+
+- **2026-09-14 — lane/terrain: BACKLOG-TERRAIN fb166 done, the 36x20 -> 56x32
+  grid flip, no `/data` change needed.** `src/sim/grid.ts` `GRID_W`/`GRID_H`
+  36/20 -> 56/32 (the two lines the lane's Scope allows); `GATES`,
+  `MODIFIER_GATES`, `CORE_X`, `CORE_Y` deliberately untouched — those are
+  fb153b's (main lane) to reposition, staged to land after this. A 3,000-seed
+  sweep at the new grid with `data/terrain.json` unchanged already measured
+  healthy (0% fallback, ~0.2-0.3% retry), so no constraint-band or
+  blob/density retuning was needed or made — a measured result, not an
+  assumption. The real finding: at 1792 tiles (56x32) the two density floors
+  (`0.6`, `0.45`) are no longer exactly reachable on the tile-count lattice
+  (`band * TILES` non-integer), flipping the tightest-band witness `kind`
+  from `'edge'` to `'best-found'` across the ledger tests — documented in
+  place rather than papered over. All 19 affected `tests/terrain*` files
+  (matching the item's own predicted ~85-assertion blast radius; landed at
+  84) were re-derived from real runs of the actual code — golden hashes,
+  witness seeds, sweep tables, cost-ledger timings, all freshly measured, no
+  guessed numbers. Two `tests/terrain-gates-dump.test.ts` cases `it.skip`-ed
+  with `TODO(fb153b)`: the Fourth Gate round-trip is genuinely broken at this
+  grid size until gates are repositioned, not a test bug. `npm run
+  test:fast`'s wider run confirmed 13 other-lane files (40 failures) newly
+  red from the resize, correctly out of this lane's Scope — logged in
+  BACKLOG-TERRAIN.md's Log with exact seed/line fixes for the one main-lane
+  file that references terrain internals directly
+  (`tests/fb077-terrain-wiring.test.ts`). code-reviewer approved (2 Minor +
+  1 Nit, all comment-accuracy issues, fixed) and qa-playtester passed (1 Bug
+  filed and fixed: `tests/terrain-cost-ledger.ts`'s `MEASURED` timing block
+  had not actually been re-measured for the new grid despite claiming to be
+  — now re-run and correct). Full `tests/terrain*`: 25 files, 410 passed / 2
+  skipped. `npx tsc --noEmit` clean.
+
 - **2026-09-14 — main lane: BACKLOG p13a done — per-class survivability
   bands landed, re-measured honestly, widens G8's red rather than closing
   it.** `maxHpMul`/`defenseBonus` (QUESTIONS Q196 ORDER) added to

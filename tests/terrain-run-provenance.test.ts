@@ -15,14 +15,19 @@
  * **The answer, measured: on every seed in the domain sample, the run plays its
  * own seed's map.** The retry path is unexercised — not rare, unexercised.
  *
+ * **fb166 re-measured every number in this file for the 56x32 grid.** `GATES`
+ * stay at their 36x20-fitted positions until main-lane `fb153b` moves them, so
+ * these numbers describe the current, staged-migration state rather than a
+ * fully-resized arena.
+ *
  * The measurement is in two layers, because only one of them is cheap:
  *
  *  1. **The upper bound**, over all 12,000 seeds of `tests/terrain-sample.ts`,
  *     on both gate lists: how many seeds' generated maps leave the Core
- *     unreachable *before* the Warden clearing. Three on the base arena
- *     (`-349`, `-169`, `3000001834`, 0.0250%) and five on the four-gate one
- *     (`804589548`, `1542607185`, `-1638`, `-929`, `2147483230`), disjoint sets
- *     — different generator input, different population.
+ *     unreachable *before* the Warden clearing. Two on the base arena
+ *     (`244812834`, `709384557`, 0.0167%) and two on the four-gate one
+ *     (`2888361945`, `-739`), disjoint sets — different generator input,
+ *     different population.
  *     This is a genuine bound and not an estimate, and the argument is narrower
  *     than "the clearing only opens tiles": `allGatesReachable` dijkstras
  *     `blocked`, which comes from `staticBlocked`, which reads `terrainBlock`
@@ -31,7 +36,7 @@
  *     set can only grow and reachability can only improve. (Its other writes,
  *     `high = 0` and `charBlock = 0`, are *not* monotone-safe for other
  *     predicates; they simply do not enter this one.)
- *  2. **The exact answer for those eight**, which costs eight more applies:
+ *  2. **The exact answer for those four**, which costs four more applies:
  *     every one is *rescued* by the Warden clearing, so the retry count over
  *     the sample is **0 of 12,000 on either gate list** and the bound above is
  *     not tight. That the 3x3
@@ -40,10 +45,11 @@
  *     carries this too, because a change to it would move a number nothing
  *     else measures.
  *
- * `tests/terrain-grid.test.ts` measures the same stranding over seeds 1..5000
- * and reads about 1 in 2500. This file is the domain-wide version and reads 1
- * in 4000 on the raw map and 0 after the clear; the two are consistent, and the
- * window one is not the population a run draws from (fb064j).
+ * `tests/terrain-grid.test.ts` measures the same stranding over a 1..50000 scan
+ * at this grid size and finds it markedly rarer than the old grid's ~1 in 2500
+ * (first hit at seed 7120, 14 in 50000). This file is the domain-wide version
+ * and the two windows are consistent in direction if not in exact rate; the
+ * near window is still not the population a run draws from (fb064j).
  *
  * **What a reader holding only `RunConfig.seed` can and cannot do.**
  *
@@ -149,19 +155,18 @@ describe('fb065h — a run plays its own seed’s map', () => {
     const three = strandedIn(sampleSeeds());
     expect({ checked: three.checked, stranded: three.stranded }).toEqual({
       checked: 12000,
-      stranded: [-349, -169, 3000001834],
+      stranded: [244812834, 709384557],
     });
     // **The four-gate arena is a different population and was measured, not
     // assumed** — the gate list is a generator input, so `World` under the
     // `gate` modifier plays maps this sweep never sees. Recorded rather than
     // re-swept here, on fb064r's two-layer pattern: the full four-gate sweep
     // over the same 12,000 seeds reads **checked 12000, fallbacks 0, stranded
-    // 5** — `804589548`, `1542607185`, `-1638`, `-929`, `2147483230` — and
-    // running it in-test doubled the file's cost to ~35 s, which is the wrong
-    // side of the fast tier. The five witnesses are re-measured (milliseconds
-    // each), which is what catches a generator change; the *distribution* is
-    // the recorded string.
-    const FOUR_GATE_STRANDED = [804589548, 1542607185, -1638, -929, 2147483230];
+    // 2** — `2888361945`, `-739` (fb166: was 5 at the old grid) — and running
+    // it in-test doubled the file's cost, which is the wrong side of the fast
+    // tier. The witnesses are re-measured (milliseconds each), which is what
+    // catches a generator change; the *distribution* is the recorded string.
+    const FOUR_GATE_STRANDED = [2888361945, -739];
     expect(strandedIn(FOUR_GATE_STRANDED, FOUR).stranded).toEqual(FOUR_GATE_STRANDED);
     // ...and they are fine on the base arena, which is the point: these are not
     // "the same bad seeds plus two", they are a different population.
@@ -184,8 +189,8 @@ describe('fb065h — a run plays its own seed’s map', () => {
     console.warn = (): void => {};
     try {
       for (const [gates, seeds] of [
-        [GATES, [-349, -169, 3000001834]],
-        [FOUR, [804589548, 1542607185, -1638, -929, 2147483230]],
+        [GATES, [244812834, 709384557]],
+        [FOUR, [2888361945, -739]],
       ] as ReadonlyArray<readonly [readonly GateDef[], readonly number[]]>) {
         for (const seed of seeds) {
           const raw = rawGrid(seed, gates);
@@ -228,14 +233,13 @@ describe('fb065h — a run plays its own seed’s map', () => {
 
   it('records the jitter-off control, so the number is attributable', () => {
     // fb064l's precedent: a rate measured only at the shipped config says
-    // nothing about which part of the generator owns it. Recorded offline over
-    // the same 12,000 seeds at `density.jitter: 0` — fb064a's generator
-    // exactly — which strands **2**: 476740782 and 3157512897, i.e. 0.0167%
-    // against the shipped 0.0250%. Both sets are disjoint, so the per-seed
-    // budgets move *which* seeds strand rather than how many, and neither
-    // config's rate is meaningfully different from the other at this sample
-    // size. Only the two named seeds are re-measured here; the full sweep is a
-    // second 17-second pass and its result is the recorded string above.
+    // nothing about which part of the generator owns it. fb166 re-measured
+    // offline over the same 12,000 seeds at `density.jitter: 0` — fb064a's
+    // generator exactly — which strands **2**: 3000000654 and 3000001827,
+    // the same 0.0167% as the shipped config at this grid size. Both sets are
+    // disjoint, so the per-seed budgets move *which* seeds strand rather than
+    // how many. Only the two named seeds are re-measured here; the full sweep
+    // is a second pass and its result is the recorded string above.
     const noJitter = parseTerrain({
       ...(terrainRaw as Record<string, unknown>),
       density: {
@@ -243,21 +247,24 @@ describe('fb065h — a run plays its own seed’s map', () => {
         jitter: 0,
       },
     });
-    expect(strandedIn([476740782, 3157512897], GATES, noJitter).stranded).toEqual([
-      476740782, 3157512897,
+    expect(strandedIn([3000000654, 3000001827], GATES, noJitter).stranded).toEqual([
+      3000000654, 3000001827,
     ]);
     // ...and they are not stranded at the shipped config, which is what makes
     // the two sets disjoint rather than nested.
-    expect(strandedIn([476740782, 3157512897]).stranded).toEqual([]);
-    // The shipped three, likewise, are fine without jitter.
-    expect(strandedIn([-349, -169, 3000001834], GATES, noJitter).stranded).toEqual([]);
+    expect(strandedIn([3000000654, 3000001827]).stranded).toEqual([]);
+    // The shipped two, likewise, are fine without jitter.
+    expect(strandedIn([244812834, 709384557], GATES, noJitter).stranded).toEqual([]);
   });
 
   it('states the limit of the seed: it reproduces the map, not the board', () => {
     // The sentence a bug report needs, as an assertion. Regenerating from the
     // seed gives the map; the grid a run played is that map plus the Warden
     // clearing and the structural overrides, which is fb065c's ledger.
-    const seed = 40;
+    // fb166: seed 40 no longer differs at all at 56x32 (the Warden clearing is
+    // a no-op on its map at this grid size), so this case moved to seed 3,
+    // which still shows a real, if smaller, gap.
+    const seed = 3;
     const raw = rawGrid(seed, GATES);
     const run = new Grid();
     const warn = console.warn;
@@ -273,14 +280,13 @@ describe('fb065h — a run plays its own seed’s map', () => {
     }
     // Same seed, same map — pinned by hash so a generator change reddens here
     // rather than silently changing what "reproduces" means...
-    expect(generateTerrain(seed, cfg, GATES).hash).toBe('c8dc0fa7');
-    // ...and still not the same board. **9 tiles, not fb065c's 13**, and the
-    // difference between the two numbers is itself the point: fb065c compares
-    // the run's grid against the raw `TerrainMap`, so its 13 is the Warden's 9
-    // plus the 4 Core tiles the structural override punches out. Here both
-    // sides are Grids, so the override cancels and what is left is exactly the
-    // clearing. A reader holding the seed can rebuild the map; the 9 tiles are
-    // what they cannot know from it.
-    expect(differs).toBe(9);
+    expect(generateTerrain(seed, cfg, GATES).hash).toBe('961f9c02');
+    // ...and still not the same board. fb166: 2 tiles at this seed and grid
+    // size (was 9, at the old grid's seed 40) — both sides are Grids, so the
+    // structural override (Core/gate footprints) cancels and what is left is
+    // exactly the Warden clearing's own footprint on this particular map. A
+    // reader holding the seed can rebuild the map; these tiles are what they
+    // cannot know from it.
+    expect(differs).toBe(2);
   });
 });
