@@ -1304,7 +1304,7 @@ export class Hud {
    * fb082: the floating rails (fb065) and boss banner (fb072) used to anchor
    * to `.sw-stage`'s own full box via plain CSS (`top/bottom/left/right: 8px`,
    * `left: 50%`), which drifts away from the actual playfield whenever the
-   * container's aspect ratio isn't the grid's 36:20 — `Renderer.resize()`
+   * container's aspect ratio isn't the grid's own — `Renderer.resize()`
    * (`src/render/canvas.ts`) letterboxes the canvas inside `.sw-stage` rather
    * than filling it, so the stage's box and the canvas's own laid-out rect can
    * differ by a wide margin at an extreme aspect ratio. Re-derives that same

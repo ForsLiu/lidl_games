@@ -1438,3 +1438,40 @@ Q200 did not collide and are unchanged below).
   named in Q196's own re-measurement clause but were directly affected by
   the same `/data` edit, and were live tests, not skipped ones); SPEC-FINAL
   §14 G8, QUESTIONS Q196, BACKLOG p13a. — (owner verdict: pending)
+
+- **Q207. [fb185/fb196] Full fresh re-run of `tests/p6e-class-diversity.test.ts`
+  finds the roster-wide Night-1 wipe is far broader than fb185 assumed, and
+  falsifies fb196's own "prime suspect: PR #55" theory.** fb185 was filed
+  narrowly (animist drifted 8/12->4/12, T5 companion red) on the assumption
+  BACKLOG-CONTENT c004 was the likely cause. Re-running the file's `beforeAll`
+  fresh in full (28 min) found six more previously in-band/live classes also
+  freshly red — cryomancer, plaguebringer, pyromancer, archer, stormcaller —
+  all part of the same `defeat_warden`@w3 first-VS-block wipe fb196 already
+  named top-priority; only `time_lord` still clears its band. Two
+  git-worktree control runs (fb185's own acceptance mechanism): (a) animist
+  at the commit immediately before c004 (`7c3dc18`) measures 6/12 (with one
+  timeout), not the stale comment's 8/12 — c004 is a real but partial
+  contributor to animist's headline number, since the pin had already
+  drifted 8->6 before c004 landed, from the same broader regression; (b) a
+  second control run, added once the full re-run showed the regression was
+  roster-wide rather than animist-specific, measures `pyromancer` at the
+  commit immediately before PR #55 merged (`1a5912c`) — **0/12, the
+  identical `defeat_warden`@w3 signature already present before that
+  merge**, directly falsifying fb196's "prime suspect: PR #55" line. Chosen
+  default: re-pin every newly-red assertion honestly in
+  `tests/p6e-class-diversity.test.ts` (fb185's own acceptance — re-run,
+  diagnose, re-pin, nothing else) rather than chase a fix or a full
+  bisection inside fb185's scope; update fb196's own BACKLOG entry with the
+  falsifying control-run result and a narrowed next-bisection-step
+  suggestion (walk `9a6b9ad`..`1a5912c`, or check `data/waves.json`/
+  `data/enemies.json`/`src/sim/world.ts`'s VS spawn logic — neither
+  `data/classes.json` nor `src/sim/enemies.ts` show a diff at `1a5912c`
+  itself that would explain it) rather than name a new suspect without
+  evidence. Root cause is still open — this is a disproof, not a
+  replacement theory. — Reason: CLAUDE.md rule 5 (choose, log, continue),
+  the measurement rules ("my change improved X needs the control run" cuts
+  both ways — a *suspected* cause needs one too, not just a claimed fix),
+  and working rule 3 (a confirmed roster-wide regression outranks the
+  queue — logged against fb196, which already carries that priority, rather
+  than reopening a second top-priority item for the same bug). — (owner
+  verdict: pending)

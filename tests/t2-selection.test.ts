@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Renderer, type ViewState } from '../src/render/canvas';
 import { World } from '../src/sim/world';
-import { CORE_X, CORE_Y, GRID_W, TILE } from '../src/sim/grid';
+import { CORE_X, CORE_Y, GRID_H, GRID_W, TILE } from '../src/sim/grid';
 import { buildTower, effectiveTowerRange } from '../src/sim/towers';
 import { spawnEnemy } from '../src/sim/enemies';
 import { Run } from '../src/sim/run';
@@ -268,9 +268,9 @@ describe('T2: clicking the canvas reaches the handler', () => {
   function harness(w: World) {
     const canvas = document.createElement('canvas');
     canvas.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: GRID_W * TILE, height: 20 * TILE }) as DOMRect;
+      ({ left: 0, top: 0, width: GRID_W * TILE, height: GRID_H * TILE }) as DOMRect;
     Object.defineProperty(canvas, 'clientWidth', { value: GRID_W * TILE });
-    Object.defineProperty(canvas, 'clientHeight', { value: 20 * TILE });
+    Object.defineProperty(canvas, 'clientHeight', { value: GRID_H * TILE });
     const v = view();
     const cmds: Command[] = [];
     bindCanvasInput({

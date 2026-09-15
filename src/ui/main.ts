@@ -303,6 +303,7 @@ export class Game {
       toggleDpsPanel: () => {
         if (this.run) this.hud.toggleDpsPanel(this.run.world);
       },
+      cameraViewRect: () => this.renderer.cameraViewRect(),
     };
     installAuditHook(bridge);
   }
@@ -839,6 +840,9 @@ export class Game {
       // The handler lives in `selection.ts` so the tests drive the shipped
       // code rather than a copy of it.
       onSelect: makeSelectHandler(this.view, () => this.run?.world ?? null),
+      // fb167: un-projects a click through the camera's current window
+      // instead of assuming the whole board is on screen.
+      camera: () => this.renderer.cameraViewRect(),
     });
   }
 
@@ -925,7 +929,7 @@ export class Game {
     // Paused: keep rendering the frozen frame, but step nothing. The sim never
     // sees wall-clock time, so a paused run resumes bit-identically.
     if (this.paused) {
-      this.renderer.update(dtReal, this.view);
+      this.renderer.update(dtReal, this.view, run.world);
       this.renderer.draw(run.world, this.view);
       // fb082: a window resize while paused would otherwise leave the rail/
       // boss-bar letterbox geometry stale until resume, since the ordinary
@@ -961,7 +965,7 @@ export class Game {
     // Enemies die and towers are sold; a stale selection would keep drawing a
     // highlight over empty ground.
     sweepSelection(this.view, w);
-    this.renderer.update(dtReal, this.view);
+    this.renderer.update(dtReal, this.view, w);
     this.renderer.draw(w, this.view);
     this.hud.update(w, { x: this.view.cursorX, y: this.view.cursorY }, this.view.selection);
 

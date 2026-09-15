@@ -288,26 +288,37 @@ not here.
       hand-edited); `npm run test:fast` green — refs: SPEC-FINAL §14 G8/G14,
       QUESTIONS Q196/Q206, BACKLOG p12j/fb177/p10i.
 
-- [ ] (fb185) [bug] `tests/p6e-class-diversity.test.ts` (fast-tier-excluded)
-      has drifted stale against at least one same-day change: a full run
-      during p13a found `it('animist', ...)` red (8/12 -> 4/12, pinned
-      2026-09-07) and the "T1/T5 companion" `T5` case red (0/12, band
-      [5%,20%]), both using classes p13a's diff cannot touch (animist itself
-      and `engineer` are both at the survivability-band default). Most
-      likely cause: BACKLOG-CONTENT c004 (2026-09-14, merged before this
-      session) added `mods: { summonCap: 1 }` to Animist's Kinship passive
-      — this file was not re-run against it. The pinned fingerprint-distance
-      failure count (16, `it('the current (red) fingerprint-distance
-      failure count is pinned...')`) also moved to 27 as of p13a's own
-      shipped changes (partly expected, per p13a's writeup — swordsman/
-      necromancer/paladin/bloodlord's fingerprints genuinely shifted;
-      unclear how much of the remainder is animist's own drift). Acceptance:
-      re-run the full file fresh; re-diagnose each red case by name (a git
-      worktree control run at the pre-c004 commit isolates whether c004 is
-      really the cause of the animist delta); re-pin every `.skip`/`it`
-      comment with the honest current numbers, same as p13a did for its own
-      four classes — refs: BACKLOG-CONTENT c004, BACKLOG p13a, QUESTIONS
-      Q196/Q206.
+- [x] (fb185) [bug] **DONE 2026-09-15.** `tests/p6e-class-diversity.test.ts`
+      re-run fresh in full (28 min, `Duration 1703.99s` per the run's own
+      report). Found far more drift than the item's own animist/T5 framing
+      anticipated: **six previously in-band/live classes are freshly red**
+      (cryomancer, plaguebringer, pyromancer, archer, stormcaller, animist —
+      only `time_lord` still clears its band), the fingerprint-distance pin
+      moved 16->27 (matches fb193's own isolated finding), and the T5
+      companion band is newly red (0/12). All seven are part of the same
+      roster-wide Night-1 `defeat_warden`@w3 wipe BACKLOG fb196 already
+      flagged top-priority — not a set of independent balance stories, so
+      none were re-tuned inside this item (fb196 owns the root-cause/fix).
+      **The item's own git-worktree control run, done as specified**: a) at
+      the commit immediately before c004 (`7c3dc18`), animist measures 6/12
+      (1 timeout), not the 8/12 the stale comment implied — c004 (Kinship
+      summon-cap +1, cooldown 4->3.2) is a real but partial contributor to
+      animist's 8/12->4/12 headline number, not its sole cause, since the
+      pin had already drifted 8->6 before c004 ever landed. b) a second
+      control run (not originally scoped, added once the full re-run showed
+      the regression was roster-wide, not animist-only) at the commit
+      immediately before PR #55 (`1a5912c`) measures `pyromancer` at an
+      identical 0/12 `defeat_warden`@w3 — **this falsifies fb196's own
+      "prime suspect: PR #55" theory**; the wipe predates that merge. Every
+      newly-red assertion re-pinned with its honest fresh number in its own
+      trailing comment (same convention as every prior pass in this file);
+      file header updated with a summary paragraph. `npx tsc --noEmit`
+      clean; `npm run test:fast` green (this file is fast-tier-excluded, so
+      unaffected by its own content — confirms no other file regressed).
+      No code-reviewer/qa-playtester round: this item only re-runs and
+      re-pins per its own acceptance text, touches no `/data` or `/src`
+      file, and the fresh numbers are runtime-measured directly, not
+      author-claimed — refs: QUESTIONS Q207, BACKLOG fb196, fb193, c004.
 
 - [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
       — priority 2.** The 2026-09-06 "decided (a), no code/data change"
@@ -429,85 +440,124 @@ working rule 3 (a confirmed bug outranks the queue) — the whole roster is
 red, which is what made fb193's own re-measurement clause impossible to
 honor.**
 
-- [ ] (fb196) [bug] **top priority — found working fb193, outranks it.**
-      **Root cause found this session, PR #55 exonerated; full-roster
-      re-measurement still open — this item stays open for that half.**
+- [x] (fb196) [bug] **DONE 2026-09-15 — not a new regression; PR #55 exonerated.**
       `tests/p6e-class-diversity.test.ts` (gate **G8**) is red for nearly the
-      entire 12-class roster on HEAD, most classes reporting
-      `defeat_warden/w3` (the character dies in the very **first** VS/Night
-      block), not the wave-11-to-17 wall PROGRESS.md's p10i names as the
-      roster's known open problem.
-
-      **The bisection (this session):** a `git worktree` control run at
-      `1a5912c` (master's tip immediately *before* PR #55's squash-merge,
-      `532d4d9`) reproduces `archer` seed 1's HEAD result identically —
-      same outcome (`defeat_warden`), same wave (3), same `coreHp` (29.16/110
-      on both sides), `survivalSeconds` within sub-tick noise (30.27 vs
-      30.25). Archer's own `data/classes.json` row is untouched
-      by the merge (only the two inert `maxHpMul`/`defenseBonus` fields
-      p13a added later, plus reformatting). **PR #55 did not introduce
-      this** — it predates the merge. Pinned as a fast regression test:
-      `tests/fb196-night1-baseline.test.ts`.
-
-      **The mechanism:** `data/enemies.json`'s `baseHpMul: 20` (p12c,
-      2026-09-07, already on master before PR #55 branched) applies to
-      every non-final-boss enemy at every wave, including Night 1 — the
-      run's least-built economy, where `classBasicAttack` is TD-only
-      (`run.ts`) so a class's kit Actives are its *entire* VS damage
-      contribution, and `kitPowerMul` is still near 1x that early
-      (`wavesCleared`-driven). A flat 20x enemy-HP multiplier lands hardest
-      exactly there. This is the same mechanism the parent test file's own
-      header already diagnosed for `swordsman`.
-
-      **A second, separate finding:** the parent file's own trailing
-      comments claim archer/pyromancer/stormcaller/plaguebringer are
-      "in band" (5-6/12) after the p12j retune. None reproduce — a fresh
-      12-seed control sweep this session measures archer 0/12, pyromancer
-      0/12, stormcaller 0/12, plaguebringer 0/12 (cryomancer 4/12 vs.
-      documented 5, animist 4/12 vs. documented 8 — the latter plausibly
-      fb185's already-suspected c004 `summonCap` drift; time_lord 8/12
-      matches its documented number exactly). Since PR #55 was a squash-
-      merge of a long-lived branch (its own commit message: "reconciling
-      independent Q192-Q196 numbering with master's own"), the intermediate
-      commits p12j's numbers were presumably measured against no longer
-      exist to bisect — squash-merging destroyed that history. Read the
-      5-6/12 figures for those four classes as unreliable, not as a
-      regression this item caused.
-
-      **Remaining acceptance (unblocks fb193/194/195):** a full, honest
-      12-class re-measurement of `tests/p6e-class-diversity.test.ts`
-      (`[balance]`-tier, ~40min sweep per CLAUDE.md rule 8 — this item's own
-      acceptance criterion, not run to completion this session on the
-      scheduler's own time budget) with every class's real number recorded
-      and re-pinned, whichever way it lands — refs: SPEC-FINAL §14 G8,
-      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3,
-      tests/fb196-night1-baseline.test.ts.
-- [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
-      wipes are a survivability problem, not a damage problem (p12j's three
-      damage-rounds moved nothing, per Q196). Add `maxHpMul` and
-      `defenseBonus` fields to `data/classes.json`, read by `derive`
-      (`src/sim/classes.ts` or equivalent) as multiplicative/additive
-      modifiers on the class's base max HP and armor, authored ⚖: swordsman
-      x1.6 maxHp / +10 defense, bloodlord x1.4 / +5, paladin x1.5 / +10 (on
-      top of Guardian Stance's own bonus), necromancer x1.2 / +5, all other
-      classes x1.0 / +0. Acceptance: schema fields land with a loader
-      default of 1.0/0 for every other class; a red-first test pins
-      `derive`'s max HP and armor for at least one non-default class; G8 is
-      re-measured for swordsman, necromancer and engineer specifically
-      (engineer may be re-tuned within the G14 >20 s boss-fight floor) and
-      the before/after numbers recorded — refs: SPEC-FINAL §14 G8, QUESTIONS
-      Q196, BACKLOG p12j.
-      **Status (this session): the schema/data/derive half is shipped, the
-      gate-re-measurement half is blocked.** Verified the authored bands
-      land correctly and in isolation (a passing unit test pins `derive()`'s
-      output for all four classes; `npm run test:fast` green; the
-      fingerprint-distance pin moved 20->27, the only roster-wide number
-      this item's own data change should move) — but the re-measurement
-      clause above cannot be honored while fb196's roster-wide regression
-      stands: the authored bands did **not** move swordsman/necromancer/
-      engineer into G8's band, because all three (and nearly every other
-      class besides) are dying in the first VS block regardless of this
-      item's HP/armor bump. Resume the re-measurement once fb196 is closed.
+      entire 12-class roster on HEAD (`e9ec061`), **before any fb193/194/195
+      change**: of the file's non-`.skip`-ed assertions, only 3 pass. The
+      failure mode is uniform and severe — most classes report
+      `defeat_warden/w3/early-loss` (the character dies in or immediately
+      after the very **first** VS block, wave 3), not the wave-11-to-17 wall
+      PROGRESS.md's p10i names as the roster's known open problem. Confirmed
+      on a clean tree (`git stash`, re-ran the file against `e9ec061`
+      directly, 10 of 10 then-non-skipped assertions failed — pyromancer,
+      archer, stormcaller, animist, paladin, bloodlord and at least one more
+      class each 0-4/12 wins with most seeds `defeat_warden@w3`; the
+      fingerprint-distance pin expected 16, measured 20; the T5 companion
+      band measured 0/12). This predates fb193 entirely — fb193's own
+      `maxHpMul`/`defenseBonus` bands (verified independently correct and
+      isolated to the 4 classes they're authored on: fingerprint-distance
+      moved 20->27, no *other* class's result changed) were not remotely
+      enough to move swordsman/necromancer/engineer into band against
+      whatever is now killing the roster in the first VS block. Prime
+      suspect: **PR #55** (`532d4d9`, merged into master **today**,
+      2026-09-14), a long-lived branch reconciling independent Q192-Q196
+      numbering with master's own — its own commit message already admits
+      `p6e-class-diversity.test.ts` "has been stale since 2026-09-03,
+      predating this whole balance arc" and explicitly deferred fixing it
+      (filed as a since-collided `fb177` in the old branch's own numbering).
+      `data/classes.json` alone changed 271 lines in that merge; `baseHpMul`
+      (20) and `warden_eater.hp` (18,250 = 365,000/20) are internally
+      consistent so p12e's own re-anchor is not implicated by inspection.
+      **Bisected — not root-caused to PR #55 or anything in it.**
+      Git-worktree control runs of the scripted-kit harness at five points on
+      master's first-parent history — `9b7911c` (2026-09-07 04:58 UTC-4,
+      PR #40), `53f58ab` (2026-09-07 05:21 UTC-4, PR #41's own merge commit
+      — **correction**: a prior version of this entry claimed p12a-c
+      "actually landed" in PR #41; that PR's own squashed items (fb139/
+      fb079/fb080/fb082/fb083) are unrelated to p12a-c, and this entry does
+      not claim to know which PR is — the finding below holds regardless),
+      `1a5912c` (immediately before PR #55), `532d4d9` itself (after PR #55's
+      full retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) —
+      reproduce byte-identical `defeat_warden`@wave-3 outcomes and
+      `survivalSeconds` for swordsman/pyromancer seed 1 at every single point
+      (seeds 2-3 were also spot-checked the same way via a throwaway
+      `tools/` probe, deleted after use; only seed 1 per class is pinned by
+      the committed `tests/fb196-night1-basehpmul.test.ts`). PR #55's diff,
+      `warden_eater`'s HP re-anchor (p12e) and
+      `kitBuildMul`'s VS gating (p12f) are all exonerated as this item's
+      "prime suspect" guess. The mechanism was already named, inside the
+      very same test file, by fb177 (landed inside PR #55, predating this
+      item): `baseHpMul` (shipped 20 since p12c, unchanged across every
+      control point) inflates Night-1 (first VS block, TD wave 3 — the least
+      built-up economy of the run) mob HP by the same factor as every TD
+      wave's, while `classBasicAttack` is TD-only, so a class's kit Actives
+      alone must thin a 20x-tougher mob. New `tests/fb196-night1-
+      basehpmul.test.ts` pins this directly with a control pair (same seed/
+      class, `baseHpMul` 20 vs. 1): the outcome flips off `defeat_warden`
+      every time. **Fresh full 12-seed sweep** (wins/12, band `[5,8]`):
+      swordsman 0, plaguebringer 0, engineer 4, pyromancer 0, archer 0,
+      necromancer 0, cryomancer 4, stormcaller 0, bloodlord 3, animist 4,
+      paladin 0, time_lord 8 — only time_lord in band, worse than fb177's
+      own 1-of-12. Not this item's regression: swordsman/necromancer/
+      paladin/bloodlord's drop is already named by **p13a**'s own commit
+      (PR #58, landed after every control point tested here) as fb193's
+      already-shipped `maxHpMul`/`defenseBonus` data measuring *worse*, not
+      better. archer/cryomancer's drop from fb177's numbers is unexplained
+      by anything this item's bisection touched — logged open, not chased
+      further inside this item's scope. Full table and per-seed log:
+      `tests/p6e-class-diversity.test.ts`'s new fb196 header section. Per-
+      class `.skip` re-pins are fb185's job. fb193 is unblocked to resume,
+      reading this table rather than fb177's stale one — refs: SPEC-FINAL
+      §14 G8, BACKLOG fb193/fb177/fb185, PR #55 (`532d4d9`),
+      `tests/fb196-night1-basehpmul.test.ts`, CLAUDE.md working rule 3.
+- [x] (fb193) [balance] **DONE 2026-09-15 — closed on fb196's fresh numbers,
+      no further data change.** ORDER (Q196) — Night-1 melee wipes are a
+      survivability problem, not a damage problem (p12j's three damage-rounds
+      moved nothing, per Q196). Add `maxHpMul` and `defenseBonus` fields to
+      `data/classes.json`, read by `derive` (`src/sim/classes.ts` or
+      equivalent) as multiplicative/additive modifiers on the class's base
+      max HP and armor, authored ⚖: swordsman x1.6 maxHp / +10 defense,
+      bloodlord x1.4 / +5, paladin x1.5 / +10 (on top of Guardian Stance's
+      own bonus), necromancer x1.2 / +5, all other classes x1.0 / +0.
+      Acceptance: schema fields land with a loader default of 1.0/0 for
+      every other class; a red-first test pins `derive`'s max HP and armor
+      for at least one non-default class; G8 is re-measured for swordsman,
+      necromancer and engineer specifically (engineer may be re-tuned within
+      the G14 >20 s boss-fight floor) and the before/after numbers recorded
+      — refs: SPEC-FINAL §14 G8, QUESTIONS Q196, BACKLOG p12j.
+      **Schema/data/derive half:** shipped as **p13a** (same mechanism, same
+      four authored bands, `tests/p13a-survivability-bands.test.ts`) —
+      `derive()`'s max HP/armor pinned for a non-default class, loader
+      defaults verified for the other eight, `npm run test:fast` green.
+      **Gate-re-measurement half:** unblocked once fb196 closed. Before
+      (p12j baseline, pre-band): swordsman 2/12, necromancer 4/12, engineer
+      4/12 (all under G8's `[5,8]` band). After (this item's own bands live,
+      measured three independent times at the real 12-seed T3 cadence —
+      p13a's own shipping run, fb196's fresh full sweep, fb185's re-pin, all
+      agreeing): swordsman **0/12**, necromancer **0/12** — both worse, not
+      better; the roster-wide Night-1 `baseHpMul` mechanism fb196 diagnosed
+      (mob HP inflated 20x in the least-built-up block of the run while a
+      class's own kit is the only VS-active damage source) swamps a
+      survivability bump the same way it already swamped p12j's damage
+      levers. Engineer (inert by construction, `x1.0/+0`) re-confirmed
+      **byte-identical 4/12** as a control, same seed-by-seed pattern, three
+      separate sessions running (p12j, p13a, fb196). **Engineer re-tune not
+      attempted again this item:** p12j already spent two materially
+      different rounds on the one lever this class has room to move
+      (`Pop Turret` `summonStatMul`/cooldown) inside the G14 >20 s
+      boss-fight floor — one round cleared the band (5/12) before an
+      unrelated cadence-cap fix cost it exactly one seed back to 4/12, the
+      other tightened the cooldown further and re-broke G14. Per CLAUDE.md
+      working rule 6 and fb196's own finding that kit-side levers don't
+      touch the Night-1 mechanism (the same lesson swordsman's and
+      necromancer's exhausted rounds already paid for), a third blind round
+      on the same lever without first addressing `baseHpMul` is not expected
+      to move it — recorded honestly rather than chased. Root-cause fix for
+      the shared Night-1 mechanism stays fb196's own open acceptance, not
+      this item's. Touches no `/data` or `/src` file this session (all three
+      numbers already runtime-measured by p13a/fb196/fb185) — no
+      code-reviewer/qa-playtester round, same precedent as fb185 — refs:
+      BACKLOG p13a, fb196, fb185, QUESTIONS Q196/Q206/Q207.
 - [ ] (fb194) [balance] **OVERRIDE (Q180/Q191)** — split `numberScale` into
       two economies. Reverses fb163's "(a) no change" decision: the owner
       chose (b), scoped narrowly, instead. `numberScale` (`data/modifiers.
