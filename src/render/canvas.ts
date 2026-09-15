@@ -390,6 +390,55 @@ function damageText(v: number): string {
   return v.toFixed(2);
 }
 
+/**
+ * fb167 (BACKLOG-UI.md, owner order BACKLOG.md fb153b item 2): with the grid
+ * at 56x32 the whole arena no longer fits a screen at a readable tile size,
+ * so `Renderer` now carries a camera that follows the Warden inside a
+ * zoomed-in window of the board instead of always showing the whole thing.
+ *
+ * Design choice logged here (this lane's Scope excludes QUESTIONS.md, so the
+ * decision is recorded at the point it's made instead, per CLAUDE.md working
+ * rule 5 — "never stop to ask, choose, log, continue"): the spec text gives
+ * no zoom-control input, so "zoom limits" is read as *readability* bounds on
+ * the on-screen tile size the camera settles on for the current window size,
+ * not a player-adjustable zoom lever. `CAMERA_TARGET_TILE_PX` is the tile
+ * size the camera aims for; `CAMERA_MIN_TILES`/`CAMERA_MAX_TILES` bound how
+ * many tiles it may show along its (aspect-preserving) width to keep that
+ * target reachable at both a small window (would otherwise zoom in past
+ * readability) and a huge one (would otherwise zoom out past it) — never
+ * more than the board itself (`GRID_W`).
+ */
+const CAMERA_TARGET_TILE_PX = 40;
+const CAMERA_MIN_TILES = 16;
+const CAMERA_MAX_TILES = 40;
+/** fb167: camera re-centering rate — higher closes the gap to the Warden faster. Presentation-only; never read by the sim. */
+const CAMERA_FOLLOW_RATE = 6;
+
+/** fb167: the camera's zoom — how many tiles it shows, clamped to the readability band and never more than the board. */
+function computeCameraViewTiles(availW: number, availH: number): { w: number; h: number } {
+  const aspect = GRID_W / GRID_H;
+  const byWidth = availW / CAMERA_TARGET_TILE_PX;
+  const byHeight = (availH / CAMERA_TARGET_TILE_PX) * aspect;
+  const natural = Math.min(byWidth, byHeight);
+  const clamped = Math.min(CAMERA_MAX_TILES, Math.max(CAMERA_MIN_TILES, natural));
+  const w = Math.min(GRID_W, clamped);
+  return { w, h: w / aspect };
+}
+
+/** fb167: clamps a camera center so its view window never shows past a [0, gridSize] edge. */
+function clampCameraCenter(pos: number, viewTiles: number, gridSize: number): number {
+  const half = viewTiles / 2;
+  if (viewTiles >= gridSize) return gridSize / 2;
+  return Math.min(gridSize - half, Math.max(half, pos));
+}
+
+export interface CameraViewRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -442,6 +491,20 @@ export class Renderer {
   private cssW = 0;
   /** fb065: `cssW / (GRID_W * TILE) * dpr` — the single factor `draw()`'s per-frame transform reset uses, replacing the old dpr-only one now that the canvas can display larger than its native grid size. */
   private scale = 1;
+  /**
+   * fb167: the camera window, in tile units. Defaults to the whole board
+   * (centered, `viewTilesW/H` = `GRID_W`/`GRID_H`) so `resize()`/`draw()`
+   * behave exactly as they did before the camera existed until `update()` is
+   * first called with a live `World` — every test that constructs a
+   * `Renderer` and never does that (the vast majority; camera-follow is an
+   * in-game behavior) keeps its old letterboxed-whole-board geometry
+   * byte-for-byte, unaffected by anything below.
+   */
+  private camera = { cx: GRID_W / 2, cy: GRID_H / 2, viewTilesW: GRID_W, viewTilesH: GRID_H };
+  /** fb167: becomes true the first time `update()` sees a `World` — see `camera`'s own doc comment. */
+  private cameraActive = false;
+  /** fb167: the `camera.viewTilesW` `resize()` last applied to the backing store, so a pan-only camera change (viewTilesW unchanged) doesn't force a redundant backing-store resize every frame. */
+  private cameraViewTilesWApplied = GRID_W;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -457,7 +520,7 @@ export class Renderer {
    * canvas's own parent, now the whole playfield window rather than a column
    * squeezed beside an opaque sidebar — actually laid it out, so "the canvas
    * fills the window" is real pixels, not just a bigger empty CSS box around a
-   * still-1152x640 image. Letterboxed to the grid's 36:20 aspect ratio: sized
+   * still-fixed-size image. Letterboxed to the grid's own aspect ratio: sized
    * by the parent's width unless that would overflow its height, in which
    * case the height bound wins instead — the same "fit both, no distortion"
    * rule the old fixed-size CSS `aspect-ratio` implemented passively, done
@@ -466,26 +529,53 @@ export class Renderer {
    * `aspect-ratio` rule (style.css) derives it from the width set below, the
    * same "only ever pin width" contract this method already had.
    *
+   * fb167: the *canvas element's own CSS/backing-store footprint* still
+   * letterboxes to the whole board's aspect ratio regardless of the camera's
+   * zoom (`computeCameraViewTiles`'s `aspect` matches `GRID_W/GRID_H` exactly,
+   * so this method's own `aspect`/`cssW` math is unchanged) — only how many
+   * *tiles* that footprint displays (`this.scale`, `canvas.width/height`)
+   * shrinks once the camera is active. Recomputes the camera's zoom here
+   * (not per-frame in `update()`) since it only needs to change when the
+   * available space does — a window resize, or the camera's own first
+   * activation — never every frame just because the Warden moved.
+   *
    * In a test environment (jsdom) the parent's `clientWidth`/`clientHeight`
    * are always 0 (jsdom never runs real layout), so the `||` fallbacks below
-   * reproduce this method's old fixed-1152x640 behavior exactly — every
-   * existing `resize()` unit test keeps passing unchanged.
+   * reproduce this method's old fixed-size behavior exactly — every existing
+   * `resize()` unit test keeps passing unchanged, and `computeCameraViewTiles`
+   * over that same fixed fallback size is moot anyway while `cameraActive` is
+   * still false (see `camera`'s own doc comment).
    */
   resize(dpr = globalThis.devicePixelRatio || 1): void {
     const ratio = Math.max(1, Math.min(3, dpr));
     const parent = this.canvas.parentElement;
     const availW = parent?.clientWidth || GRID_W * TILE;
     const availH = parent?.clientHeight || GRID_H * TILE;
+    if (this.cameraActive) {
+      const target = computeCameraViewTiles(availW, availH);
+      this.camera.viewTilesW = target.w;
+      this.camera.viewTilesH = target.h;
+      this.camera.cx = clampCameraCenter(this.camera.cx, target.w, GRID_W);
+      this.camera.cy = clampCameraCenter(this.camera.cy, target.h, GRID_H);
+    }
     const aspect = GRID_W / GRID_H;
     // Rounded once and reused for both the inline CSS width and the backing-store
     // math below, so the two can never drift a sub-pixel apart from each other.
     const cssW = Math.round(Math.min(availW, availH * aspect));
-    if (this.dpr === ratio && this.cssW === cssW && this.canvas.width > 0) return;
+    if (
+      this.dpr === ratio &&
+      this.cssW === cssW &&
+      this.canvas.width > 0 &&
+      this.cameraViewTilesWApplied === this.camera.viewTilesW
+    ) {
+      return;
+    }
     this.dpr = ratio;
     this.cssW = cssW;
-    this.scale = (cssW / (GRID_W * TILE)) * ratio;
-    this.canvas.width = Math.round(GRID_W * TILE * this.scale);
-    this.canvas.height = Math.round(GRID_H * TILE * this.scale);
+    this.cameraViewTilesWApplied = this.camera.viewTilesW;
+    this.scale = (cssW / (this.camera.viewTilesW * TILE)) * ratio;
+    this.canvas.width = Math.round(this.camera.viewTilesW * TILE * this.scale);
+    this.canvas.height = Math.round(this.camera.viewTilesH * TILE * this.scale);
     // Width only: CSS carries the aspect ratio, so a narrow window shrinks
     // the canvas without stretching it.
     this.canvas.style.width = `${cssW}px`;
@@ -498,6 +588,22 @@ export class Renderer {
 
   get height(): number {
     return GRID_H * TILE;
+  }
+
+  /**
+   * fb167: the camera's current visible window, in tile units — what
+   * `src/ui/input.ts`'s `pointerToTile` un-projects a click through instead
+   * of assuming the whole board is on screen. Defaults to the whole board
+   * (see `camera`'s own doc comment), so a caller that never wires this in
+   * keeps the old whole-board click mapping unchanged.
+   */
+  cameraViewRect(): CameraViewRect {
+    return {
+      left: this.camera.cx - this.camera.viewTilesW / 2,
+      top: this.camera.cy - this.camera.viewTilesH / 2,
+      width: this.camera.viewTilesW,
+      height: this.camera.viewTilesH,
+    };
   }
 
 
@@ -937,7 +1043,16 @@ export class Renderer {
     this.basicImpacts.push({ x, y, shape, color, life: BASIC_IMPACT_LIFE, maxLife: BASIC_IMPACT_LIFE });
   }
 
-  update(dt: number, view: ViewState): void {
+  /**
+   * fb167: `w` is optional so every existing caller that never followed a
+   * live Warden (most `Renderer`-constructing tests) keeps the old
+   * whole-board camera default untouched — see `camera`'s own doc comment.
+   * When provided, re-centers the camera on the Warden, clamped so its view
+   * window never shows past a map edge; snaps instantly on first activation
+   * and whenever `reducedMotion` is on, otherwise eases toward the target so
+   * ordinary movement reads as a smooth follow rather than a jump-cut.
+   */
+  update(dt: number, view: ViewState, w?: World): void {
     this.rngPhase += dt;
     for (const n of this.numbers) {
       n.life -= dt;
@@ -973,13 +1088,30 @@ export class Renderer {
       this.shakeX = 0;
       this.shakeY = 0;
     }
+    if (w) {
+      const wasActive = this.cameraActive;
+      this.cameraActive = true;
+      if (!wasActive) this.resize(this.dpr || globalThis.devicePixelRatio || 1);
+      const targetCx = clampCameraCenter(w.warden.x, this.camera.viewTilesW, GRID_W);
+      const targetCy = clampCameraCenter(w.warden.y, this.camera.viewTilesH, GRID_H);
+      if (!wasActive || view.settings.reducedMotion) {
+        this.camera.cx = targetCx;
+        this.camera.cy = targetCy;
+      } else {
+        const t = 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt);
+        this.camera.cx += (targetCx - this.camera.cx) * t;
+        this.camera.cy += (targetCy - this.camera.cy) * t;
+      }
+    }
   }
 
   draw(w: World, view: ViewState): void {
     const ctx = this.ctx;
     const night = w.huntsWarden;
     ctx.save();
-    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    const camLeftPx = (this.camera.cx - this.camera.viewTilesW / 2) * TILE;
+    const camTopPx = (this.camera.cy - this.camera.viewTilesH / 2) * TILE;
+    ctx.setTransform(this.scale, 0, 0, this.scale, -camLeftPx * this.scale, -camTopPx * this.scale);
     ctx.translate(this.shakeX, this.shakeY);
     ctx.fillStyle = night ? PALETTE.bgNight : PALETTE.bgDay;
     ctx.fillRect(-20, -20, this.width + 40, this.height + 40);
@@ -1776,6 +1908,15 @@ export class Renderer {
    * board (the ambient-motion cue, distinct from `reducedFlash`'s brightness
    * dimming) — the transition still reads via the same opacity envelope, as
    * a stationary full-bleed fade instead of a moving wipe.
+   *
+   * fb167 (code-reviewer finding): the wipe now travels across the camera's
+   * current *visible* window, not the whole board — before the camera
+   * existed the two were always the same thing, but at 56x32 a small,
+   * off-origin camera window watching a full-board-width wipe could see it
+   * cross in a flash (or barely at all) depending on where the Warden stood
+   * when the transition fired. The background fill's own over-paint margin
+   * (`draw()`, above) stays at the whole board's extent — that only needs to
+   * cover whatever the camera window could possibly be, not match it.
    */
   private drawPhaseSweep(view: ViewState): void {
     if (!this.sweep) return;
@@ -1790,9 +1931,12 @@ export class Renderer {
     if (calmMotion) {
       ctx.fillStyle = color;
     } else {
-      const bandWidth = this.width * 0.4;
-      const travel = this.width + bandWidth * 2;
-      const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+      const viewLeftPx = (this.camera.cx - this.camera.viewTilesW / 2) * TILE;
+      const viewportW = this.camera.viewTilesW * TILE;
+      const bandWidth = viewportW * 0.4;
+      const travel = viewportW + bandWidth * 2;
+      const bandCenter =
+        this.sweep.dir > 0 ? viewLeftPx - bandWidth + t * travel : viewLeftPx + viewportW + bandWidth - t * travel;
       const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
       g.addColorStop(0, `${color}00`);
       g.addColorStop(0.5, color);

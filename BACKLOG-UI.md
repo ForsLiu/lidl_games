@@ -71,6 +71,79 @@ not already expose it) logs that need below instead of reaching into
       `/src` or `/data` change — refs: feedback/feature-token-economy.md,
       BACKLOG.md fb178.
 
+- [x] (fb167) [feat] **DONE 2026-09-15.** the camera half of the owner's
+      bigger-map order (BACKLOG.md `fb153b` item 2) — unblocked this session
+      once BACKLOG-TERRAIN.md `fb166` (the 36x20->56x32 grid flip) merged.
+      `Renderer` (`src/render/canvas.ts`) now carries a camera that follows
+      the Warden inside a zoomed-in window of the board instead of always
+      showing the whole 56x32 grid, clamped so it never shows past a map edge
+      and zoom-limited to a 16-40 tile readability band (`computeCameraViewTiles`;
+      never more tiles than the board itself). Design choice logged in that
+      function's own doc comment rather than QUESTIONS.md (out of this lane's
+      Scope): the spec text gives no zoom-control input, so "zoom limits"
+      reads as readability bounds the camera settles on for the current
+      window size, not a player-adjustable lever. Fully backward-compatible
+      by construction: `Renderer.update()` gained an optional third `World`
+      param and the camera only activates the first time it's called with
+      one, defaulting to the old whole-board view otherwise — verified by
+      hand and by qa-playtester that none of the ~25 other tests that
+      construct a `Renderer` directly (most outside this lane's Scope) ever
+      call `update()` with a `World`, so their rendered geometry is untouched.
+      `src/ui/input.ts`'s `pointerToTile` now takes an optional camera-rect
+      param (`CanvasBinding.camera`, wired from `main.ts`'s
+      `renderer.cameraViewRect()`) so click-to-tile un-projects through the
+      camera instead of assuming the whole board is on screen;
+      `src/ui/audit-hook.ts`'s dev-only `worldToScreen` got the same fix
+      on the same reasoning, since it shared the "no camera scroll" assumption
+      its own doc comment named. `src/ui/style.css`'s `aspect-ratio` (36/20,
+      stale since fb166) and several other stale `36:20`/`1152x640` comments
+      across `canvas.ts`/`style.css`/`hud.ts`/`render-fb065-stage-fill.test.ts`
+      fixed alongside. code-reviewer's one Major finding (the p10h TD<->VS
+      transition sweep still traveled across the whole board's pixel extent
+      rather than the camera's visible window, which would have read as a
+      near-instant flash or a wipe that barely crosses the screen depending
+      on where the Warden stood) fixed before commit — `drawPhaseSweep` now
+      travels across `camera.viewTilesW`, not `this.width`. qa-playtester
+      verdict PASS: all five acceptance clauses hold with evidence (spun up
+      `tests/render-fb167-camera.test.ts`, 11 cases: follow, both edge
+      clamps, both zoom limits, both reducedMotion branches); one new bug
+      found and filed below (fb168) rather than fixed here, since it's
+      cosmetic-only and out of this item's own acceptance. **Two of the five
+      geometry suites the item was originally filed against —
+      `tests/class-board.test.ts` and `tests/class-board-windows.test.ts` —
+      do NOT match this lane's Scope glob (`tests/ui*`/`tests/render*`) and
+      were left red, exactly as already logged by BACKLOG-TERRAIN.md's own
+      `fb166` entry (its "UI lane" list, which is a looser description than
+      this lane's actual hard Scope boundary); the four that ARE in Scope
+      (`tests/ui-input`, `tests/ui-fb082-overlay-geometry`,
+      `tests/ui-fb106-extreme-aspect-geometry`,
+      `tests/ui-fb102-bossbar-rail-overlap`) are green.** `npx tsc --noEmit`
+      clean; `npm run test:fast`: 27 failures, all pre-existing (matching
+      BACKLOG-TERRAIN.md fb166's own logged 40-failure/13-file list from the
+      grid resize — `grid.test.ts`, `p1a-sealing`, `p8d-boss-termination`,
+      `fb077-terrain-wiring`, `t2-selection`, `class-board`/
+      `class-board-windows`, none newly broken by this item) — refs:
+      SPEC-FINAL §11, BACKLOG.md fb153b, BACKLOG-TERRAIN.md fb166.
+
+- [ ] (fb168) [bug] qa-playtester (fb167 verification): the camera eases
+      toward the Warden instead of snapping when `finishSundering()`
+      (`src/sim/sundering.ts`) teleports the Warden to the Core on the
+      TD->VS transition — the same discontinuity `reducedMotion`'s snap path
+      already special-cases for a different trigger (first activation), just
+      not for this one. Repro: settle the camera on a Warden standing far
+      from the Core, call `finishSundering(w)`, then one more
+      `renderer.update()` — the Warden is briefly outside `cameraViewRect()`
+      (~1 frame at a normal desktop stage size, ~13 frames / 0.22s at the
+      16-tile min-zoom a small/mobile stage clamps to). Cosmetic only — no
+      input or gameplay effect, `pointerToTile` and the edge/zoom clamps stay
+      correct throughout. Acceptance: the `'sunder'` fx event (or an
+      equivalent signal `canvas.ts`'s `ingest()` already reads) marks the
+      next camera update as a snap instead of an ease, the same way first
+      activation and `reducedMotion` already do; a regression test in
+      `tests/render-fb167-camera.test.ts` reproduces qa-playtester's repro
+      (import `finishSundering` from `src/sim/sundering.ts`) — refs: fb167,
+      `src/render/canvas.ts`'s camera-activation block, `src/sim/sundering.ts`.
+
 ### Blocked out of Scope
 
 - [ ] (fb085) [feat] low priority: **BLOCKED out of Scope 2026-09-07 — this
@@ -128,26 +201,6 @@ not already expose it) logs that need below instead of reaching into
       regression test asserts the emitted `class_active2` segment against the
       measured furthest struck enemy — refs: fb112, `canvas.ts`'s
       `class_active2` draw.
-
-- [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
-      `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
-      going **36x20 -> 56x32**, the whole arena no longer fits a screen at a
-      readable tile size, so the camera **follows the character** with zoom
-      limits and clamps at the map edges. Everything this needs is in this
-      lane's Scope: `src/render/**`'s viewport/letterboxing (it currently sizes
-      to a fixed 36:20 aspect), `src/ui/input.ts`'s click-to-tile math (which
-      must un-project through the camera, not the fixed board), and the overlay
-      geometry suites. Measured on the main lane before filing: flipping the two
-      grid constants reddens **~85 assertions across 20 files**, of which this
-      lane's are `tests/ui-input` 7, `tests/class-board` 6,
-      `tests/ui-fb082-overlay-geometry` 3, `tests/ui-fb106-extreme-aspect-
-      geometry` 2 and `tests/ui-fb102-bossbar-rail-overlap` 1. **Blocked on
-      BACKLOG-TERRAIN.md fb166**, which owns the constant flip; this item is
-      what makes the result playable. Acceptance: the camera follows the
-      character, clamps at both zoom limits and at all four map edges, and
-      click-to-tile is correct at every zoom; the geometry suites are re-fitted
-      and green at 56x32; the reduced-motion setting is respected — refs:
-      SPEC-FINAL §11, BACKLOG.md fb153b.
 
 - [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
       (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):
