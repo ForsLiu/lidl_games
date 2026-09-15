@@ -6,6 +6,8 @@
       "unlockedByDefault": true,
       "unlockQuest": null,
       "moveSpeedBonus": 0.3,
+      "maxHpMul": 1.6,
+      "defenseBonus": 10,
       "basicAttack": {
         "dps": 78,
         "range": 2.5,
@@ -52,6 +54,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "plaguebringer_veteran",
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 36,
         "range": 6,
@@ -94,6 +98,8 @@
       "unlockedByDefault": true,
       "unlockQuest": null,
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 30,
         "range": 4,
@@ -143,6 +149,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "win_a_run",
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 48,
         "range": 4,
@@ -191,6 +199,8 @@
       "unlockedByDefault": true,
       "unlockQuest": null,
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 48,
         "range": 6,
@@ -236,6 +246,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "four_slot_win",
       "moveSpeedBonus": 0,
+      "maxHpMul": 1.2,
+      "defenseBonus": 5,
       "basicAttack": {
         "dps": 30,
         "range": 4,
@@ -287,6 +299,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "build_40_obelisks",
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 30,
         "range": 6,
@@ -332,6 +346,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "hoarder",
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 48,
         "range": 6,
@@ -376,6 +392,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "fast_boss",
       "moveSpeedBonus": 0.3,
+      "maxHpMul": 1.4,
+      "defenseBonus": 5,
       "basicAttack": {
         "dps": 51,
         "range": 2.5,
@@ -426,6 +444,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "archivist",
       "moveSpeedBonus": 0.15,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 30,
         "range": 4,
@@ -470,6 +490,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "sealed_win",
       "moveSpeedBonus": 0,
+      "maxHpMul": 1.5,
+      "defenseBonus": 10,
       "basicAttack": {
         "dps": 48,
         "range": 2.5,
@@ -516,6 +538,8 @@
       "unlockedByDefault": false,
       "unlockQuest": "chrono_veteran",
       "moveSpeedBonus": 0.05,
+      "maxHpMul": 1.0,
+      "defenseBonus": 0,
       "basicAttack": {
         "dps": 27,
         "range": 4.5,

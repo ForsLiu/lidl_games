@@ -5,6 +5,149 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
+  nearly all red" alarm; PR #55 exonerated, not a new regression.**
+  fb196 found only 3 of `tests/p6e-class-diversity.test.ts`'s non-`.skip`
+  assertions passing on HEAD and named PR #55 (`532d4d9`) as the prime
+  suspect. Git-worktree control runs at five points spanning before p12a-c
+  through HEAD reproduce byte-identical Night-1 `defeat_warden` outcomes for
+  swordsman/pyromancer — PR #55's diff, the `warden_eater` HP re-anchor and
+  `kitBuildMul`'s VS gating are all exonerated. The mechanism was already
+  named by fb177 (inside PR #55, predating fb196): `baseHpMul` (20 since
+  p12c) inflates Night-1 mob HP the same as every TD wave's while
+  `classBasicAttack` is TD-only, so kit Actives alone must thin a
+  20x-tougher mob. New `tests/fb196-night1-basehpmul.test.ts` pins this with
+  a direct control pair (`baseHpMul` 20 vs. 1, same seed/class). A fresh
+  full 12-seed sweep is far worse than fb177's own table: only `time_lord`
+  (8/12) is in G8's `[5,8]` band, not fb177's `archer` (now 0/12,
+  unexplained by anything this item's bisection touched — logged open).
+  The four p13a-elevated classes' drop matches p13a's own commit message
+  (fb193's `maxHpMul`/`defenseBonus` data, already shipped, measures worse
+  not better) — not a new cause. fb193 is unblocked to resume, reading this
+  item's table rather than fb177's stale one. `npm run test:fast` green
+  (4320 passed / 34 pre-existing skips, no new failures). Full table:
+  `tests/p6e-class-diversity.test.ts`'s new fb196 header section; BACKLOG
+  fb196.
+
+- **2026-09-15 — main lane: BACKLOG fb185 done — full fresh re-run of
+  `tests/p6e-class-diversity.test.ts` finds the roster-wide Night-1 wipe
+  (fb196) is far broader than fb185's own animist/T5 framing assumed, and
+  falsifies fb196's "prime suspect: PR #55" theory.** fb185 was filed
+  narrowly, expecting only animist and the T5 companion band to have
+  drifted. The item's own acceptance (re-run the file fresh, worktree
+  control run) found six more previously in-band/live classes also freshly
+  red — cryomancer, plaguebringer, pyromancer, archer, stormcaller — all
+  the same `defeat_warden`@w3 first-VS-block wipe fb196 already flagged
+  top-priority; only `time_lord` still clears its band; fingerprint-distance
+  moved 16->27. Two git-worktree control runs: (a) animist at the commit
+  immediately before c004 (`7c3dc18`) measures 6/12 (was already stale from
+  8/12 before c004 landed) — c004 is a real but partial contributor, not
+  the sole cause; (b) `pyromancer` at the commit immediately before PR #55
+  (`1a5912c`) measures 0/12 with the identical wipe signature — **the wipe
+  predates that merge**, falsifying fb196's own suspect. Every newly-red
+  assertion re-pinned honestly with its fresh number (fb185's own
+  acceptance, nothing more); fb196 updated with the falsifying result and a
+  narrowed next-bisection suggestion. Root cause of the roster-wide wipe is
+  still open — fb196's own acceptance (root-cause + regression test),
+  unresolved. `npx tsc --noEmit` clean; `npm run test:fast` green (this
+  file is fast-tier-excluded). Logged as **QUESTIONS Q207** — refs: BACKLOG
+  fb185/fb196/fb193/c004, SPEC-FINAL §14 G8.
+
+- **2026-09-14 — lane/terrain: BACKLOG-TERRAIN fb166 done, the 36x20 -> 56x32
+  grid flip, no `/data` change needed.** `src/sim/grid.ts` `GRID_W`/`GRID_H`
+  36/20 -> 56/32 (the two lines the lane's Scope allows); `GATES`,
+  `MODIFIER_GATES`, `CORE_X`, `CORE_Y` deliberately untouched — those are
+  fb153b's (main lane) to reposition, staged to land after this. A 3,000-seed
+  sweep at the new grid with `data/terrain.json` unchanged already measured
+  healthy (0% fallback, ~0.2-0.3% retry), so no constraint-band or
+  blob/density retuning was needed or made — a measured result, not an
+  assumption. The real finding: at 1792 tiles (56x32) the two density floors
+  (`0.6`, `0.45`) are no longer exactly reachable on the tile-count lattice
+  (`band * TILES` non-integer), flipping the tightest-band witness `kind`
+  from `'edge'` to `'best-found'` across the ledger tests — documented in
+  place rather than papered over. All 19 affected `tests/terrain*` files
+  (matching the item's own predicted ~85-assertion blast radius; landed at
+  84) were re-derived from real runs of the actual code — golden hashes,
+  witness seeds, sweep tables, cost-ledger timings, all freshly measured, no
+  guessed numbers. Two `tests/terrain-gates-dump.test.ts` cases `it.skip`-ed
+  with `TODO(fb153b)`: the Fourth Gate round-trip is genuinely broken at this
+  grid size until gates are repositioned, not a test bug. `npm run
+  test:fast`'s wider run confirmed 13 other-lane files (40 failures) newly
+  red from the resize, correctly out of this lane's Scope — logged in
+  BACKLOG-TERRAIN.md's Log with exact seed/line fixes for the one main-lane
+  file that references terrain internals directly
+  (`tests/fb077-terrain-wiring.test.ts`). code-reviewer approved (2 Minor +
+  1 Nit, all comment-accuracy issues, fixed) and qa-playtester passed (1 Bug
+  filed and fixed: `tests/terrain-cost-ledger.ts`'s `MEASURED` timing block
+  had not actually been re-measured for the new grid despite claiming to be
+  — now re-run and correct). Full `tests/terrain*`: 25 files, 410 passed / 2
+  skipped. `npx tsc --noEmit` clean.
+
+- **2026-09-14 — main lane: BACKLOG p13a done — per-class survivability
+  bands landed, re-measured honestly, widens G8's red rather than closing
+  it.** `maxHpMul`/`defenseBonus` (QUESTIONS Q196 ORDER) added to
+  `data/classes.json`'s schema and all 12 rows, folded into `baseRunStats`
+  the same way `moveSpeedBonus` already is — inert at the shipped default
+  for 8 of 12 classes (pinned, `tests/p13a-survivability-bands.test.ts`).
+  The four elevated classes (swordsman x1.6/+10, bloodlord x1.4/+5, paladin
+  x1.5/+10, necromancer x1.2/+5) were re-measured live at the real 12-seed
+  T3 cadence before shipping — **every one measured worse**, not better:
+  swordsman 2->0/12, necromancer 4->0/12, paladin 5->0/12 (was a live,
+  passing test), bloodlord 5->3/12 (also live). Roster G8 in-band count
+  drops **9/12 -> 7/12**, under SPEC-FINAL's own >=9/12 floor. The
+  mechanism is not wasted, though: swordsman's diagnosed Night-1
+  `defeat_warden`@w3 wipes fell 10/12 -> 7/12 — the band buys real survival
+  past wave 3 — but those saved seeds fall instead to the roster's other
+  documented wave-11-to-17 `defeat_core` wall (p10i), a second bottleneck
+  the first was masking. Shipped the owner's literal ⚖ figures rather than
+  silently substituting different numbers; all four re-pinned `.skip` with
+  honest numbers. Logged as **QUESTIONS Q206** (owner verdict: pending) —
+  a further retune needs its own verdict, not a silent second round inside
+  this item. **STATUS.md's G8 snapshot is now stale relative to this
+  change** (last regenerated before p13a; a fresh `npm run status` run
+  would show 7/12, not the 9/12 the stale snapshot still reads) — flagged
+  for the next `npm run status` regeneration, not run here per CLAUDE.md
+  rule 8 (not this item's own acceptance criterion). code-reviewer/
+  qa-playtester per Full tier below — refs: SPEC-FINAL §14 G8/G14,
+  QUESTIONS Q196/Q206, BACKLOG p13a/p12j/fb177/p10i.
+
+  **Follow-up finding, same session:** a full (non-targeted) run of
+  `tests/p6e-class-diversity.test.ts` surfaced three further failures this
+  item's diff cannot cause — `animist` (8/12 -> 4/12) and the "G8
+  companions" `T5` case (both use classes at the inert x1.0/+0 default:
+  animist itself, `engineer` for T5) and the pinned fingerprint-distance
+  failure count (16 -> 27, partly explained by the four real p13a changes,
+  partly not). Not fixed here — out of this item's scope, and animist's
+  drift most likely predates this session (BACKLOG-CONTENT c004, merged to
+  master the same day before this session started, added `mods: {
+  summonCap: 1 }` to Animist's own Kinship passive; nobody has re-run this
+  fast-tier-excluded file against it since). Flagged for a dedicated
+  re-measurement item rather than chased inside p13a.
+
+- **2026-09-14 — main lane: processed owner feedback `verdicts-q168-205.md`.**
+  Recorded a verdict tag against all 38 entries QUESTIONS Q168-Q205 (the
+  general "every unnamed pending entry is approved as its chosen default"
+  rule plus explicit named verdicts, two OVERRIDEs, and several ORDERs), all
+  now `approved`/`OVERRIDE`/no remaining `pending` tags in that range. Filed
+  the verdict file's PRIORITY DIRECTIVE as four queue items in priority
+  order: **p13a** (per-class survivability bands, Q196 — swordsman/
+  bloodlord/paladin/necromancer get `maxHpMul`/`defenseBonus`, all others
+  inert at x1.0/+0), **fb163 reopened** (Q180/Q191 OVERRIDE — split
+  `numberScale` into economy A (scaled) and economy B (character/Core/
+  structure HP, equipment flats — not scaled), inverse-factor the five
+  crossing constants, revert fb164's economy-B prose), **fb183** (Q175/Q193
+  — restate BALANCE.md's kit-relevance target at 15% ⚖ from TD wave 12 for
+  the nine damaging-kit classes, bloodlord/engineer/animist record-only),
+  and **fb184** (Q181 — loader refuses an unknown top-level key in
+  `modifiers.json`, closing the `numberScal3`-typo silent-mis-scale class).
+  Directive item (4) (check the lane-content stall) found no stale branch/
+  PR — c004 landed today — and recorded the real blocker (Scope-boundary,
+  not overlap) in BACKLOG-CONTENT.md's new note. Also: fb129's acceptance
+  gained the Q171(b) Burrower-window 3s ⚖ cap; Q171(a)'s Act II high-ground
+  residual closed as a non-issue, no code. Feedback file moved to
+  `feedback/processed/`. — refs: QUESTIONS Q168-Q205, BACKLOG p13a/fb163/
+  fb183/fb184/fb129.
+
 - **2026-09-14 — lane/content: BACKLOG-CONTENT c004 done.** Closed SPEC-
   FINAL §4.2's Animist "summon cap +1" clause: Kinship's passive now authors
   `mods: { summonCap: 1 }` in `data/classes.json` (was `{}`), read through the
