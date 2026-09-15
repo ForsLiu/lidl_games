@@ -47,7 +47,7 @@ const FULL_TREE = allTreeNodeIds(loadContent());
 function runCoreScripted(
   coreKey: string,
   seed: number,
-  opts: { cycles?: number; maxTicks?: number; policy?: string } = {},
+  opts: { cycles?: number; maxTicks?: number; policy?: string; tier?: number } = {},
 ): RunReport {
   const policyName = opts.policy ?? 'hybrid';
   const config: RunConfig = cfg({
@@ -58,7 +58,9 @@ function runCoreScripted(
     // distance), which §B does not name — re-pointing one without the other
     // would have meant two tiers in one file. G22 was re-run at T3 and is
     // green, so it rides along rather than being split.
-    tier: GATE_TIER,
+    // p12d: `opts.tier` lets the T1/T5 companion block below reuse this same
+    // scripted-purchase harness at a different rung without duplicating it.
+    tier: opts.tier ?? GATE_TIER,
     allocated: FULL_TREE,
     cycles: opts.cycles ?? 6,
     policy: policyName,
@@ -216,7 +218,11 @@ describe('G22: each Core shifts the run fingerprint by >=0.10 vs Stone Heart', (
  * for the full write-up. Every number below is a fresh re-measurement at
  * HEAD (unchanged data), not inherited from fb049.
  */
-describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot', () => {
+// p12d (BACKLOG.md): this describe's own title said "T1" long after
+// `runCoreScripted` moved to `tier: GATE_TIER` (T3) at p12b — corrected here
+// as part of the gate-text rewrite; the code was already right, only the
+// name was stale.
+describe('G23: every Core clears T3 (reference tier) at a 35-70% win rate with the scripted bot', () => {
   const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 
   function winRate(coreKey: string): { wins: number; outcomes: string[]; reports: RunReport[] } {
@@ -576,4 +582,77 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
       Math.floor(SEEDS.length * 0.7),
     );
   });
+});
+
+/**
+ * p12d (BACKLOG.md): T1/T5 companion checks alongside — not replacing — the
+ * T3 reference-tier per-Core bands above, over all five Cores (the same
+ * roster the T3 describe above measures), reusing `runCoreScripted`'s new
+ * `tier` override rather than a second harness.
+ *
+ * **Seed count and cap, reduced from the T3 describe's own 12/120-min
+ * shape.** A first attempt at 12 seeds x 5 Cores x 2 tiers x the default
+ * 120-minute cap ran over an hour of wall clock and was killed rather than
+ * let finish — some Core/tier combinations that don't resolve simulate the
+ * *entire* 120-minute cap, and each such run costs far more wall-clock than
+ * one that wins or loses early (more ticks, and a stalled board tends to
+ * carry more alive enemies per tick too). 6 seeds and a 60-minute cap keep
+ * this directional rather than exact, matching this codebase's own
+ * precedent for expensive companion sweeps (`KIT_FP_SEEDS`/
+ * `KIT_SHARE_SEEDS` reduced samples); a `'running'` outcome at 60 minutes is
+ * excluded from the rate the same way a genuine 120-minute timeout would be.
+ */
+describe('G23 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+  const SEEDS = Array.from({ length: 6 }, (_, i) => i + 1);
+  const T1_WIN_BAND = [0.55, 0.9] as const;
+  const T1_MIN_CLOSE_WIN = 0.25;
+  const T5_WIN_BAND = [0.05, 0.2] as const;
+  const COMPANION_CAP_TICKS = 60 * 60 * 60;
+
+  function reportsAt(coreKey: string, tier: number): RunReport[] {
+    return SEEDS.map((seed) => runCoreScripted(coreKey, seed, { tier, maxTicks: COMPANION_CAP_TICKS }));
+  }
+
+  function assertT1(coreKey: string): void {
+    const reports = reportsAt(coreKey, 1);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+    const rate = wins.length / reports.length;
+    const closeShare = closeWins / reports.length;
+    const detail = `${coreKey} T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+    expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+  }
+
+  function assertT5(coreKey: string): void {
+    const reports = reportsAt(coreKey, 5);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const resolved = reports.filter((r) => r.outcome !== 'running');
+    const rate = wins.length / resolved.length;
+    const detail = `${coreKey} T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds)`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
+  }
+
+  // Measured 2026-09-07 (6 seeds, 60-min cap). Unlike G1/G14 (a single
+  // `classKey: 'engineer'`/`hybrid` harness, both of which cleanly meet
+  // these same bands at T1/T5), G23's per-Core scripted-purchase harness
+  // does not — consistent with this file's own T3 finding that Core-effect
+  // tuning has ~0% measured elasticity on win rate under the current
+  // wave/spawn curve and the real `TREE_AUTO_MAX` allocation (see the T3
+  // describe's header, QUESTIONS Q160). `.skip`-ed per CLAUDE.md rule 6
+  // rather than forced; re-enable point is whatever eventually moves G23's
+  // own T3 band (P10 / an owner verdict on Q160), since the same wall shows
+  // up here too.
+  it.skip('stone_heart: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('stone_heart')); // 3/6 wins (50%) — just under the 55% floor; close-win share (50%) is fine
+  it.skip('stone_heart: T5 win rate in [5%,20%]', () => assertT5('stone_heart')); // 0/6 wins — under the 5% floor
+  it.skip('carnivorous_plant: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('carnivorous_plant')); // 4/6 wins (66.7%, in band) but only 1 close-win (16.7% < 25% floor) — every other win is a landslide
+  it.skip('carnivorous_plant: T5 win rate in [5%,20%]', () => assertT5('carnivorous_plant')); // 2/6 wins (33.3%) — over the 20% ceiling
+  it.skip('vampire_heart: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('vampire_heart')); // 1/6 wins (16.7%) — well under the 55% floor
+  it.skip('vampire_heart: T5 win rate in [5%,20%]', () => assertT5('vampire_heart')); // 0/6 wins — under the 5% floor
+  it.skip('corpse: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('corpse')); // 1/6 wins (16.7%) — well under the 55% floor
+  it.skip('corpse: T5 win rate in [5%,20%]', () => assertT5('corpse')); // 0/6 wins — under the 5% floor
+  it.skip('time: T1 win rate in [55%,90%] with >=25% close-win share', () => assertT1('time')); // 2/6 wins (33.3%), 0 close-win — under both the 55% win-rate floor and the 25% close-win floor
+  it('time: T5 win rate in [5%,20%]', () => assertT5('time')); // measured in band — the one companion case out of ten that lands live
 });

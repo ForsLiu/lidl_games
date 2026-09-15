@@ -89,9 +89,23 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   // is immaterial (both are scalars) but stated this way because they answer
   // different questions: `baseHpMul` sets how hard the game is at all, the
   // rung sets how much harder each tier is than the last.
+  //
+  // p12e (merge note, PR #55): two independent fixes for the same problem
+  // (the roster-wide x20 stacking on the boss's own fb099 fit took fights
+  // from 180-380s to 920-1187s on contested seeds, pushing scripted-bot
+  // seeds past the sim's tick cap — QUESTIONS Q177/Q184) landed on either
+  // side of this merge: a code-side exemption of `TRAIT.finalBoss` from
+  // `baseHpMul` here, and a `/data`-side re-anchor of `warden_eater.hp`
+  // 365,000 -> 18,250 (exactly /`baseHpMul`) in `data/enemies.json`. The two
+  // are equivalent by construction but not stackable — applying both at once
+  // silently under-multiplies the boss by another factor of `baseHpMul`.
+  // Kept the `/data`-only fix (BALANCE.md "Boss HP re-anchor (p12e)",
+  // QUESTIONS Q192, BACKLOG p12e) since it needed no engine change, per
+  // CLAUDE.md architecture rule 4; the final boss takes `baseHpMul` here like
+  // every other enemy, same as before p12e ever shipped.
+  const isBoss = (flags & TRAIT.boss) !== 0;
   hp *= w.content.enemies.baseHpMul;
   hp *= tierEnemyHpMul(w.content, w.cfg.tier);
-  const isBoss = (flags & TRAIT.boss) !== 0;
   if (isBoss) hp *= 1 + w.mods.bossHp;
   // SPEC 5.5: "15,000 HP x tier multiplier". Until p12b the only tier
   // multiplier the spec defined was SPEC 8.3's *reward* scale
@@ -280,9 +294,60 @@ export function shredArmor(e: Enemy, points: number): void {
  * damage source already funnels through (direct hits and DoT ticks alike,
  * since a stack's `source` string survives to tick time). Never applied to
  * tower damage, which has its own economy and its own `towerDamageMul`.
+ *
+ * BACKLOG p12f / QUESTIONS Q175 and Q193: the wave-only term above was
+ * measured unable to close BALANCE DIRECTION v2 §A's >=35% own-kit-share
+ * target by any `data/classes.json` magnitude, because a VS-wielded weapon
+ * rides an axis this term never touched — `typeMasteryMul` (progression.ts),
+ * a per-built-tower-type VS boon that is explicitly `"uncapped": true` and so
+ * keeps compounding every level-up for the whole run, while the kit's own
+ * upgrade path (skill cards, `applyOffer`'s `skill_card` case) caps at
+ * `maxRank` and stops being offered — so once a run's skill cards saturate,
+ * *every* further level-up can only grow the wielded side. `powerMul` itself
+ * is not the gap: `classes.ts`'s `class_active` sources already multiply by
+ * it exactly like `vswield.ts`'s wielded damage does. `kitBuildMul` below
+ * rides the same per-rank formula `typeMasteryMul` uses, off the player's own
+ * `typeMasteryRanks` investment, so the kit compounds on the actual VS build
+ * the run produced rather than only on wave count.
  */
 export function kitPowerMul(w: World): number {
-  return 1 + 0.12 * w.wavesCleared;
+  return (1 + 0.12 * w.wavesCleared) * kitBuildMul(w);
+}
+
+/**
+ * p12f: the kit's build-scaling term — the *average* Type Mastery rank
+ * across every tower type the player has invested a VS boon in (0 if none),
+ * fed through `typeMasteryMul`'s own `1 + perRank * rank` formula rather than
+ * a second authored curve, so the kit tracks the same uncapped per-rank
+ * bonus a wielded attack gets instead of inventing a new one. Deliberately
+ * the *average*, not the sum or the max: a wielded attack of a given type
+ * only ever sees that one type's own rank (`typeMasteryMul(w, towerKey)` in
+ * `vswield.ts`), so crediting the kit with every type's rank at once would
+ * put it ahead of any single wielded attack rather than merely even with it.
+ * A `for...in` loop over `typeMasteryRanks` avoids `Object.values`'s
+ * temporary array on a path `dotVaryingMul` calls every kit hit and DoT tick.
+ *
+ * `w.huntsWarden`-gated (qa-playtester, follow-up to the code-reviewer's
+ * blast-radius finding): `typeMasteryRanks` is never reset between the
+ * run's VS blocks, so without this gate the factor rides straight into every
+ * later TD block too — measured to inflate `ownShare` (the whole-run metric
+ * G8's diversity clause reads) 26-57% on the two classes checked, growing
+ * further each subsequent cycle since the boon is `uncapped: true`. §A's
+ * own-kit-share target this item closes is explicitly a VS-only measurement
+ * (`damageByWeaponVs`, gated the same way — see `world.ts`'s own
+ * `damageByWeapon`-restricted-to-VS comment), so a TD-phase effect was never
+ * part of what this item was measuring or meant to change.
+ */
+function kitBuildMul(w: World): number {
+  if (!w.huntsWarden) return 1;
+  let sum = 0;
+  let count = 0;
+  for (const key in w.typeMasteryRanks) {
+    sum += w.typeMasteryRanks[key];
+    count++;
+  }
+  if (count === 0) return 1;
+  return 1 + w.content.boons.typeMastery.perRank * (sum / count);
 }
 
 const CLASS_SOURCE_PREFIX = 'class_';
@@ -811,10 +876,21 @@ export interface DotOptions {
  */
 function dotPotency(w: World, type: string, source: string): number {
   if (type === 'burning') return w.derived.burnDamageMul * w.derived.ailmentMul;
-  if (type === 'poison' && !w.huntsWarden && w.content.towerByKey.has(source)) {
+  if (type === 'poison' && isTowerSource(w, source)) {
     return w.derived.towerPoisonDamageMul * w.derived.ailmentMul;
   }
   return w.derived.ailmentMul;
+}
+
+/**
+ * fb083: whether `source` is a real tower's own Act I attack, as opposed to a
+ * class Active, a Core attack, or a tower effect firing during VS (where
+ * `huntsWarden` makes every attack a *character* attack regardless of who
+ * fired it — see the poison-trail note above). Callers use this to pick
+ * `towerAreaMul`/`towerPoisonDamageMul` over the character-scoped equivalent.
+ */
+export function isTowerSource(w: World, source: string): boolean {
+  return !w.huntsWarden && w.content.towerByKey.has(source);
 }
 
 /**
@@ -1066,8 +1142,11 @@ interface SplashAccum {
  * re-applied itself to its neighbours would cascade across the horde.
  */
 function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum): void {
-  // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
-  const r = (acc.radius + w.derived.burnSpread) * w.derived.areaMul;
+  // `burnSpread` is a point bonus on the radius; `area`/`towerArea` scales
+  // every effect (§2) — fb083 splits the two, so a tower's own Burning
+  // splash (Ember Brazier) reads the tower-scoped multiplier.
+  const areaMul = isTowerSource(w, acc.source) ? w.derived.towerAreaMul : w.derived.areaMul;
+  const r = (acc.radius + w.derived.burnSpread) * areaMul;
   const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
   for (let i = 0; i < list.length; i++) {
     const n = list[i];

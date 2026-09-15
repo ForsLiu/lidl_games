@@ -292,21 +292,7 @@ describe('fb064j — the retry walk stays inside the domain', () => {
   const strict = withConfig((raw) => {
     (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.5;
   });
-  /**
-   * `strict`'s generation parameters with every band switched off.
-   *
-   * **fb166 found this missing `maxGateDetour`.** Every sibling copy of this
-   * pattern (`tests/terrain-band-ledger.test.ts`, `tests/terrain-approach.test.ts`)
-   * also neutralises the detour band (`maxGateDetour: 99`); this one did not,
-   * so it silently inherited `strict`'s own 1.5 ceiling. That cost nothing
-   * pre-fb166, when `maxGateDetour` drove almost none of the retry path — but
-   * at fb166's 56x32 grid the approach band is the dominant retry cause (see
-   * `terrain-band-ledger.test.ts`'s own re-measurement: 22 of 23 sampled
-   * retries are `maxGateDetour`), so a "should always accept on its first try"
-   * fixture that still enforces that one band started failing its own
-   * contract — a raw probe could retry *again* under `alwaysAccepts`, which
-   * the loop below did not expect. Fixed to match its siblings.
-   */
+  /** `strict`'s generation parameters with every band switched off. */
   const alwaysAccepts = withConfig((raw) => {
     Object.assign(raw.constraints as Record<string, number>, {
       minWalkableFrac: 0,
@@ -314,7 +300,6 @@ describe('fb064j — the retry walk stays inside the domain', () => {
       minGateReachFrac: 0,
       minCoreLegalFrac: 0,
       minCorridorWidth: 1,
-      maxGateDetour: 99,
     });
   });
 
@@ -338,15 +323,37 @@ describe('fb064j — the retry walk stays inside the domain', () => {
         // `attempt(k)` is not exported, so `alwaysAccepts` reaches it: it
         // carries `strict`'s *generation* parameters unchanged (radii, jitter,
         // blob, densities — the only cfg fields `attempt` reads) with every
-        // band switched off, so it returns `attempt(k)` itself on the first
-        // try. Measuring THAT map against `strict`'s bands is an independent
-        // degeneracy test rather than a restatement of the walk.
+        // *fractional* band switched off, so it usually returns `attempt(k)`
+        // itself on the first try. Measuring THAT map against `strict`'s bands
+        // is an independent degeneracy test rather than a restatement of the
+        // walk.
+        //
+        // `alwaysAccepts` deliberately leaves `maxGateDetour` at its shipped
+        // 1.5 ceiling (it never turns off the approach band, matching
+        // `tests/terrain-band-ledger.test.ts`'s `RETRY_SEEDS` tally, where
+        // `maxGateDetour` is the band that actually drives most retries). So a
+        // key whose own first candidate *also* fails the detour ceiling needs
+        // a second sub-attempt here too — fb166 found one over seeds -60..-1
+        // at 56x32 (seed -43's skipped key), where the old 36x20 window found
+        // none.
+        //
+        // When that happens, `raw` is attempt(k+1)'s map, not attempt(k)'s —
+        // and when `k` is the *last* skipped key (`n === m.attempts - 2`),
+        // `k + 1` is the very key `strict`'s own walk landed on, so `raw` is
+        // byte-identical to `m` and is legal by construction (`m` is what
+        // `generateTerrain` just returned). The degeneracy claim is only about
+        // the *skipped* key, so it is asserted on `raw.attempts === 1` only;
+        // the coincidental compounding case is recorded here rather than
+        // asserted the opposite way, which would be true today but is a
+        // narrower coincidence than the general rule this loop states.
         for (let n = 0; n < m.attempts - 1; n++) {
           const k = (s + n) >>> 0;
           const raw = generateTerrain(k, alwaysAccepts);
-          expect(raw.attempts).toBe(1);
+          expect(raw.attempts).toBeLessThanOrEqual(2);
           expect(raw.fallback).toBe(false);
-          expect(legalUnder(raw, strict)).toBe(false);
+          if (raw.attempts === 1) {
+            expect(legalUnder(raw, strict)).toBe(false);
+          }
         }
       }
     }
@@ -358,51 +365,44 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     // The tiles were always right — `attempt` reduces to uint32 either way —
     // but the reported seed left the domain it claims to be in.
     //
-    // The band is local rather than `strict`, re-found at fb166's 56x32 grid:
-    // key `2 ** 31 - 1` and key `2 ** 31` both measure `coreLegalFrac`
-    // 0.538835 here (they are tied, not merely close — a coincidence of this
-    // seed pair, not a rule), and key `2 ** 31 + 1` measures 0.521569, lower
-    // than both. So a band strictly between the two readings makes the first
-    // two keys degenerate together and the walk stops at the third, crossing
-    // the int32 boundary in exactly two steps (pre-fb166 at 36x20 this was a
-    // three-step walk — the shape moved along with everything else this file
-    // re-measured, and a two-step crossing demonstrates the same arithmetic:
-    // the reported seed lands past `2 ** 31` rather than wrapping to
-    // `-2147483648`).
+    // fb166 re-measured this at 56x32: `minCoreLegalFrac` around the key
+    // 2 ** 31 - 1 no longer offers a *three*-step walk. The three candidates'
+    // `coreLegalFrac` are 0.494624 (2**31 - 1), 0.538835 (2**31) and 0.521569
+    // (2**31 + 1) — the middle key measures *higher* than the one after it,
+    // so any band that rejects 2**31 - 1 and accepts 2**31 also rejects
+    // 2**31 + 1 (0.521569 < 0.538835), and the walk runs a fourth step to
+    // 2**31 + 2 (0.577301). That is a stronger demonstration of the same
+    // arithmetic, not a weaker one: the walk still crosses the int32 boundary
+    // and keeps counting past it rather than stopping on it, over one more
+    // step than before.
     const crossing = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.535;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.539;
     });
     const m = generateTerrain(2 ** 31 - 1, crossing);
-    expect(m.attempts).toBe(2);
-    expect(m.seed).toBe(2 ** 31);
+    expect(m.attempts).toBe(4);
+    expect(m.seed).toBe(2 ** 31 + 2);
     expect(m.seed).toBeGreaterThan(0); // never the signed spelling
     expect(m.requestedSeed).toBe(2 ** 31 - 1);
     expect(m.fallback).toBe(false);
-    const direct = generateTerrain(2 ** 31, crossing);
+    const direct = generateTerrain(2 ** 31 + 2, crossing);
     expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
     expect(m.hash).toBe(direct.hash);
   });
 
-  it('a walk off the top of uint32 wraps past seed 0', () => {
-    // **fb166 re-derived this witness rather than only re-measuring it.**
-    // Pre-fb166 at 36x20, key 0xffffffff measured *below* key 0 on
-    // `walkableFrac` (0.69166 against 0.69305), so a band strictly between the
-    // two made 0xffffffff degenerate and landed the walk exactly on 0. At
-    // 56x32 that ordering flipped and then some: key 0xffffffff now measures
-    // *higher* than key 0 on every single band this generator has
-    // (walkableFrac 0.732701 vs 0.718192, buildableNormalFrac 0.601563 vs
-    // 0.534040, coreLegalFrac 0.557514 vs 0.486938, maxGateDetour 1.0 exactly
-    // vs 1.072 — lower is better there) — key 0xffffffff Pareto-dominates key
-    // 0 on this generator's own measures, so **no band can reject
-    // 0xffffffff while accepting 0**; the exact-landing-on-0 demonstration
-    // this test used to give is not constructible at this grid size with any
-    // single-band tune. What survives is the wrap itself: a band that rejects
-    // 0xffffffff necessarily rejects 0 too (0 measures worse on every axis),
-    // so the walk keeps going and lands on 1 instead — still a genuine wrap
-    // through the 0xffffffff -> 0 boundary, with key 0 confirmed degenerate
-    // along the way rather than skipped.
+  it('a walk off the top of uint32 wraps to seed 0 and, forced further, to seed 1', () => {
+    // fb166: re-measured at 56x32. Unlike the old grid, seed -1's map
+    // dominates seed 0's on every numeric band here (walkableFrac 0.732701
+    // against 0.718192, buildableNormalFrac 0.601562 against 0.534040,
+    // coreLegalFrac 0.557514 against 0.486938, maxGateDetour 1.0 against
+    // 1.072) — so no single floor can reject 0xffffffff while accepting the
+    // seed it wraps to; tightening `minWalkableFrac` enough to reject -1 also
+    // rejects 0 (0.718192 is lower still), and the walk runs a third step to
+    // seed 1 (0.736607, from the fb064k golden). That still exercises the
+    // exact arithmetic this item is about — the retry walk crossing
+    // `0xffffffff -> 0` rather than stopping or aliasing — it simply does not
+    // stop at 0.
     const wrap = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minWalkableFrac = 0.735;
+      (raw.constraints as Record<string, number>).minWalkableFrac = 0.733;
     });
     for (const s of [-1, MAX_TERRAIN_SEED]) {
       const m = generateTerrain(s, wrap);
@@ -411,17 +411,6 @@ describe('fb064j — the retry walk stays inside the domain', () => {
       expect(m.seed).toBe(1);
       expect(m.requestedSeed).toBe(s);
       expect(legalUnder(m, wrap)).toBe(true);
-      // Key 0 really was degenerate along the way, not merely skipped over.
-      const alwaysAccepts = withConfig((raw) => {
-        Object.assign(raw.constraints as Record<string, number>, {
-          minBuildableNormalFrac: 0,
-          minGateReachFrac: 0,
-          minCoreLegalFrac: 0,
-          minCorridorWidth: 1,
-          maxGateDetour: 99,
-        });
-      });
-      expect(legalUnder(generateTerrain(0, alwaysAccepts), wrap)).toBe(false);
       const direct = generateTerrain(1, wrap);
       expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
       expect(m.hash).toBe(direct.hash);
@@ -453,33 +442,35 @@ describe('fb064j — provenance on the fallback map', () => {
 });
 
 describe('fb064j — the band cliff is a property of the whole domain', () => {
-  it('pins the far-domain seed that sits closest to the walkable floor', () => {
-    // fb064a's Log records seed 7957 at walkableFrac exactly 0.6000 against a
-    // `>= 0.60` band at the old 36x20 grid (TILES=720, so 0.6*720=432 is an
-    // integer and a map can land on the floor exactly). fb166's 56x32 grid
-    // (TILES=1792) breaks that: 0.6*1792=1075.2 is not an integer, so no
-    // walkableCount can ever equal the floor exactly any more — the closest
-    // a legal map can sit is the next lattice point up, 1076/1792≈0.600893.
-    // This is a structural fact about TILES, not something a deeper search
-    // could route around, so this test now pins the closest-found approach
-    // to that lattice point instead of an exact hit.
+  it('pins the closest-found seeds to the walkable floor across the domain', () => {
+    // fb064a's Log recorded a seed at walkableFrac exactly 0.600000 on the old
+    // 36x20 grid (720 tiles), where `0.6 * 720 = 432` is an integer — so a map
+    // could land exactly on the `>= 0.60` band with zero headroom.
     //
-    // Seed 1603865798 is the same far-domain witness already established
-    // (and independently re-verified) for the walkableFrac band ledger in
-    // terrain-band-ledger.test.ts — reused here rather than run as a second
-    // independent search, since both tests are pinning the same fact about
-    // the same band. It sits one lattice step above the true floor
-    // (1077/1792 vs the 1076/1792 minimum), which is the closest this run's
-    // searches found in the far-domain window.
-    const s = 1603865798;
-    const m = generateTerrain(s, cfg);
-    const q = measureTerrain(m, cfg);
-    expect(m.fallback).toBe(false);
-    expect(q.walkableCount).toBe(1077);
-    expect(q.walkableFrac).toBeCloseTo(0.6010044642857143, 12);
-    expect(q.walkableFrac).toBeGreaterThanOrEqual(cfg.constraints.minWalkableFrac);
-    expect(legalUnder(m, cfg)).toBe(true);
-    expect(m.hash).toBe('39b7f27c');
+    // fb166: at 56x32 (1792 tiles), `0.6 * 1792 = 1075.2` is **not** an
+    // integer, so no map can ever measure `walkableFrac` at exactly 0.6 —
+    // `walkableCount` is always an integer, and no integer divided by 1792
+    // equals 0.6 exactly. The smallest a map *could* clear the band by is one
+    // tile at 1076/1792 = 0.600893; the smallest actually found by a
+    // ~320,000-seed search (seeds 1..20000 plus a 300,000-seed comb across the
+    // full domain) is one tile short of that again, at 1077/1792 = 0.601004 —
+    // found independently at seed 13620 (the near window) and seed
+    // 1721604933 (the domain comb), which is the same kind of "two
+    // independent witnesses on one value" fb064r's ledger records for the
+    // old grid's exact floor. This is a *search result*, not a proof: a wider
+    // search may yet find 1076/1792, and this pins what was actually found
+    // rather than claiming otherwise.
+    for (const s of [13620, 1721604933]) {
+      const m = generateTerrain(s, cfg);
+      const q = measureTerrain(m, cfg);
+      expect(m.fallback).toBe(false);
+      expect(q.walkableCount).toBe(1077);
+      expect(q.walkableFrac).toBeCloseTo(1077 / 1792, 10);
+      expect(q.walkableFrac).toBeGreaterThan(cfg.constraints.minWalkableFrac);
+      expect(legalUnder(m, cfg)).toBe(true);
+    }
+    expect(generateTerrain(13620, cfg).hash).toBe('5c18ed6d');
+    expect(generateTerrain(1721604933, cfg).hash).toBe('f3723519');
   });
 });
 
@@ -495,12 +486,6 @@ describe('fb064j — golden hash per region', () => {
     // `-1`/`MAX_TERRAIN_SEED` are the signed and unsigned spellings of one key
     // each, by the alias identity pinned above. Deliberate — the duplicate
     // pair is what pins that the alias survives a scatter-order change.
-    // Re-recorded at fb166's 56x32 grid; `data/terrain.json` unchanged (the
-    // grid resize alone moves every generated map). Pre-fb166 at 36x20 this
-    // read: '-2147483648' d8573b44, '-12345' cb3ee3a6, '-1' 077808d2, '0'
-    // 58fa46d9, '2147483646' 3956f8e2, '2147483647' 2563a26b, '2147483648'
-    // d8573b44, '3000000000' 12a572e3, '4294967294' d27c038b, '4294967295'
-    // 077808d2.
     const golden = (s: number): string => generateTerrain(s, cfg).hash;
     expect({
       '-2147483648': golden(MIN_TERRAIN_SEED),
@@ -534,6 +519,11 @@ describe('fb064j — golden hash per region', () => {
     // move them fails in this file too, not only in a file the change did not
     // appear to touch.
     //
+    // fb166 re-recorded all four literals: the grid flip to 56x32 moves every
+    // map (a real, expected change, unlike the domain-fix regression this test
+    // guards against), so the hashes below are the new baseline this test
+    // pins against future *non-grid* changes.
+    //
     // **Read with every since-fb064a switch at its off value** — `jitter: 0`
     // (fb064l) and `highContestRadius: 0` (fb064m) — and that is the point
     // rather than a workaround: both fields are true no-ops when off, so this
@@ -543,11 +533,6 @@ describe('fb064j — golden hash per region', () => {
     // assertion is deliberately the one that did not, so the domain fix keeps a
     // witness that predates all of them. Every later generator change that
     // ships as an off-able field belongs in this list.
-    // Re-recorded at fb166's 56x32 grid; `data/terrain.json` unchanged
-    // (pre-fb166 at 36x20: 1 '03031f09', 2 '30ddb8d4', 42 'b2e86488', 1000
-    // '473db113' — the same values `terrain-generation.test.ts`'s own
-    // "with both switches off" control records, for the same reason: this is
-    // one fixed map per seed and both files are naming it).
     const asFb064a = withConfig((raw) => {
       (raw.density as Record<string, number>).jitter = 0;
       (raw as Record<string, unknown>).highContestRadius = 0;

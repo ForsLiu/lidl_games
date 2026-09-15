@@ -292,8 +292,8 @@ export function wieldedPierceFor(a: TowerAttack, prof: AttackProfile): number {
  * splash-tuning constants a second time. 0 for every other kind.
  */
 export function wieldedAoeFor(w: World, def: TowerDef, a: TowerAttack): number {
-  if (a.kind === 'lob') return effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL;
-  if (a.kind === 'poison') return effectiveTowerAoe(w, def);
+  if (a.kind === 'lob') return effectiveTowerAoe(w, def, 'character') * WIELD_LOB_AOE_MUL;
+  if (a.kind === 'poison') return effectiveTowerAoe(w, def, 'character');
   return 0;
 }
 
@@ -393,6 +393,17 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       break;
     }
     case 'pierce': {
+      // c001 scaled this aim heuristic by Area along with every other line
+      // here; fb081 found the identical `towers.ts` call site (`fireTower`'s
+      // `pierce` case) resolves no line-shaped footprint by the time its
+      // bolt lands — a fixed-radius point collision in `updateProjectiles`,
+      // same as this wielded bolt — so scaling only biases which direction
+      // gets picked, not what gets hit. Left unscaled there and pinned with
+      // a comment (BACKLOG.md fb081, QUESTIONS Q194); this call predates
+      // that finding and is out of fb081's scope to silently change (it is
+      // shipped, presumably-tuned player-facing behaviour, not a bug this
+      // item reported) — logged as a follow-up in BACKLOG.md fb081b rather
+      // than reverted here.
       const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH * area);
       if (!dir) return false;
       for (let i = 0; i < prof.projectiles; i++) {
@@ -484,7 +495,7 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         damage: dmg,
         // p10j: a wielded lob's blast is wider than its TD blast — the
         // Warden has no lane of towers behind it to protect from splash.
-        aoe: effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL,
+        aoe: effectiveTowerAoe(w, def, 'character') * WIELD_LOB_AOE_MUL,
         source,
         fx,
         // §5.2 Mortar @3: "shells leave a burning patch" — mirrors
@@ -502,7 +513,7 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       // TD volley does.
       const targets = nearestEnemies(w, x, y, range, prof.projectiles + WIELD_POISON_TARGET_BONUS);
       if (targets.length === 0) return false;
-      const splash = effectiveTowerAoe(w, def);
+      const splash = effectiveTowerAoe(w, def, 'character');
       for (const t of targets) {
         if (splash > 0) {
           applyAoE(w, t.x, t.y, splash, dmg, source, fx, { primary: t, damage: { fromX: x, fromY: y } });

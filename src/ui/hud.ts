@@ -31,6 +31,7 @@ import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-
 import { defaultSettings, type Settings } from './settings';
 import { devProfileActive, isDevBuild } from '../meta/devprofile';
 import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
+import { buildStoreZip, type ZipEntry } from './zip-archive';
 import { fullscreenToggleLabel, subscribeFullscreenChange, toggleFullscreen } from './fullscreen';
 
 /**
@@ -338,6 +339,7 @@ export class Hud {
                 <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (${keyLabel(keyBindings.toggleDpsPanel)})">DPS</button>
                 <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (${keyLabel(keyBindings.toggleVsPanel)})">VS</button>
                 ${devMode ? '<button class="sw-ctl" data-act="screenshot" id="sw-screenshot" title="Export the current canvas frame as a PNG (dev)">Screenshot</button>' : ''}
+                ${devMode ? '<button class="sw-ctl" data-act="framecapture" id="sw-framecapture" title="Capture a short frame sequence as a downloadable archive (dev)">Frame Capture</button>' : ''}
                 <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
               </div>
               <div class="sw-practice" id="sw-practice" hidden></div>
@@ -522,6 +524,7 @@ export class Hud {
     controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
     controls?.querySelector('[data-act="vs"]')?.addEventListener('click', () => this.cb.onToggleVsPanel?.());
     controls?.querySelector('[data-act="screenshot"]')?.addEventListener('click', () => this.exportScreenshot());
+    controls?.querySelector('[data-act="framecapture"]')?.addEventListener('click', () => this.captureFrameSequence());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
     this.dpsDockEl.addEventListener('click', () => this.cb.onToggleDpsPanel());
     this.vsDockEl.addEventListener('click', () => this.cb.onToggleVsPanel?.());
@@ -1027,6 +1030,131 @@ export class Hud {
       a.click();
       URL.revokeObjectURL(url);
     }, 'image/png');
+  }
+
+  /** fb097: how many canvas frames one Frame Capture click records. */
+  private static readonly FRAME_CAPTURE_COUNT = 6;
+  /** fb097: the fixed interval between captures, in ms — this item's own wording. */
+  private static readonly FRAME_CAPTURE_INTERVAL_MS = 500;
+
+  /**
+   * fb097: dev-profile-only frame-sequence capture, alongside fb094's
+   * screenshot export (same `devMode`-gated button pattern, same
+   * `URL.createObjectURL` + anchor-click download idiom). Records
+   * `FRAME_CAPTURE_COUNT` canvas frames on a fixed `setInterval` and bundles
+   * them into one downloadable ZIP (`zip-archive.ts`'s dependency-free
+   * STORE-only writer) rather than a real animated GIF — this item's own
+   * acceptance line explicitly allows that substitution "if a GIF encoder is
+   * judged too heavy a dependency for this item", which a new npm package
+   * (and the binary-size/licensing surface that comes with one) is judged to
+   * be here; logged for the main lane to record as a QUESTIONS.md entry
+   * (this lane cannot write QUESTIONS.md directly) in BACKLOG-UI.md's
+   * "Cross-lane notes" section.
+   *
+   * `timer` is declared before the first capture fires purely so `finish()`
+   * (itself reachable from inside `captureOne`'s `toBlob` callback) has a
+   * name to close over — `blob.arrayBuffer().then(...).finally(...)` is
+   * always at least one microtask away, so `finish` can never actually run
+   * before the `let timer` declaration below executes.
+   */
+  /** fb097 (code-reviewer finding): blocks a second overlapping capture sequence while one is in flight. */
+  private frameCaptureInFlight = false;
+
+  private captureFrameSequence(): void {
+    if (this.frameCaptureInFlight) return;
+    const canvas = this.canvas;
+    if (typeof canvas.toBlob !== 'function') return;
+    this.frameCaptureInFlight = true;
+    const button = this.root.querySelector<HTMLButtonElement>('#sw-framecapture');
+    if (button) button.disabled = true;
+
+    const total = Hud.FRAME_CAPTURE_COUNT;
+    const frames: (ZipEntry | undefined)[] = new Array(total);
+    let settled = 0;
+    let issued = 0;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let safetyTimeout: ReturnType<typeof setTimeout> | undefined;
+    let finished = false;
+
+    // qa-playtester (fb097): a `canvas.toBlob` call that never invokes its
+    // callback (or throws before it can) used to leave `timer` running
+    // forever, since the old code only ever cleared it from inside
+    // `onSettled` — unreachable if a frame never settles. `stopTimer` is now
+    // called the moment the LAST capture is *issued* (before its `toBlob`
+    // call, so even a synchronous throw on that call can't skip it), not
+    // when every frame has settled — the interval has no more work to do
+    // past that point regardless of how the outstanding captures resolve.
+    const stopTimer = (): void => {
+      if (timer !== undefined) clearInterval(timer);
+      timer = undefined;
+    };
+
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      stopTimer();
+      if (safetyTimeout !== undefined) clearTimeout(safetyTimeout);
+      this.frameCaptureInFlight = false;
+      if (button) button.disabled = false;
+      if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+      const entries = frames.filter((f): f is ZipEntry => f !== undefined);
+      if (entries.length === 0) return;
+      const zip = buildStoreZip(entries);
+      const url = URL.createObjectURL(zip);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stonewake-frames-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const onSettled = (): void => {
+      settled++;
+      if (settled >= total) finish();
+    };
+
+    const captureOne = (): void => {
+      if (issued >= total) return;
+      const frameIndex = issued++;
+      if (issued >= total) {
+        stopTimer();
+        // A dropped or throwing `toBlob` callback on this last capture would
+        // otherwise leave `finish()` (and this control's `disabled` state)
+        // stuck forever, since `settled` would never reach `total` — bound
+        // it to a few missed intervals' worth of grace instead of waiting
+        // indefinitely, downloading whatever subset did settle in time (or
+        // no-op'ing, same as the existing zero-entries guard above).
+        safetyTimeout = setTimeout(finish, Hud.FRAME_CAPTURE_INTERVAL_MS * 3);
+      }
+      try {
+        canvas.toBlob((blob) => {
+          if (!blob || typeof blob.arrayBuffer !== 'function') {
+            onSettled();
+            return;
+          }
+          blob
+            .arrayBuffer()
+            .then((buf) => {
+              frames[frameIndex] = { name: `frame-${String(frameIndex).padStart(3, '0')}.png`, data: new Uint8Array(buf) };
+            })
+            .finally(onSettled);
+        }, 'image/png');
+      } catch {
+        // qa-playtester (fb097): a tainted-canvas `SecurityError` (or any
+        // other synchronous `toBlob` throw) must count as a settled-but-
+        // failed frame, same as a `null` blob — not an uncaught exception
+        // that skips `onSettled()` and leaves this capture waiting forever.
+        onSettled();
+      }
+    };
+
+    // `timer` is assigned before the first capture fires (rather than after,
+    // as a `captureOne(); timer = setInterval(...)` sequence would read) so
+    // `stopTimer()` can clear it even if `FRAME_CAPTURE_COUNT` were ever 1 —
+    // that first, synchronous `captureOne()` call would itself already hit
+    // `issued >= total` and call `stopTimer()` before this line ever ran.
+    timer = setInterval(captureOne, Hud.FRAME_CAPTURE_INTERVAL_MS);
+    captureOne();
   }
 
   buildTowerBar(w: World): void {
@@ -1713,6 +1841,47 @@ export class Hud {
           this.showPause(w);
         });
     }
+  }
+
+  /**
+   * fb139: F8's small note box. Deliberately dumb — it knows nothing about
+   * `World`/replay/screenshot, just renders a textarea onto the shared
+   * `this.modal` slot and hands the typed note back through a callback, the
+   * same "Hud owns the DOM, the caller owns the sim/meta logic" split
+   * `onDev`/the practice-tool buttons already use. The caller (`main.ts`) is
+   * responsible for having already paused the run — `setPaused(true)` shows
+   * the plain Pause card first (it owns that transition), and this simply
+   * overwrites it, the same double-render `showPause` itself already does
+   * when flipping into/out of its own Options sub-screen.
+   */
+  showBugReportBox(onConfirm: (note: string) => void, onCancel: () => void): void {
+    this.openModal();
+    this.modal.innerHTML = `
+      <div class="sw-card">
+        <h2>Report a bug</h2>
+        <p class="sw-note">One line is enough — a replay and a screenshot go with it.</p>
+        <textarea id="sw-bugreport-note" class="sw-bugreport-note" rows="2" maxlength="2000" placeholder="What went wrong?"></textarea>
+        <div class="sw-pausebuttons">
+          <button class="sw-reroll" data-act="bugreport-cancel">Cancel</button>
+          <button class="sw-go" data-act="bugreport-confirm" disabled>Send</button>
+        </div>
+      </div>`;
+    const textarea = this.modal.querySelector<HTMLTextAreaElement>('#sw-bugreport-note');
+    const sendBtn = this.modal.querySelector<HTMLButtonElement>('[data-act="bugreport-confirm"]');
+    textarea?.focus();
+    // qa-playtester finding: an empty/whitespace note used to post silently
+    // and close the box exactly like a real success (the server correctly
+    // rejects it, but nothing surfaced that to the player) — disabled by
+    // default and only enabled once there is something to send.
+    textarea?.addEventListener('input', () => {
+      if (sendBtn) sendBtn.disabled = (textarea.value ?? '').trim().length === 0;
+    });
+    sendBtn?.addEventListener('click', () => {
+      const note = (textarea?.value ?? '').trim();
+      if (note.length === 0) return;
+      onConfirm(note);
+    });
+    this.modal.querySelector('[data-act="bugreport-cancel"]')?.addEventListener('click', () => onCancel());
   }
 
   /** Modal screens: level-up, results. */

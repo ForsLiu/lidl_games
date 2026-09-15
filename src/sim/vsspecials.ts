@@ -86,6 +86,14 @@ function updatePoisonTrail(w: World, dt: number): void {
     source: found.towerKey,
     acc: 0,
     dead: false,
+    // fb082 (qa-playtester finding): this blob's own lifetime already IS
+    // `special.interval` (a fresh one replaces it every interval, per this
+    // function's own header) — matching `tickSeconds` to it guarantees
+    // exactly one application per blob regardless of what `interval` tunes
+    // to, rather than silently depending on today's 1.4286 s happening to
+    // exceed `updateAreas`' engine-level `?? 1` default (a retune to
+    // interval <= 1 would otherwise go completely silent).
+    tickSeconds: special.interval,
   });
 }
 

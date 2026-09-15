@@ -154,6 +154,10 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/** fb098: Beacon Totem/Harvest Sprout's ambient aura pulse — a 2s cadence (`FIXED_DT` * 120 ticks), visible for 0.5s of expanding ring. */
+const AURA_PULSE_PERIOD_TICKS = 120;
+const AURA_PULSE_VISIBLE_TICKS = 30;
+
 /**
  * fb096 (owner feedback `feature-combo-area-indicator`): the merged Dash
  * Slash + mid-charge Circle Slash hit region, as a centerline (`x1,y1` the
@@ -593,20 +597,52 @@ export class Renderer {
           this.sweep = { life: SWEEP_DURATION, dir: -1 };
           break;
         case 'shot':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
-          }
+          // fb098 (qa-playtester finding): `'shot'` fires only for a
+          // `single`-kind attack (`towers.ts`/`vswield.ts`'s `case 'single'`)
+          // — Arrow Spire is the only tower with that kind in either phase —
+          // so, like the `cone` fix below, this always reads its own
+          // registered style rather than a `w.huntsWarden`-keyed
+          // `'arrow_volley'` that `theme.ts`'s `STYLES` never registered
+          // (silently falling back to the generic default dart look for
+          // every VS-wielded Arrow Spire shot).
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'arrow_spire', false));
           break;
         case 'manual':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'wardens_arrow', false));
           break;
         case 'arc':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
-          }
+          // fb098 (qa-playtester finding): the same missing-style-key bug as
+          // `shot` above, for Tesla Coil's `chain`-kind attack — `'chain_
+          // lightning'` (actually Stormcaller's Active1 `ClassEffect.kind`,
+          // not a registered `STYLES` key) never existed in `theme.ts`,
+          // so a VS-wielded Tesla Coil silently fell back to the generic
+          // default. Always reads `tesla_coil`'s own style now.
+          //
+          // Residual, pre-existing gap this fix does not resolve (out of
+          // fb098's own scope — Stormcaller's VFX is fb016's domain): this
+          // `arc` fx event is genuinely shared by three emitters
+          // (`towers.ts`'s TD Tesla Coil fire, `vswield.ts`'s wielded Tesla
+          // Coil, and `classes.ts`'s Stormcaller Chain Surge Active1, all via
+          // `combat.ts`'s `chainHit`) and carries no source field, so the
+          // renderer cannot tell a Stormcaller cast from a Tesla Coil shot.
+          // Before this fix neither case matched a real `STYLES` key; now
+          // both read `tesla_coil`'s. Distinguishing them for real needs a
+          // source-tagged `arc` (or a dedicated event) emitted from
+          // `/src/sim` — outside this lane's Scope, logged below.
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'tesla_coil', true));
           break;
         case 'spit':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'spitter', false));
+          break;
+        // fb098 (qa-playtester finding): Venom Spore's `poison`-kind attack
+        // resolves as an instant hit (no real `Projectile`, unlike Ballista/
+        // Mortar) and only ever emitted `'spore'` — a fire+travel event this
+        // switch had no case for at all, so the tower's shot was completely
+        // invisible in either phase (only the eventual `hit:` flash and the
+        // enemy's own Poison DoT marker showed anything). A tracer, the same
+        // shape `shot`/`spit` already use.
+        case 'spore':
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'venom_spore', false));
           break;
         case 'cone':
           if (this.cones.length < MAX_CONES) {
@@ -616,9 +652,29 @@ export class Renderer {
               dx: e.a,
               dy: e.b,
               life: 0.1,
-              style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
+              // fb098: Ember Brazier is the only `cone`-kind attack (TD tower
+              // fire and a VS-wielded cone both funnel through this one
+              // event), so this always reads its style — the prior
+              // `w.huntsWarden ? 'flame_cone' : 'ember_brazier'` ternary
+              // looked up a style key that was never registered in `theme.ts`'s
+              // `STYLES`, silently falling back to the generic default dart
+              // look for every wielded cone attack instead of reusing Ember
+              // Brazier's own registered fire+travel+impact visual.
+              style: projectileStyle('ember_brazier'),
             });
           }
+          break;
+        // fb098: `pulse` fires for every inherent-radius AoE splash
+        // (Frost Obelisk's TD aura tick, a VS-wielded aura, and any
+        // `damagetypes.json` row with its own splash `radius`, e.g.
+        // Electric) — previously unhandled here (fell to `default: break`),
+        // so Frost Obelisk's periodic tick had no visual at all. A generic
+        // expanding ring (the same `nova` CastFx shape Core explode/Circle
+        // Slash already use) at the emitted radius; a neutral white rather
+        // than a damage-type color since the event itself carries no type —
+        // each struck enemy's own `hit:<type>` flash still carries that.
+        case 'pulse':
+          this.pushCast('nova', e.x, e.y, e.a, 0, '#ffffff');
           break;
         case 'bosstelegraph':
           if (this.telegraphs.length < MAX_TELEGRAPHS) this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
@@ -933,7 +989,7 @@ export class Renderer {
     this.drawCoreStatus(w);
     this.drawAreas(w);
     this.drawTelegraphs();
-    this.drawStructures(w);
+    this.drawStructures(w, view);
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
@@ -1128,7 +1184,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  private drawStructures(w: World): void {
+  private drawStructures(w: World, view: ViewState): void {
     const ctx = this.ctx;
     for (const s of w.structures) {
       if (s.dead) continue;
@@ -1142,6 +1198,31 @@ export class Renderer {
       ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
       ctx.strokeStyle = '#00000066';
       ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
+
+      // fb098: Beacon Totem/Harvest Sprout have `attack: null` — `updateTowers`
+      // (towers.ts) skips them entirely, so neither fires a sim event this
+      // renderer could hang a cue on. Their "aura pulse tick" is a purely
+      // presentational, render-side cadence off `w.tick` (deterministic sim
+      // state, not wall-clock time — architecture rule 1 still holds since
+      // this file is `/src/render`, not `/src/sim`) rather than a claim about
+      // when the aura's own math actually re-applies. TD-only (their support
+      // effect does nothing while the Warden is off wielding in VS) and
+      // suppressed under `reducedMotion`, same as this file's other ambient,
+      // repeating cues (fb086).
+      if (!s.petrified && !w.huntsWarden && !view.settings.reducedMotion && (def.buffAura || def.economy)) {
+        const phase = w.tick % AURA_PULSE_PERIOD_TICKS;
+        if (phase < AURA_PULSE_VISIBLE_TICKS) {
+          const t = phase / AURA_PULSE_VISIBLE_TICKS;
+          ctx.globalAlpha = 1 - t;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + TILE / 2, y + TILE / 2, (TILE / 2) * (1 + t), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 1;
+        }
+      }
 
       if (!s.petrified && s.tier > 1) {
         // SPEC-V3 §4 tracks run to eleven levels; a single row of pips at 5px

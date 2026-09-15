@@ -14,7 +14,7 @@ import type { TowerDef, TowerAttack } from '../sim/content';
 import type { Structure } from '../sim/types';
 import type { World } from '../sim/world';
 import { wieldedAttacks, wieldedSplashFor, type WieldedAttack } from '../sim/vswield';
-import { AOE_FALLOFF_CLAUSE, formatWieldSplash } from './info-format';
+import { AOE_FALLOFF_CLAUSE, LINE_FALLOFF_CLAUSE, formatWieldSplash } from './info-format';
 import {
   attackProfile,
   type AttackProfile,
@@ -89,13 +89,23 @@ export interface TowerInfo {
  * telling the player about a tower they stopped owning three upgrades ago.
  */
 const KIND_TEXT: Record<string, (a: TowerAttack, p: AttackProfile) => string> = {
+  // fb175 (qa-playtester finding during fb149 verification): a `pierce`
+  // milestone puts `single` through the same `lineHit` drop-off
+  // (`LINE_FALLOFF_CLAUSE`) the class Active sentences already name — the
+  // "carrying on through" half of the blurb described it without saying so.
+  // Deliberately gated on `p.pierce > 0` only, not the neighbouring `pierce`
+  // KIND_TEXT entry below: a Ballista is a real `Projectile`
+  // (`spawnProjectile` + `pierceLeft`), no scale term, and measures full
+  // damage to every target it pierces — appending the clause there would be
+  // the wrong fact, not a missing one.
   single: (_a, p) => {
     const shots = p.projectiles > 1 ? `Fires ${p.projectiles} shots down` : 'Fires down';
     const through =
       p.pierce > 0
         ? `, carrying on through up to ${p.pierce} more ${p.pierce === 1 ? 'enemy' : 'enemies'} behind it`
         : '';
-    return `${shots} the line to whichever enemy is furthest along the path to the Core${through}.`;
+    const falloff = p.pierce > 0 ? LINE_FALLOFF_CLAUSE : '';
+    return `${shots} the line to whichever enemy is furthest along the path to the Core${through}.${falloff}`;
   },
   pierce: (_a, p) =>
     `Fires a bolt down the busiest line, hitting up to ${1 + p.pierce} enemies for full damage each.`,

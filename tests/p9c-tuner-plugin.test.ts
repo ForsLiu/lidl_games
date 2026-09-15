@@ -103,6 +103,20 @@ describe('tunerSaveMiddleware (p9c, G15)', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('answers 400, not a thrown "Cannot read properties of null," for a literal top-level JSON null body (qa-playtester finding, fb139 session)', async () => {
+    // The 4-byte string "null" is valid JSON, so `readJsonBody`'s try/catch
+    // never sees it — it resolves to the JS value `null`, and the pre-fix
+    // `body.key` read below threw straight out of this `async` function.
+    // Found on the sibling `/__bugreport/save` endpoint (fb139) but latent
+    // here too since both mirror the same shape.
+    const dir = makeTempDataDir();
+    const req = mockReq('POST', 'null');
+    const res = mockRes();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await tunerSaveMiddleware(dir)(req as any, res as any);
+    expect(res.statusCode).toBe(400);
+  });
+
   it('answers 400 when "key" is missing or not a string', async () => {
     const dir = makeTempDataDir();
     const req = mockReq('POST', JSON.stringify({ data: {} }));

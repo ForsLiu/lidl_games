@@ -869,7 +869,10 @@ function applyChronalSurge(w: World): void {
   if (w.wavesCleared % interval !== 0) return;
   const source = `class:${w.cfg.classKey}:chronal_surge`;
   w.stats.add(source, 'towerRange', cls.towerPassive.bonusRangeMul ?? 0);
-  w.stats.add(source, 'area', cls.towerPassive.bonusAoeMul ?? 0);
+  // fb083: `towerArea`, not the bare `area` a caster's own kit also reads —
+  // Chronal Surge is a towers-only, uncapped mechanic (SPEC-FINAL §4.2), and
+  // was silently ballooning the character's own Area-scaled Actives too.
+  w.stats.add(source, 'towerArea', cls.towerPassive.bonusAoeMul ?? 0);
   w.recomputeDerived();
 }
 

@@ -48,24 +48,26 @@
  * (through `corridorsOk`), so a dump is only meaningful next to the config it
  * was taken under. That is why the parse never re-measures; see `TerrainDump`.
  *
- * fb065i closed the gap that sentence used to leave open: the dump carried no
- * trace of *which* config it meant, so a dump pasted after a
- * `data/terrain.json` tune parsed clean and its printed bands quietly
- * described a rule set the reader's `/data` no longer matches. The `config`
- * line now carries `terrainConfigFingerprint(cfg)` (`config.ts`), and
- * `parseTerrainDump` reads it back the way it reads every other header field —
- * refusing a malformed one — but *reports* rather than throws when a
- * well-formed fingerprint disagrees with the caller's own current config
- * (`TerrainDump.config.matches`). Weaker on purpose, unlike `contentHash()`'s
- * hard replay failure (fb064b folded this same file into it): the one moment
- * a dump is most useful is exactly when `/data` has moved since it was taken,
- * and refusing it would take away the evidence rather than flag it.
+ * fb065i: the dump now carries a *trace* of that config without carrying the
+ * config itself — `cfgFingerprint` on the `bands` line, an 8-hex-digit fold of
+ * every `TerrainConfig` field that feeds generation or measurement
+ * (`configFingerprint`, below). The parse still never re-measures — a stale
+ * dump's printed bands remain exactly what was printed, on purpose — but it
+ * now *reports* whether the dump's fingerprint matches `configFingerprint` of
+ * whatever config the caller reads it against (`TerrainDump.configStale`), so
+ * "this dump was taken under a different `/data/terrain.json` than the one on
+ * disk" is a fact a reader can check instead of a fact the format was silent
+ * about. Reported, not thrown: the whole reason `parseTerrainDump` never
+ * re-measures is that a stale dump must stay readable (its bands are a record
+ * of what was measured, not a claim about what today's config would measure),
+ * and a hard refusal here would take away exactly the diagnostic a stale dump
+ * is for.
  */
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../grid';
+import { Hasher } from '../hash';
 import { measureTerrain } from './analyze';
 import {
   loadTerrain,
-  terrainConfigFingerprint,
   TERRAIN_KEYS,
   TerrainKind,
   type TerrainConfig,
@@ -178,35 +180,34 @@ export interface TerrainDump extends TerrainGrid {
    * The bands *as printed*, not as re-measured.
    *
    * The fractions are therefore rounded to `FRAC_DIGITS`, and they reflect the
-   * config the dump was written under, which the dump does not carry. That is
-   * deliberate: a dump is a record of what was measured, and re-measuring it
-   * here under whatever `/data` happens to be on disk now would silently
-   * replace the reported numbers with different ones — turning the one artefact
-   * that is supposed to settle "what did the generator actually produce" into a
-   * second opinion.
+   * config the dump was written under — which, as of fb065i, the dump carries
+   * a fingerprint *of* (`configFingerprint`/`configStale` below) without
+   * carrying the config *itself*. That is deliberate: a dump is a record of
+   * what was measured, and re-measuring it here under whatever `/data` happens
+   * to be on disk now would silently replace the reported numbers with
+   * different ones — turning the one artefact that is supposed to settle
+   * "what did the generator actually produce" into a second opinion.
    */
   readonly measure: TerrainMeasure;
   /** Tile counts by kind, in `TERRAIN_KEYS` order. */
   readonly tileCounts: readonly number[];
   /**
-   * fb065i: the config this dump says it was measured under, and whether that
-   * still agrees with the config `parseTerrainDump` was called against (the
-   * caller's own "current" config — `loadTerrain()` unless a different one is
-   * passed). A mismatch is `matches: false`, never a throw: unlike every other
-   * header field, disagreeing with a config that has since moved is precisely
-   * the case this field exists to surface, and refusing to parse would throw
-   * away the one artefact built to report it. `fingerprint` is shape-checked
-   * the way `provenance.hash` is (eight lowercase hex digits) and refused if
-   * it is not, since a malformed value there is corruption, not staleness.
+   * The `bands` line's `cfgFingerprint`, as dumped (fb065i) — eight lowercase
+   * hex digits, unconditionally present (a missing or malformed one is
+   * refused like every other header field; see `fingerprintField`).
    */
-  readonly config: {
-    /** The fingerprint printed on the dump's `config` line. */
-    readonly fingerprint: string;
-    /** `terrainConfigFingerprint` of the config this parse was called with. */
-    readonly current: string;
-    /** `fingerprint === current`. */
-    readonly matches: boolean;
-  };
+  readonly configFingerprint: string;
+  /**
+   * `true` iff `configFingerprint` above does not match `configFingerprint(cfg)`
+   * for the `cfg` `parseTerrainDump` was called with (default `loadTerrain()`)
+   * — i.e. this dump was written under a config that is not the one it is
+   * being read against. Reported, never thrown: `measure` above stays exactly
+   * what was printed either way, which is the whole point of never
+   * re-measuring. A reader who wants to know *what* changed still has to
+   * regenerate the map under both configs and diff — this field only answers
+   * "did anything that could matter change", not "what".
+   */
+  readonly configStale: boolean;
 }
 
 function hasProvenance(map: TerrainGrid): map is TerrainGrid & Provenance {
@@ -215,6 +216,78 @@ function hasProvenance(map: TerrainGrid): map is TerrainGrid & Provenance {
 
 function frac(v: number): string {
   return v.toFixed(FRAC_DIGITS);
+}
+
+/**
+ * fb065i: an 8-lowercase-hex-digit fingerprint of a `TerrainConfig`, printed on
+ * the `bands` line so a dump carries a trace of the config it was measured
+ * under — see the header comment above and `TerrainDump.configStale`.
+ *
+ * **Same shape as `terrainHash`** (`generate.ts`): fold explicit values through
+ * a `Hasher`, never `JSON.stringify(cfg)`. A stringify is order-fragile (it is
+ * only as stable as key-insertion order, which is not a property this schema
+ * asserts anywhere) and, more to the point, is not this codebase's convention
+ * — `terrainHash` already establishes "fold explicit values" as the pattern
+ * for exactly this kind of short content fingerprint, and a second scheme
+ * living one file away for no reason would be its own bug report.
+ *
+ * **Every field that actually affects generation or measurement is folded; a
+ * few are deliberately not.** `tiles[].key` and `.color` do not feed either —
+ * `key` is a label (`TERRAIN_KEYS`'s *position*, not this string, decides what
+ * a tile is) and `color` is a renderer opinion — but both are folded anyway,
+ * on purpose: a designer who edits a tile's display name or paint and nothing
+ * else has still edited `/data/terrain.json`, and a fingerprint that missed
+ * such an edit would silently call a genuinely-changed file "unchanged". The
+ * three structural flags (`walkable`/`buildable`/`highGround`) are pinned to
+ * one required value per tile anyway (`REQUIRED_FLAGS`), so folding them costs
+ * nothing and keeps this function from having to know which flags are pinned
+ * and which are not.
+ *
+ * **Arrays fold their length first, then each element's fields in the
+ * schema's own declared order.** `Hasher` has no array primitive, so an
+ * explicit length is what stops two different-length arrays sharing a prefix
+ * (`families: [a]` and `families: [a, a]`) from folding through the same
+ * initial state — the same reason `Hasher.str` folds its own length after its
+ * characters rather than trusting a separator no character can contain.
+ *
+ * **Not a security hash.** "Collision-resistant" here means what it means for
+ * `terrainHash`: two configs differing in any folded field practically never
+ * produce the same 8 hex digits, which is FNV-1a's ordinary behaviour and not
+ * a cryptographic guarantee. A fingerprint collision would understate a real
+ * config change as `configStale: false`; nothing about the dump format or the
+ * gates that depend on it is sized to survive one, the same exposure
+ * `terrainHash`'s own 32-bit fold already carries for the tiles themselves.
+ *
+ * Pure: the same `TerrainConfig` value always folds to the same digits,
+ * independent of object identity — `parseTerrain(JSON.stringify(loadTerrain()))`
+ * fingerprints identically to `loadTerrain()` itself.
+ */
+export function configFingerprint(cfg: TerrainConfig): string {
+  const h = new Hasher();
+  h.int(cfg.tiles.length);
+  for (const t of cfg.tiles) {
+    h.str(t.key).bool(t.walkable).bool(t.buildable).bool(t.highGround).bool(t.blocksCharacter).str(t.color);
+  }
+  h.num(cfg.density.rough).num(cfg.density.rock).num(cfg.density.high).num(cfg.density.jitter);
+  h.int(cfg.blob.minSize).int(cfg.blob.maxSize).num(cfg.blob.spread);
+  h.int(cfg.corridorRadius).num(cfg.corridorJitter);
+  h.int(cfg.gateClearRadius).int(cfg.plazaRadius).int(cfg.coreGateClearance);
+  h.int(cfg.highContestRadius).int(cfg.maxAttempts);
+  const c = cfg.constraints;
+  h.num(c.minWalkableFrac)
+    .num(c.minBuildableNormalFrac)
+    .num(c.minGateReachFrac)
+    .num(c.minCoreLegalFrac)
+    .int(c.minCorridorWidth)
+    .num(c.maxGateDetour);
+  h.int(cfg.highGround.families.length);
+  for (const f of cfg.highGround.families) {
+    h.str(f.key);
+    h.int(f.traits.length);
+    for (const trait of f.traits) h.str(trait);
+    h.bool(f.attacksHigh).bool(f.surfacesHigh);
+  }
+  return h.hex();
 }
 
 /**
@@ -320,20 +393,20 @@ export function describeTerrain(
     `bands walkable=${frac(m.walkableFrac)} buildableNormal=${frac(m.buildableNormalFrac)} ` +
       `gateReach=${frac(m.gateReachFrac)} coreLegal=${frac(m.coreLegalFrac)} ` +
       `gateDetour=${frac(m.maxGateDetour)} ` +
-      `corridors=${m.corridorsOk} gatesOpen=${m.gatesOpen} gatesConnected=${m.gatesConnected}`,
+      `corridors=${m.corridorsOk} gatesOpen=${m.gatesOpen} gatesConnected=${m.gatesConnected} ` +
+      // fb065i: last, like the `gates` line's optional modifier key — but this
+      // one is required (see `HEADER_KEYS.bands`), because a fingerprint is a
+      // property of `cfg` alone and every dump carries a `cfg`, generated map
+      // or hand-built grid alike. Purely a function of `cfg`, so re-describing
+      // a reloaded dump under the same `cfg` reproduces this field byte for
+      // byte — the round trip does not need this line to do anything special.
+      `cfgFingerprint=${configFingerprint(cfg)}`,
   );
   lines.push(
     `counts walkable=${m.walkableCount} normal=${m.normalCount} coreAnchors=${m.legalCoreCount}`,
   );
   lines.push(`tiles ${TERRAIN_KEYS.map((k, i) => `${k}=${counts[i]}`).join(' ')}`);
   lines.push(`legend ${TERRAIN_KEYS.map((k) => `${k}=${GLYPHS[k]}`).join(' ')}`);
-  // fb065i, placed last of the header lines rather than up with `seed`: every
-  // earlier line's fixed position (`gates` is always index 2, `bands` always
-  // 3, and so on — `tests/terrain-gates-dump.test.ts` and others index them
-  // directly) stays true of every dump this build has ever written or will
-  // write before this item, and every hand-built partial dump this file's own
-  // tests construct up through `legend` keeps parsing exactly as it did.
-  lines.push(`config fingerprint=${terrainConfigFingerprint(cfg)}`);
   lines.push('map');
   for (let y = 0; y < map.h; y++) {
     let row = '';
@@ -390,6 +463,12 @@ function fail(what: string): never {
  * argument, but one declared anywhere else would not, which is what that test
  * exists to catch.
  *
+ * fb065i's `cfgFingerprint`, trailing `bands`, is **not** a second instance of
+ * that exception — it is `req`'d (`fingerprintField`), same as every other key
+ * on that line. It trails only because `bands` reads better with the fold-of-
+ * `cfg` field last, after the measurements it fingerprints; the invariant above
+ * does not require a required key to trail anything, only an optional one.
+ *
  * Exported for that test and for the one that compares this table against what
  * `describeTerrain` actually writes, in *both* directions: a key added here and
  * never emitted is the same leniency this item removed, reintroduced by a typo
@@ -419,14 +498,18 @@ export const HEADER_KEYS = {
     'corridors',
     'gatesOpen',
     'gatesConnected',
+    // fb065i: a fingerprint of the `TerrainConfig` the bands above were
+    // measured under. Trailing, like `gates`' one optional key, but this one
+    // is `req`'d below (`fingerprintField`) rather than merely declared —
+    // every dump the writer emits carries a `cfg`, so unlike a modifier gate
+    // there is no shape of dump that legitimately omits it. A dump written
+    // before this item simply lacks the token, which `fingerprintField`
+    // reports with its own message rather than a generic "no cfgFingerprint".
+    'cfgFingerprint',
   ],
   counts: ['walkable', 'normal', 'coreAnchors'],
   tiles: [...TERRAIN_KEYS],
   legend: [...TERRAIN_KEYS],
-  // fb065i: the fingerprint of the config this dump was measured under. One
-  // field, always emitted, so none of the optional-trailing-key machinery the
-  // `gates` line needed applies here — there is nothing after it to protect.
-  config: ['fingerprint'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type HeaderName = keyof typeof HEADER_KEYS;
@@ -534,17 +617,29 @@ function hashField(f: Map<string, string>): string {
 }
 
 /**
- * fb065i: the `config` line's `fingerprint` field, pinned to what
- * `terrainConfigFingerprint` can produce — the same shape `hashField` pins
- * `seed`'s `hash` to, since both come out of the same `Hasher.hex()`. Shape,
- * not value: whether the value *matches* the caller's current config is a
- * report, never a refusal (`TerrainDump.config.matches`), so this only rejects
- * text that could not be a fingerprint at all.
+ * The `bands` line's `cfgFingerprint` field (fb065i), pinned to what
+ * `configFingerprint` can produce — same shape as `hashField`, but with a
+ * missing-field message of its own rather than `req`'s generic one.
+ *
+ * `req`'s bare `"bands" line has no "cfgFingerprint"` is exactly the message
+ * fb064s's own comment names as unhelpful: a dump written before this item has
+ * every other `bands` field and not this one, and a reader retyping a paste
+ * needs to be told *why* rather than sent hunting for a corrupted line. Read
+ * directly off the map (not through `req`) so that distinction is this
+ * function's to make, the same reason `source`'s check reads `seedLine.get`
+ * directly instead of `req`-ing it.
  */
 function fingerprintField(f: Map<string, string>): string {
-  const raw = req(f, 'config', 'fingerprint');
+  const raw = f.get('cfgFingerprint');
+  if (raw === undefined) {
+    fail(
+      '"bands" line has no "cfgFingerprint"; a dump written before fb065i predates the field — ' +
+        're-describe the map (under the config it was measured against) with a version of ' +
+        'describeTerrain that emits it; there is no value to add by hand',
+    );
+  }
   if (!/^[0-9a-f]{8}$/.test(raw)) {
-    fail(`"config" line has non-hash fingerprint="${raw}"; expected eight lowercase hex digits`);
+    fail(`"bands" line has non-hex cfgFingerprint="${raw}"; expected eight lowercase hex digits`);
   }
   return raw;
 }
@@ -559,14 +654,16 @@ function bool(f: Map<string, string>, head: string, key: string): boolean {
  * Read a dump back. Byte-identical `kind` to whatever `describeTerrain` was
  * given, or a throw naming what is wrong with the text.
  *
- * `cfg` (fb065i, default `loadTerrain()`) is *not* what the dump was written
- * under — a dump does not carry that object, only its fingerprint — it is
- * what the caller wants the dump's own `config` line compared against, so
- * that `TerrainDump.config.matches` can say whether this parse's `/data`
- * still agrees with whatever `describeTerrain` measured against. Passing the
- * same config the dump claims (`terrainConfigFingerprint` of it) always
- * reports a match; the default is the config a reader's own checkout would
- * generate under, which is the comparison a bug report actually needs.
+ * `cfg` (fb065i, defaulted the same way `describeTerrain`'s own `cfg` is)
+ * answers "next to *which* config is this dump being read?" — every existing
+ * call site passing one argument keeps working unchanged, reading against
+ * `loadTerrain()` as it always implicitly did. It is used for exactly one
+ * thing: comparing `configFingerprint(cfg)` against the dump's own
+ * `cfgFingerprint` to set `TerrainDump.configStale`. It does not feed the
+ * malformed-shape check on that field (which runs regardless of `cfg`, the
+ * same way `hashField`'s shape check does not need `terrainHash`) and it does
+ * not make the parse re-measure anything — see the header comment's fb065i
+ * note for why that stays true on purpose.
  */
 export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain()): TerrainDump {
   // A dump's whole job is to survive a trip through a bug report, so the two
@@ -796,6 +893,14 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     legalCoreCount: num(countLine, 'counts', 'coreAnchors'),
   };
 
+  // fb065i: present and shaped like a `Hasher` hex output (refused otherwise,
+  // the same way every other header field is), but never thrown on for a
+  // *mismatch* against `cfg` — only reported, on `TerrainDump.configStale`,
+  // once the whole dump is otherwise known to be readable. See the header
+  // comment and `parseTerrainDump`'s own doc for why a mismatch is not a
+  // refusal.
+  const dumpFingerprint = fingerprintField(bandLine);
+
   const tileLine = fields(lines[5], 'tiles');
   const tileCounts = TERRAIN_KEYS.map((k) => num(tileLine, 'tiles', k));
 
@@ -807,28 +912,9 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     const got = req(legendLine, 'legend', k);
     if (got !== GLYPHS[k]) fail(`legend says ${k}="${got}", this build uses "${GLYPHS[k]}"`);
   }
+  if (lines[7] !== 'map') fail(`expected a "map" line, got "${lines[7] ?? '<end of dump>'}"`);
 
-  // fb065i, index 7: the newest header line, placed last so every fixed index
-  // above it (1 through 6) is exactly what every dump this build has ever
-  // written — and every truncated dump this file's own tests hand-build up
-  // through `legend` — already assumed. A dump written before this item has
-  // no line here at all — `lines[7]` is its `map` line — and `fields()`'s bare
-  // `expected "config" line, got "map"` would send its reader hunting for a
-  // corrupted paste, the same failure mode fb064s's `source` check was
-  // written to avoid. Named and given a remedy the same way.
-  if (lines[7] === 'map') {
-    fail(
-      '"config" line is missing; a dump written before fb065i predates the field — ' +
-        'add "config fingerprint=<8 lowercase hex digits>" before the "map" line, or regenerate the dump',
-    );
-  }
-  const configLine = fields(lines[7], 'config');
-  const fingerprint = fingerprintField(configLine);
-  const current = terrainConfigFingerprint(cfg);
-
-  if (lines[8] !== 'map') fail(`expected a "map" line, got "${lines[8] ?? '<end of dump>'}"`);
-
-  const rows = lines.slice(9);
+  const rows = lines.slice(8);
   if (rows.length !== h) fail(`header says ${h} rows, dump has ${rows.length}`);
   // Every row is length-checked *before* the buffer is allocated. `w` comes
   // straight out of the header, so `terrain 4294967295x1` followed by a
@@ -917,6 +1003,12 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     }
   }
 
+  // fb065i: computed once, after every throwing check above has had its say —
+  // a dump that fails structural validation never reaches a staleness verdict
+  // about it, the same ordering `hash mismatch` already respects relative to
+  // the histogram check.
+  const configStale = dumpFingerprint !== configFingerprint(cfg);
+
   return {
     w,
     h,
@@ -925,6 +1017,7 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     gates,
     measure,
     tileCounts,
-    config: { fingerprint, current, matches: fingerprint === current },
+    configFingerprint: dumpFingerprint,
+    configStale,
   };
 }

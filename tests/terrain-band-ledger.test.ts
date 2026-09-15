@@ -33,22 +33,21 @@
  * to `data/terrain.json`, to the generator, or to `measureTerrain` is expected
  * to move them; that is the point. Re-measure and re-record, never relax.
  *
- * **fb166 re-measured every number in this file at the 56x32 grid**
- * (`data/terrain.json` unchanged) and found a structural change, not just
- * moved numbers: at 36x20 the tile lattice is `k/720`, and both density
- * floors (`minWalkableFrac: 0.6`, `minBuildableNormalFrac: 0.45`) times 720
- * are integers, so a map could land exactly on either one and four of
- * fb064r's six witnesses did. At 56x32 the lattice is `k/1792`, and neither
- * `0.6 * 1792` (1075.2) nor `0.45 * 1792` (806.4) is an integer — so **no map
- * at this grid size can ever measure either floor exactly**, full stop, no
- * search required. Every witness below is therefore `'best-found'`, not
- * `'edge'`, except `maxGateDetour`'s ceiling: `1.5` is a ratio of integer path
- * costs rather than a tile-count fraction, and it is still exactly reachable
- * (see its witness). fb166's searches are also smaller than fb064r's original
- * multi-million-seed scans — a 250,000-point domain comb, honestly sized to
- * this item's budget rather than reused — so read every `'best-found'` value
- * below as "the best this item found," replaceable by a deeper search later,
- * the same standing fb064r's own `coreLegalFrac` witness always had.
+ * **fb166 re-measured every number here at the grid's 36x20 -> 56x32 flip**,
+ * rather than inheriting fb064r's readings, which describe a map that no
+ * longer exists. One structural fact changed the shape of layer 1, not just
+ * its numbers: the old grid's 720 tiles made `0.6 * 720 = 432` and
+ * `0.45 * 720 = 324` both integers, so a map could measure `walkableFrac` or
+ * `buildableNormalFrac` at *exactly* its band with zero headroom. The new
+ * grid's 1792 tiles make `0.6 * 1792 = 1075.2` and `0.45 * 1792 = 806.4` —
+ * neither an integer — so **no map can ever measure either band exactly
+ * again**; `walkableCount`/`normalCount` are integers and no integer divided
+ * by 1792 equals 0.6 or 0.45. `maxGateDetour` is a ratio of integer path
+ * costs rather than a share of 1792 tiles, and a domain search still finds it
+ * sitting exactly on its 1.5 ceiling — so of the three bands fb064r found at
+ * zero headroom, only one still is. The other two witnesses below are the
+ * closest a ~320,000-seed search actually found, labelled `best-found` rather
+ * than `edge`, which is the same distinction `kind` already existed to draw.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -143,41 +142,44 @@ function ledger(stats: Record<Band, BandStat>): Record<Band, string> {
 /**
  * Layer 1: the worst seed per band, named.
  *
- * **Two kinds of row, and conflating them is a mistake this file already made
- * once.** An `'edge'` row is provable: a map outside its band is regenerated at
- * seed+1, so the band value itself is the extreme and no seed can beat it — the
- * search only had to find one seed that reaches it. A `'best-found'` row is a
- * **search result**, and no scan of a 4.3-billion-seed domain can promote a
- * search result to a property.
+ * **Two kinds of row.** `'edge'` sits exactly on the band, provably unbeatable
+ * (a map outside its band is regenerated at seed+1, so the band value itself
+ * is the extreme). `'best-found'` is the best of a finite search and is
+ * beatable by a bigger one. fb166's grid flip moved four of the five old
+ * witnesses out of the `'edge'` column and into `'best-found'`, for a
+ * structural reason rather than a weaker search: at 1792 tiles, `0.6` and
+ * `0.45` are not `k / 1792` for any integer `k`, so `walkableFrac` and
+ * `buildableNormalFrac` can no longer land on their bands exactly, ever.
+ * `maxGateDetour` is a ratio of integer path costs rather than a share of
+ * 1792, and a domain search still finds it sitting exactly on 1.5.
  *
- * **fb166 changed which bands are which.** At 56x32 neither density floor
- * (`minWalkableFrac: 0.6`, `minBuildableNormalFrac: 0.45`) lands on the tile
- * lattice (`k/1792`) — `0.6 * 1792 = 1075.2` and `0.45 * 1792 = 806.4`, neither
- * an integer — so **no map at this grid size can ever measure either exactly**,
- * the same structural argument that used to make them `'edge'` at 36x20 now
- * makes them provably unreachable, and their rows below are `'best-found'`
- * instead. `coreLegalFrac`'s floor was always `'best-found'` (~27 pp away from
- * anything the generator produces here, wider than fb064r's ~22 pp gap) for the
- * same reason it always was: the band is a search result, not a construction
- * limit. `maxGateDetour`'s ceiling is the one survivor: `1.5` is a ratio of
- * integer path costs (`ORTHO_COST 10`, `DIAG_COST 14`) rather than a
- * tile-count fraction, and a real seed still hits it exactly (below).
+ * Provenance, because "best" is only as good as the search behind it:
+ *   - `13620` is the worst of a 1..20000 near-window sweep (matching the
+ *     window `tests/terrain-generation.test.ts`'s own cliff-witness test
+ *     samples); `1721604933` is an *independent* second witness at the exact
+ *     same value, from a separate 300,000-seed odd-strided comb across the
+ *     whole uint32 domain (`2 * floor(2**32/300000/2)+1`). Neither is the
+ *     domain's true worst, and a bigger search may still beat 1077/1792.
+ *   - `1478659760` is the best `buildableNormalFrac` floor found by the same
+ *     300,000-seed comb.
+ *   - `3462609401` is the best `coreLegalFrac` floor found by the same comb —
+ *     still ~27 pp above its 0.15 floor, the loosest band by a wide margin,
+ *     same as it was on the old grid.
+ *   - `240840574` is a `maxGateDetour` ceiling hit found by the same comb,
+ *     measuring exactly 1.5 — a true `'edge'` witness, and (unlike the four
+ *     density rows) the search that found it is not the search that proves it
+ *     unbeatable; the `<=` comparison against the shipped band does that.
  *
- * Provenance, because "worst" is only as good as the search behind it — every
- * seed below was found by fb166's own 250,000-point domain comb (stride
- * 17179, parameters in the Log), honestly smaller than fb064r's original
- * multi-million-seed scans and so read as "the best this item found," not as
- * a proven domain worst for the three `'best-found'` rows.
+ * **One of the five bands has exactly zero headroom, not three.** The old
+ * grid's three-edge finding does not carry over; see the file header. That
+ * does not make the two density floors *loose* — 0.001004 and 0.004799 of
+ * headroom are one and eight tiles respectively out of 1792, tighter than
+ * every other band here bar the true edge.
  *
- * **One of the four bands still has exactly zero headroom.** `maxGateDetour`
- * is the survivor from the paragraph above: a seed measuring exactly
- * `maxGateDetour: 1.5` ships for the same reason a seed measuring exactly
- * `0.6` walkable used to at 36x20 — `terrainLegal` compares with `<=` and
- * `>=` — so tightening that one band by one representable step is not a tune,
- * it is a decision to regenerate that seed's map. The two density floors no
- * longer have this property at all: tightening either one moves the *search
- * result* fb166 found, not a provable extreme, so "one step tighter"
- * demonstrates nothing about them the way it used to.
+ * Only one `maxGateDetour` witness is named, where fb064r had two — a second
+ * exact hit was not found inside this item's search budget. A wider comb may
+ * find one; its absence here is a recorded search limit, not a claim that
+ * `240840574` is a freak seed.
  *
  * `gateReachFrac` has no witness on purpose: it is identically 1 on every
  * generated map (`measureTerrain`'s comment explains why — after `sealPockets`,
@@ -203,52 +205,58 @@ interface Witness {
 
 const WITNESSES: readonly Witness[] = [
   {
-    seed: 1603865798,
+    seed: 13620,
     band: 'walkableFrac',
     side: 'floor',
     kind: 'best-found',
     value: 1077 / 1792,
     limit: cfg.constraints.minWalkableFrac,
-    hash: '39b7f27c',
-    // 1077/1792 walkable = 0.601004 — one lattice step (1/1792) above the true
-    // closest-representable value (1076/1792 = 0.600893); fb166's 250,000-point
-    // comb did not happen to land on that one. Best found, not provably worst.
+    hash: '5c18ed6d',
+    // 1077/1792 walkable — the near-window's best; not exactly reachable
+    // (0.6 * 1792 = 1075.2), see the file header.
   },
   {
-    seed: 3541588282,
+    seed: 1721604933,
+    band: 'walkableFrac',
+    side: 'floor',
+    kind: 'best-found',
+    value: 1077 / 1792,
+    limit: cfg.constraints.minWalkableFrac,
+    hash: 'f3723519',
+    // 1077/1792 — a second, independently found seed at the same value, from
+    // the domain-wide comb rather than the near window.
+  },
+  {
+    seed: 1478659760,
     band: 'buildableNormalFrac',
     side: 'floor',
     kind: 'best-found',
-    value: 822 / 1792,
+    value: 815 / 1792,
     limit: cfg.constraints.minBuildableNormalFrac,
-    hash: '753d85e6',
-    // 822/1792 normal = 0.458705 against the 0.45 floor — genuine headroom
-    // (0.008705, ~15.6 tiles), unlike the pre-fb166 36x20 floor this band used
-    // to sit on exactly.
+    hash: '908bcd4c',
+    // 815/1792 normal — the domain comb's best; not exactly reachable
+    // (0.45 * 1792 = 806.4).
   },
   {
-    seed: 774412141,
+    seed: 3462609401,
     band: 'coreLegalFrac',
     side: 'floor',
     kind: 'best-found',
-    value: 399 / 941,
+    value: 0.418729817007535,
     limit: cfg.constraints.minCoreLegalFrac,
-    hash: '48406c1b',
-    // 399 legal anchors / 941 normal tiles = 0.424017 — 27.4 pp above its 0.15
-    // floor. This row has always been the loosest by a distance and the one a
-    // bigger scan can most easily beat; fb064r's own pre-fb166 witness was
-    // similarly provisional at ~22.7 pp of headroom.
+    hash: '29105b1a',
+    // The loosest band by a distance, ~27 pp above its 0.15 floor — a bigger
+    // scan than this item's 300,000-seed comb can very likely beat it.
   },
   {
-    seed: 129684271,
+    seed: 240840574,
     band: 'maxGateDetour',
     side: 'ceiling',
     kind: 'edge',
     value: 1.5,
     limit: cfg.constraints.maxGateDetour,
-    hash: '4669fcbb',
-    // exactly the ceiling — fb064o's band, still exactly reachable at 56x32
-    // because it is a path-cost ratio, not a tile-count fraction.
+    hash: 'd15bd8f5',
+    // exactly the ceiling — found by the same 300,000-seed comb
   },
 ];
 
@@ -267,27 +275,26 @@ describe('fb064r — the worst seed per band, named and re-measured', () => {
     );
   });
 
-  it('one band has exactly zero headroom; the rest are real search results', () => {
-    // Not "about zero" for the one that is: `===` against the authored band,
-    // because the claim for `maxGateDetour` is that its witness passes on the
-    // `<=` boundary itself. fb166 narrowed this from three bands to one — see
-    // the header's fb166 paragraph for why the two density floors stopped
-    // being provable edges at 56x32.
+  it('the true edge has exactly zero headroom; the best-found rows have a little, to the last bit', () => {
+    // Not "about zero" for the edge row. `===` against the authored band,
+    // because the whole claim is that this seed passes on the `<=` boundary
+    // itself. The four best-found rows are asserted to their measured
+    // headroom instead — small, but no longer zero (see the file header).
     const headroom = WITNESSES.map((w) => {
       const q = measureTerrain(generateTerrain(w.seed, cfg), cfg);
       const gap = w.side === 'floor' ? q[w.band] - w.limit : w.limit - q[w.band];
       return `${w.seed} ${w.band} ${w.side} ${w.kind} ${fmt(gap)}`;
     });
     expect(headroom).toEqual([
-      '1603865798 walkableFrac floor best-found 0.001004',
-      '3541588282 buildableNormalFrac floor best-found 0.008705',
-      '774412141 coreLegalFrac floor best-found 0.274017',
-      '129684271 maxGateDetour ceiling edge 0.000000',
+      '13620 walkableFrac floor best-found 0.001004',
+      '1721604933 walkableFrac floor best-found 0.001004',
+      '1478659760 buildableNormalFrac floor best-found 0.004799',
+      '3462609401 coreLegalFrac floor best-found 0.268730',
+      '240840574 maxGateDetour ceiling edge 0.000000',
     ]);
-    // `fmt` rounds, so the rows above cannot tell 0 from 1e-9. The one `edge`
-    // row is asserted bit-exact — and the check is driven off `kind`, not off
-    // a band name, so a `best-found` row cannot quietly inherit a claim that
-    // only an edge can make. That inversion is what QA broke here, pre-fb166.
+    // `fmt` rounds, so the edge row above cannot tell 0 from 1e-9. The check
+    // is driven off `kind`, not off a band name, so a future `best-found` row
+    // cannot quietly inherit a claim that only an edge can make.
     for (const w of WITNESSES) {
       const v = measureTerrain(generateTerrain(w.seed, cfg), cfg)[w.band];
       if (w.kind === 'edge') expect(v).toBe(w.limit);
@@ -295,36 +302,34 @@ describe('fb064r — the worst seed per band, named and re-measured', () => {
     }
   });
 
-  it('one representable step tighter and the edge witness is regenerated instead', () => {
-    // What "zero headroom" costs, made falsifiable. The witness stops being
-    // its own map and plays seed+1's — asserted, not just claimed.
-    //
-    // Only `maxGateDetour` has a step that means this any more (see the
-    // header's fb166 paragraph): the two density floors are `'best-found'` now,
-    // so tightening them by a lattice step moves a search result, not a
-    // provable extreme, and would demonstrate nothing about the *band*. For
-    // the detour there is no lattice to name either — it is a ratio of integer
-    // path costs (`PATH_ORTHO_COST 10`, `PATH_DIAG_COST 14`), whose attainable
-    // values near 1.5 are roughly 0.005 apart, so any threshold in that gap
-    // behaves identically and 1.4999 is simply inside it.
-    //
-    // This is what would catch a headroom claim going stale silently: a
-    // witness that quietly gained headroom would survive the tightening here.
+  it('tighter than what was actually found, and each witness is regenerated instead', () => {
+    // What "this is the tightest found" costs, made falsifiable. Each witness
+    // stops being its own map and plays seed+1's — asserted, not just
+    // claimed. For the true edge (`maxGateDetour`) the step is "tighter than
+    // the shipped band, by less than the gap between attainable ratios" —
+    // 1.4999, as before. For the three best-found rows there is no shipped
+    // edge to tighten past, so the step is "tighter than what THIS witness
+    // measured" — one tile past its own count, not past `/data`'s 0.6/0.45.
+    // That is a narrower claim than fb064r's original (which tightened past
+    // the *band*), stated as such rather than smoothed over.
     const tighten = (p: (c: Record<string, number>) => void): TerrainConfig => {
       const raw = JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>;
       p(raw.constraints as Record<string, number>);
       return parseTerrain(raw);
     };
     const cases: ReadonlyArray<[number, TerrainConfig]> = [
-      [129684271, tighten((c) => (c.maxGateDetour = 1.4999))],
+      [13620, tighten((c) => (c.minWalkableFrac = 1078 / 1792))],
+      [1721604933, tighten((c) => (c.minWalkableFrac = 1078 / 1792))],
+      [1478659760, tighten((c) => (c.minBuildableNormalFrac = 816 / 1792))],
+      [240840574, tighten((c) => (c.maxGateDetour = 1.4999))],
     ];
-    // Every `edge` witness must be in this list: the list is the proof, so a
-    // witness added without one would be claiming zero headroom with nothing
-    // behind it.
+    // Every witness above the true edge must be in this list, in `WITNESSES`
+    // order minus `coreLegalFrac` (27 pp of headroom is not "tighter by one
+    // representable step" territory, and is not claimed to be).
     expect(cases.map(([s]) => s)).toEqual(
-      WITNESSES.filter((w) => w.kind === 'edge').map((w) => w.seed),
+      WITNESSES.filter((w) => w.band !== 'coreLegalFrac').map((w) => w.seed),
     );
-    // One row per seed rather than five bare `expect`s inside the loop: a bare
+    // One row per seed rather than four bare `expect`s inside the loop: a bare
     // `expected 1 to be 2` names neither the seed nor the band, which is a hunt
     // — the exact failure mode this file exists to remove (QA bug 3).
     const rows = cases.map(([seed, tighter]) => {
@@ -351,34 +356,26 @@ describe('fb064r — the worst seed per band, named and re-measured', () => {
     );
   });
 
-  it('fb166: the two density floors are NOT reachable exactly at this grid size', () => {
-    // The mirror image of the pre-fb166 finding this test used to make. Both
-    // fractions are `k / TILES`, so a floor is attainable exactly iff
-    // `floor * TILES` is an integer: at 36x20, `TILES = 720`, and `0.6 * 720 =
-    // 432` and `0.45 * 720 = 324` both were. At fb166's 56x32, `TILES = 1792`,
-    // and `0.6 * 1792 = 1075.2` / `0.45 * 1792 = 806.4` — neither is an
-    // integer, so **no map can ever measure either floor exactly**, which this
-    // test states as a mathematical fact rather than as a claim about any
-    // particular seed: it costs nothing to check `Number.isInteger`, and it is
-    // true for every seed there is, not just the ones this item searched.
+  it('the two density floors are no longer reachable exactly, because they fall off the tile lattice', () => {
+    // Inverted from fb064r's original claim, which the grid resize made
+    // false: both fractions are `k / TILES`, so a floor is attainable exactly
+    // iff `floor * TILES` is an integer. At 720 tiles, 0.6 -> 432 and
+    // 0.45 -> 324 both were. At 1792 tiles, 0.6 * 1792 = 1075.2 and
+    // 0.45 * 1792 = 806.4 — neither is, so **no map can ever measure either
+    // band exactly again**, which is exactly why `WITNESSES`' density rows
+    // are `'best-found'` now rather than `'edge'`.
     //
-    // The measured floor cannot be *below* the band on a shipped map at all: a
+    // The measured floor still cannot be *below* the band on a shipped map: a
     // map under it is regenerated at seed+1 (fb064a), so the minimum
-    // `generateTerrain` can return is the smallest lattice point >= the band —
-    // `ceil(floor * TILES) / TILES`, computed below rather than searched for,
-    // since a search only ever finds *a* seed that reaches it, never proves one
-    // must exist. Both closest points carry real, unavoidable headroom the
-    // band itself never asked for: 1076/1792 = 0.600893 (0.000893 over 0.6) and
-    // 807/1792 = 0.450335 (0.000335 over 0.45). fb166's own witnesses above sit
-    // one further lattice step out than that (1077 and 822, not 1076 and 807),
-    // because the 250,000-point comb this item ran did not happen to land on
-    // the closest possible point — which is exactly why this test proves the
-    // ceiling arithmetically instead of asserting a witness against it.
-    //
-    // From the grid rather than written as 1792 or 720: if the arena is ever
-    // resized again, the lattice moves again, and this test is what notices
-    // whether the new floors land on it.
+    // `generateTerrain` can return is the smallest lattice point >= the band
+    // — 1076/1792 = 0.600893 and 807/1792 = 0.450335 — even though neither
+    // witness above actually lands on that smallest point (both are one tile
+    // short of it, at 1077 and 815 respectively; a bigger search may yet find
+    // the true smallest point, or may not, since it need not be attained by
+    // any generated map at all).
     const TILES = GRID_W * GRID_H;
+    // Rows again rather than bare numbers: `expected 1077 to be 1076` names
+    // neither the seed nor the band it belongs to (QA bug 3).
     expect([
       `tiles ${TILES}`,
       `minWalkableFrac ${cfg.constraints.minWalkableFrac} onLattice=${Number.isInteger(
@@ -387,21 +384,19 @@ describe('fb064r — the worst seed per band, named and re-measured', () => {
       `minBuildableNormalFrac ${cfg.constraints.minBuildableNormalFrac} onLattice=${Number.isInteger(
         cfg.constraints.minBuildableNormalFrac * TILES,
       )}`,
-      `closest walkableCount >= floor: ${Math.ceil(cfg.constraints.minWalkableFrac * TILES)}`,
-      `closest normalCount >= floor: ${Math.ceil(cfg.constraints.minBuildableNormalFrac * TILES)}`,
+      `smallest lattice point >= minWalkableFrac: ${Math.ceil(cfg.constraints.minWalkableFrac * TILES)}`,
+      `smallest lattice point >= minBuildableNormalFrac: ${Math.ceil(cfg.constraints.minBuildableNormalFrac * TILES)}`,
+      `13620 walkableCount ${measureTerrain(generateTerrain(13620, cfg), cfg).walkableCount}`,
+      `1478659760 normalCount ${measureTerrain(generateTerrain(1478659760, cfg), cfg).normalCount}`,
     ]).toEqual([
       `tiles 1792`,
       `minWalkableFrac 0.6 onLattice=false`,
       `minBuildableNormalFrac 0.45 onLattice=false`,
-      `closest walkableCount >= floor: 1076`,
-      `closest normalCount >= floor: 807`,
+      `smallest lattice point >= minWalkableFrac: 1076`,
+      `smallest lattice point >= minBuildableNormalFrac: 807`,
+      `13620 walkableCount 1077`,
+      `1478659760 normalCount 815`,
     ]);
-    // And the witnesses above are consistent with that: each measures a whole
-    // number of tiles over the floor's own lattice point, never under it.
-    const w1 = measureTerrain(generateTerrain(1603865798, cfg), cfg);
-    expect(w1.walkableCount).toBeGreaterThanOrEqual(1076);
-    const w2 = measureTerrain(generateTerrain(3541588282, cfg), cfg);
-    expect(w2.normalCount).toBeGreaterThanOrEqual(807);
   });
 });
 
@@ -474,25 +469,14 @@ describe('fb064r — the sample ledger over the whole domain', () => {
   });
 
   it('matches the recorded per-band min/mean/max ledger', () => {
-    // Recorded 2026-09-04 (fb064r) against shipped `/data`.
+    // fb166 re-recorded this at 56x32 (was fb064r, 2026-09-04, at 36x20).
     //
-    // Read these as a *distribution*, not as the domain's extremes — the
-    // named witnesses above hold those. Each witness is at least as extreme as
-    // the row here and three of the four strictly more so (0.600000 against
-    // 0.601389, 0.450000 against 0.456944, 0.388102 against 0.419098); the
-    // detour ceiling is the exception, and the exception is worth stating
-    // plainly because it is the one place the two layers are *not*
-    // independent: 816758607 = 1141 × 715827 is comb index 1141, so it is in
-    // this sample, which is how that witness was found and why this row and
-    // the witness row move together. `gateReachFrac` is 1 by
-    // construction on generated output (see `measureTerrain`'s comment: after
-    // `sealPockets`, `gatesConnected` implies every gate reaches every
-    // walkable tile), so its row is a flat line on purpose and its @seed is
-    // just the first seed of the sample.
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-    // (pre-fb166 at 36x20: walkable 0.601389/0.692311/0.733333, buildable
-    // 0.456944/0.549509/0.616667, coreLegal 0.419098/0.517837/0.633416, detour
-    // 1.000000/1.091948/1.500000).
+    // Read these as a *distribution*, not as the domain's extremes — the named
+    // witnesses above hold those, all at least as extreme as the row here.
+    // `gateReachFrac` is 1 by construction on generated output (see
+    // `measureTerrain`'s comment: after `sealPockets`, `gatesConnected`
+    // implies every gate reaches every walkable tile), so its row is a flat
+    // line on purpose and its @seed is just the first seed of the sample.
     const { stats } = runSample();
     expect(ledger(stats)).toEqual({
       walkableFrac: 'min 0.606027 @746607561 · mean 0.736371 · max 0.777344 @515395440',
@@ -505,11 +489,11 @@ describe('fb064r — the sample ledger over the whole domain', () => {
 
   it('records what share of the domain takes the seed+1 retry path', () => {
     // fb064a read the retry rate off seeds 1..20000 and got 5 seeds (0.025%);
-    // fb064l re-measured the same window at 18 (0.09%). Over the domain it is
-    // 23 of 12,000 at fb166's 56x32 grid — 0.19% (pre-fb166 at 36x20 it was 43,
-    // 0.36%) — still well above the near window, so the near window is still
-    // not representative of the retry path, just of a smaller distance now
-    // that the bigger grid gives every band more room.
+    // fb064l re-measured the same window at 18 (0.09%). fb166 re-measured over
+    // the domain at 56x32: 23 of 12,000 — 0.19%, about half fb064r's 0.36% on
+    // the old grid (the bigger board gives every band more room, so the
+    // retry-taking share fell along with the density-floor headroom widening
+    // — see the file header).
     //
     // The set is asserted BEFORE the count. QA found the reverse ordering
     // hiding the one diff this file calls its most retune-sensitive artifact:
@@ -531,8 +515,6 @@ describe('fb064r — the sample ledger over the whole domain', () => {
  * own map ships" and "this seed plays the next seed's map", and a density,
  * `blob` or band edit moves seeds across it in both directions.
  */
-// Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged. 23, not
-// the pre-fb166 43 — a bigger interior means fewer seeds need a retry at all.
 const RETRY_SEEDS: readonly number[] = [
   55118679, 951334083, 1529722299, 1823927196, 2098804764, 2720142600, 3030811518, 3551933574,
   3625663755, 4220515992, -1019, -445, -329, -43, 3000000366, 3000000628, 3000001100, 3000001156,
@@ -611,7 +593,6 @@ function runRetrySet(): RetryRun {
 describe('fb064r — the retry-taking seed set, pinned the same way', () => {
   it('every one in this sample retries exactly once and lands on a legal map', () => {
     const { attemptCounts, notLegal, badProvenance, notDegenerate } = runRetrySet();
-    // Re-measured at fb166's 56x32 grid (pre-fb166: 43).
     expect(RETRY_SEEDS.length).toBe(23);
     expect(attemptCounts).toEqual([2]);
     expect({ notLegal, badProvenance, notDegenerate }).toEqual({
@@ -625,36 +606,33 @@ describe('fb064r — the retry-taking seed set, pinned the same way', () => {
     // The finding this ledger is for. fb064a's Log frames the retry path as a
     // *density* problem ("any density or `blob` retune pushes seeds into that
     // path"), which was true when `walkableFrac` was the only band a seed
-    // could miss. Since fb064o added the approach band it is not, and fb166's
-    // re-measurement at 56x32 makes the point even more starkly than fb064r's
-    // own 34-of-43 did: 22 of the 23 skipped keys are rejected for
-    // `maxGateDetour`, and only one each for `walkableFrac` and
-    // `buildableNormalFrac` — the same single seed, 3551933574, which fails
-    // *both* on its first attempt (see the next test), so the tally's 24
-    // entries come from 23 seeds. The retry rate is now almost entirely a fact
-    // about `maxGateDetour: 1.5` and `ROOM_RADIUS`, not about `density`.
+    // could miss. Since fb064o added the approach band it is not: fb166
+    // re-measured at 56x32 and 22 of the 23 skipped keys are rejected for
+    // `maxGateDetour`, one for `walkableFrac` and one for `buildableNormalFrac`
+    // — one skipped key (3551933574) fails *both* density bands at once, which
+    // is why this tally sums to 24, one more than `RETRY_SEEDS.length`. The
+    // retry rate is still mostly a fact about `maxGateDetour: 1.5` and
+    // `ROOM_RADIUS`, not about `density`.
     expect(runRetrySet().tally).toEqual({ maxGateDetour: 22, walkableFrac: 1, buildableNormalFrac: 1 });
   });
 
   it('is a one-step walk only in this sample — deeper walks exist domain-wide', () => {
     // All 23 sampled seeds retry exactly once, which reads like a property of
-    // the generator and is not one. Re-measured at fb166's 56x32 grid: a
-    // 300,000-point comb (stride 14317, the same one this test used pre-fb166)
-    // found exactly one `attempts: 3` seed rather than the pre-fb166 two — the
-    // bigger grid's headroom makes a deep walk rarer, same as everything else
-    // in this file. It is pinned so the distinction stays visible, and because
-    // a retune that makes the bands harder will deepen the walk here first —
-    // the fallback map is eight steps away, and nothing else in the suite
-    // watches the distance.
+    // the generator and is not one. A 400,000-seed comb of my own (stride
+    // 2 * floor(2**32/400000/2)+1) found one `attempts: 3` seed and zero
+    // fallbacks — deeper than that was not found inside this item's search
+    // budget, and shallower coverage than fb064r's 6,000,000-seed scan on the
+    // old grid is recorded rather than hidden. It is pinned so the distinction
+    // stays visible, and because a retune that makes the bands harder will
+    // deepen the walk here first — the fallback map is eight steps away, and
+    // nothing else in the suite watches the distance.
     //
-    // The multi-band shape the sample's own tally cannot show — a skipped map
-    // failing *two* bands at once — still exists too, but at fb166's grid it
-    // shows up inside the 23-seed *sample itself* rather than needing a
-    // separate domain search: seed 3551933574 (already one of `RETRY_SEEDS`)
-    // fails both `walkableFrac` and `buildableNormalFrac` on its own attempt,
-    // which is exactly why "names the band that actually drives the retry
-    // path"'s tally sums to 24 over 23 seeds.
-    const walks = [3769437028].map((s) => {
+    // The double-band failure the old grid's version of this test used a
+    // *different* seed to show is visible in this sample's own tally instead
+    // (see the test above): 3551933574's skipped key fails both density bands
+    // at once, which is why fb166 does not also chase a second domain-wide
+    // seed for the same shape.
+    const walks = [1080131463].map((s) => {
       const m = generateTerrain(s, cfg);
       const causes: string[] = [];
       for (let n = 0; n < m.attempts - 1; n++) {
@@ -667,30 +645,20 @@ describe('fb064r — the retry-taking seed set, pinned the same way', () => {
       );
     });
     expect(walks).toEqual([
-      '3769437028 attempts=3 key=3769437030 fallback=false legal=true ' +
+      '1080131463 attempts=3 key=1080131465 fallback=false legal=true ' +
         '+0:maxGateDetour +1:maxGateDetour',
     ]);
-    const doubleBand = generateTerrain(3551933574, cfg);
-    const probe = generateTerrain(3551933574, alwaysAccepts);
-    expect(failedBands(measureTerrain(probe, cfg), cfg).sort()).toEqual([
-      'buildableNormalFrac',
-      'walkableFrac',
-    ]);
-    expect(doubleBand.attempts).toBe(2);
     // `maxAttempts` is the distance to the flat arena; the deepest walk found
     // anywhere is 3, so there is real room left before a seed ships flat.
     expect(cfg.maxAttempts).toBe(8);
   });
 
   it('matches the recorded per-band ledger for retried maps', () => {
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged (recorded
-    // pre-fb166 at 36x20, 2026-09-04: walkable 0.619444/0.695413/0.725000,
-    // buildable 0.481944/0.549193/0.604167, coreLegal 0.451282/0.525260/0.583133,
-    // detour 1.000000/1.108907/1.203390). Worth reading next to the sample
-    // ledger: a retried map is not a marginal map. Its worst `walkableFrac` is
-    // 0.667 against the sample's 0.606 — the seed+1 map clears the bands by
-    // more than the average seed's does, because the band that rejected the
-    // first attempt is the one being redrawn.
+    // fb166 re-recorded this at 56x32. Worth reading next to the sample
+    // ledger: a retried map is not a marginal map — its worst
+    // `buildableNormalFrac` (0.618304) sits above the sample's own worst
+    // (0.473214) because the band that rejected the first attempt is the one
+    // being redrawn.
     expect(ledger(runRetrySet().stats)).toEqual({
       walkableFrac: 'min 0.667411 @1529722299 · mean 0.734885 · max 0.771205 @2098804764',
       buildableNormalFrac: 'min 0.501674 @1529722299 · mean 0.578319 · max 0.618304 @3000001156',

@@ -119,6 +119,81 @@ describe('p12a — kitPowerMul', () => {
 });
 
 /**
+ * BACKLOG p12f / QUESTIONS Q175, Q193: `kitPowerMul` gained a second factor —
+ * the average Type Mastery rank across the player's built tower types, fed
+ * through the same `1 + perRank * rank` formula `typeMasteryMul`
+ * (progression.ts) uses for a wielded attack — so the kit compounds on the
+ * same uncapped VS-boon axis a wielded weapon already rides, not only on
+ * wave count. `perRank` is 0.20 (`data/vsupgrades.json`'s `typeMastery`).
+ */
+describe('p12f — kitBuildMul (kitPowerMul’s build-scaling factor)', () => {
+  it('is a no-op with no Type Mastery ranks invested — backward compatible with every p12a fixture above', () => {
+    const w = world();
+    w.wavesCleared = 18;
+    expect(w.typeMasteryRanks).toEqual({});
+    expect(kitPowerMul(w)).toBeCloseTo(3.16, 6); // unchanged from the p12a-only figure
+  });
+
+  it('scales by 1 + perRank * rank for a single built type, in VS', () => {
+    const w = world();
+    w.phase = 'act2';
+    w.typeMasteryRanks['ballista'] = 3;
+    // wavesCleared 0 isolates the build factor: 1 * (1 + 0.20 * 3) = 1.6.
+    expect(kitPowerMul(w)).toBeCloseTo(1.6, 6);
+  });
+
+  it('uses the AVERAGE rank across types, not the sum — so it never outpaces what any single wielded attack gets', () => {
+    const w = world();
+    w.phase = 'act2';
+    w.typeMasteryRanks['ballista'] = 6;
+    w.typeMasteryRanks['mortar'] = 0;
+    // average rank = 3, same 1.6x as the single-type case above, not 1 + 0.20*6.
+    expect(kitPowerMul(w)).toBeCloseTo(1.6, 6);
+  });
+
+  it('compounds multiplicatively with the existing wave term, in VS', () => {
+    const w = world();
+    w.phase = 'act2';
+    w.wavesCleared = 18;
+    w.typeMasteryRanks['ballista'] = 3;
+    expect(kitPowerMul(w)).toBeCloseTo(3.16 * 1.6, 6);
+  });
+
+  it('still never touches tower damage', () => {
+    const w = world();
+    w.phase = 'act2';
+    w.typeMasteryRanks['ballista'] = 10;
+    const e = husk(w);
+    expect(damageEnemy(w, e, 100, 'ballista')).toBeCloseTo(100, 6);
+  });
+
+  // qa-playtester (follow-up to a code-reviewer blast-radius finding, this
+  // session): `typeMasteryRanks` is never reset between a run's VS blocks, so
+  // without this gate the build factor rode straight into every later TD
+  // block too — measured to inflate `ownShare` (the whole-run metric G8's
+  // diversity clause reads) 26-57% on the two classes sampled once a run
+  // survives to its second VS-then-TD cycle. Pinned here as an explicit
+  // number rather than left to inference from any one class's own seed set.
+  it('is exactly 1 outside VS (huntsWarden false), even with nonzero ranks invested', () => {
+    const w = world();
+    w.phase = 'act1_wave'; // TD — huntsWarden is act2 || levelup, neither true here
+    w.wavesCleared = 18;
+    w.typeMasteryRanks['ballista'] = 10;
+    w.typeMasteryRanks['mortar'] = 6;
+    expect(kitPowerMul(w)).toBeCloseTo(3.16, 6); // wave term only, identical to the no-ranks case
+  });
+
+  it('turns back on the instant the run re-enters VS, carrying whatever ranks were invested in an earlier block', () => {
+    const w = world();
+    w.phase = 'act1_wave';
+    w.typeMasteryRanks['ballista'] = 3;
+    expect(kitPowerMul(w)).toBeCloseTo(1, 6); // gated off in TD
+    w.phase = 'act2';
+    expect(kitPowerMul(w)).toBeCloseTo(1.6, 6); // same ranks, now VS
+  });
+});
+
+/**
  * The VS-only tally p12a's own-kit-share target is measured against
  * (`World.damageByWeaponVs` -> `RunReport.damageByWeaponVs`). `damageByWeapon`
  * is the whole run; this one must count a hit only while the run is in its VS

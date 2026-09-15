@@ -108,10 +108,15 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       // so taking it from there showed "authored 20" for an enemy `/data`
       // authors at 200 — a column contradicting its own name, and contradicting
       // the Tuner editor one click away, which edits the authored document.
+      // p12e: the final boss is exempted from `baseHpMul` in `makeEnemy`
+      // (its HP is independently fitted, fb099) — mirrored here so this
+      // column keeps showing what the Warden-Eater actually spawns with
+      // rather than reintroducing the "sheet lies about spawned HP" bug this
+      // column was written to fix.
       rows: asRows(
         content.enemies.enemies.map((e, i) => ({
           ...e,
-          hp: e.hp * content.enemies.baseHpMul,
+          hp: e.hp * (e.traits.includes('finalBoss') ? 1 : content.enemies.baseHpMul),
           authoredHp: (content.raw.enemies as { enemies: { hp: number }[] }).enemies[i]?.hp ?? e.hp,
         })),
       ),

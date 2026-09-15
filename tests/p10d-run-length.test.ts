@@ -125,7 +125,7 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
-import { GATE_TIER, runScripted } from './helpers';
+import { classifyMargin, GATE_TIER, runScripted, summarizeMargins } from './helpers';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 // fb049 (Q138 re-measurement): every real Hub-started run feeds the full
@@ -183,17 +183,24 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThanOrEqual(0.7);
   });
 
-  it.skip('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
-    // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
-    // `'running'` — censored *victories*, not losses (they win at 47.4 and
-    // 46.6 min when the cap is lifted), which silently understates both the
-    // win rate this file reports and the mean it measures. Asserted rather
-    // than left to prose.
-    //
-    // **p12c made this worse, as its contested runs were always going to:
-    // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
-    // takes longer than one the bot walks. That is the strongest argument
-    // yet for §E/p12e, which owns eliminating timeouts and will un-skip this.
+  // qa-playtester found 2 of these 24 seeds sitting at the 45-minute cap as
+  // `'running'` — censored *victories*, not losses (they win at 47.4 and
+  // 46.6 min when the cap is lifted), which silently understates both the
+  // win rate this file reports and the mean it measures. Asserted rather
+  // than left to prose.
+  //
+  // **p12c made this worse, as its contested runs were always going to:
+  // 6 of 24 at T3** (up from 2), because a run that is genuinely fought
+  // takes longer than one the bot walks.
+  //
+  // p12e re-anchored `warden_eater`'s HP (BALANCE.md "Boss HP re-anchor
+  // (p12e)") so its own escalation/pacing ramps see the magnitude they were
+  // fitted to, instead of compounding with the roster-wide `baseHpMul`.
+  // Re-measured over the same 24 seeds at a lifted 120-minute cap: 0 seeds
+  // ever sit at `'running'` (longest run 36.3 min, seed 2's victory) — every
+  // seed resolves well inside this file's own 45-minute cap, so there is
+  // nothing left for a raised cap to censor. Un-skipped.
+  it('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
     const stalled = reports.filter((r) => r.outcome === 'running');
     expect(stalled.map((r) => r.seed), detail).toEqual([]);
   });
@@ -302,5 +309,69 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   it.skip('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);
+  });
+});
+
+/**
+ * p12d (BACKLOG.md): companion checks at T1 and T5, alongside — not
+ * replacing — the T3 reference-tier band above. Same harness (`engineer`,
+ * `hybrid`, full Constellation tree, `modifiers: []`, `cycles: 6`) as
+ * `tests/p12c-margin.test.ts`'s own opt-in sweep, which first recorded these
+ * bands at this exact tier/seed shape (2026-09-05, `baseHpMul: 20`, ladder
+ * 1.07/1.05/1.03): T1 66.7% wins / 33% close-win / median Core HP 53.8% (all
+ * three inside band); T5 20.8% wins, just over the [5%,20%] ceiling. Re-run
+ * live here rather than inherited, per CLAUDE.md's "a deferral is a
+ * measurement with an expiry date."
+ */
+describe('G1 companions: T1 and T5 confirm the tier ladder (BALANCE DIRECTION v2 §B/§C, p12d)', () => {
+  const T1_WIN_BAND = [0.55, 0.9] as const;
+  const T1_MIN_CLOSE_WIN = 0.25;
+  const T5_WIN_BAND = [0.05, 0.2] as const;
+
+  function runAt(tier: number) {
+    return SEEDS.map(
+      (seed) =>
+        runScripted({ seed, classKey: 'engineer', tier, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45)
+          .report,
+    );
+  }
+
+  it('T1: win rate in [55%,90%] with >=25% close-win share', () => {
+    const reports = runAt(1);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const closeWins = reports.filter((r) => classifyMargin(r).kind === 'close-win').length;
+    const rate = wins.length / reports.length;
+    const closeShare = closeWins / reports.length;
+    const detail = `T1: ${wins.length}/${reports.length} wins, ${closeWins} close-win — ${summarizeMargins(reports)}`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T1_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T1_WIN_BAND[1]);
+    expect(closeShare, detail).toBeGreaterThanOrEqual(T1_MIN_CLOSE_WIN);
+  });
+
+  // p12c's own T5 reading (24 seeds, same harness) was 20.8% — just over this
+  // ceiling. Re-measured live here rather than assumed from that recorded
+  // number (CLAUDE.md's control-run rule): confirmed in band this session
+  // (`npx vitest run tests/p10d-run-length.test.ts`, this case passed), not
+  // `.skip`-ed — vitest's default reporter does not print the exact win
+  // count for a passing case, only for a failing one, so the precise
+  // fraction isn't recorded here; re-run with a temporary `console.log` (as
+  // this file's G8-file sibling companion did) if the exact number is
+  // needed again.
+  //
+  // Denominator note (same pattern in every T1/T5 companion block in this
+  // file and in tests/boss.test.ts/tests/p6e-class-diversity.test.ts/
+  // tests/p-core-f-gates.test.ts): T1 divides by every seed
+  // (`reports.length`) since T1 is not expected to hit the tick cap; T5
+  // divides by `resolved` (timeouts excluded), matching the T3 band's own
+  // "censored victories" rationale above, because a hard tier can
+  // legitimately stall a seed at the cap without that seed being a loss.
+  it('T5: win rate in [5%,20%]', () => {
+    const reports = runAt(5);
+    const wins = reports.filter((r) => r.outcome === 'victory');
+    const resolved = reports.filter((r) => r.outcome !== 'running');
+    const rate = wins.length / resolved.length;
+    const detail = `T5: ${wins.length}/${resolved.length} wins (of ${reports.length} seeds) — ${summarizeMargins(reports)}`;
+    expect(rate, detail).toBeGreaterThanOrEqual(T5_WIN_BAND[0]);
+    expect(rate, detail).toBeLessThanOrEqual(T5_WIN_BAND[1]);
   });
 });

@@ -13,11 +13,12 @@
  *      `damageWarden`'s Time Flow branch),
  *   2. `passive.kind` dispatched by `updateClassPassives`' per-tick switch
  *      (Contagious Flame, Guardian Stance),
- *   3. `passive.mods` folded into `Stats` (`stats.ts:193`) — Engineer, and
- *      Blood Frenzy's lifesteal clause,
- *   4. **nothing at all** — three rows author `mods: {}` with *no* `kind`
- *      (Archer *Long Draw*, Stormcaller *Conduction*, Animist *Kinship*), so
- *      no code path is bound to the passive row itself.
+ *   3. `passive.mods` folded into `Stats` (`stats.ts:193`) — Engineer, Blood
+ *      Frenzy's lifesteal clause, and (c004) Animist *Kinship*'s summon-cap
+ *      term,
+ *   4. **nothing at all** — two rows author `mods: {}` with *no* `kind`
+ *      (Archer *Long Draw*, Stormcaller *Conduction*), so no code path is
+ *      bound to the passive row itself.
  *
  * Route 4 is why this file cannot be c005's loop with a different verb. For
  * those three rows the deliverable c006 asks for is different in kind: **pin
@@ -76,9 +77,11 @@
  * not Kinship's "aura effects **also** affect summons". The control here
  * cannot be another class, because the Recall Totem is the only aura in the
  * game; it is the same summon outside the aura's radius. The **summon-cap
- * half** ("summon cap +1", §4.2) is *not* implemented — that is `c004`,
- * blocked out of this lane's Scope on `statkeys.ts`, and this file
- * cross-references it with a tripwire rather than re-filing it.
+ * half** ("summon cap +1", §4.2) is `c004`: fb084 first added a generic
+ * `summonCap` `StatKey`/`Derived.summonCapBonus` with nothing yet feeding it;
+ * c004 closes the clause by authoring `summonCap: 1` on Kinship's own
+ * passive `mods` — no class-key check in code, per architecture rule 4 — so
+ * the row now belongs to route 3, not route 4.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -434,6 +437,18 @@ const signal = {
     return spirit.interval - spirit.attackCooldown;
   },
 
+  /** Animist *Kinship*, cap half (c004): Manifest spirits summoned past the authored `active1.summonCap`. */
+  kinshipSummonCap(c: Content): number {
+    const w = passiveWorld('animist', c);
+    expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
+    const cap = c.classByKey.get('animist')!.active1.summonCap!;
+    for (let i = 0; i < cap + 3; i++) {
+      w.warden.active1Cooldown = 0;
+      useClassActive(w);
+    }
+    return w.classSummons.filter((s) => s.kind === 'animist_spirit').length - cap;
+  },
+
   /** Paladin *Guardian Stance*, armour clause: damage a completed stand blocked. */
   guardianArmor(c: Content, classKey = 'paladin'): number {
     return paladinStand(c, classKey, 0).lost - paladinStand(c, classKey, standSeconds(c)).lost;
@@ -690,9 +705,9 @@ describe('c006 — the passive that is pure `mods`', () => {
  * really lives on (so the binding is written down somewhere a grep will find
  * it), and assert the clause's behaviour anyway.
  */
-describe('c006 — the three prose-only passive rows', () => {
-  it('all three really are prose-only, which is why they are here', () => {
-    for (const key of ['archer', 'stormcaller', 'animist']) {
+describe('c006 — the two prose-only passive rows', () => {
+  it('both really are prose-only, which is why they are here', () => {
+    for (const key of ['archer', 'stormcaller']) {
       const p = content.classByKey.get(key)!.passive;
       expect(p.kind, `${key}.passive gained a kind — move it out of this describe`).toBeUndefined();
       expect(Object.keys(p.mods), `${key}.passive gained mods`).toEqual([]);
@@ -775,19 +790,14 @@ describe('c006 — the three prose-only passive rows', () => {
       expect(spirit.attackCooldown).toBeCloseTo(spirit.interval, 10);
     });
 
-    it('summon-cap half: still unimplemented — this is c004 tripwire, not a new bug', () => {
+    it('animist Kinship, summon-cap half: c004 grants +1 via a generic `summonCap` passive mod, no class-key check', () => {
       // SPEC-FINAL §4.2's Animist row is "aura effects also affect summons;
-      // **summon cap +1**". Only the first clause exists. c004 (this lane's
-      // queue, BLOCKED out of Scope on `src/sim/statkeys.ts` — a `Stats`
-      // record can only carry a member of `STAT_KEYS`, and there is no
-      // summon-cap key) owns the second, and its acceptance is that the +1
-      // becomes expressible in `/data`. When it lands, this case is the one
-      // that flips, and the aura row above becomes the whole test.
-      expect(
-        Object.keys(content.classByKey.get('animist')!.passive.mods),
-        'Kinship gained mods — if this is c004 landing, this case is what it updates',
-      ).toEqual([]);
-      // And the live cap really is the authored one, +0.
+      // **summon cap +1**". fb084 added the generic `summonCap` `StatKey`/
+      // `Derived.summonCapBonus` plumbing with nothing yet authored to feed
+      // it; c004 closes the clause itself, entirely in `/data`.
+      expect(content.classByKey.get('animist')!.passive.mods).toEqual({ summonCap: 1 });
+      expect(signal.kinshipSummonCap(content)).toBeGreaterThan(0);
+      // And the live cap really is the authored one, +1.
       const w = passiveWorld('animist');
       expect(buildTower(w, content.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
       const cap = cls(w).active1.summonCap!;
@@ -795,7 +805,28 @@ describe('c006 — the three prose-only passive rows', () => {
         w.warden.active1Cooldown = 0;
         expect(useClassActive(w)).toBe(true);
       }
-      expect(w.classSummons.filter((s) => s.kind === 'animist_spirit').length).toBe(cap);
+      expect(w.classSummons.filter((s) => s.kind === 'animist_spirit').length).toBe(cap + 1);
+
+      // ...and unchanged for the other two summon classes: Kinship's `mods`
+      // are scoped to the Animist's own `class:${classKey}:passive` stat
+      // source (`stats.ts:193`), so authoring it on one class's row must not
+      // leak a bonus onto another's.
+      const eng = passiveWorld('engineer');
+      const engBaseCap = content.classByKey.get('engineer')!.active2.summonCap!;
+      for (let i = 0; i < engBaseCap + 3; i++) {
+        eng.warden.active2Cooldown = 0;
+        expect(useClassActive2(eng)).toBe(true);
+      }
+      expect(eng.classSummons.filter((s) => s.kind === 'engineer_turret')).toHaveLength(engBaseCap);
+
+      const necro = passiveWorld('necromancer');
+      const necroBaseCap = content.classByKey.get('necromancer')!.active1.summonCap!;
+      for (let i = 0; i < necroBaseCap + 6; i++) {
+        const e = dummy(necro, WX + 1 + (i % 4) * 0.4, WY + Math.floor(i / 4) * 0.4);
+        damageEnemy(necro, e, 1e6, 'test');
+      }
+      expect(useClassActive(necro)).toBe(true);
+      expect(necro.classSummons.filter((s) => s.kind === 'necro_skeleton')).toHaveLength(necroBaseCap);
     });
   });
 });
@@ -917,6 +948,12 @@ const KILLS: readonly Kill[] = [
     mutate: (r) => void (r.active2.auraAtkSpdMul = 0),
   },
   {
+    name: 'Kinship (summon cap)',
+    classKey: 'animist',
+    measure: signal.kinshipSummonCap,
+    mutate: (r) => void delete r.passive.mods.summonCap,
+  },
+  {
     name: 'Guardian Stance (armour)',
     classKey: 'paladin',
     measure: signal.guardianArmor,
@@ -972,5 +1009,94 @@ describe('c006 — every class is on trial', () => {
     const authored = content.classes.classes.map((c) => c.key);
     expect([...authored].sort()).toEqual([...covered].sort());
     expect([...new Set(KILLS.map((k) => k.classKey))].sort()).toEqual([...covered].sort());
+  });
+});
+
+/* --------------------------------------------------------- c037 stacking */
+
+/** `passiveWorld` plus equipment — `class-tower-passive-liveness.test.ts`'s `towerWorldWithEquipment`, this file's twin. */
+function passiveWorldWithEquipment(classKey: string, equipment: readonly string[], c: Content = content): World {
+  const w = new World(cfg({ classKey, equipment: [...equipment] }), c);
+  w.gold = 1e6;
+  w.warden.attackCooldown = 1e9;
+  w.warden.x = WX;
+  w.warden.y = WY;
+  return w;
+}
+
+/**
+ * c037 (BACKLOG-CONTENT, lane `content`) — `c036`'s same-stat-key stacking
+ * check covered `towerRange`/`area` on the *tower*-passive slot; this is its
+ * twin on the *character*-passive slot, the other overlap the exhaustive
+ * diff found: Engineer *Efficient Engineering* (`towerCost -0.10`) against
+ * Normal Necklace (`towerCost -0.20`), and Bloodlord *Blood Frenzy*
+ * (`leech 0.03`) against Bleeding Ring (`leech 0.0001`).
+ *
+ * `towerCost` is `STAT_KIND.mul` (`statkeys.ts`), so §2's "different sources
+ * multiply" applies exactly as `c036` measured: `derived.towerCostMul` reads
+ * `Stats.factor('towerCost')`, a product over sources, and the combined case
+ * is 0.9 × 0.8 = 0.72, not the naively-summed 1 − 0.30 = 0.70.
+ *
+ * `leech` is not: `statkeys.ts` classifies it `STAT_KIND.flat` on purpose
+ * ("rates and flags, not boosts: leech and luck are read raw" — the same
+ * clause that keeps `cdr` out of the `mul` bucket, flagged in Q62).
+ * `derived.leech` reads `Stats.total('leech')`, a *sum*, so the combined case
+ * is measured at 0.0301, not the `(1.03)(1.0001) − 1 = 0.030103` a
+ * multiplicative reading of §2 would predict. That is this item's premise
+ * corrected against the codebase's own documented design, the way c017/c018
+ * corrected theirs: `leech` was never meant to multiply, so there is no bug
+ * here for the Bloodlord row to catch — the row instead pins the *additive*
+ * reading. `derive()` hardcodes `s.total('leech')`/`s.factor('towerCost')`
+ * per field rather than branching on `STAT_KIND` at runtime, so a bare
+ * `STAT_KIND.leech` edit with no matching `derive()` change is
+ * `tests/c4-stacking.test.ts`'s catch, not this one (code review); what this
+ * row catches on its own is the two changed *together* — `leech` turned
+ * `mul` end-to-end while staying internally consistent — which would change
+ * real stacking behaviour without `c4-stacking` noticing.
+ */
+describe('c037: character-passive and equipped-item bonuses on the same stat key', () => {
+  it('Engineer Efficient Engineering (-10% towerCost) stacks with Normal Necklace (-20% towerCost) to x0.72, not x0.70', () => {
+    const base = passiveWorld('swordsman').derived.towerCostMul;
+    const passiveOnly = passiveWorld('engineer').derived.towerCostMul;
+    const equipOnly = passiveWorldWithEquipment('swordsman', ['normal_necklace']).derived.towerCostMul;
+    const both = passiveWorldWithEquipment('engineer', ['normal_necklace']).derived.towerCostMul;
+
+    expect(base, 'no source, no discount').toBeCloseTo(1, 10);
+    expect(passiveOnly, 'Efficient Engineering alone').toBeCloseTo(0.9, 10);
+    expect(equipOnly, 'Normal Necklace alone').toBeCloseTo(0.8, 10);
+    // The joint case is the one no existing test can see: two independent
+    // §2 `mul` sources on the same key multiply.
+    expect(both, 'both sources together').toBeCloseTo(0.72, 10);
+    expect(both, 'not silently additive (would read 0.70)').not.toBeCloseTo(0.7, 6);
+  });
+
+  it('Bloodlord Blood Frenzy (3% leech) and Bleeding Ring (0.01% leech) add to 3.01%, not multiply to 3.0103%', () => {
+    const base = passiveWorld('swordsman').derived.leech;
+    const passiveOnly = passiveWorld('bloodlord').derived.leech;
+    const equipOnly = passiveWorldWithEquipment('swordsman', ['bleeding_ring']).derived.leech;
+    const both = passiveWorldWithEquipment('bloodlord', ['bleeding_ring']).derived.leech;
+
+    expect(base, 'no source, no lifesteal').toBeCloseTo(0, 10);
+    expect(passiveOnly, 'Blood Frenzy alone').toBeCloseTo(0.03, 10);
+    expect(equipOnly, 'Bleeding Ring alone').toBeCloseTo(0.0001, 10);
+    // `leech` is deliberately `flat`, not `mul` (statkeys.ts) — the two
+    // sources sum, they do not compound.
+    expect(both, 'both sources together, summed').toBeCloseTo(0.0301, 10);
+    expect(both, 'not silently multiplicative (would read 0.030103)').not.toBeCloseTo(1.03 * 1.0001 - 1, 6);
+  });
+
+  it('proven live, not vacuous — swapping which formula backs each stat reddens the row it no longer matches', () => {
+    // Same device as `c036`'s closing case: simulate the regression each row
+    // exists to catch by computing both formulas directly and showing they
+    // diverge at the precision each assertion above pins to.
+    const additivePool = (...pcts: number[]): number => pcts.reduce((s, p) => s + p, 0);
+    const multiplicativePoolMinusOne = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1) - 1;
+    // towerCost's own case reads a *factor*, not a delta-from-1, so compare on that footing.
+    const multiplicativePool = (...pcts: number[]): number => pcts.reduce((f, p) => f * (1 + p), 1);
+    expect(multiplicativePool(-0.1, -0.2)).toBeCloseTo(0.72, 10);
+    expect(1 + additivePool(-0.1, -0.2)).not.toBeCloseTo(0.72, 6);
+
+    expect(additivePool(0.03, 0.0001)).toBeCloseTo(0.0301, 10);
+    expect(multiplicativePoolMinusOne(0.03, 0.0001)).not.toBeCloseTo(0.0301, 6);
   });
 });

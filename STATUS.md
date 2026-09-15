@@ -8,20 +8,20 @@ Regenerate before relying on this file — it is a snapshot, not a live view. Ga
 
 | Gate | Health | Detail |
 |---|---|---|
-| G1: Mean victorious run 30–36 min (24+ seeds; means/pass-rates, never medians). | RED | **Red — moved out of band since the last regeneration, not yet re-tuned.** Fresh baseline (`p10z`, `classifyMargin`, 24 seeds): mean **36.39 min**, 21/24 (87.5%) — but **all 21 wins are `landslide-win`** (Core HP 54–86% remaining at the end), zero `close-win`, zero `contested-loss`, 3 `timeout`. The mean sits inside [30,36] only barely (36.39 rounds outside it) and every win is a blowout — the same over-ceiling family as G8/G14/G23 below, not the "green in full, 35.20 min" this file claimed at the last regeneration. |
-| G2: Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward. | GREEN | **Green in full**, including tuner-edited content and fast-forward (p9f), `contentHash`'s authored-bytes fix (b044), and this session's `data/terrain.json` fold (`tests/terrain-content-hash.test.ts`). |
+| G1: At T3 (reference tier, p12b): mean victorious run 30–36 min and win rate in [35%,70%] over resolved (non-timeout) seeds, 24+ seeds, means/pass-rates never medians. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share (p12c); T5 win rate in [5%,20%] (p12b). | RED | **Red — moved out of band since the last regeneration, not yet re-tuned.** Fresh baseline (`p10z`, `classifyMargin`, 24 seeds): mean **36.39 min**, 21/24 (87.5%) — but **all 21 wins are `landslide-win`** (Core HP 54–86% remaining at the end), zero `close-win`, zero `contested-loss`, 3 `timeout`. The mean sits inside [30,36] only barely (36.39 rounds outside it) and every win is a blowout — the same over-ceiling family as G8/G14/G23 below, not the "green in full, 35.20 min" this file claimed at the last regeneration. |
+| G2: Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward. Extends to §10.5 terrain generation: the same seed produces an identical map and terrain hash every time, and the seed+1 degenerate-seed regeneration rule is itself deterministic. | GREEN | **Green in full**, including tuner-edited content and fast-forward (p9f), `contentHash`'s authored-bytes fix (b044), and this session's `data/terrain.json` fold (`tests/terrain-content-hash.test.ts`). |
 | G3: VS inheritance unit tests incl. §6.1's worked example verbatim. | GREEN | **Green**, incl. §6.1's worked example verbatim. |
 | G4: Armor edges: +99→99%, clamp above, −90→×1.9, floor −100; DoTs ignore armor; Burning shred lowers it. | GREEN | **Green**, proven live through a real Ember Brazier build (p10g). |
 | G5: Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. | GREEN | **Green.** |
 | G6: Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. | GREEN | **Green in full**, incl. fb009's fixed wave reward. |
 | G7: Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. | GREEN | **Green in full.** |
-| G8: Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥9 of 12 classes (fb013's Time Lord folded in at the same ~73% ratio as the original ≥8 of 11). | RED | **Red on both clauses, now with a mechanistic explanation, blocked on owner verdicts.** Win-rate (`p10z`, margin-classified, all 12 classes incl. Time Lord since `p10v`): only **`bloodlord` lands in band** (8/12), every other class 10–12/12 mostly deep landslide (57–100%+ Core HP), `necromancer` closest to a real contest (31.4% floor, 7 landslide + 5 close-win). Net **1/12**. Four `/data`-only probes across `p10r`/`p10s`/`p10t`/`p10z` (four separate sessions) found real elasticity but only ever traded cells against each other — filed as **QUESTIONS Q160**, no further `/data`-only session per CLAUDE.md rule 6. Diversity (`p10u`): top damage source still distinct across only **3 of 12** classes (`ballista`/`frost_obelisk`/one more, unchanged since `fb049`) — reaching the 9/12 floor needed **9x–200x** authored kit-damage multipliers on the classes that fail (own-kit share measured 0.2%–8.2% against the shared-tower `ballista`/`frost_obelisk` economy), the same "wrong data value, not a tune" pattern as the win-rate wall — filed as **QUESTIONS Q161**. |
+| G8: At T3 (reference tier, p12b): every class clears 35–70% win rate (scripted kit bot). Diversity, replacing the old "top damage source differs across ≥9 of 12 classes" clause (BALANCE DIRECTION v2 §D): (i) every class's own-kit VS damage share is ≥35% from TD wave 12 on (p12a's target); (ii) pairwise class-kit fingerprint distance (damage-source/type vector, G22's method) is ≥0.15 for every one of the 66 class pairs. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. | RED | **Red on both clauses, now with a mechanistic explanation, blocked on owner verdicts.** Win-rate (`p10z`, margin-classified, all 12 classes incl. Time Lord since `p10v`): only **`bloodlord` lands in band** (8/12), every other class 10–12/12 mostly deep landslide (57–100%+ Core HP), `necromancer` closest to a real contest (31.4% floor, 7 landslide + 5 close-win). Net **1/12**. Four `/data`-only probes across `p10r`/`p10s`/`p10t`/`p10z` (four separate sessions) found real elasticity but only ever traded cells against each other — filed as **QUESTIONS Q160**, no further `/data`-only session per CLAUDE.md rule 6. Diversity (`p10u`): top damage source still distinct across only **3 of 12** classes (`ballista`/`frost_obelisk`/one more, unchanged since `fb049`) — reaching the 9/12 floor needed **9x–200x** authored kit-damage multipliers on the classes that fail (own-kit share measured 0.2%–8.2% against the shared-tower `ballista`/`frost_obelisk` economy), the same "wrong data value, not a tune" pattern as the win-rate wall — filed as **QUESTIONS Q161**. |
 | G9: Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. | GREEN | **Green.** |
 | G10: Archer: dps-optimal charge finite (2–6 s); full charge one-shots any non-elite at mid scaling. | GREEN | **Green.** |
 | G11: Stormcaller: max chain multiplier ≤ ×3.6. | GREEN | **Green.** |
 | G12: Rewards: N TD waves → N equipment; M VS waves → M skill points; orbs nowhere. | GREEN | **Green in full.** |
 | G13: No tower type's VS attack >35% of damage across the winning-build pool; every type solo-viable at T1, none at T3. | RED | **Red on both clauses — worse than either prior regeneration knew, and newly confirmed this session.** Share cap: `tests/p10c-weapon-share.test.ts` (the gate's real, seed-pinned measurement — not `tools/a5probe.ts`'s own bare CLI defaults, which use a different build/seed set and read a misleadingly-healthy 28.8%/frost_obelisk when run standalone) is **failing on its first, non-`.skip`, "enough builds to measure" assertion**: only **3 of 10** `BUILDS` bank all 18 TD waves against a `>=4` floor, down from "enough to measure" at `b080`'s last check — this file's own docstring still claims that assertion is "live and green," which is now false. The already-`.skip`-ed cap clause itself was last honestly pinned at **36.5%** (`b080`, over the 35% cap) and has not been re-measured since, because the pool is now too small even to try. Newly filed as **fb092** (this regeneration). Solo-viability: `tests/a4-single-type.test.ts` was re-pinned to `fb054`'s post-density-pass measured floors (not the gate's real 5/5-at-T1 bar) after `b072`'s original fix — those floors have themselves now drifted twice more (this session: `frost_obelisk` measures 4/5 against a pin of 2, `mortar` measures 1/5 against a pin of 0 — both **improvements** over the pin, 2 of 16 assertions red for that reason, 14/16 green). The gate's actual bar (every attacking tower 5/5 at T1) is still far from met: fresh `tools/a4probe.ts` T1 clears out of 5 — arrow_spire 0, ballista **5**, ember_brazier 4, frost_obelisk 4, tesla_coil 3, mortar 1, venom_spore 1; T3 all 0/5 (the "none at T3" half holds). A real `data/towers.json`-only retune against the current wave curve is queued as **fb076**, and should now also restore the share-cap pool size (**fb092**) in the same pass, since both trace to `fb054`'s density change. |
-| G14: Boss: 20 seeds, scripted-build win rate ≥60% and <100%. | RED | **Red — this file's prior "green in full, 18/20" claim is stale and wrong.** `tests/boss.test.ts`'s real 20-seed case (`it.skip('G14: ...')`) was rewritten at `p10s` to use the same scripted-kit/full-tree harness G8/G23 use (it previously played un-scripted `hybrid`, which broke *before* G8/G23 under any shared lever and made the four gates impossible to tune together) — under that harness it measures **20/20 (100%)**, which is **out of band** (`<100%` required, not met). `p10z`'s fresh same-day baseline confirms it: 20/20, every win `landslide-win` (62–86% Core HP). Same over-ceiling family as G1/G8/G23, not yet retuned — its own acceptance text requires G1/G14 to *stay* in band while G8/G23 close, but both are already out, so the retune now has to move all four gates, not two. |
+| G14: At T3 (reference tier, p12b): boss, 20 seeds, scripted-build win rate ≥60% and <100%. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. | RED | **Red — this file's prior "green in full, 18/20" claim is stale and wrong.** `tests/boss.test.ts`'s real 20-seed case (`it.skip('G14: ...')`) was rewritten at `p10s` to use the same scripted-kit/full-tree harness G8/G23 use (it previously played un-scripted `hybrid`, which broke *before* G8/G23 under any shared lever and made the four gates impossible to tune together) — under that harness it measures **20/20 (100%)**, which is **out of band** (`<100%` required, not met). `p10z`'s fresh same-day baseline confirms it: 20/20, every win `landslide-win` (62–86% Core HP). Same over-ceiling family as G1/G8/G23, not yet retuned — its own acceptance text requires G1/G14 to *stay* in band while G8/G23 close, but both are already out, so the retune now has to move all four gates, not two. |
 | G15: Tuner: edit→save→reload round-trip; invalid rejected; edited runs flagged; prod has no endpoint. | GREEN | **Green** (`p9c`; gate-audit's map is no longer stale here, see the coverage note above). |
 | G16: Dev profile fully unlocked in dev; `npm run build` has dev mode off, god mode unreachable. | GREEN | **Green.** |
 | G17: Perf: sim budget per simulated minute (host-independent) ⚖; 350 enemies + all weapons ≥60 fps benchmark; 50-run soak, zero exceptions/NaN. | GREEN | **Green in full** (all three clauses; `p10e` closed the per-simulated-minute budget). |
@@ -30,84 +30,84 @@ Regenerate before relying on this file — it is a snapshot, not a live view. Ga
 | G20: Every §5 milestone special measurably changes the attack it names (loader-validated). | GREEN | **Green.** |
 | G21: Core choice is in RunConfig and hashed; each Core's TD and VS effects have unit tests with §5.5's numbers (incl. the Time decay ring table and a Corpse execute-and-restore worked example). | GREEN | **Green in full.** |
 | G22: Each Core shifts the run fingerprint (damage-source or economy vector) by ≥0.10 vs Stone Heart on the same seed/build. | GREEN | **Green in full.** `corpse` vs Stone Heart seed-2 regression (fingerprint 0.080) fixed at `b071` — 0.272 (seed 1) / 0.266 (seed 2); all 8 cases green, 0 skips; unaffected by any session since. |
-| G23: Every Core clears T1 at a 35–70% win rate with the scripted bot. | RED | **Red for all 5, same family as G1/G8/G14.** Fresh baseline (`p10z`, margin-classified, 12 seeds/Core): `stone_heart` 10/12 (floor 59.1%, closest to a real contest along with `time`), `carnivorous_plant` 12/12 (floor 73.4%), `vampire_heart` 12/12 (deep landslide), `corpse` 11/12, `time` 10/12 (floor 10.2%, 4 close-win + 2 timeout). Net **0/5**. `p10z` also found G23's own `winRate()` hard-throws on a `'running'` (timeout) outcome instead of counting it as a non-win the way G8's loop does — `stone_heart`/`corpse`/`time` all carry a baseline timeout, so those three **cannot pass G23 as the test is currently written**, independent of tuning; filed as its own small harness-bug item, **p11a**. |
+| G23: At T3 (reference tier, p12b): every Core clears 35–70% win rate with the scripted bot. Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. | RED | **Red for all 5, same family as G1/G8/G14.** Fresh baseline (`p10z`, margin-classified, 12 seeds/Core): `stone_heart` 10/12 (floor 59.1%, closest to a real contest along with `time`), `carnivorous_plant` 12/12 (floor 73.4%), `vampire_heart` 12/12 (deep landslide), `corpse` 11/12, `time` 10/12 (floor 10.2%, 4 close-win + 2 timeout). Net **0/5**. `p10z` also found G23's own `winRate()` hard-throws on a `'running'` (timeout) outcome instead of counting it as a non-win the way G8's loop does — `stone_heart`/`corpse`/`time` all carry a baseline timeout, so those three **cannot pass G23 as the test is currently written**, independent of tuning; filed as its own small harness-bug item, **p11a**. |
 
 ## Balance snapshot
 
-Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 31.63 min; 24 of 88 runs hit the 45-min cap without resolving (timeouts).
+Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 22.49 min; 1 of 88 runs hit the 45-min cap without resolving (timeouts). A win rate below is measured only over runs that reached a terminal outcome inside the cap; a "(N censored)" suffix names how many of that cell's seeds hit the cap instead and were excluded rather than counted as losses (p12i) — a cell with every seed censored reads 0 by convention, not as a measured defeat (see p10i's wave-11-to-17 pacing wall).
 
 ### Policy comparison (T1, engineer, default core)
 
 | Policy | Win rate | Mean minutes |
 |---|---|---|
-| no-move | 0.5 | 35.9 |
-| turtle | 0 | 35.9 |
-| kite | 0 | 25.1 |
-| hybrid | 0.5 | 41.7 |
-| maxbuild | 0 | 29.3 |
-| walloff | 0 | 19.4 |
-| sealed | 0.5 | 41.3 |
-| greedy | 0 | 12.6 |
-| greedless | 0 | 28.3 |
-| rush | 0 | 29.5 |
+| no-move | 1 | 35.7 |
+| turtle | 0 | 29.9 |
+| kite | 0 | 11 |
+| hybrid | 0.5 | 32.7 |
+| maxbuild | 0 | 20.3 |
+| walloff | 0 | 25.8 |
+| sealed | 0.5 | 33 |
+| greedy | 0 | 12.2 |
+| greedless | 0 | 26.9 |
+| rush | 0 | 23.9 |
 
 ### Per-class win rate (`hybrid` bot, default core)
 
 | Class | T1 | T3 |
 |---|---|---|
 | swordsman | 0 | 0 |
-| plaguebringer | 0.5 | 0 |
+| plaguebringer | 0 | 0 |
 | engineer | 0.5 | 0 |
-| pyromancer | 0.5 | 0 |
-| archer | 0.5 | 0 |
-| necromancer | 0.5 | 0 |
+| pyromancer | 0 | 0 |
+| archer | 0 | 0 |
+| necromancer | 0 | 0 |
 | cryomancer | 0.5 | 0 |
-| stormcaller | 0.5 | 0 |
+| stormcaller | 0 | 0 |
 | bloodlord | 0 | 0 |
-| animist | 0 | 0.5 |
-| paladin | 0.5 | 0 |
-| time_lord | 0 | 0 |
+| animist | 0 | 0 |
+| paladin | 0 | 0 |
+| time_lord | 0.5 | 0 |
 
 ### Per-Core win rate (`hybrid` bot, engineer)
 
 | Core | T1 | T3 |
 |---|---|---|
 | stone_heart | 0.5 | 0 |
-| carnivorous_plant | 0 | 0 |
-| vampire_heart | 0 | 0 |
+| carnivorous_plant | 1 (1 censored) | 0 |
+| vampire_heart | 1 | 0.5 |
 | corpse | 0.5 | 0 |
-| time | 0.5 | 0 |
+| time | 0.5 | 0.5 |
 
 ### Wielded-type damage share (whole pool, `damageByWeapon`)
 
 | Source | Share |
 |---|---|
-| mortar | 0.5134 |
-| frost_obelisk | 0.1753 |
-| ballista | 0.1529 |
-| venom_spore | 0.0729 |
-| arrow_spire | 0.0712 |
-| spreading_plague | 0.007 |
-| ember_brazier | 0.0039 |
-| tesla_coil | 0.0017 |
-| carnivorous_plant | 0.0012 |
-| class_basic | 0.0004 |
-| corpse | 0.0002 |
-| class_passive | 0.0001 |
+| mortar | 0.4446 |
+| ballista | 0.2218 |
+| frost_obelisk | 0.1394 |
+| arrow_spire | 0.1068 |
+| venom_spore | 0.0783 |
+| spreading_plague | 0.0029 |
+| tesla_coil | 0.0026 |
+| ember_brazier | 0.0023 |
+| class_basic | 0.0005 |
+| corpse | 0.0004 |
+| carnivorous_plant | 0.0002 |
 | warden_eater | 0 |
 | bleeding | 0 |
+| class_passive | 0 |
 
 ### Boon pick rates (total ranks taken, whole pool)
 
 | Boon | Total ranks |
 |---|---|
-| plating | 356 |
-| power | 222 |
-| range | 209 |
-| haste | 167 |
-| swift | 155 |
-| vitality | 111 |
-| reach | 96 |
+| plating | 274 |
+| power | 178 |
+| range | 154 |
+| haste | 116 |
+| swift | 112 |
+| reach | 82 |
+| vitality | 70 |
 
 ## Content census (SPEC-FINAL §13)
 
@@ -171,36 +171,37 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 | 20260901-120444-feature-status-report.md | fb038 — done |
 | 20260901-120444-verdicts-q134-154.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
 | 20260903-121255-balance-dash-speed.md | fb053 — done |
-| 20260903-121255-balance-siege-density.md | fb054 — done |
+| 20260903-121255-balance-siege-density.md | fb092 — queued |
 | 20260903-121255-bug-core-vfx-and-occlusion.md | fb050 — done |
 | 20260903-121255-bug-dps-panel-style.md | fb051 — done |
 | 20260903-121255-bug-sleeve-sword-and-armor.md | fb052 — done |
 | 20260903-121255-feature-class-attack-sprites.md | fb055 (BACKLOG-UI.md) — done |
 | 20260903-121255-feature-class-equipment-sets.md | fb056 (BACKLOG-CONTENT.md) — queued |
 | 20260903-121255-feature-class-madness-king.md | fb057 (BACKLOG-CONTENT.md) — queued |
-| 20260903-121255-feature-class-select-redesign.md | fb058 (BACKLOG-UI.md) — done |
+| 20260903-121255-feature-class-select-redesign.md | fb058 — done |
 | 20260903-121255-feature-class-voltbolt.md | fb059 (BACKLOG-CONTENT.md) — queued |
-| 20260903-121255-feature-dot-tick-numbers.md | fb060 (BACKLOG-UI.md) — done |
+| 20260903-121255-feature-dot-tick-numbers.md | fb060 — done |
 | 20260903-121255-feature-plaguebringer-charge.md | fb061 (BACKLOG-CONTENT.md) — queued |
-| 20260903-121255-feature-poison-barrel-mechanic.md | fb062 (BACKLOG-CONTENT.md) — queued |
-| 20260903-121255-feature-skill-icons-hover-only.md | fb063 (BACKLOG-UI.md) — done |
-| 20260903-121255-feature-terrain-generation.md | fb079 — queued |
-| 20260903-121255-feature-ui-inside-playfield.md | fb065 (BACKLOG-UI.md) — done |
-| 20260904-162645-feature-combo-area-indicator.md | fb096 (BACKLOG-UI.md) — queued |
-| 20260904-162645-feature-core-select-ui.md | fb117 (BACKLOG-UI.md) — queued |
-| 20260904-162645-feature-tower-projectile-sprites.md | fb098 (BACKLOG-UI.md) — queued |
-| 20260904-223211-feature-bug-report-hotkey.md | fb139 — queued |
-| 20260904-223211-feature-ci-workflow.md | fb140 — queued |
+| 20260903-121255-feature-poison-barrel-mechanic.md | cited in BACKLOG-CONTENT.md, but no enclosing item found |
+| 20260903-121255-feature-skill-icons-hover-only.md | fb063 — done |
+| 20260903-121255-feature-terrain-generation.md | fb079 — done |
+| 20260903-121255-feature-ui-inside-playfield.md | fb065 — done |
+| 20260904-162645-feature-combo-area-indicator.md | fb096 — done |
+| 20260904-162645-feature-core-select-ui.md | fb117 — done |
+| 20260904-162645-feature-tower-projectile-sprites.md | fb177 — done |
+| 20260904-223211-feature-bug-report-hotkey.md | fb139 — done |
+| 20260904-223211-feature-ci-workflow.md | fb140 — done |
 | 20260904-223211-feature-tiered-qa.md | fb141 — done |
 | 20260904-223211-verdicts-q155-167.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
 | 20260905-190000-balance-damage-rescale-and-bigger-map.md | fb153a (of fb153) — queued |
 | 20260905-190000-bug-dot-tick-cadence.md | fb152 — done |
 | 20260905-190000-feature-terrain-four-gates.md | fb156 (BACKLOG-TERRAIN.md) — queued |
-| 20260905-190000-feature-ui-character-panel-compact.md | fb157 (BACKLOG-UI.md) — queued |
-| 20260905-190000-feature-ui-damage-font-scaling.md | fb159 (BACKLOG-UI.md) — queued |
+| 20260905-190000-feature-ui-character-panel-compact.md | fb157 — done |
+| 20260905-190000-feature-ui-damage-font-scaling.md | fb159 — done |
 | 20260905-190000-feature-ui-dps-panel-bars.md | fb160 (BACKLOG-UI.md) — queued |
 | 20260905-190000-feature-ui-enemy-attack-indicators.md | fb155 — done |
 | 20260905-190000-feature-vs-spawn-from-gates.md | fb154 — done |
+| 20260907-101359-feature-token-economy.md | no BACKLOG citation found |
 
 ## Pending QUESTIONS.md entries (no `(owner verdict:` yet)
 
@@ -221,3 +222,14 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 - **Q182.** [fb154] VS ground spawns move to the gates, and the two sub-decisions the order does not name.
 - **Q183.** [fb155] The enemy attack registry publishes a number the sim agrees with rather than a number the sim reads — because reading it moved the sim.
 - **Q184.** [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.
+- **Q185.** [fb140] CI caps the fast tier at two worker threads, and the cap is this item's decision rather than a deferral to one that does not own it.
+- **Q186.** [CI q13] A timing assertion that divides one measurement by another belongs in the single-threaded perf config, not in a looser bound.
+- **Q187.** [fb168] Q178's open owner call, decided: the shared dev-server helper is a `tools/` file, and the census it moves is a census doing its job.
+- **Q188.** [fb165] Two perf fixtures, not one re-pointed fixture — and the clustering statistic that reads a gate-spawned horde backwards.
+- **Q189.** [fb161] Which of fb152's four leftover per-frame sources take the cadence: one, and the other three are asserted to stay.
+- **Q190.** [fb164] "Derive it live" vs "match the loaded value" — took the second, and logged the first as future work rather than building it.
+- **Q191.** [fb163] The two-economy call: (a), keep one factor and accept the coarse character sheet — not (b)'s second factor, not (c)'s reformatting, because (c) is already substantially shipped.
+- **Q192.** [fb162, integrator merge] Two independent fixes for the same overkill-ledger bug collided at merge; master's unconditional clamp was kept over the branch's narrower `bankedTick`-scoped one.
+- **Q199.** [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`, `pierce`) the lone unscaled outlier — and the two kinds are not actually the sa…
+- **Q197.** [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are measured on the shared `hybrid`/`engineer` harness, not per-class.
+- **Q200.** [fb174] A single retry plus an 8000 ms deadline does not close q15's census-`hangs` gap under arbitrary concurrent load — only under the load this repo's CI actually runs.

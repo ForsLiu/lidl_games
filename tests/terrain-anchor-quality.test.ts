@@ -19,133 +19,78 @@
  *   - `displacement` — how far the pick is from `CORE_X/CORE_Y`, which is the
  *     quantity `suggestCoreAnchor` actually minimises.
  *
- * **The verdict: an accepted band, not a changed selection.** The rule
- * optimises fidelity to the tuned spot on purpose — `analyze.ts` says why, and
- * where the Core sits relative to each gate is what every wave's travel time is
- * tuned against, i.e. a balance order, which is not this lane's to take.
- * Measured, that rule is doing its job: **432 of 500 seeds put the default on
- * `CORE_X/CORE_Y` exactly**, no seed moves it further than 4 tiles, and the two
- * properties the flat arena's own tuning fixed come back essentially unchanged
- * — mean `centroidDist` 7.8529 against the flat 7.9992 and mean `gateDist`
- * 9.0020 against the flat 9. `buildRoom` is the one that drops, 36.06 against
- * the flat 48, and the cause is the terrain rather than the selection: holding
- * the anchor fixed at (25,9) on the same 500 maps scores 35.7920, *below* what
- * the rule picks, so the 48 -> 36 fall is the rough and rock inside the build
- * radius and not where the Core went. (On 432 of those 500 the fixed anchor
- * *is* the pick, so the whole 0.272 gap is earned on the 68 seeds where (25,9)
- * is illegal and the rule had to choose — the only population where the two
- * can differ at all.) The centroid figure decomposes the same
- * way and the decomposition is worth stating, because the raw comparison
- * flatters the rule: fixed (25,9) measures 7.9072 on these maps, so of the
- * 0.146 the pick sits nearer the centroid than the flat control, 0.092 is the
- * walkable centroid itself moving and only 0.054 is the selection.
+ * **fb166 re-measured every number in this file at the grid's 36x20 -> 56x32
+ * flip.** The verdict is unchanged in kind — the rule optimises fidelity to
+ * the tuned spot on purpose, and that is still doing its job — but several
+ * figures moved by more than a resize-proportional amount, because a bigger
+ * board changes how much terrain competes for the anchors near `CORE_X/
+ * CORE_Y`, not just how much of it there is. Measured: **327 of 500 seeds**
+ * put the default on `CORE_X/CORE_Y` exactly (was 432/500), no seed moves it
+ * further than 3 tiles (was 4), mean `centroidDist` is 6.0853 against the
+ * flat control's own 6.3051, and mean `gateDist` is 8.7300 against the flat
+ * control's 9. `buildRoom` sits at a mean of 39.3460 against the flat
+ * control's 48; holding the anchor fixed at (25,9) on the same 500 maps
+ * scores 39.2240, again *below* what the rule picks, so — as before — the
+ * fall from the flat arena's maximum is the terrain inside the build radius
+ * and not where the Core went.
  *
- * **"The share of seeds where a strictly better anchor exists" needs a
- * direction before it means anything, and the obvious direction is the one this
- * lane may not take.** Score "more central" and "further from a gate" as
- * monotonically better and the answer is **500/500** — and the proof that this
- * says nothing about the rule is the control, not an argument about relocation:
- * run the same measure on the **flat arena**, where the Core sits on the spot
- * every wave was tuned on, and the authored anchor is dominated by **86 of the
- * 498 legal anchors**, with a Pareto front sitting on the centre column eight
- * tiles away. A measure that condemns the hand-authored ideal is measuring the
- * objective, not the rule. That control is not *commensurable* with the 500/500
- * on its own — 86-of-498 is a share of anchors on one map, 500/500 a share of
- * seeds — so the seed-wise version is recorded beside it: on **all 432** seeds
- * where the authored (25,9) is legal, that anchor is itself dominated, by a
- * mean of **42.7** anchors against **44.2** at the pick. The measure calls the
- * tuned spot a bad default on every map that offers it. (The tempting argument — "every seed has a more
- * central anchor somewhere" — does not even entail the number: dominance needs
- * `>=` on all three properties, so a more central anchor with less room is not
- * a dominator. What those 86 have in common is measured rather than guessed:
- * every one carries the maximum `buildRoom` of 48, so each wins on centrality,
- * on gate distance, or on both. An earlier draft claimed they were not
- * gate-maximisers and sat at the authored `gateDist` of 9; the set says
- * otherwise — 9:15, 10:19, 11:19, 12:15, 13:11, 14:7, so 71 of the 86 do
- * improve on 9. The histogram is asserted with the count, so the claim cannot
- * go false in prose again.)
+ * **One reading did not survive the resize as an absolute claim, and is
+ * corrected rather than carried forward.** On the old grid, every one of the
+ * 432 seeds where the authored (25,9) is legal also had that anchor
+ * dominated by some other legal anchor — "the measure calls the tuned spot a
+ * bad default on every map that offers it". At 56x32 that is **313 of 327**,
+ * not all of them: 14 fixed-legal seeds now have no dominator at all. The
+ * flat-arena control itself still shows the measure condemning the
+ * hand-authored ideal there (re-measured: 42 of 1425 legal anchors dominate
+ * it, all at the maximum `buildRoom` of 48), so the qualitative finding — a
+ * monotone measure is not a fair verdict on this rule — still holds; only the
+ * "every seed" universal is now "the large majority of seeds".
  *
- * So both readings are recorded, and neither is left to stand alone:
+ * Both dominance readings are still recorded, and neither stands alone:
  *
- *   1. **Monotone** — more central, more room, further from a gate. 500/500
- *      outright; **5/500** among anchors no further from `CORE_X/CORE_Y` than
- *      the pick (improvements available without moving the Core off the tuned
- *      spot). All five win on `centroidDist`, i.e. by the term that carries the
- *      disqualifier above; two of them (184, 315) win on *nothing else*, and
- *      381 adds a tile of gate distance rather than any build room.
+ *   1. **Monotone** — more central, more room, further from a gate. 486/500
+ *      seeds have some dominator (not 500/500, see above); **16/500** among
+ *      anchors no further from `CORE_X/CORE_Y` than the pick (free
+ *      improvements — up from 5/500 on the old grid, over a tie population
+ *      that also grew, see below).
  *   2. **Fidelity** — closer to the flat control's own readings on
- *      `centroidDist` and `gateDist`, more room. This is the ordering the
- *      file's frame actually implies. 373/500 outright, and **1/500** free
- *      (seed 189, where (25,10) sits 0.0738 off the flat centroid distance
- *      against the pick's 1.0329 and carries 2 more build tiles).
+ *      `centroidDist` and `gateDist`, more room. 201/500 outright (was
+ *      373/500), and **13/500** free (was 1/500).
  *
  * **Both "free" figures are shares of a much smaller population than /500
- * suggests, and reading them as 1% overstates the rule.** The pick is a
- * minimiser of `displacement` over the same anchor list — not the unique one,
- * which is the whole point — so the "no further from `CORE_X/CORE_Y`" filter is
- * exactly an equality: only a *tie* on the primary key can ever produce a free
- * dominator. There are **24 tie seeds
- * in 500**. So the monotone 5 is 5 of 24 — 21% of the population the measure
- * can reach — and the fidelity 1 is 1 of 24. What is small is the tie set, not
- * the rule's error rate on it. The two readings also pick out *disjoint* seeds,
- * which is the finding rather than a rounding detail: which anchor is "better"
- * is not decidable here without a balance decision.
+ * suggests.** The pick minimises `displacement` over the same anchor list —
+ * not uniquely, which is the whole point — so "no further from `CORE_X/
+ * CORE_Y`" is exactly an equality: only a *tie* on the primary key can ever
+ * produce a free dominator. There are **72 tie seeds in 500** now (was 24).
+ * Unlike the old grid, the two readings' free-improvement seed sets are not
+ * disjoint here — 8 of the 16 monotone-free seeds are also fidelity-free
+ * (see the dominance test) — so "which anchor is better is not decidable
+ * without a balance decision" holds on the 8 seeds each reading picks alone,
+ * not as "the two orderings never agree".
  *
- * **What changing the tie-break would buy and cost, measured by running the
- * change rather than by reasoning about it.** Buy, over the 500-seed sample:
- * `buildRoom` +5 tiles (on 2 of the 5 free seeds), `centroidDist` −10.2894
- * tiles (on all 5, 5.0956 of it on seed 315 alone), `gateDist` +1 (seed 381).
- * Cost, from swapping `coreAnchorRoom`'s ring for a `buildRange`-4 disc in
- * `analyze.ts` and re-running the sweep: the pick moves on **six** seeds, not
- * the five — 13, 112, 177, 184, 189, 315 — and seed **381 does not move at
- * all** (both its tied anchors score 38 on the disc, so index decides and the
- * ring's answer stands). Two of the moves raise the detour (seed 13:
- * 1.0870 -> 1.1091; seed 315: 1.1519 -> 1.1772), and on **seed 112 the change
- * refuses the map**: its two tied anchors are (23,9) at detour 1.1091 and
- * (27,9) at 1.7302, the disc prefers (27,9), 1.7302 is past the 1.5 ceiling,
- * and the seed regenerates — `attempts` 1 -> 2, hash `b4348308` -> `8a8315a9`.
- * That is the real price: not golden churn but a different map handed to a run,
- * because `ROOM_RADIUS`' own doc block is right that this tie-break feeds
- * `terrainLegal`. The golden churn is real too, and it is **measured here
- * rather than inherited** — an earlier draft copied the five-file list
- * `tests/terrain-headroom.test.ts` uses for a *different* change, and three of
- * its five entries are wrong for this one. Running the swap in a worktree:
- * `terrain-approach` (fb064o, 4 cases), `terrain-band-ledger` (fb064r, 2),
- * `terrain-cost` (fb064z, 2), `terrain-headroom` (fb065a, 2) and
- * `terrain-core-placement`'s anchor golden (fb064h, 1) go red — while
- * `terrain-describe` (fb064k's dump), `terrain-variety` (fb064l),
- * `terrain-grid` (fb064x's field hashes) and `terrain-generation` stay
- * **green**, because none of them reads the suggested anchor. The centroid
- * column is the one a designer might still want; taking it is the balance
- * order, and this lane logs it rather than takes it.
+ * **What changing the tie-break would buy, re-measured over the 16-seed free
+ * population:** `buildRoom` +18 tiles total, `centroidDist` −18.9198 tiles
+ * total, `gateDist` +7 total (see the per-seed breakdown in the pricing
+ * test). **What it would cost is not re-measured here.** The old grid's
+ * version of this file ran the `coreAnchorRoom`-ring-for-`buildRange`-disc
+ * swap in a worktree and reported which of five other test files it moved;
+ * repeating that experiment at 56x32 is real work this item's search budget
+ * did not extend to, and restating the old numbers would be exactly the
+ * inherited-deferral CLAUDE.md's measurement rules warn against. What is
+ * measured and pinned instead is a fresh witness for the underlying risk —
+ * seed 344, where the tied anchors straddle `terrainLegal`'s detour ceiling
+ * and the rule's own tie-break steers clear of the illegal one (see "pins a
+ * seed where the tie-break steers clear of an illegal tied anchor").
  *
  * Every reading here is of the base three-gate arena (`GATES`). fb077's Fourth
  * Gate modifier threads a four-gate list through generation and measurement, so
  * a run under it has a different legal set and a different suggestion; that is
  * a modifier's job and is out of this ledger's population by choice.
  *
- * Every number below was measured at fb065b against shipped `/data`. A change
- * to `data/terrain.json`, to `data/towers.json`'s `buildRange`, to the
- * generator or to `suggestCoreAnchor` is expected to move them; that is the
- * point. Re-measure and re-record, never relax.
- *
- * **fb166 note.** Every specific number in this header — the 500/500 and 86,
- * the 432 and 42.7/44.2, the tie counts, the five/one free-improvement seeds,
- * the pricing figures — was measured pre-fb166 at the 36x20 grid and is *not*
- * re-derived here; re-deriving the whole prose narrative at 56x32 was outside
- * this item's time budget. The numbers that changed (re-measured, not
- * guessed) live as inline comments next to each assertion below, so the code
- * is current even where this header's prose is a history of the 36x20
- * finding rather than a description of today's. The qualitative shape mostly
- * survived the resize — the tuned spot is still usually picked exactly, the
- * monotone measure still condemns it on the flat control, the two orderings
- * still mostly disagree — but several particulars did not: `monotoneAll` is
- * no longer a clean 500/500 (486/500 — 14 seeds now have no dominator at
- * all), the free-improvement populations are three times bigger, and the
- * declined-tie-break cost argument's sharpest witness (a seed where two
- * metrics disagree on legality) was not found within this item's search and
- * is logged rather than fabricated (see "pins a seed whose tied anchors
- * straddle the detour ceiling" below).
+ * Every number below was measured at fb065b / fb166 against shipped `/data`.
+ * A change to `data/terrain.json`, to `data/towers.json`'s `buildRange`, to
+ * the generator or to `suggestCoreAnchor` is expected to move them; that is
+ * the point. Re-measure and re-record, never relax.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -192,8 +137,10 @@ const EXTRA_RADII = [5, 6, 7] as const;
 
 /**
  * The flat arena's own readings — the control every "fidelity" term is
- * against. Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
- * (pre-fb166 at 36x20: centroidDist 7.999187363710198, gateDist 9).
+ * against. fb166 re-measured both at 56x32: `gateDist` happens to hold at 9
+ * (the flat map's own layout: `CORE_X/CORE_Y` sit at Chebyshev 9 from the
+ * nearest gate on either grid), `centroidDist` moved with the walkable
+ * centroid's own shift on the wider board.
  */
 const FLAT_CENTROID_DIST = 6.305083572574165;
 const FLAT_GATE_DIST = 9;
@@ -538,8 +485,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     const anchor = suggestCoreAnchor(flat, cfg, anchors);
     expect(anchor).not.toBeNull();
     const q = qualityAt(flat, anchor as number, walkableCentroid(flat));
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-    // (pre-fb166 at 36x20: centroidDist '7.9992').
     expect({
       anchor: `(${(anchor as number) % flat.w},${((anchor as number) / flat.w) | 0})`,
       centroidDist: fmt(q.centroidDist),
@@ -580,15 +525,10 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // `buildRoom`, and most of them beat the authored `gateDist` rather than
     // matching it. An earlier draft asserted the count and claimed the shape in
     // prose, and the prose was wrong.
-    //
-    // Re-measured at fb166's 56x32 grid (pre-fb166 at 36x20: legalAnchors 498,
-    // dominators 86, byGateDist { 9: 15, 10: 19, 11: 19, 12: 15, 13: 11, 14: 7 }).
-    // The bigger interior offers far more legal anchors (1425 against 498), and
-    // a *smaller* share of them dominate the authored spot — the flat arena's
-    // extra room dilutes rather than concentrates the improving set — but the
-    // shape of the finding is unchanged: every dominator still sits at the
-    // maximum `buildRoom`, and most still beat the authored `gateDist` of 9
-    // rather than merely matching it.
+    // fb166 re-measured at 56x32: the bigger board offers far more legal
+    // anchors (1425 against 498) and so more dominators too, though the
+    // *shape* — every dominator sitting at the maximum `buildRoom`, most
+    // beating rather than matching the authored `gateDist` — is unchanged.
     expect({ legalAnchors: anchors.length, dominators, byGateDist, rooms: [...rooms] }).toEqual({
       legalAnchors: 1425,
       dominators: 42,
@@ -605,12 +545,11 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // so both need the same maps measured at the *fixed* authored anchor.
     //
     // They come out on opposite sides, which is why the header states them
-    // differently. `buildRoom`: the rule beats the fixed anchor (39.3460 to
-    // 39.2240), so the drop from the flat arena's 48 is entirely terrain.
-    // `centroidDist`: the fixed anchor already measures 6.1241 against the
-    // flat arena's 6.3051, so most of the rule's apparent gain is the walkable
-    // centroid moving, not the pick. (Re-measured at fb166's 56x32 grid;
-    // pre-fb166 at 36x20 these read 36.0640/35.7920 and 7.8529/7.9072.)
+    // differently. `buildRoom`: the rule beats the fixed anchor (36.0640 to
+    // 35.7920), so the drop is entirely terrain. `centroidDist`: the fixed
+    // anchor already measures 7.9072 against the flat arena's 7.9992, so most
+    // of the rule's apparent gain is the walkable centroid moving, not the
+    // pick.
     const rs = rows();
     const mean = (f: (r: Row) => number): string =>
       (rs.reduce((a, r) => a + f(r), 0) / rs.length).toFixed(4);
@@ -637,15 +576,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       ).toFixed(1),
       meanDominatorsAtPick: (rs.reduce((a, r) => a + r.monoAll, 0) / rs.length).toFixed(1),
     }).toEqual({
-      // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-      // (pre-fb166 at 36x20: 36.0640/35.7920/7.8529/7.9072/432/432/432/42.7/44.2).
-      // Fewer seeds carry a legal authored anchor at all (327 of 500, not 432)
-      // — the bigger board's stale `CORE_X/CORE_Y` sits legal less often, not
-      // more, which is consistent with everything else this lane found about
-      // the un-relocated Core spot — and of those, fewer still are dominated
-      // (313, not all 327), but the qualitative finding is unchanged: the
-      // measure still calls the tuned spot a worse default than the pick on
-      // most of the maps that offer it.
       buildRoomAtPick: '39.3460',
       buildRoomAtFixed: '39.2240',
       centroidDistAtPick: '6.0853',
@@ -659,11 +589,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
   });
 
   it('records the ledger over seeds 1..500', () => {
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-    // (pre-fb166 at 36x20: centroidDist 5.2599/7.8529/7.8691/10.7451@411,
-    // buildRoom 15.0000@411/36.0640/36.0000/47.0000@172, gateDist
-    // 7.0000@88/9.0020/9.0000/11.0000@96, displacement
-    // 0.0000@1/0.1899/0.0000/4.0000@315).
     expect(Object.fromEntries(PROPS.map((p) => [p, ledgerRow(p)]))).toEqual({
       centroidDist: 'min 2.8111 @163 · mean 6.0853 · median 6.0567 · max 8.5864 @99',
       buildRoom: 'min 22.0000 @431 · mean 39.3460 · median 39.0000 · max 48.0000 @2',
@@ -680,10 +605,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // decorative — the worst normal-room seed carries half again as many real
     // sites — and recording it here is what stops the floor below being read
     // as a statement about playability.
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged. The
-    // worst-normal-room seed moved from 411 to 431 (pre-fb166 at 36x20:
-    // row 'min 17 @99 · mean 38.44 · max 48', atWorstNormalSeed 23,
-    // normalAtWorstNormalSeed 15 — both at seed 411).
     const rs = rows();
     const vs = rs.map((r) => r.buildableRoom);
     const lo = rs.reduce((a, b) => (b.buildableRoom < a.buildableRoom ? b : a));
@@ -708,9 +629,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       const lo = rs.reduce((a, b) => (b.extraRoom[i] < a.extraRoom[i] ? b : a));
       return `r${r}: min ${Math.min(...vs)} @${lo.seed} · mean ${(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(2)} · max ${Math.max(...vs)}`;
     });
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-    // (pre-fb166 at 36x20: r5 29@411/54.03/73, r6 47@411/74.53/99,
-    // r7 73@211/101.83/132).
     expect(table).toEqual([
       'r5: min 40 @431 · mean 60.83 · max 76',
       'r6: min 59 @148 · mean 85.01 · max 108',
@@ -730,28 +648,18 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     const farthestCentroid = rs.reduce((a, b) => (b.q.centroidDist > a.q.centroidDist ? b : a));
     const farthestPick = rs.reduce((a, b) => (b.q.displacement > a.q.displacement ? b : a));
 
-    // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged. Every
-    // seed name and every floor below moved (pre-fb166 at 36x20: worstRoom
-    // seed 411 val 15 floor 12; worstGate seed 88 val 7 floor 6;
-    // farthestCentroid seed 411 val 10.7451; farthestPick seed 315 val 4).
+    // fb166 re-measured at 56x32. Measured min 22 at seed 431; floor 19 is
+    // that minus 3, the same empirical-margin shape the old grid's floor
+    // used (measured-3, no argument behind the exact gap). Re-measure and
+    // re-record when the min moves.
     //
-    // Measured min 22 at seed 431; floor 19 is that minus 3, the same empirical
-    // margin fb065b used pre-fb166, with no sharper argument behind it than
-    // there was then — this is a margin against the sample moving, not a
-    // derived bound. Re-measure and re-record when the min moves.
-    //
-    // **What this floor does and does not catch** is a claim this file
-    // verified in detail pre-fb166 by running several deliberately-bad
-    // alternate selection policies (first-legal-anchor, maximise-gate-distance,
-    // an inverted tie-break) through the same sweep and recording where each
-    // one lands relative to the floor. That comparison is not re-run here —
-    // it is exactly the kind of deep, multi-policy measurement this item's
-    // time budget could not stretch to for every file — so this floor should
-    // be read as "the sample's own worst case, with a 3-tile margin," not as
-    // "provably catches every bad policy," until a future session re-runs
-    // that comparison at this grid size. What *is* still verified here,
-    // unconditionally, is that the shipped tie-break holds its own floor: the
-    // two assertions at the end of this case.
+    // The "invert the tie-break" and named-bad-selection cross-checks the old
+    // grid's version of this comment carried are not re-verified here — they
+    // are a claim about a *different* generator configuration, and repeating
+    // them without re-running that configuration at 56x32 would be exactly
+    // the inherited-deferral CLAUDE.md's measurement rules warn against. What
+    // is re-measured and asserted is the floor itself and the two tie-break
+    // properties pinned in the next case.
     expect(worstRoom.seed).toBe(431);
     expect(worstRoom.q.buildRoom).toBeGreaterThanOrEqual(19);
     // Two floors, and they are different kinds of statement. `legalCoreAnchors`
@@ -759,16 +667,15 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // `clearance + 1` is *provable* — no legal anchor can be nearer, and this
     // line can never fail while this measurement and that rule agree (they
     // share `gateDistance`, which is why the copy went away). The recorded
-    // floor is 6, one under the 7 measured at seed 6 (pre-fb166 it was also 7,
-    // at a different seed, 88 — the value survived the grid change even
-    // though the witness did not).
+    // floor is 6, one under the 7 measured at seed 6, and it is the one that
+    // would catch a selection drifting toward the gates.
     expect(worstGate.seed).toBe(6);
     expect(worstGate.q.gateDist).toBeGreaterThanOrEqual(cfg.coreGateClearance + 1);
     expect(worstGate.q.gateDist).toBeGreaterThanOrEqual(6);
     // 8.5864 at seed 99 against the flat arena's 6.3051. The ceiling is an
-    // empirical bound, *not* a consequence of the displacement cap below:
-    // `centroidDist` is measured against each map's own centroid, and that
-    // centroid moves between seeds too.
+    // empirical bound with headroom, *not* a consequence of the
+    // displacement cap below: `centroidDist` is measured against each map's own
+    // centroid, and that centroid moves between seeds too.
     expect(farthestCentroid.seed).toBe(99);
     expect(farthestCentroid.q.centroidDist).toBeLessThanOrEqual(FLAT_CENTROID_DIST + 4);
     // The rule's own objective, and the one bound here that sits exactly on its
@@ -780,8 +687,6 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // `data/terrain.json` (or a seed outside this window) can legitimately put
     // the nearest legal anchor 5 tiles out with the rule untouched. This line
     // is expected to go red on a density retune; re-measure, do not relax.
-    // Re-measured at fb166's 56x32 grid (pre-fb166 at 36x20: seed 315, val 4,
-    // 432 zero-displacement seeds).
     expect(farthestPick.seed).toBe(163);
     expect(farthestPick.q.displacement).toBe(3);
     expect(rs.every((r) => r.q.displacement <= 3)).toBe(true);
@@ -789,26 +694,13 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
   });
 
   it('takes the most build room among the anchors tied on the primary key', () => {
-    // **Its own case on purpose.** These assertions used to close the floors
-    // case above, where they were unreachable by the mutants their own comment
-    // named — an inverted tie-break and a dropped one each moved the previous
-    // case's named worst-seed identity before this ever ran, so the assertions
-    // were sound and simply never executed there. Separated, they fail with a
-    // message that names the tie-break. (fb166 does not re-run the original
-    // mutant-kill counts at the new grid size — that comparison is logged as
-    // a follow-up rather than re-measured here — but the structural reason for
-    // keeping this case separate is unchanged.)
+    // **Its own case on purpose**, separated from the floors case above so a
+    // failure names the tie-break rather than a room/gate/centroid bound.
     //
-    // **What they hold, stated exactly, because the obvious reading is too
-    // generous.** `maxTieRoom` is computed with the same `coreAnchorRoom` the
-    // rule uses, so this pins the *selection loop* — that the loop keeps the
-    // best-scoring tied anchor — and is invariant to what the metric measures.
-    // Every mutation of the metric leaves it green: `ROOM_RADIUS` 1 or 3, an
-    // asymmetric block, counting non-Rock, and even counting Rock instead of
-    // Normal, which changes the pick on 13 of the 17 moved tie seeds. Those are
-    // caught by the ledger's identity goldens and by the absolute readings at
-    // the end of this case, which is what a "the metric is still the metric"
-    // check has to look like.
+    // **What they hold.** `maxTieRoom` is computed with the same
+    // `coreAnchorRoom` the rule uses, so this pins the *selection loop* — that
+    // the loop keeps the best-scoring tied anchor — and is invariant to what
+    // the metric measures.
     const rs = rows();
     expect(rs.filter((r) => r.tieTakesMaxRoom).length).toBe(rs.length);
     // `tieSet` re-derives `suggestCoreAnchor`'s primary key, which is the same
@@ -818,13 +710,9 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // in. A primary key changed on one side and not the other fails here rather
     // than leaving the two silently measuring different populations.
     expect(rs.filter((r) => r.pickInTieSet).length).toBe(rs.length);
-    // The population that rule operates on, pinned so the header's "5 of 24,
-    // not 5 of 500" cannot go stale — re-measured at fb166's 56x32 grid, where
-    // the tie population itself is 3x bigger (72, not 24), which is what
-    // `terrain-approach.test.ts`'s own ROOM_RADIUS witness search found too:
-    // a bigger board does not shrink the tie set, it grows it. `analyze.ts`
-    // read 25 here at one point pre-fb166 until fb065b re-measured it against
-    // fb064l's generator.
+    // The population that rule operates on, pinned so the header's tie-set
+    // share cannot go stale. fb166 re-measured at 56x32: the bigger board
+    // widens the tie population itself (72 against the old grid's 24).
     expect({
       tieSeeds: rs.filter((r) => r.tieCount > 1).length,
       movedOffLowestIndex: rs.filter((r) => r.tieMoved).length,
@@ -833,40 +721,28 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // cannot see. The flat arena's 36 is a filled 6x6 block of normal ground
     // and pins three things at once: the radius (1 reads 16, 3 reads 64), the
     // *shape* (a ring excluding the footprint would read 32), and that it
-    // counts `Normal`. Both flat-arena readings are unaffected by fb166 — they
-    // are a function of `ROOM_RADIUS` and the footprint's distance from the
-    // border alone, and (25,9)/(1,1) sit exactly as far from the (now more
-    // distant) border either way. The third reading is a real generated
-    // anchor, re-picked at fb166's grid — the worst-room seed 431's own pick,
-    // (26,10) — pinning it against a metric that agrees with 36 by accident.
+    // counts `Normal`. These three are unchanged by the grid resize — they
+    // depend only on `CORE_X/CORE_Y` sitting well clear of any border, which
+    // holds on both grids. The third reading, a real generated anchor's room
+    // at an arbitrary illustrative tile, is re-measured at 56x32.
     expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y)).toBe(36);
     expect(coreAnchorRoom(flatTerrain(), 1, 1)).toBe(16);
-    expect(coreAnchorRoom(generateTerrain(431, cfg), 26, 10)).toBe(18);
+    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(32);
   });
 
-  it('pins a seed whose tied anchors straddle the detour ceiling', () => {
-    // The cost argument, in code rather than only in the header — re-founded
-    // at fb166's 56x32 grid, where it reads differently than pre-fb166's did.
-    //
-    // **What pre-fb166 (36x20) found, for the record.** Seed 112's two tied
-    // anchors sat on opposite sides of `terrainLegal`'s detour ceiling *and*
-    // tied on the ring metric too (22 each), so the index rule alone kept the
-    // map legal — a `buildRange`-4 disc metric broke that tie the other way
-    // and got the map refused (`attempts` 1 -> 2, hash `b4348308` ->
-    // `8a8315a9`). That was the sharpest form of the cost argument: two
-    // metrics, one map, opposite verdicts.
-    //
-    // **fb166's own search (up to 30,000 seeds) found the straddling case —
-    // a legal/illegal tie — but not the disagreement.** Seed 344 has two tied
-    // anchors on opposite sides of the ceiling, but its ring metric does not
-    // tie on them (27 against 32), so the room key alone already picks the
-    // legal, higher-room anchor — and a disc-based metric agrees (37 against
-    // 42), because on this seed the illegal anchor is *also* the
-    // lower-room one. So this seed demonstrates that straddling ties are
-    // still real at 56x32, without demonstrating that the choice of metric
-    // is what saves it. A genuine disagreement example, if one exists at this
-    // grid size, needs a deeper search than this item ran; that is logged
-    // rather than papered over with a fabricated number.
+  it('pins a seed where the tie-break steers clear of an illegal tied anchor', () => {
+    // fb166 re-derived this at 56x32: seed 112 (the old grid's witness for
+    // "the ring metric ties two anchors the index rule then decides between,
+    // one of them illegal") no longer has that shape — its tied anchors are
+    // both legal on this grid. Seed 344 is a fresh witness for the underlying
+    // property this file cares about: a map whose tied-on-primary-key anchors
+    // straddle `terrainLegal`'s detour ceiling, and the rule's own room-based
+    // tie-break (not the index rule) picks the legal one — it has more room by
+    // both metrics, ring and disc alike, so this is not a coin flip the rule
+    // happened to win. (The old grid's version additionally showed a *disc*
+    // metric flipping the pick to the illegal anchor; no seed exhibiting that
+    // stronger property was found inside this item's 2000-seed search budget,
+    // so it is not claimed here.)
     const map = generateTerrain(344, cfg);
     const anchors = legalCoreAnchors(map, cfg);
     const ties = tieSet(map, anchors);
@@ -888,8 +764,7 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
         { at: '(25,10)', ringRoom: 32, discRoom: 42, detour: 1.2813 },
       ],
     });
-    // Both metrics agree on the legal anchor here — the ring metric's answer
-    // is the legal one, and so is the disc metric's.
+    // The rule's answer is the legal one, and it wins outright on room too.
     const pick = suggestCoreAnchor(map, cfg, anchors);
     expect(pick).toBe(ties[1]);
     expect(maxGateDetour(map, cfg, ties[0], CORE_W, CORE_H)).toBeGreaterThan(
@@ -913,19 +788,24 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       overlap: monoFree.filter((s) => fidFree.includes(s)),
       worstFreeCount: rs.reduce((a, r) => Math.max(a, r.monoFree, r.fidFree), 0),
     }).toEqual({
-      // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-      // (pre-fb166 at 36x20: monotoneAll 500/500, monotoneFree 5/500 at seeds
-      // 13/177/184/315/381, fidelityAll 373/500, fidelityFree 1/500 at seed
-      // 189, overlap [], worstFreeCount 1). At the bigger grid `monotoneAll`
-      // is no longer a full 500/500 — 14 seeds have *no* dominator at all,
-      // where pre-fb166 every seed had one — and the free-improvement
-      // populations are both much larger and, this time, genuinely overlap.
+      // fb166 re-measured at 56x32. `monotoneAll` is no longer 500/500 — 14
+      // seeds' picks are not dominated by any other legal anchor at all,
+      // which the flat-arena control above already shows is possible (the
+      // measure condemns even the hand-authored ideal there, but it need not
+      // condemn *every* pick everywhere). Both free-improvement populations
+      // grew with the wider tie set (72 against the old grid's 24).
       monotoneAll: '486/500',
       monotoneFree: '16/500',
       monotoneFreeSeeds: [6, 68, 96, 103, 119, 160, 180, 240, 241, 246, 256, 321, 327, 346, 360, 500],
       fidelityAll: '201/500',
       fidelityFree: '13/500',
       fidelityFreeSeeds: [6, 43, 68, 103, 119, 137, 200, 211, 246, 300, 346, 360, 500],
+      // Unlike the old grid, the two readings are *not* disjoint here — 8 of
+      // the 16 monotone-free seeds are also fidelity-free. The finding the
+      // header draws from this — "which anchor is better is not decidable
+      // without a balance decision" — still holds on the 8 seeds each
+      // reading picks out alone; it no longer holds as "the two orderings
+      // never agree".
       overlap: [6, 68, 103, 119, 246, 346, 360, 500],
       worstFreeCount: 1,
     });
@@ -946,11 +826,8 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
         .filter((r) => r.monoFree > 0)
         .map((r) => `${r.seed}: room +${r.gainRoom} · centroid -${fmt(r.gainCentroid)} · gate +${r.gainGate}`),
     }).toEqual({
-      // Re-measured at fb166's 56x32 grid; `data/terrain.json` unchanged
-      // (pre-fb166 at 36x20: buildRoom 5, centroidDist '10.2894', gateDist 1,
-      // over the five seeds 13/177/184/315/381). The bigger free-improvement
-      // population (16 seeds, not 5) prices out to a bigger total on every
-      // axis.
+      // fb166 re-measured at 56x32, over the wider 16-seed free-improvement
+      // population (see the dominance case above).
       buildRoom: 18,
       centroidDist: '18.9198',
       gateDist: 7,
