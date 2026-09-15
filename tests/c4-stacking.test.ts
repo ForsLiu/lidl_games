@@ -25,7 +25,7 @@ import { applyTerrainPassives } from '../src/sim/weapons';
 import { attackSpeedFor, buildTower, collectSproutGold } from '../src/sim/towers';
 import { enemyInfoMarkup } from '../src/ui/hud';
 import { emptyInput } from '../src/sim/types';
-import { cfg, scaled } from './helpers';
+import { cfg } from './helpers';
 
 const content = loadContent();
 
@@ -379,7 +379,8 @@ describe('C4 — every rebased consumer reads a finished multiplier', () => {
 
   it('a chilled enemy hits for coreDamage x chilledDamageTaken (enemies.ts)', () => {
     const def = content.enemyByKey.get('husk')!;
-    expect(def.coreDamage).toBeCloseTo(scaled(5), 10);
+    // fb163/fb194: `coreDamage` is enemy damage output (economy B) — no longer scaled.
+    expect(def.coreDamage).toBeCloseTo(5, 10);
     for (const chilled of [false, true]) {
       // -25% and -50% from two sources: x0.75 x 0.5 = x0.375.
       const w = boosted('chilledDamageTaken', -0.25, -0.5);
@@ -391,7 +392,8 @@ describe('C4 — every rebased consumer reads a finished multiplier', () => {
       const hp = w.warden.hp;
       updateEnemies(w, 1 / 60);
       // 5 x 0.375 = 1.875. Additive (x0.25) -> 1.25. Double-applied (x1.375) -> 6.875.
-      expect(hp - w.warden.hp).toBeCloseTo(scaled(chilled ? 1.875 : 5), 10);
+      // fb163/fb194: damage taken by the Warden is economy B — no longer scaled.
+      expect(hp - w.warden.hp).toBeCloseTo(chilled ? 1.875 : 5, 10);
     }
   });
 

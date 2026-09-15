@@ -17,10 +17,10 @@ import { applyCommand, hashWorld, Run, updateWarden } from '../src/sim/run';
 import { buildTower, towerDamage, upgradeTower } from '../src/sim/towers';
 import { wieldedAttacks } from '../src/sim/vswield';
 import type { TickInput } from '../src/sim/types';
-import { STAT_SCALED, type StatKey } from '../src/sim/statkeys';
+import { STAT_INVERSE_SCALED, STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { characterPanelData } from '../src/ui/character-panel';
-import { cfg, runWithPolicy, scaled } from './helpers';
+import { cfg, numberScale, runWithPolicy, scaled } from './helpers';
 
 const content = loadContent();
 
@@ -90,8 +90,14 @@ describe('p7b: every one of the 12 items\' every mods column reaches Stats as it
       expect(Object.keys(item.mods).sort()).toEqual(Object.keys(expectedMods).sort());
       for (const [statKey, value] of Object.entries(expectedMods)) {
         // fb153a: the owner table is in authored units; `numberScale` divides
-        // the HP/damage-denominated stats at load (`STAT_SCALED`).
-        const live = STAT_SCALED[statKey as StatKey] ? scaled(value) : value;
+        // the economy-A HP/damage-denominated stats at load (`STAT_SCALED`).
+        // fb163/fb194: `leech` (`STAT_INVERSE_SCALED`) instead divides the
+        // *authored* value by `numberScale` (multiplies it up).
+        const live = STAT_SCALED[statKey as StatKey]
+          ? scaled(value)
+          : STAT_INVERSE_SCALED[statKey as StatKey]
+            ? value / numberScale()
+            : value;
         expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${item.key}`, live]);
       }
     }

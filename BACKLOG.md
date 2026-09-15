@@ -320,7 +320,11 @@ not here.
       file, and the fresh numbers are runtime-measured directly, not
       author-claimed — refs: QUESTIONS Q207, BACKLOG fb196, fb193, c004.
 
-- [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
+- [x] (fb163) [balance] **DONE 2026-09-15 — landed together with fb194 (same
+      spec, one implementation, same commit); see fb194's own closure note for
+      the full classification table, the five crossing-constant findings and
+      the verification record.** Original text follows.
+      **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
       — priority 2.** The 2026-09-06 "decided (a), no code/data change"
       closure (full text `docs/BACKLOG-DONE.md`) is overridden: ship route
       (b), scoped narrowly. Split `numberScale` (`data/modifiers.json`) into
@@ -430,102 +434,56 @@ therefore measure *after* `fb153`, not before.
         the camera/render half as **fb167** in BACKLOG-UI.md; this item keeps
         the sim half and lands **after** both, since flipping the constant
         first would redden two other lanes' suites at their next merge.
-        **Landed 2026-09-15, after both other lanes' halves.** Found while
-        starting the owner-priority queue's next item (fb194) that `npm run
-        test:fast` was red on this branch (a confirmed bug per CLAUDE.md
-        working rule 3, so it outranked the queue): `GATES.east`
-        (`src/sim/grid.ts`) was still `{tx:35,ty:17}`, the old 36x20 grid's
-        east border column, now an ordinary interior tile at the shipped
-        56x32 size (`35` is neither `0` nor `GRID_W-1=55`) — a live gameplay
-        bug BACKLOG-TERRAIN.md's own fb166 QA round measured and logged for
-        this lane (roughly a third of Act I spawns entering far closer to the
-        Core than the other two gates). `world.ts:591`'s independent Fourth
-        Gate `south` literal (`{tx:12,ty:19}`) had the identical defect
-        (`19` was `GRID_H-1` pre-resize, an interior tile at `GRID_H=32`).
-        Both fixed to `GATES.east: {tx: GRID_W-1, ty: 17}` and `world.ts`'s
-        `{tx:12, ty:GRID_H-1}` — real border tiles at every grid size, not
-        just today's. `data/towers.json`'s `breach.base` (8000 -> 27000)
-        also needed retuning: `tests/p1a-sealing.test.ts`'s own §10/G7
-        invariant ("the cheapest possible breach outprices the longest
-        walkable route") had a ~4% margin at 36x20 that the bigger map's
-        area (54×30×14=22680 vs the old 34×18×14=8568) blew a hole through
-        — `perEhp` (the HP-scaled term) stayed at 10; only the flat term
-        moved, so relative breach costs between towers are unchanged, and
-        the new margin is a comfortable ~24% rather than a repeat of the
-        old thin one.
+        **Partially landed by the `claude/epic-tesla-qq1385` merge (PR #21,
+        2026-09-15).** That branch's own fb156 (BACKLOG-TERRAIN.md) already did
+        this item's `GATES`/`MODIFIER_GATES` repositioning half (4 gates,
+        `GATES.length` 3 -> 4, `west`/`north`/`east` moved off their old
+        36x20-relative spots, `MODIFIER_GATES`'s one entry renamed `south` ->
+        `south2`) — kept as-is at the merge since it is a strict completion of
+        what this item deferred, not a competing design. `CORE_X`/`CORE_Y`
+        are still unmoved (untouched by both branches) and remain this item's
+        to place. Two pieces of this item's own acceptance are still open,
+        confirmed red by the merge's post-merge `npm run test:fast`:
+        1. `src/sim/world.ts:588` still does `GATES.slice(0, 3)` and the
+           `extraGates` modifier still pushes a hand-typed
+           `{ key: 'south', tx: 12, ty: 19 }` literal — both stale against the
+           new `GATES`/`MODIFIER_GATES` shape (the modifier literal now
+           collides in spirit with the base list's own `south` key and sits
+           off the resized border). `tests/terrain-gates-dump.test.ts`'s
+           `it.skip('describes a live Fourth Gate run correctly...')` is
+           skipped for exactly this reason — this item should read all of
+           `GATES` (not slice 3) and push `MODIFIER_GATES[0]` by reference
+           instead of a literal, then un-skip that test.
+        2. The repositioned `west`/`north`/`east` (not just the new `south`)
+           change what a fixed seed's terrain looks like through `World`,
+           which moves `tests/class-board.ts`'s shared probed board and
+           ripples into every file that imports it plus a few real-run
+           outcomes — confirmed still red post-merge: `act1.test.ts` (2),
+           `class-board.test.ts` (8), `class-board-windows.test.ts` (5),
+           `class-passive-liveness.test.ts` (2), `fb015-equipment.test.ts` (2),
+           `fb036-path-indicators.test.ts` (1), `fb196-night1-basehpmul.test.ts`
+           (1, a real scripted run that now ends `defeat_core` not
+           `defeat_warden` — new since PR #21 predates that test), `p6b-
+           swordsman.test.ts` (2), `p6c-plaguebringer.test.ts` (1), `p6d-nine-
+           classes.test.ts` (1). Each needs its golden value re-measured
+           against the real post-reposition board/run, not hand-derived —
+           `class-board.test.ts`'s own comments explain what each importer
+           needs preserved. Not attempted at the merge: the source branch's
+           own fb156 write-up found and logged this exact list (minus
+           fb196, added by master after that branch forked) as main-lane
+           work and deliberately did not fix it either, and this item is
+           where SPEC-FINAL/BACKLOG process already routes it. The other
+           `test:fast` red files at the merge (`content-complete`,
+           `grid.test.ts`, `p1a-sealing`, `p8d-boss-termination`,
+           `t2-selection`, `ui-fb082/102/106`, `ui-input`, `fb077-terrain-
+           wiring`) were already red on `origin/master` before the merge
+           (unchanged since fb166 landed there) and are this item's
+           pre-existing share, not new from PR #21 — one exception worth
+           noting for whoever re-measures: `b007-tile-bounds.test.ts`, which
+           master's own fb166 log named as red too, now passes post-merge,
+           i.e. the repositioned gates happen to also fix it.
 
-        **Blast radius, measured rather than assumed.** Because
-        `generateTerrain` takes the gate list as an RNG-relevant input (not
-        just a legality check), correcting `GATES.east` regenerates a
-        materially different map at every seed — this rippled far past the
-        two literal coordinates. `npm run test:fast` immediately after the
-        coordinate fix: **17 `tests/terrain*` files red (~88 assertions)** —
-        entirely `BACKLOG-TERRAIN.md`'s Scope (goldens, statistical ledgers
-        over hundreds/thousands of seeds keyed to the old gate position),
-        left untouched and logged in that file's Log for the terrain lane to
-        re-derive with its own tooling, per the lane-boundary rule (its own
-        fb166 entry anticipated exactly this dependency). In this lane's own
-        Scope, real-generated-terrain fixture tests that hardcoded a tile
-        assumed buildable at seed 1 under the *old* (buggy) map needed
-        re-fitting the same way this project always re-fits a moved
-        baseline: `tests/content-complete.test.ts` (Gatebreaker-chews-faster
-        repro — switched to practice mode plus a 7-tile sealed pocket around
-        the measured tower, since the lone tower no longer sits in the only
-        route at the bigger map), `tests/class-board.test.ts`/`class-board-
-        windows.test.ts` (the shared probed board moved from `10,6`/tier
-        `reduced` to `8,12`/tier `full`; re-pinned with the same "probed,
-        not pinned" baseline-tripwire convention the
-        file's own header documents, including the corner-convergence
-        property no longer holding at the bigger map — 7 legal boards now,
-        not 11, and the corner's nearest legal board is a different one, not
-        the shipped board), `tests/p6d-nine-classes.test.ts` (3 Cryomancer
-        Ice Wall cases needed practice mode for a deterministic aim tile),
-        `tests/c4-stacking.test.ts`/`fb034-max-towers.test.ts`/`hud-controls.
-        test.ts`/`p2c-vs-specials.test.ts`/`p3b-multi-summon.test.ts`/
-        `t2-selection.test.ts`/`b007-tile-bounds.test.ts` (same pattern —
-        practice mode or a re-measured tile; `b007-tile-bounds` was already
-        broken this way *before* this item, an unrelated pre-existing bug
-        this item fixed as a bonus since it is explicitly named in this
-        item's own acceptance scope). `fb077-terrain-wiring.test.ts` needed
-        its own re-derivation: the Warden's 3x3 spawn-clear block
-        (`clearOverlayBlock`, `world.ts`) was a latent gap in its "byte-for-
-        byte off the structural tiles" comparison, invisible only because
-        the old broken map happened to agree there by coincidence; its three
-        `STRANDED_CORE_SEEDS` no longer strand the Core under the corrected
-        gate list (re-found: 2722/6377/6736/7916, replacing 4426/4515/5516)
-        and its "distant live wall" repro's Palisade column needed to span
-        the full new height (`GRID_H-2`, not the old grid's `18`) to still
-        fully seal the grid. A separate, unrelated pre-existing flake this
-        lane's own fb166 QA round already diagnosed and logged for the main
-        lane — `tests/fb027-selection-panels.test.ts`'s `freeTileNear` helper
-        checked `passable` (true of walkable-but-not-buildable rough ground)
-        instead of `buildable`, ~43% flaky since the bigger map has more
-        rough terrain variety — fixed the same one-word way that Log entry
-        named; re-ran 5x green after the fix (was previously reproducible
-        failing).
-
-        **The one finding this item does not close: real full-run combat
-        outcomes moved, not just terrain shape.**
-        `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
-        (seed 1, T3) flips post-fix — swordsman `defeat_warden` -> `victory`,
-        pyromancer `defeat_warden` -> `defeat_core` (a different failure
-        mode) — at the exact seed/config the fb196/fb193/fb185/p13a Night-1
-        bisection chain measured G8 against. This is the *intended* effect
-        of fixing a live spawn-distance bug, not rescale noise, but it means
-        that whole chain's recorded numbers (and G8's state in this file's
-        "Owner priority queue (2026-09-14 directive)" section) were measured
-        against a buggy gate position and need a fresh re-measurement, not a
-        quick re-pin inside this item. Both assertions `.skip`'d with the
-        finding (CLAUDE.md working rule 6); filed as **fb197** below.
-
-        Verified: `npx tsc --noEmit` clean (one pre-existing unrelated error
-        in `tests/ui-fb102-bossbar-rail-overlap.test.ts`, UI lane, untouched
-        by this item). `npm run test:fast`: every file this item's own Scope
-        names is green, plus the fallout list above; the 17 terrain files and
-        the 2 `.skip`'d fb196 assertions are the only remaining reds, both
-        logged as this item's own out-of-scope findings rather than silently
-        worked around — refs: SPEC-FINAL §10, BACKLOG-TERRAIN.md fb166 Log
-        (2026-09-06/09-07 entries), BACKLOG-TERRAIN.md fb181, BACKLOG fb197.
+        **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
@@ -606,55 +564,171 @@ honor.**
       reading this table rather than fb177's stale one — refs: SPEC-FINAL
       §14 G8, BACKLOG fb193/fb177/fb185, PR #55 (`532d4d9`),
       `tests/fb196-night1-basehpmul.test.ts`, CLAUDE.md working rule 3.
-- [x] (fb193) [balance] **DONE 2026-09-15 — closed on fb196's fresh numbers,
-      no further data change.** ORDER (Q196) — Night-1 melee wipes are a
-      survivability problem, not a damage problem (p12j's three damage-rounds
-      moved nothing, per Q196). Add `maxHpMul` and `defenseBonus` fields to
-      `data/classes.json`, read by `derive` (`src/sim/classes.ts` or
-      equivalent) as multiplicative/additive modifiers on the class's base
-      max HP and armor, authored ⚖: swordsman x1.6 maxHp / +10 defense,
-      bloodlord x1.4 / +5, paladin x1.5 / +10 (on top of Guardian Stance's
-      own bonus), necromancer x1.2 / +5, all other classes x1.0 / +0.
-      Acceptance: schema fields land with a loader default of 1.0/0 for
-      every other class; a red-first test pins `derive`'s max HP and armor
-      for at least one non-default class; G8 is re-measured for swordsman,
-      necromancer and engineer specifically (engineer may be re-tuned within
-      the G14 >20 s boss-fight floor) and the before/after numbers recorded
-      — refs: SPEC-FINAL §14 G8, QUESTIONS Q196, BACKLOG p12j.
-      **Schema/data/derive half:** shipped as **p13a** (same mechanism, same
-      four authored bands, `tests/p13a-survivability-bands.test.ts`) —
-      `derive()`'s max HP/armor pinned for a non-default class, loader
-      defaults verified for the other eight, `npm run test:fast` green.
-      **Gate-re-measurement half:** unblocked once fb196 closed. Before
-      (p12j baseline, pre-band): swordsman 2/12, necromancer 4/12, engineer
-      4/12 (all under G8's `[5,8]` band). After (this item's own bands live,
-      measured three independent times at the real 12-seed T3 cadence —
-      p13a's own shipping run, fb196's fresh full sweep, fb185's re-pin, all
-      agreeing): swordsman **0/12**, necromancer **0/12** — both worse, not
-      better; the roster-wide Night-1 `baseHpMul` mechanism fb196 diagnosed
-      (mob HP inflated 20x in the least-built-up block of the run while a
-      class's own kit is the only VS-active damage source) swamps a
-      survivability bump the same way it already swamped p12j's damage
-      levers. Engineer (inert by construction, `x1.0/+0`) re-confirmed
-      **byte-identical 4/12** as a control, same seed-by-seed pattern, three
-      separate sessions running (p12j, p13a, fb196). **Engineer re-tune not
-      attempted again this item:** p12j already spent two materially
-      different rounds on the one lever this class has room to move
-      (`Pop Turret` `summonStatMul`/cooldown) inside the G14 >20 s
-      boss-fight floor — one round cleared the band (5/12) before an
-      unrelated cadence-cap fix cost it exactly one seed back to 4/12, the
-      other tightened the cooldown further and re-broke G14. Per CLAUDE.md
-      working rule 6 and fb196's own finding that kit-side levers don't
-      touch the Night-1 mechanism (the same lesson swordsman's and
-      necromancer's exhausted rounds already paid for), a third blind round
-      on the same lever without first addressing `baseHpMul` is not expected
-      to move it — recorded honestly rather than chased. Root-cause fix for
-      the shared Night-1 mechanism stays fb196's own open acceptance, not
-      this item's. Touches no `/data` or `/src` file this session (all three
-      numbers already runtime-measured by p13a/fb196/fb185) — no
-      code-reviewer/qa-playtester round, same precedent as fb185 — refs:
-      BACKLOG p13a, fb196, fb185, QUESTIONS Q196/Q206/Q207.
-- [ ] (fb194) [balance] **OVERRIDE (Q180/Q191)** — split `numberScale` into
+- [x] (fb193) [balance] **DONE 2026-09-15 — closed as already satisfied by
+      p13a, unblocked reading fb196.** Both of this item's acceptance halves
+      were completed under p13a's own commit before this session started:
+      the schema/data/derive half (`maxHpMul`/`defenseBonus` on
+      `data/classes.json`, loader default 1.0/0, pinned by
+      `tests/p13a-survivability-bands.test.ts`'s 6 cases) and the
+      re-measurement half (G8 re-measured live at the real 12-seed T3
+      cadence for swordsman, necromancer, paladin and bloodlord, with
+      engineer re-confirmed byte-identical as this item's own inert
+      control) — recorded honestly as a regression, not a fix: swordsman
+      2/12->0/12, necromancer 4/12->0/12, paladin 5/12->0/12, bloodlord
+      5/12->3/12, engineer unchanged 4/12, logged as **QUESTIONS Q206**.
+      fb196's later bisection (closed 2026-09-15) confirmed the roster-wide
+      Night-1 collapse these numbers sit inside is not a regression in this
+      item's own change, re-affirmed `tests/p6e-class-diversity.test.ts`'s
+      fresh 12-seed sweep matches p13a's numbers byte-for-byte where they
+      overlap, and explicitly handed resumption back to fb193 — reading
+      that table shows nothing left to re-measure: p13a already is the
+      resumed measurement. `tests/p13a-survivability-bands.test.ts` and
+      `tests/fb196-night1-basehpmul.test.ts` both still pass on this commit.
+      No further code/data change in scope — the broader Night-1
+      `baseHpMul` root cause fb196 diagnosed is a separate, unqueued
+      problem (fb196's own text: "logged open, not chased further inside
+      this item's scope"), not this item's to fix. Original text follows.
+      Night-1 melee
+      wipes are a survivability problem, not a damage problem (p12j's three
+      damage-rounds moved nothing, per Q196). Add `maxHpMul` and
+      `defenseBonus` fields to `data/classes.json`, read by `derive`
+      (`src/sim/classes.ts` or equivalent) as multiplicative/additive
+      modifiers on the class's base max HP and armor, authored ⚖: swordsman
+      x1.6 maxHp / +10 defense, bloodlord x1.4 / +5, paladin x1.5 / +10 (on
+      top of Guardian Stance's own bonus), necromancer x1.2 / +5, all other
+      classes x1.0 / +0. Acceptance: schema fields land with a loader
+      default of 1.0/0 for every other class; a red-first test pins
+      `derive`'s max HP and armor for at least one non-default class; G8 is
+      re-measured for swordsman, necromancer and engineer specifically
+      (engineer may be re-tuned within the G14 >20 s boss-fight floor) and
+      the before/after numbers recorded — refs: SPEC-FINAL §14 G8, QUESTIONS
+      Q196, BACKLOG p12j.
+      **Status (this session): the schema/data/derive half is shipped, the
+      gate-re-measurement half is blocked.** Verified the authored bands
+      land correctly and in isolation (a passing unit test pins `derive()`'s
+      output for all four classes; `npm run test:fast` green; the
+      fingerprint-distance pin moved 20->27, the only roster-wide number
+      this item's own data change should move) — but the re-measurement
+      clause above cannot be honored while fb196's roster-wide regression
+      stands: the authored bands did **not** move swordsman/necromancer/
+      engineer into G8's band, because all three (and nearly every other
+      class besides) are dying in the first VS block regardless of this
+      item's HP/armor bump. Resume the re-measurement once fb196 is closed.
+- [x] (fb194) [balance] **DONE 2026-09-15 — split shipped; four of the five
+      crossing constants needed a different fix than the item's own
+      shorthand guessed, verified algebraically against the actual code
+      rather than assumed.**
+      **Classification (economy A = still divided by `numberScale`, economy
+      B = left unscaled):**
+      `ENEMY_SCALED_FIELDS` -> `hp`, `healRate` only (A); `coreDamage`/
+      `attackDamage`/`explodeDamage`/`stompDamage`/`trailDps` moved to B
+      (enemy damage *output*). `CLASS_ACTIVE_SCALED_FIELDS` -> unchanged
+      minus `healPerEnemy` (heals the Warden, moved to B). Towers: shot/burn/
+      vsSpecial damage stays A; a tower's own `hp` (a *structure's* HP) moved
+      to B — not called out in this item's own background text, found by
+      re-reading `applyNumberScale` directly. `CORE_EFFECT_SCALED_FIELDS` ->
+      `devourEliteDamage`/`poisonBulletDamage` only (A); `devourCoreHeal`
+      (heals the Core) moved to B. `CORE_STEP_SCALED_FIELDS`/
+      `WARDEN_SCALED_FIELDS` -> both now empty (`coreHpBonus`/
+      `hpRegenPerSecond`/`maxHp`/`hpRegen`/`heartstoneHeal` are all B).
+      `STAT_SCALED`: `atkFlat`/`towerAtkFlat` stay A; `maxHp`/`hpRegen`/
+      `coreHp` moved to B. New `STAT_INVERSE_SCALED` table: `leech` only.
+      `breach.perEhp`'s fb153a-era inversion is removed outright (not just
+      re-tuned) — now that the structure HP it prices is B/unscaled, both
+      sides of `perEhp x ehp` are already unscaled together, so the product
+      needs no compensating factor at all.
+      **The five crossing constants** (verified against the actual formula
+      each feeds, not assumed from "crossing constants take the inverse"):
+      (1) **Lifesteal** — `leech`, `towerLifestealPct`, `vsLifestealPct`,
+      `towerLifestealBonus` genuinely needed the inverse (`1/k`): damage
+      dealt to an enemy (A, still shrunk by `k`) converts to HP healed on the
+      Warden/a tower (B, no longer shrunk at all), so the ratio has to grow
+      by `1/k` to land the same real heal (`applyTowerLifesteal`,
+      `enemies.ts`'s leech hook). (2) **Blood Tithe** — `titheHpFraction`
+      needed **no correction**: `fireBloodTithe` (classes.ts) spends a
+      fraction of a tower's own current HP and applies it to that same pool,
+      so it is self-referential and scale-invariant regardless of which
+      economy `s.hp` sits in. Its adjacent HP floor (`Math.max(numberScale,
+      ...)`) *did* need to move, to a bare `1` — same fix as `world.ts`'s
+      `coreMaxHp` floor and `stats.ts`'s `derive` floor, all three
+      previously scaled to match an economy that no longer exists for them.
+      (3) **Wrath** — `wrathDamageMul` needed the **forward** factor (`k`),
+      not the inverse the item's own text guessed: `storeWrath` (run.ts)
+      banks Wrath from damage the character *takes* (B, no longer shrunk),
+      `fireJudgement` (classes.ts) spends it as a nova against enemies (A,
+      still shrunk) — the *input* side stopped scaling here, not the output
+      side, so the multiplier has to start absorbing the `k` it used to get
+      for free, the algebraic mirror image of lifesteal. (4) **Corpse store**
+      — `corpseStoreRatio` needed **no correction**: both the credit
+      (`enemies.ts`'s damage-taken hook) and the spend
+      (`updateCorpseExecute`/`updateCorpseAutoFire`, cores.ts) are damage
+      dealt to an enemy, economy A on both ends. (5) **Vampire Heart
+      overheal** — `overhealGoldRatio` was expected to "need no further
+      change"; it actually needed its fb153a-era forward-scaling **removed
+      entirely**: `applyHealing`'s `excess` (cores.ts) is computed from
+      Warden HP or a tower's HP, both economy B now, so the conversion no
+      longer crosses a scaled boundary at all, and scaling the ratio would
+      now be the bug fb153a's own qa-playtester regression was about, in the
+      opposite direction.
+      **Prose reverted** (fb164's economy-B sentences, back to authored
+      units): `vsupgrades.json` vitality "+15 Max HP", `tree.json` nodes 30/
+      70 ("Core +150 HP" / "+40 Max HP, +2 HP regen"), `equipment.json`'s HP
+      column on 9 items plus `normal_ring`'s "Life regen +1", `cores.json`
+      Stone Heart "+100 Core HP per step" and Time "+1 HP regen/s",
+      `modifiers.json` cracked "Core -150 HP". Vampire Heart's two "N:1"
+      ratios also reverted ("20:1"/"10:1") for the *overhealGoldRatio-is-
+      no-longer-scaled-at-all* reason above, not the generic B-revert reason.
+      Newly discovered (not in fb164's original set, a direct consequence of
+      the lifesteal inverse fix): Bleeding Ring's "+0.01% lifesteal" ->
+      "+0.1%" and Bloodlord Blood Frenzy's class-description "3% lifesteal
+      on normal damage" -> "30%" (class kit sentences are auto-generated
+      from the loaded field, per `src/ui/class-info.ts`, except this one
+      hand-typed passive line).
+      **Tests**: `tests/fb153a-number-scale.test.ts` rewritten around the
+      economy split (15 tests, all green) plus five new crossing-constant
+      control pairs (lifesteal, Blood Tithe, Wrath, Corpse, Vampire Heart —
+      the last unchanged in outcome, confirmed still invariant under the new
+      split for a different reason than before). `tests/fb164-prescale-
+      prose.test.ts` unchanged in shape (26 tests, all green) — it already
+      reads the *loaded* value back, so reverting the underlying `/data`
+      text was sufficient. `isScaledClassPath` (content.ts) extended for
+      `wrathDamageMul` and stat-record paths; new sibling
+      `isInverseScaledClassPath` for `leech`. Fixed knock-on assertions in
+      `tests/equip-spec-numbers.test.ts`, `tests/equip-effect-behaviour.
+      test.ts`, `tests/fb015-equipment.test.ts`, `tests/class-spec-numbers.
+      test.ts`, `tests/class-descriptions.test.ts`, `tests/class-passive-
+      liveness.test.ts`, `tests/fb022-info-surfacing.test.ts`,
+      `tests/act1.test.ts`, `tests/c4-stacking.test.ts`, `tests/p8d-boss-
+      termination.test.ts`, `tests/p-core-b-effects.test.ts`, `tests/p-core-
+      c-plant.test.ts` — every one a real `/data`-value assertion that moved
+      economy, not a rebalance. `npx tsc --noEmit` clean; `npm run test:fast`
+      green (no new failures beyond the pre-existing ones a clean-tree
+      `git stash` control confirms: `tests/ui-input.test.ts`,
+      `tests/class-board.test.ts`, `tests/p1a-sealing.test.ts`,
+      `tests/p8d-boss-termination.test.ts`'s terrain-unrelated cases, and the
+      other canvas/pointer-mapping and terrain-grid-size files already red
+      before this item).
+      **code-reviewer's pre-commit pass (Major, fixed before commit):**
+      `src/render/canvas.ts`'s `damageFloor()` (a reader of `numberScale`
+      the item's own diff never touched, outside `/src/sim`) still floored
+      `wardenhit`'s screen-shake term and its "worth a number?" gate at
+      `numberScale` (0.1) — economy-A-shaped, and `wardenhit` carries
+      economy-B damage now left unscaled, so both were ~10x too permissive
+      (shake saturated to its 9-cap on almost any real hit). Fixed with a
+      new `wardenDamageFloor()` (a bare authored point, 1, independent of
+      `numberScale`) used at both `wardenhit` call sites; new regression
+      test `tests/fb194-wardenhit-render-floor.test.ts` (2 cases) pins the
+      un-saturated shake value and confirmed red against the pre-fix code
+      via a `git stash` control. All other `damageFloor()` call sites
+      (`hit:`/DoT-on-enemy numbers) stayed correct — they are economy A,
+      still shrunk by `numberScale`, so the existing floor is still right
+      for them. `tests/boss.test.ts`'s G14 companion gate (excluded
+      from the fast tier, ~6 min standalone) measures worse after the split
+      when run directly — not chased inside this item's scope per CLAUDE.md
+      rule 8 (no full gate matrix without a `[balance]` mandate), logged for
+      a follow-up balance item rather than silently absorbed here. Original
+      text follows.
+      **OVERRIDE (Q180/Q191)** — split `numberScale` into
       two economies. Reverses fb163's "(a) no change" decision: the owner
       chose (b), scoped narrowly, instead. `numberScale` (`data/modifiers.
       json`) must apply only to **economy A** (enemy HP and damage dealt to

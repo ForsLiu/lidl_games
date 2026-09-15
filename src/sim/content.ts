@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { attackProfile } from './upgrades';
 import { Hasher } from './hash';
-import { STAT_KEYS, STAT_SCALED, type StatKey } from './statkeys';
+import { STAT_INVERSE_SCALED, STAT_KEYS, STAT_SCALED, type StatKey } from './statkeys';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
@@ -2020,13 +2020,19 @@ let cached: Content | null = null;
 
 type StatRecord = Partial<Record<StatKey, number>> | undefined;
 
-/** Scales the HP/damage-denominated entries of a `/data`-authored stat record. */
+/**
+ * Scales the HP/damage-denominated entries of a `/data`-authored stat
+ * record: economy-A entries (`STAT_SCALED`) forward by `k`, the one crossing
+ * constant (`STAT_INVERSE_SCALED`, `leech`) by `1 / k`, everything else left
+ * at its authored value.
+ */
 function scaleStats(mods: StatRecord, k: number): void {
   if (!mods) return;
   for (const key of Object.keys(mods) as StatKey[]) {
-    if (!STAT_SCALED[key]) continue;
     const v = mods[key];
-    if (typeof v === 'number') mods[key] = v * k;
+    if (typeof v !== 'number') continue;
+    if (STAT_SCALED[key]) mods[key] = v * k;
+    else if (STAT_INVERSE_SCALED[key]) mods[key] = v / k;
   }
 }
 
@@ -2040,24 +2046,40 @@ function scaleFields(o: unknown, k: number, fields: readonly string[]): void {
   }
 }
 
+/** Scales the named numeric fields of an object by `1 / k` — the crossing-constant correction (fb163/fb194). */
+function scaleFieldsInverse(o: unknown, k: number, fields: readonly string[]): void {
+  if (!o || typeof o !== 'object') return;
+  const rec = o as Record<string, unknown>;
+  for (const f of fields) {
+    const v = rec[f];
+    if (typeof v === 'number') rec[f] = v / k;
+  }
+}
+
 /**
- * fb153a: the owner's rescale, as **one listed pass over the parsed content**
- * rather than 150 edited `/data` rows — the same shape `baseHpMul` already
- * uses for enemy HP ("one tunable number rather than 20 edited rows, so the
- * authored per-enemy identity ratios stay readable and untouched"), and the
- * only shape that keeps SPEC-FINAL §4/§5/§9's stated figures true of `/data`.
+ * fb153a shipped one uniform rescale over every HP/damage field in `/data`.
+ * fb163/fb194 (QUESTIONS Q180/Q191 OVERRIDE) split it into two economies:
+ * **economy A** — enemy HP and damage *dealt to* enemies (tower/kit/wielded/
+ * Core attacks) — stays divided by `numberScale`; **economy B** — enemy
+ * damage *output*, Core/structure/character HP and regen, equipment flats on
+ * that axis — is left at its authored magnitude (simply not scaled, not
+ * compensated for some other way). Five "crossing constants" convert *between*
+ * the two economies (lifesteal, Blood Tithe, Wrath, the Corpse store ratio,
+ * Vampire Heart overheal) — each is checked against the actual formula it
+ * feeds, below, and only corrected where the algebra says a correction is
+ * needed (some do not cross what they look like they cross).
  *
- * The list is the deliverable: every HP- and damage-denominated field in
- * `/data`, named here where a reviewer can check it against the file, with
+ * The list is still the deliverable: every field of either economy, named
+ * here where a reviewer can check it against the file, with
  * `tests/fb153a-number-scale.test.ts` holding a census that fails when a new
- * `/data` field of either denomination appears without being classified.
+ * `/data` field of either denomination appears unclassified.
  *
  * Ratios stay ratios. A `ratio` DoT row is a fraction of the triggering damage
- * (already scaled), `titheHpFraction`/`markEliteExecuteFraction` are fractions
- * of an HP pool (already scaled), `flatReduction` is a percent, and every
- * `*Mul`/`*PerStep`/`*Scale*` field is a multiplier. Durations, radii, ranges,
- * speeds, cooldowns, gold, XP and the director's spawn-budget costs are on
- * other axes entirely and are left alone.
+ * (already scaled), `flatReduction` is a percent, and every `*Mul`/`*PerStep`/
+ * `*Scale*` field is a multiplier — except `wrathDamageMul`, a genuine
+ * crossing constant, corrected below. Durations, radii, ranges, speeds,
+ * cooldowns, gold, XP and the director's spawn-budget costs are on other axes
+ * entirely and are left alone.
  */
 function applyNumberScale(c: {
   towers: z.infer<typeof TowersFileSchema>;
@@ -2075,29 +2097,35 @@ function applyNumberScale(c: {
 }, k: number): void {
   if (k === 1) return;
 
-  // Enemies: the HP pool and every damage number an enemy deals.
+  // Enemies: the HP pool (economy A) and `healRate` (heals another enemy's
+  // HP pool — the same axis as enemy HP). `coreDamage`/`attackDamage`/
+  // `explodeDamage`/`stompDamage`/`trailDps` are the enemy's damage *output*
+  // against the Core/structures/character — economy B, left unscaled by
+  // fb163/fb194 (previously in this list under fb153a's uniform scheme).
   for (const e of c.enemies.enemies) {
     scaleFields(e, k, ENEMY_SCALED_FIELDS);
   }
 
-  // Towers: structure HP, the shot, its burn rider and the VS special.
-  //
-  // `breach.perEhp` moves the *other* way. It prices a wall's effective HP into
-  // a pathing cost (`perEhp x ehp`, world.ts) that is compared against
-  // `breach.base` — a raw path cost on no HP axis at all. Scaling the HP pool
-  // down by `k` without dividing `perEhp` by it would make every wall ~`k`
-  // times cheaper to path through relative to that base, which is a pathing
-  // change, not a rescale. Inverting it here keeps the product invariant.
-  if (typeof c.towers.breach?.perEhp === 'number') c.towers.breach.perEhp /= k;
+  // Towers: the shot, its burn rider and the VS special deal damage *to*
+  // enemies (economy A). A tower's own `hp` is a *structure's* HP pool —
+  // economy B (fb163/fb194 re-audit; fb153a's uniform scheme scaled it) — so
+  // it is no longer scaled, and `breach.perEhp` (which fb153a inverted to
+  // hold `perEhp x ehp` constant against a shrinking `hp`) no longer needs
+  // any correction either: `ehp` (`structureMaxHp / damageTakenMul`,
+  // world.ts) is back to its authored magnitude on its own, the same as
+  // `perEhp`'s own authored magnitude, so the product is invariant with no
+  // code touching it at all.
   for (const t of c.towers.towers) {
-    scaleFields(t, k, ['hp']);
     scaleFields(t.attack, k, ['damage']);
     scaleFields(t.attack?.burn, k, ['dps']);
     scaleFields(t.vsSpecial, k, ['damage']);
   }
 
-  // Classes: every authored kit magnitude. The `towerPassive.mods` record is
-  // percentages, handled by `scaleStats` for the rows that are not.
+  // Classes: every authored kit magnitude dealt *to enemies* (economy A).
+  // `healPerEnemy` (Crimson Rush) heals the Warden (`applyHealingToWarden`,
+  // classes.ts) — economy B, moved out of `CLASS_ACTIVE_SCALED_FIELDS`. The
+  // `towerPassive.mods`/`passive.mods` records are percentages, handled by
+  // `scaleStats` for the rows that are not.
   for (const cls of c.classes.classes) {
     scaleFields(cls.basicAttack, k, ['dps']);
     scaleFields(cls.passive, k, CLASS_PASSIVE_SCALED_FIELDS);
@@ -2108,101 +2136,213 @@ function applyNumberScale(c: {
     // but the census classifies this path through `STAT_SCALED`, so the day one
     // authors `atkFlat` here the scaler must already be looking (code review).
     scaleStats(cls.passive?.mods as StatRecord, k);
+    // fb163/fb194's Wrath crossing constant (QUESTIONS Q180/Q191): Paladin
+    // *Judgement* banks Wrath from damage the character *takes* (`storeWrath`,
+    // run.ts — economy B, now left unscaled and so no longer shrunk by `k` at
+    // all) and releases it as a nova against enemies (`fireJudgement`,
+    // classes.ts — economy A, still scaled by `k`). With `wrathStored` now
+    // `k` times *larger* than it was under the old uniform scheme (it no
+    // longer shrinks with `k`) and the nova's target HP pool (enemies) still
+    // shrunk by `k`, holding the nova's real bite against an enemy invariant
+    // needs `wrathDamageMul` scaled **forward by `k`** (not inverted) —
+    // algebraically the opposite of `leech` below, because here the *input*
+    // side of the conversion is the one that stopped scaling, not the output
+    // side. Verified against `fireJudgement`/`storeWrath` directly, not
+    // assumed from the "crossing constants take the inverse" shorthand.
+    scaleFields(cls.active2, k, ['wrathDamageMul']);
   }
 
-  // Cores: the Core's own HP pool, its upgrade steps' HP/regen, and the two
-  // authored Core attack magnitudes. `overhealGoldRatio` converts HP into gold
-  // and gold is on no HP axis, so it moves with the scale — but **forward**,
-  // not inverted like `breach.perEhp`: the ratio is a *divisor*
-  // (`gold += excess / ratio`, cores.ts) where `perEhp` is a *factor*, so
-  // holding `excess / ratio` constant while `excess` shrinks by `k` needs the
-  // ratio to shrink by `k` too. Shipped inverted for one round on review's
-  // reasoning; qa-playtester's control pair caught it (Vampire Heart paid
-  // 100x less gold and diverged materially on 5 of 5 seeds, and flipping these
-  // two lines alone restored 0 of 5).
+  // Cores. `devourEliteDamage`/`poisonBulletDamage` deal damage to enemies
+  // (economy A). `baseHp` (the Core's own pool), `devourCoreHeal` (heals the
+  // Core), `coreHpBonus`/`hpRegenPerSecond` (Core/tower HP and regen steps)
+  // are economy B, left unscaled — moved out of their scaled lists by
+  // fb163/fb194 (fb153a's uniform scheme scaled all four).
+  //
+  // `overhealGoldRatio` (Vampire Heart) converts a *tower's or the Warden's*
+  // overheal (`applyHealing`, cores.ts — `excess = hp + amount - maxHp` on
+  // whichever pool overflowed) into gold. Under fb153a's uniform scheme that
+  // `excess` was economy-A-shaped (scaled down by `k`, since every HP pool
+  // was), so holding `gold = excess / ratio` constant needed the ratio scaled
+  // **forward** by `k` too (a divisor, not a factor — the inverse of
+  // `breach.perEhp`, and the qa-playtester regression documented at
+  // fb153a). Under fb163/fb194's split, both pools `applyHealing` ever heals
+  // (Warden HP, structure HP) are economy B and so no longer scale with `k`
+  // at all — `excess` is back to its authored magnitude on its own, gold was
+  // never on any HP axis to begin with, and the conversion no longer crosses
+  // a scaled boundary. So `overhealGoldRatio` needs **no scaling at all**
+  // under the new split (verified against `applyHealing`'s two call sites,
+  // not assumed from "this one is already correct, just confirm it" —
+  // the pre-split forward-scaling this file used to apply here is removed).
+  //
+  // `towerLifestealPct`/`vsLifestealPct` (character/tower lifesteal, the
+  // "Lifesteal" crossing constant) convert `dealt` — damage a tower/the
+  // character deals to an enemy, economy A, still scaled by `k` — into HP
+  // healed on a structure/the Warden, economy B, no longer scaled at all.
+  // That *is* a genuine crossing needing the inverse factor (`1 / k`, unlike
+  // Wrath above): the healed amount would otherwise be `k` times too small
+  // relative to the now-unscaled HP pool it lands in. `towerLifestealBonus`
+  // (a Core step's additive bonus onto the same `towerLifestealPct`) takes
+  // the same correction so it stays additive in the same units.
   for (const core of c.cores.cores) {
-    scaleFields(core, k, ['baseHp']);
     scaleFields(core.effects, k, CORE_EFFECT_SCALED_FIELDS);
-    scaleFields(core.effects, k, ['overhealGoldRatio']);
+    scaleFieldsInverse(core.effects, k, LIFESTEAL_INVERSE_SCALED_FIELDS);
     for (const step of core.upgrade?.steps ?? []) {
       scaleFields(step, k, CORE_STEP_SCALED_FIELDS);
-      scaleFields(step, k, ['overhealGoldRatio']);
+      scaleFieldsInverse(step, k, ['towerLifestealBonus']);
     }
   }
 
-  // Damage types: a `dps` row is a flat magnitude; a `ratio` row is a fraction
-  // of the hit that triggered it and is already scaled through that hit.
+  // Damage types: a `dps` row is a flat magnitude applied to an enemy
+  // (`applyDot`/`damageEnemy`, enemies.ts/combat.ts — economy A); a `ratio`
+  // row is a fraction of the hit that triggered it and is already scaled
+  // through that hit.
   for (const t of c.damageTypes.types) scaleFields(t, k, ['dps']);
 
-  // Stat records authored across the meta layer.
+  // Stat records authored across the meta layer — `STAT_SCALED`/
+  // `STAT_INVERSE_SCALED` (statkeys.ts) carry the per-key classification.
   for (const n of c.tree.nodes) scaleStats(n.stats as StatRecord, k);
   for (const item of c.equipment.items) {
     scaleStats(item.mods as StatRecord, k);
     scaleStats(item.classFallback?.mods as StatRecord, k);
   }
   for (const b of c.boons.statBoons) {
-    if (STAT_SCALED[b.stat as StatKey]) b.perRank *= k;
+    const stat = b.stat as StatKey;
+    if (STAT_SCALED[stat]) b.perRank *= k;
+    else if (STAT_INVERSE_SCALED[stat]) b.perRank /= k;
   }
 
-  // The Core HP a drafted modifier adds or removes.
-  for (const m of c.modifiers.modifiers) scaleFields(m.effect, k, ['coreHp']);
+  // Blood Tithe's `titheHpFraction` (Bloodlord *Blood Tithe*) spends a
+  // fraction of a tower's own *current* HP for a permanent damage buff —
+  // checked against `fireBloodTithe` (classes.ts): both the amount spent and
+  // the pool it is spent from are the *same* tower's `s.hp` (economy B), so
+  // the fraction is self-referential and scale-invariant on its own —
+  // no correction needed regardless of which economy `s.hp` sits in.
+  // `titheDamageMul` (the resulting buff) is a plain multiplier, never
+  // scaled. Neither is listed here because neither is touched.
+  //
+  // The Corpse Core's `corpseStoreRatio` banks a fraction of `dmgBooked`
+  // (damage dealt to an enemy, economy A — `enemies.ts`'s damage-taken hook)
+  // and later spends the store as `damageEnemy` against another enemy
+  // (economy A too, `updateCorpseExecute`/`updateCorpseAutoFire`, cores.ts).
+  // Both sides of this conversion are economy A, so — unlike lifesteal —
+  // `corpseStoreRatio` needs no correction either; verified against
+  // `enemies.ts`'s credit hook and `cores.ts`'s two spend sites, not assumed.
+
+  // The Core HP a drafted modifier adds or removes, and the run's base Core
+  // pool: both economy B (Core HP), left unscaled.
 
   // A quest whose target counts *damage* is denominated in damage (code
   // review, Major 4: `hundred_grand` asks for 100,000 lifetime damage, which
-  // the rescale would otherwise have made a 10x longer grind). Counting quests
-  // — kills, waves, runs — are not.
+  // the rescale would otherwise have made a 10x longer grind) — that total is
+  // a sum of economy-A damage dealt, so it still scales. Counting quests —
+  // kills, waves, runs — are not.
   for (const q of c.quests.quests) {
     if (q.metric === 'lifetime_damage') q.target *= k;
   }
-
-  // The run's Core pool and the character's own base pool.
-  scaleFields(c.waves, k, ['coreHp']);
-  scaleFields(c.warden, k, WARDEN_SCALED_FIELDS);
 }
 
-/** Named so `tests/fb153a-number-scale.test.ts`'s census can check them against `/data`. */
+/**
+ * Named so `tests/fb153a-number-scale.test.ts`'s census can check them against
+ * `/data`. Economy A only (fb163/fb194): `coreDamage`/`attackDamage`/
+ * `explodeDamage`/`stompDamage`/`trailDps` are the enemy's damage *output*
+ * against the Core/structures/character (economy B, left unscaled) and are
+ * no longer in this list — they were under fb153a's uniform scheme.
+ */
 export const ENEMY_SCALED_FIELDS = [
   'hp',
-  'coreDamage',
-  'attackDamage',
-  'explodeDamage',
-  'stompDamage',
-  'trailDps',
   // The Mender's heal is flat HP added to a neighbour's pool, not a fraction of
   // it — found by `tests/fb153a-number-scale.test.ts`'s census after two name
-  // greps missed it, which is the census's whole reason for existing.
+  // greps missed it, which is the census's whole reason for existing. Still
+  // economy A: it heals another *enemy's* HP pool, the same axis as enemy HP
+  // (`updateAbilities`, enemies.ts — `o.hp`, an `Enemy`, not the Warden/a
+  // structure).
   'healRate',
 ] as const;
-export const CLASS_ACTIVE_SCALED_FIELDS = [
-  'damage',
-  'minDamage',
-  'burnDps',
-  'pylonDps',
-  'markPastDotDps',
-  'markPresentDotDps',
-  // An HP heal, so it is on the HP axis. `pactDrainPerSecond` next to it is
-  // *not*: it drains a fraction of the structure's own max HP.
-  'healPerEnemy',
-] as const;
+/**
+ * Economy A: every authored kit magnitude dealt *to enemies*. `healPerEnemy`
+ * (Crimson Rush) is no longer here — it heals the Warden
+ * (`applyHealingToWarden`, classes.ts), economy B — fb153a's uniform scheme
+ * had it in this list. `pactDrainPerSecond` was never here: it drains a
+ * fraction of the structure's own max HP, not a magnitude.
+ */
+export const CLASS_ACTIVE_SCALED_FIELDS = ['damage', 'minDamage', 'burnDps', 'pylonDps', 'markPastDotDps', 'markPresentDotDps'] as const;
 export const CLASS_PASSIVE_SCALED_FIELDS = ['flameDps', 'shatterDamage'] as const;
-export const CORE_EFFECT_SCALED_FIELDS = ['devourEliteDamage', 'poisonBulletDamage', 'devourCoreHeal'] as const;
-export const CORE_STEP_SCALED_FIELDS = ['coreHpBonus', 'hpRegenPerSecond'] as const;
-/** `heartstoneHeal` is HP per second on the character, like `hpRegen`. */
-export const WARDEN_SCALED_FIELDS = ['maxHp', 'hpRegen', 'heartstoneHeal'] as const;
+/** Economy A: Carnivorous Plant's two attacks against enemies. `devourCoreHeal` (heals the Core, economy B) is no longer here — fb153a's uniform scheme had it. */
+export const CORE_EFFECT_SCALED_FIELDS = ['devourEliteDamage', 'poisonBulletDamage'] as const;
+/**
+ * The lifesteal crossing constant (fb163/fb194, QUESTIONS Q180/Q191): damage
+ * dealt to an enemy (economy A, still scaled) converted into HP healed on the
+ * Warden or a tower (economy B, no longer scaled) needs the inverse factor —
+ * see `applyNumberScale`'s own header comment for the algebra.
+ */
+export const LIFESTEAL_INVERSE_SCALED_FIELDS = ['towerLifestealPct', 'vsLifestealPct'] as const;
+/**
+ * Empty: `coreHpBonus`/`hpRegenPerSecond` are Core/tower HP and regen —
+ * economy B, left unscaled by fb163/fb194 (fb153a's uniform scheme scaled
+ * both). Kept (rather than deleted) so a reviewer sees the reclassification,
+ * not just its absence, and so a future economy-A Core step field has an
+ * obvious list to join.
+ */
+export const CORE_STEP_SCALED_FIELDS: readonly string[] = [];
+/**
+ * Empty: `maxHp`/`hpRegen`/`heartstoneHeal` are the character's own HP pool
+ * and regen — economy B, left unscaled by fb163/fb194 (fb153a's uniform
+ * scheme scaled all three). Kept for the same reason `CORE_STEP_SCALED_FIELDS`
+ * is.
+ */
+export const WARDEN_SCALED_FIELDS: readonly string[] = [];
 
 
 /**
- * fb153a: is a dotted `data/classes.json` field path one the scale divides?
- * Exported so the §4 ledgers (`tests/class-spec-numbers.test.ts`,
- * `tests/class-descriptions.test.ts`) can read a loaded value back into
- * authored units instead of restating SPEC-FINAL's figures in display units.
+ * fb153a: is a dotted `data/classes.json` field path one the scale divides
+ * (economy A, forward by `k`)? Exported so the §4 ledgers
+ * (`tests/class-spec-numbers.test.ts`, `tests/class-descriptions.test.ts`)
+ * can read a loaded value back into authored units instead of restating
+ * SPEC-FINAL's figures in display units.
+ *
+ * fb163/fb194 (QUESTIONS Q180/Q191): `active2.wrathDamageMul` is the Wrath
+ * crossing constant, forward-scaled for the reason `applyNumberScale`'s
+ * header documents — it is not in `CLASS_ACTIVE_SCALED_FIELDS` (that list is
+ * "damage dealt to enemies", and `wrathDamageMul` is a multiplier, not a
+ * magnitude), so it is named here explicitly instead. A `passive.mods.<key>`/
+ * `towerPassive.mods.<key>` leaf's classification comes from `STAT_SCALED`
+ * (`leech`'s own *inverse* correction is `isInverseScaledClassPath` below,
+ * not this function).
  */
 export function isScaledClassPath(path: readonly string[]): boolean {
   const leaf = path[path.length - 1];
   const parent = path[path.length - 2];
+  const grandparent = path[path.length - 3];
   if (parent === 'basicAttack') return leaf === 'dps';
   if (parent === 'passive') return (CLASS_PASSIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
-  if (parent === 'active1' || parent === 'active2') return (CLASS_ACTIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
+  if (parent === 'active1' || parent === 'active2') {
+    if (leaf === 'wrathDamageMul' && parent === 'active2') return true;
+    return (CLASS_ACTIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
+  }
+  if (parent === 'mods' && (grandparent === 'passive' || grandparent === 'towerPassive')) {
+    return !!STAT_SCALED[leaf as StatKey];
+  }
+  return false;
+}
+
+/**
+ * fb163/fb194 (QUESTIONS Q180/Q191): is a dotted `data/classes.json` field
+ * path one of the *inverse*-scaled crossing constants (divided by `k`, i.e.
+ * multiplied by `1 / numberScale`)? Today this is only `leech` inside a
+ * `passive.mods`/`towerPassive.mods` record (a class passive granting
+ * lifesteal, e.g. Bloodlord's Blood Frenzy) — the same `STAT_INVERSE_SCALED`
+ * table `applyNumberScale`'s `scaleStats` reads. Kept as a sibling function
+ * rather than folded into `isScaledClassPath` (a plain boolean) so a caller
+ * cannot silently conflate "scaled forward" with "scaled inverse" — they
+ * reconstruct the authored figure in opposite directions.
+ */
+export function isInverseScaledClassPath(path: readonly string[]): boolean {
+  const leaf = path[path.length - 1];
+  const parent = path[path.length - 2];
+  const grandparent = path[path.length - 3];
+  if (parent === 'mods' && (grandparent === 'passive' || grandparent === 'towerPassive')) {
+    return !!STAT_INVERSE_SCALED[leaf as StatKey];
+  }
   return false;
 }
 

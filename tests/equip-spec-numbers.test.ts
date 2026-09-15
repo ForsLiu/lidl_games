@@ -100,7 +100,7 @@ import {
   sourceOf as source,
   type Behaviour,
 } from './equip-spec-ledger';
-import { STAT_KEYS, STAT_SCALED, type StatKey } from '../src/sim/statkeys';
+import { STAT_INVERSE_SCALED, STAT_KEYS, STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -1161,14 +1161,21 @@ function readLoaded(f: Figure): number | undefined {
     | undefined;
   if (f.bag === 'fallback' && bag === undefined) return undefined;
   let raw = bag?.[f.stat] ?? 0;
-  // fb153a: `numberScale` divides every HP/damage-denominated stat at load, so
-  // the loaded view is the authored figure times that factor. §7 states the
-  // *authored* number and `data/equipment.json` still holds it, so the ledger
-  // reads the loaded value back through the scale rather than restating §7 in
-  // display units. The bridge test ("the loaded content and data/equipment.json
-  // agree at every ledger row") then proves the scaler applied exactly that
-  // factor to exactly these stats and nothing else.
+  // fb153a: `numberScale` divides every economy-A (HP/damage-denominated)
+  // stat at load, so the loaded view is the authored figure times that
+  // factor. §7 states the *authored* number and `data/equipment.json` still
+  // holds it, so the ledger reads the loaded value back through the scale
+  // rather than restating §7 in display units. The bridge test ("the loaded
+  // content and data/equipment.json agree at every ledger row") then proves
+  // the scaler applied exactly that factor to exactly these stats and
+  // nothing else.
+  //
+  // fb163/fb194 (QUESTIONS Q180/Q191): `leech` is the one crossing constant
+  // among equipment stats — inverse-scaled (`STAT_INVERSE_SCALED`), so the
+  // loaded view is the authored figure *divided* by that factor, and
+  // reconstructing the authored figure multiplies back by it instead.
   if (STAT_SCALED[f.stat as StatKey]) raw /= content.modifiers.numberScale;
+  else if (STAT_INVERSE_SCALED[f.stat as StatKey]) raw *= content.modifiers.numberScale;
   return f.as ? f.as(raw) : raw;
 }
 
@@ -2477,15 +2484,22 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
       const desc = norm(String(item.desc));
       for (const f of rows) {
         let want = f.descQuote ?? norm(f.quote!);
-        // fb164: a scaled stat's desc now quotes the loaded (post-
+        // fb164: an economy-A stat's desc now quotes the loaded (post-
         // `numberScale`) magnitude, not §7's authored one — the same
         // narrowing the HP/Atk check above applies, extended to Effect
         // quotes. Rebuilds the expected substring with the quote's own
         // numeral scaled, rather than loosening the containment check.
-        if (f.stat && STAT_SCALED[f.stat as StatKey] && f.fromQuote) {
+        //
+        // fb163/fb194: `leech` (Bleeding Ring's lifesteal quote) is inverse-
+        // scaled instead — the loaded desc quotes the authored figure
+        // *divided* by `numberScale`, not multiplied.
+        if (f.stat && (STAT_SCALED[f.stat as StatKey] || STAT_INVERSE_SCALED[f.stat as StatKey]) && f.fromQuote) {
           const m = f.fromQuote.pattern.exec(want);
           expect(m, `${id(f)}: fromQuote pattern does not match "${want}"`).not.toBeNull();
-          const scaled = Number(m![1]) * content.modifiers.numberScale;
+          const factor = STAT_SCALED[f.stat as StatKey]
+            ? content.modifiers.numberScale
+            : 1 / content.modifiers.numberScale;
+          const scaled = Number(m![1]) * factor;
           const numStart = m![0].indexOf(m![1]);
           const scaledMatch = m![0].slice(0, numStart) + String(scaled) + m![0].slice(numStart + m![1].length);
           want = want.slice(0, m!.index) + scaledMatch + want.slice(m!.index + m![0].length);

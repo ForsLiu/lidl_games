@@ -124,22 +124,24 @@ describe('fb064p — verifyTerrainMap is clean on everything the generator makes
     // A degenerate-retry map hashes under `requestedSeed + n`, not under
     // `requestedSeed`. A verifier that reached for the tempting field would be
     // green on every first-attempt map and red only here, so the witness is
-    // named rather than searched for. fb166 re-measured this at the grid's
-    // 56x32 flip (seed 379 no longer retries at the new size): at the shipped
-    // config, **seed 387 is the first retry-taker over seeds 1..20000** (the
-    // next are 694, 800, 1011, 1145). If a retune moves that set this
-    // assertion goes red, which is the intended cost — rescan for
+    // named rather than searched for: at the shipped config on the 56x32 grid
+    // with fb156's four-gate layout, **seed 4404 is the first retry-taker**
+    // (the next are 5221, 6438, 7339, 7421 — rescanned for fb156's gate
+    // change, which made retries markedly rarer: fb166's own witness, seed
+    // 387, now clears on its first attempt because the fourth gate gives the
+    // generator another way to satisfy the bands). If a retune moves that set
+    // this assertion goes red, which is the intended cost — rescan for
     // `attempts > 1` and rename the seed.
-    const map = generateTerrain(387, cfg);
+    const map = generateTerrain(4404, cfg);
     expect(map.fallback).toBe(false);
     expect(map.attempts).toBe(2);
-    expect(map.seed).toBe(388);
+    expect(map.seed).toBe(4405);
     expect(map.seed).not.toBe(map.requestedSeed >>> 0);
     expect(verifyTerrainMap(map)).toEqual({ ok: true });
     // The handle is the *effective* seed's, not the requested one's — verifying
     // against `requestedSeed` here would report a clean map as corrupt.
-    expect(map.hash).toBe(terrainHash(388, map.kind));
-    expect(terrainHash(387, map.kind)).not.toBe(map.hash);
+    expect(map.hash).toBe(terrainHash(4405, map.kind));
+    expect(terrainHash(4404, map.kind)).not.toBe(map.hash);
   });
 
   it('does not mutate the map it verifies', () => {
@@ -318,10 +320,10 @@ describe('fb064p — the structural faults the hash alone cannot report', () => 
   });
 
   it('regression (fb064p QA bug 2): a transposed map has the right tile count and is still wrong', () => {
-    // The case above (703 tiles) and the 3x3 case below (9) both differ from
-    // 720, so neither distinguishes the real check from `w * h !== GRID_W *
+    // The case above (1767 tiles) and the 3x3 case below (9) both differ from
+    // 1792, so neither distinguishes the real check from `w * h !== GRID_W *
     // GRID_H` — a weakening QA showed the whole file stayed green under. These
-    // two have *exactly* 720 tiles and the correct hash, and are still not this
+    // two have *exactly* 1792 tiles and the correct hash, and are still not this
     // arena, so they pin the dimensions check to the shape and not the area.
     const map = generateTerrain(2, cfg);
     const transposed = reshape(map, { w: GRID_H, h: GRID_W });
