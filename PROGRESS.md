@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb193 done — closed on already-measured
+  numbers, no new data/src change.** fb193's schema/data/derive half (the
+  `maxHpMul`/`defenseBonus` bands) had already shipped under **p13a**, and
+  its gate-re-measurement half (G8 for swordsman/necromancer/engineer,
+  before/after recorded) had already been run three independent times —
+  p13a's own shipping measurement, fb196's fresh full sweep, and fb185's
+  re-pin — all agreeing: swordsman 2/12->0/12, necromancer 4/12->0/12 (both
+  worse, swamped by fb196's roster-wide Night-1 `baseHpMul` mechanism, same
+  as p12j's damage levers before them), engineer byte-identical 4/12 across
+  all three sessions (inert by construction, confirmed control). Engineer's
+  "may be re-tuned within the G14 floor" clause was not exercised again:
+  p12j already spent two materially different rounds on its one lever (Pop
+  Turret `summonStatMul`/cooldown) against that exact floor, and a third
+  blind round without first addressing the shared `baseHpMul` mechanism
+  isn't expected to move it (CLAUDE.md working rule 6). Root-cause fix for
+  the Night-1 mechanism stays fb196's own open acceptance. Touches no
+  `/data` or `/src` file — BACKLOG.md text only, same precedent fb185 set.
+  **Also found while verifying:** `npm run test:fast` currently fails 40
+  tests across 13 files, entirely inside `tests/ui-input.test.ts` and
+  sibling UI-lane suites, all of them the known, already-tracked
+  consequence of `fb166`'s grid resize (36x20 -> 56x32, merged) landing
+  without its paired `fb167` camera/canvas-mapping fix — `fb167` is
+  BACKLOG-UI.md's own item (`tests/ui*` is lane/ui's exclusive Scope, not
+  main lane's), already unblocked now that `fb166` merged, and a fix for it
+  already exists on an unmerged, PR-less branch (`claude/brave-cray-wj593v`,
+  commits titled `fb167`/`fb168`) — not something this session introduced
+  or is scoped to fix. Confirmed by inspection (`pointerToTile`'s failing
+  assertions hard-code the old 1152x640 logical canvas size in their own
+  comments) and by `git diff --stat` showing zero non-`BACKLOG.md` changes
+  this item made. Flagged to the owner rather than silently worked around
+  or merged in from the main lane — refs: BACKLOG fb193, p13a, fb196,
+  fb185, BACKLOG-UI.md fb167/fb166.
+
 - **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
   nearly all red" alarm; PR #55 exonerated, not a new regression.**
   fb196 found only 3 of `tests/p6e-class-diversity.test.ts`'s non-`.skip`
