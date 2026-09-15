@@ -124,10 +124,12 @@ describe('fb064p — verifyTerrainMap is clean on everything the generator makes
     // A degenerate-retry map hashes under `requestedSeed + n`, not under
     // `requestedSeed`. A verifier that reached for the tempting field would be
     // green on every first-attempt map and red only here, so the witness is
-    // named rather than searched for: re-scanned at fb166's 56x32 grid, **seed
-    // 387 is the first retry-taker** (the next are 694, 800, 1011, 1145,
-    // 1902). If a retune moves that set this assertion goes red, which is the
-    // intended cost — rescan for `attempts > 1` and rename the seed.
+    // named rather than searched for. fb166 re-measured this at the grid's
+    // 56x32 flip (seed 379 no longer retries at the new size): at the shipped
+    // config, **seed 387 is the first retry-taker over seeds 1..20000** (the
+    // next are 694, 800, 1011, 1145). If a retune moves that set this
+    // assertion goes red, which is the intended cost — rescan for
+    // `attempts > 1` and rename the seed.
     const map = generateTerrain(387, cfg);
     expect(map.fallback).toBe(false);
     expect(map.attempts).toBe(2);

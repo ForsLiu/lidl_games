@@ -38,7 +38,10 @@ import type { World } from '../src/sim/world';
 import { cfg, scaled } from './helpers';
 
 function act2World(): World {
-  const run = new Run(cfg());
+  // Fixed tower-ring coordinates below only need a buildable arena, not real
+  // terrain — practice mode keeps the grid flat so a shifted seed's terrain
+  // layout can never turn one of them into a Rock tile.
+  const run = new Run(cfg({ practice: true }));
   const w = run.world;
   w.phase = 'act2';
   w.sundered = true;
