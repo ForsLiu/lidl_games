@@ -87,21 +87,23 @@ describe('fb064n — flatTerrain is the one flat arena', () => {
     const flat = flatTerrain();
     expect(Array.from(flat.kind)).toEqual(Array.from(expectedFlatKinds()));
     // Counts, so a diff reads as a shape rather than as 1792 numbers. The
-    // border is the arena's perimeter, 2*(GRID_W + GRID_H) - 4 = 172, less
-    // however many of `GATES` actually sit on it. fb166 flipped `GRID_W`/
-    // `GRID_H` to 56x32 without moving `GATES` — that migration is main-lane's
-    // `fb153b`, staged to land after this item — so today only `west` (tx=0)
-    // and `north` (ty=0) still land on the border; `east` (35,17) is a
-    // stranded interior tile at this grid size and punches nothing. Border
-    // gate count is therefore 2, not `GATES.length`, until fb153b repositions
-    // them.
+    // border is the arena's perimeter, less whichever gate tiles actually sit
+    // on it: 2*(GRID_W + GRID_H) - 4 = 172.
+    //
+    // fb166: that is 170, not 172 - GATES.length (169). `GATES`' `east` entry
+    // is `{ tx: 35, ty: 17 }`, a coordinate hardcoded for the old 36x20 grid
+    // (`tx: 35` was `GRID_W - 1`, the east border column, when `GRID_W` was
+    // 36). At 56x32 it is an ordinary interior tile — `expectedFlatKinds`'s
+    // border loops never touch it, so punching it to Normal is a no-op and
+    // only `west`/`north` actually reclaim a border tile. This is the exact
+    // gate-coordinate breakage flagged in BACKLOG-TERRAIN.md's Log for the
+    // main lane: the flat map is honest about what the generator currently
+    // does, and what it does is ship an `east` gate that is not on the map's
+    // edge at all.
     const border = 2 * (GRID_W + GRID_H) - 4;
-    const borderGates = GATES.filter(
-      (g) => g.tx === 0 || g.tx === GRID_W - 1 || g.ty === 0 || g.ty === GRID_H - 1,
-    ).length;
     let rock = 0;
     for (const k of flat.kind) if (k === TerrainKind.Rock) rock++;
-    expect(rock).toBe(border - borderGates);
+    expect(rock).toBe(border - 2);
     expect(rock).toBe(170);
     expect(flat.kind.length - rock).toBe(GRID_W * GRID_H - 170);
     // The hash is the G2 determinism handle, so it is pinned as a literal too:
@@ -189,8 +191,7 @@ describe('fb064n — legality is a question about a config', () => {
     expect(m.corridorsOk).toBe(true);
     expect(m.gateReachFrac).toBe(1);
     // The most permissive layout the arena admits: no walkable tile is
-    // unreachable and every non-border tile is normal. 170, not 105 — see the
-    // golden test's note on `GATES` not yet being repositioned for this grid.
+    // unreachable and every non-border tile is normal.
     expect(m.walkableCount).toBe(GRID_W * GRID_H - 170);
     expect(m.normalCount).toBe(m.walkableCount);
   });
@@ -207,16 +208,14 @@ describe('fb064n — legality is a question about a config', () => {
     // refuses it, which is the layer that keeps "flat map illegal" a statement
     // about a payable config rather than about a typo. Worth pinning here
     // because the walkable ceiling is derived from *this* map's border.
+    // fb166: the ceiling moved with the grid (54*30+3)/1792 = 0.905692, not
+    // 0.854167 — so 0.86 no longer exceeds it and 0.91 is used instead.
     expect(() =>
       withConfig((raw) => {
         (raw.constraints as Record<string, number>).minWalkableFrac = 0.91;
       }),
     ).toThrow(/0\.906/);
-    // The ceiling assumes every one of `GATES.length` gates punches its own
-    // border tile (`(GRID_W-2)*(GRID_H-2) + GATES.length`); at this grid size
-    // only 2 of the 3 do (the golden test above), so the flat map's actual
-    // share sits very slightly under the formula ceiling rather than on it —
-    // 1622/1792, not 1623/1792.
+    // And the ceiling really is the flat map's share, to six places.
     expect(measureTerrain(flatTerrain(), cfg).walkableFrac).toBeCloseTo(0.905134, 6);
   });
 });

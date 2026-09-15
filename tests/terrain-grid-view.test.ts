@@ -11,10 +11,15 @@
  * What this file pins, in the order the item asks for it:
  *
  *   1. **The gap is real and its shape is recorded.** Over `applyRunTerrain` on
- *      seeds 1..100 the live grid is identical to its own generated map on 84
- *      seeds, differs by a mean of 0.66 tiles, and by 13 on seed 40. The 84 is
- *      as important as the 13: a repro taken from the generator is *usually*
+ *      seeds 1..100 the live grid is identical to its own generated map on 28
+ *      seeds, differs by a mean of 3.20 tiles, and by 10 on seed 91. The 28 is
+ *      as important as the 10: a repro taken from the generator is *usually*
  *      right, which is exactly why the times it is wrong were invisible.
+ *      (fb166: re-measured at 56x32 — the Warden's 3x3 spawn clearing is a
+ *      constant-size drift wherever it lands, but it is a bigger *share* of a
+ *      map whose Core anchor also moves less predictably relative to it on the
+ *      wider board, which is why both the mean and the identical-seed count
+ *      moved more than the grid's area did.)
  *   2. **The round trip survives the worst grid we can build** — terrain
  *      applied, the Core moved off `CORE_X/CORE_Y`, and a raw `tile[]` write
  *      after both, which is `world.ts`'s Fourth Gate shape.
@@ -124,13 +129,13 @@ describe('gridTerrain (fb065c)', () => {
       identical: '28/100',
       mean: '3.20',
       worst: '10 @91',
-      // fb166 re-measured at 56x32: 320 tiles across the sample, still every
-      // one of them explained by a spawn gate, the Core footprint or the
-      // Warden's 3x3 clearing (`unexplained: 0` below is the check). The drift
-      // grew because `GATES`/`CORE_X`/`CORE_Y` stayed at their 36x20 positions
-      // (fb153b, main lane, moves them) while the board grew around them —
-      // more of the override machinery's own footprint differs per seed on a
-      // bigger board, not a new failure mode.
+      // 320 tiles across the sample, every one of them inside a spawn gate,
+      // the Core footprint or the Warden's 3x3 clearing. Seed 91's worst-case
+      // 10 is 6 Warden-block tiles and 4 Core tiles, and no gate tile drifts
+      // at all (the generator already writes the gates as normal — though see
+      // BACKLOG-TERRAIN.md's Log: `GATES`' `east` entry is not actually on the
+      // 56x32 border, so "no gate tile drifts" is not yet evidence the gate
+      // punch-out is doing anything there).
       driftedTiles: 320,
       unexplained: 0,
     });
@@ -194,14 +199,13 @@ describe('gridTerrain (fb065c)', () => {
     // `world.ts` never produces today and nothing prevents — and it is the one
     // that shows what `gridTerrain` can and cannot promise.
     //
-    // `world.ts`'s real south gate is `MODIFIER_GATES[0]`, at (12,19) — a
-    // position fixed against the old 36x20 grid and staged to move with
-    // `CORE_X/CORE_Y` at main-lane `fb153b`, not this item. At 56x32 (12,19)
-    // is an ordinary interior tile, not a border one, so it no longer starts
-    // blocked and cannot stand in for "a border tile forced open". (12, 31) —
-    // same column, the grid's actual bottom border row — keeps this case's
-    // shape (an untouched border tile, hostile-written to Gate) without
-    // depending on the unmigrated gate coordinate.
+    // fb166: NOT `MODIFIER_GATES`' `south` (12, 19) — that coordinate was the
+    // 36x20 grid's bottom border (`ty: 19` was `GRID_H - 1`) and is an
+    // ordinary interior tile at 56x32 (border row is now `y: 31`), so it is no
+    // longer guaranteed to be rock/blocked the way this fixture needs. That is
+    // the same gate-coordinate breakage flagged for `GATES`' `east` entry —
+    // logged in BACKLOG-TERRAIN.md for the main lane. A real border tile is
+    // hand-picked here instead, to keep testing the same *shape* of write.
     const south = { tx: 12, ty: GRID_H - 1 };
     const south_i = g.idx(south.tx, south.ty);
     // Load-bearing: the write really changes the Grid. Border tiles are blocked
@@ -265,9 +269,8 @@ describe('gridTerrain (fb065c)', () => {
     // is about the drift the *ledger* measured, and that ledger is of the real
     // run path — `applied` skips the Warden-spawn clearing.
     const g = new Grid();
-    // fb166: at 36x20 seed 40 was the worst-drift seed (13); re-measured at
-    // 56x32 it drifts 0 (the ledger above's new worst is seed 91, drift 10),
-    // so this case moved to 91 to keep demonstrating a real, nonzero drift.
+    // fb166: seed 91, not 40 — re-measured at 56x32, seed 91 is the ledger's
+    // new worst drift (seed 40 is now drift-free at this size).
     expect(applyRunTerrain(g, GATES, 91, cfg)).toBe(false);
     const dump = describeTerrain(gridTerrain(g), cfg);
     const seedLine = dump.split('\n').find((l) => l.startsWith('seed '));

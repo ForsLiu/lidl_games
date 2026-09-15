@@ -285,35 +285,38 @@ describe('suggestCoreAnchor (fb064h)', () => {
     // 1-3% of seeds. This is the lane's fb064a lesson applied — a generator
     // whose output nothing pins forks silently on any code change.
     //
-    // Chosen so the table is load-bearing in three directions: on 8/16/33 the
-    // build-room key overrides the lowest-index tie (dropping it or inverting
-    // it goes red), on 98/413 the *value* of ROOM_RADIUS decides (both 1 and 3
-    // go red), and on 107/112/500 the lowest index wins and the strict `<` / `>`
-    // comparisons are what keep it (relaxing either to `<=` / `>=` goes red).
-    // Seed 4 has a single nearest anchor and tests neither key; it is a plain
-    // value pin.
+    // Chosen so the table is load-bearing in three directions: on 8/18/33 the
+    // build-room key overrides the lowest-index tie (dropping the room key
+    // goes red — each picks a different anchor without it), on 98/413 the
+    // *value* of `ROOM_RADIUS` decides (recomputing the room key at radius 1
+    // or at radius 3 both pick a different anchor there), and on 107/112/241
+    // the lowest index wins and the strict `>` room comparison is what keeps
+    // it (relaxing it to `>=` goes red — a later equal-room anchor would win
+    // instead). Seed 4 has a single nearest anchor and tests neither key; it
+    // is a plain value pin.
     //
-    // **fb166 re-derived this whole table**, rather than re-recording the old
-    // entries' new values: flipping `GRID_W`/`GRID_H` to 56x32 moves every
-    // generated map (and `CORE_X`/`CORE_Y` stay at their old 36x20-fitted
-    // position until main-lane `fb153b` repositions them — see this file's
-    // Log), so the old seeds' *tie shape* is not preserved by construction,
-    // only their tile output is deterministic. Each candidate seed was
-    // re-classified against six mutants of `suggestCoreAnchor`'s tie-break
-    // (drop the room key, invert it, `ROOM_RADIUS` 1, `ROOM_RADIUS` 3, relax
-    // the distance `<` to `<=`, relax the room `>` to `>=`) over seeds 1..2000,
-    // and the nine rows below are real seeds each still confirmed to kill the
-    // mutant(s) its row is named for, on this build.
+    // fb166 re-derived the whole table at the grid's 56x32 flip: every prior
+    // entry was a seed's *nearest-anchor tie* on the old 36x20 arena, which is
+    // gone along with the map. Re-classified the same way fb064l's table was
+    // — scan a range of seeds, group each seed's legal anchors by distance to
+    // `CORE_X/CORE_Y`, and for every seed with an actual tie check which
+    // simulated mutant (drop the room key, recompute room at radius 1 or 3,
+    // relax the room comparison to `>=`) picks a different anchor than the
+    // real `suggestCoreAnchor`. Measured over seeds 1..5000: 659 seeds carry a
+    // real tie, of which the drop-room mutant is killed on at least 6, both
+    // radius mutants together on at least 6, and the relaxed-comparison mutant
+    // on at least 6 — three representatives of each are named below, plus one
+    // plain no-tie seed.
     const golden: ReadonlyArray<readonly [number, number]> = [
       [4, 529],
       [8, 528],
-      [16, 640],
+      [18, 530],
       [33, 528],
       [98, 530],
       [107, 473],
       [112, 473],
+      [241, 530],
       [413, 530],
-      [500, 473],
     ];
     for (const [seed, want] of golden) {
       expect(suggestCoreAnchor(generateTerrain(seed, cfg), cfg), `seed ${seed}`).toBe(want);
