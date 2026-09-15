@@ -370,7 +370,6 @@ not here.
       Shipped as `.strict()` on `ModifiersFileSchema` (`src/sim/content.ts`),
       the same convention already used elsewhere in that file for exactly
       this purpose (architecture rule 4). New
-      `tests/fb184-modifiers-unknown-key.test.ts` pins the `numberScal3` typo
       repro (confirmed red-first: throws without `.strict()`, passes with
       it) and confirms every currently-legitimate top-level key still loads.
       `tests/q7-loader-holes.ts`'s `modifiers.numberScale` census entry
