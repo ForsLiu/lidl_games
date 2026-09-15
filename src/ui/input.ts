@@ -10,6 +10,7 @@ import { GRID_H, GRID_W, TILE } from '../sim/grid';
 import type { Command, TickInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 import { defaultKeyBindings, TOWER_SLOT_ACTIONS, type KeyBindings } from './keybindings';
+import type { CameraViewRect } from '../render/canvas';
 
 export interface PointerTarget {
   /** Tower id the player has selected for building, 0 = none. */
@@ -38,25 +39,37 @@ export interface CanvasBinding {
    * it is handed back through this callback rather than pushed as a Command.
    */
   onSelect?: (x: number, y: number) => void;
+  /**
+   * fb167: the camera's current visible tile-space window, read fresh on
+   * every pointer event since it moves as the Warden does. Omitted (or
+   * returning nothing) falls back to the whole board — `pointerToTile`'s own
+   * pre-camera behavior — so a caller that never wires this in (most tests)
+   * is unaffected.
+   */
+  camera?: () => CameraViewRect;
 }
 
-/** Converts a pointer event to tile coordinates, accounting for CSS scaling. */
+/** Converts a pointer event to tile coordinates, accounting for CSS scaling and the current camera window. */
 export function pointerToTile(
   canvas: HTMLCanvasElement,
   clientX: number,
   clientY: number,
+  camera?: CameraViewRect,
 ): { x: number; y: number } {
   const r = canvas.getBoundingClientRect();
-  // The canvas is always GRID_W*TILE x GRID_H*TILE logical pixels regardless of
-  // its backing-store resolution (HiDPI) or its actual rendered CSS box (which
-  // can be scaled down by a narrower viewport, per b078) — so map the click's
-  // *fraction* across the rendered box onto the fixed logical grid, never the
-  // rendered box's own pixel size and never the backing size.
+  // The canvas always shows one fixed-size logical window (the whole board by
+  // default, or the camera's current tile-space rect once fb167's camera is
+  // active) regardless of its backing-store resolution (HiDPI) or its actual
+  // rendered CSS box (which can be scaled down by a narrower viewport, per
+  // b078) — so map the click's *fraction* across the rendered box onto that
+  // logical window, never the rendered box's own pixel size and never the
+  // backing size.
   const width = r.width || canvas.clientWidth || GRID_W * TILE;
   const height = r.height || canvas.clientHeight || GRID_H * TILE;
+  const cam = camera ?? { left: 0, top: 0, width: GRID_W, height: GRID_H };
   return {
-    x: ((clientX - r.left) / width) * GRID_W,
-    y: ((clientY - r.top) / height) * GRID_H,
+    x: cam.left + ((clientX - r.left) / width) * cam.width,
+    y: cam.top + ((clientY - r.top) / height) * cam.height,
   };
 }
 
@@ -71,7 +84,7 @@ export function bindCanvasInput(b: CanvasBinding): void {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   canvas.addEventListener('mousemove', (e) => {
-    const p = pointerToTile(canvas, e.clientX, e.clientY);
+    const p = pointerToTile(canvas, e.clientX, e.clientY, b.camera?.());
     view.cursorX = p.x;
     view.cursorY = p.y;
   });
@@ -80,7 +93,7 @@ export function bindCanvasInput(b: CanvasBinding): void {
     if (b.isBlocked?.()) return;
     // Update from the event itself: a click can arrive without a prior move
     // (touchpad tap, or the pointer entering over the canvas).
-    const p = pointerToTile(canvas, e.clientX, e.clientY);
+    const p = pointerToTile(canvas, e.clientX, e.clientY, b.camera?.());
     view.cursorX = p.x;
     view.cursorY = p.y;
     const tx = Math.floor(p.x);

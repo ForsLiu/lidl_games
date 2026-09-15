@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import raw from '../../../data/terrain.json';
 import { GATES, GRID_H, GRID_W } from '../grid';
+import { Hasher } from '../hash';
 
 /**
  * The arena's own limits, which several bands are unsatisfiable past.
@@ -18,8 +19,9 @@ import { GATES, GRID_H, GRID_W } from '../grid';
  * `SPAN` is the widest a radius can usefully be. `MAX_WALKABLE_FRAC` is the
  * ceiling *any* map can reach: the border is permanently rock, so only the
  * interior plus the gate tiles themselves can ever be walked. On the shipped
- * 36x20 grid that is (34*18 + 3) / 720 = 0.854 — a `minWalkableFrac` above it
- * is not a strict tuning choice, it is a band no seed can clear.
+ * 56x32 grid (fb166; was 36x20) that is (54*30 + 3) / 1792 = 0.905692 — a
+ * `minWalkableFrac` above it is not a strict tuning choice, it is a band no
+ * seed can clear.
  */
 const SPAN = Math.max(GRID_W, GRID_H);
 const MAX_WALKABLE_FRAC = ((GRID_W - 2) * (GRID_H - 2) + GATES.length) / (GRID_W * GRID_H);
@@ -101,11 +103,13 @@ export function flatCoreAnchorCount(clearance: number): number {
  * Tuner editing.
  *
  * What survives is narrow and true: `1` is impossible at every clearance, and
- * at clearance 17+ nothing is legal at all, which is why this subsumes the
- * standalone `coreGateClearance` check fb064a shipped. A merely *strict* band
- * — 0.70, or 0.90 — still loads, and must: the generator reaches ~0.61 on the
- * shipped data, so those are bands no seed happens to clear rather than bands
- * no map can, and the flagged fallback is the designed answer to them.
+ * at clearance 27+ nothing is legal at all (fb166: 56x32's largest
+ * nearest-gate Chebyshev distance is 27, was 17 at 36x20), which is why this
+ * subsumes the standalone `coreGateClearance` check fb064a shipped. A merely
+ * *strict* band — 0.70, or 0.90 — still loads, and must: the generator
+ * reaches a mean of ~0.57 (max observed ~0.68 over 5000 seeds) on the shipped
+ * data, so those are bands no seed happens to clear rather than bands no map
+ * can, and the flagged fallback is the designed answer to them.
  */
 /**
  * The ceiling rounded so the printed number is itself loadable. `toFixed`
@@ -417,7 +421,8 @@ export const TerrainFileSchema = z
     }
     // Unpayable-data rule. The densities are shares of the *interior* the
     // generator scatters over, while every band is a share of the *whole*
-    // grid — and the border between them is 105 permanently-rock tiles of 720.
+    // grid — and the border between them is 169 permanently-rock tiles of
+    // 1792 (fb166: 56x32, was 105 of 720 at 36x20).
     // Comparing the two directly (which is what fb064a shipped first) misses
     // the entire class of bands no map can reach: `minWalkableFrac: 0.9` was
     // accepted, and then every seed fell through `maxAttempts` to the flat
@@ -469,7 +474,8 @@ export const TerrainFileSchema = z
     // denominator faster than its numerator, so the only sound bound is
     // `a / (a + 1)` (see `maxCoreLegalFrac` for the proof and for the measured
     // counterexamples that killed the tighter version). It refuses `1` at every
-    // clearance and refuses everything positive from clearance 17 up, where no
+    // clearance and refuses everything positive from clearance 27 up (fb166:
+    // 56x32's largest nearest-gate distance; was 17 at 36x20), where no
     // tile can be an anchor — which is what lets it subsume the standalone
     // `coreGateClearance` check this replaced.
     const coreCeiling = maxCoreLegalFrac(cfg.coreGateClearance);
@@ -597,6 +603,48 @@ export function loadTerrain(): TerrainConfig {
 /** Validate an arbitrary object as a terrain config (tests, Tuner previews). */
 export function parseTerrain(value: unknown): TerrainConfig {
   return TerrainFileSchema.parse(value);
+}
+
+/**
+ * fb065i: a short fingerprint of the `TerrainConfig` a dump was measured
+ * under — `describe.ts`'s own header names the problem this closes: "a dump
+ * is only meaningful next to the config it was taken under", and until this
+ * item a dump carried no trace of one, so a report pasted after a
+ * `data/terrain.json` tune parsed clean and its printed bands quietly
+ * described a rule set nobody's copy of `/data` matches any more.
+ *
+ * The analogue is `contentHash()` (`src/sim/content.ts`, b044/p9a), which
+ * folds this same file's raw bytes into a *replay's* content hash so a stale
+ * replay fails loudly — but a dump's job is weaker on purpose. `contentHash`
+ * hashes `TERRAIN_RAW`, the pre-parse document, specifically so a
+ * loader/schema change that starts keeping (or stops stripping) a field on
+ * byte-identical `/data` cannot move the hash on its own. A dump has no such
+ * document to reach for: `describeTerrain` is handed whatever `TerrainConfig`
+ * its caller already measured with — `loadTerrain()`'s cached one in
+ * production, but a hand-built `parseTerrain(patchedRaw)` in a good third of
+ * this module's own tests, which `TERRAIN_RAW` knows nothing about — so the
+ * only object that is *guaranteed* to be the config the dump's bands were
+ * actually measured against is the parsed `TerrainConfig` itself.
+ *
+ * `JSON.stringify(cfg)` is stable for that purpose even though it is not for
+ * `contentHash`'s: zod's `.parse()` rebuilds an object's keys in the schema's
+ * own declaration order, never the source document's, so this value is
+ * unmoved by a `/data/terrain.json` edit that only reorders fields and moved
+ * by one that changes a value — the property a fingerprint needs, and the
+ * reason this is not simply `TERRAIN_RAW` reused.
+ *
+ * `Hasher` (`../hash`), the same FNV-1a primitive `terrainHash` already
+ * folds a map's tiles through in this module, rather than a `../content`
+ * import: `describeTerrain`/`parseTerrainDump` take a `TerrainConfig`
+ * argument today with no dependency on `content.ts`, and reaching into a
+ * large shared file for one hash primitive already available locally would
+ * be a new coupling this lane's Scope does not need. `Hasher.hex()` also
+ * happens to produce exactly the eight lowercase hex digits `parseTerrainDump`
+ * already validates a `hash` field against, so the dump format gains one
+ * fingerprint shape rather than two.
+ */
+export function terrainConfigFingerprint(cfg: TerrainConfig): string {
+  return new Hasher().str(JSON.stringify(cfg)).hex();
 }
 
 function deepFreeze<T>(value: T): T {
