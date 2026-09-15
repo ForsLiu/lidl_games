@@ -510,7 +510,31 @@ honor.**
       reading this table rather than fb177's stale one — refs: SPEC-FINAL
       §14 G8, BACKLOG fb193/fb177/fb185, PR #55 (`532d4d9`),
       `tests/fb196-night1-basehpmul.test.ts`, CLAUDE.md working rule 3.
-- [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
+- [x] (fb193) [balance] **DONE 2026-09-15 — closed as already satisfied by
+      p13a, unblocked reading fb196.** Both of this item's acceptance halves
+      were completed under p13a's own commit before this session started:
+      the schema/data/derive half (`maxHpMul`/`defenseBonus` on
+      `data/classes.json`, loader default 1.0/0, pinned by
+      `tests/p13a-survivability-bands.test.ts`'s 6 cases) and the
+      re-measurement half (G8 re-measured live at the real 12-seed T3
+      cadence for swordsman, necromancer, paladin and bloodlord, with
+      engineer re-confirmed byte-identical as this item's own inert
+      control) — recorded honestly as a regression, not a fix: swordsman
+      2/12->0/12, necromancer 4/12->0/12, paladin 5/12->0/12, bloodlord
+      5/12->3/12, engineer unchanged 4/12, logged as **QUESTIONS Q206**.
+      fb196's later bisection (closed 2026-09-15) confirmed the roster-wide
+      Night-1 collapse these numbers sit inside is not a regression in this
+      item's own change, re-affirmed `tests/p6e-class-diversity.test.ts`'s
+      fresh 12-seed sweep matches p13a's numbers byte-for-byte where they
+      overlap, and explicitly handed resumption back to fb193 — reading
+      that table shows nothing left to re-measure: p13a already is the
+      resumed measurement. `tests/p13a-survivability-bands.test.ts` and
+      `tests/fb196-night1-basehpmul.test.ts` both still pass on this commit.
+      No further code/data change in scope — the broader Night-1
+      `baseHpMul` root cause fb196 diagnosed is a separate, unqueued
+      problem (fb196's own text: "logged open, not chased further inside
+      this item's scope"), not this item's to fix. Original text follows.
+      Night-1 melee
       wipes are a survivability problem, not a damage problem (p12j's three
       damage-rounds moved nothing, per Q196). Add `maxHpMul` and
       `defenseBonus` fields to `data/classes.json`, read by `derive`

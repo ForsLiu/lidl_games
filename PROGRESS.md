@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb193 closed, no new code/data — already
+  satisfied by p13a, confirmed by fb196.** fb193 ordered the
+  `maxHpMul`/`defenseBonus` survivability bands plus a G8 re-measurement for
+  swordsman/necromancer/engineer. Both halves were already done under p13a's
+  own commit (schema/data/derive shipped and pinned by
+  `tests/p13a-survivability-bands.test.ts`; G8 re-measured live at 12 seeds
+  for all four elevated classes plus engineer as control, recorded as a
+  regression not a fix — swordsman 2/12->0/12, necromancer 4/12->0/12,
+  paladin 5/12->0/12, bloodlord 5/12->3/12, engineer unchanged 4/12, logged
+  QUESTIONS Q206). fb196's later bisection re-affirmed those numbers and
+  explicitly handed resumption back to fb193 with nothing new to measure.
+  Closed as a bookkeeping item, not a re-tune: the broader Night-1
+  `baseHpMul` root cause stays open and unqueued per fb196. Targeted tests
+  (`tests/p13a-survivability-bands.test.ts`, `tests/fb196-night1-
+  basehpmul.test.ts`) both green on this commit; BACKLOG fb193.
+
 - **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
   nearly all red" alarm; PR #55 exonerated, not a new regression.**
   fb196 found only 3 of `tests/p6e-class-diversity.test.ts`'s non-`.skip`
