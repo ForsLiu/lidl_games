@@ -475,53 +475,129 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       (which would silently reverse the intended exemption) goes red instead
       of quietly changing behavior; the test also documents that this
       specific throw is expected to flip to `.not.toThrow()` once fb181 lands.
-- [ ] (fb178) [feat] the tier-modifier's 5th gate (`MODIFIER_GATES`, shipped by
-      fb156 as the static `south2` at `{tx:3, ty:GRID_H-1}`) is the only one of
-      the (eventual) five gates that never jitters — the base four do
-      (`jitterGates`, fb156), for the owner's stated reason ("jittered along
-      the edge"), and the owner's own text says tier modifiers now take the
-      count to **5**, without carving out the fifth as an exception. Ship a
-      seed-jittered position for it (a sibling function to `jitterGates`, or
-      an optional fifth return value on it — implementer's call, log the
-      choice), verified clear of the base four's jitter zone and every owner
-      band (never sealed, connectivity >=80%, Core clearance >=3 from *every*
-      gate including this one) over a 1000+-seed sweep of the live 5-gate list,
-      matching the rigor `tests/terrain-four-gates.test.ts` already applies to
-      the base four. Acceptance: property tests hold at 5 gates across 1000+
-      seeds; the position is deterministic in seed alone; no collision with
-      any base gate at any seed — refs: fb156, owner feedback
+- [x] (fb178) [feat] **DONE 2026-09-15 — the tier-modifier's 5th gate (`MODIFIER_GATES`,
+      shipped by fb156 as the static `south2` at `{tx:3, ty:GRID_H-1}`) is the
+      only one of the (eventual) five gates that never jitters** — the base
+      four do (`jitterGates`, fb156), for the owner's stated reason ("jittered
+      along the edge"), and the owner's own text says tier modifiers now take
+      the count to **5**, without carving out the fifth as an exception.
+      Shipped `jitterModifierGate(seed): GateDef` (`src/sim/terrain/gates.ts`,
+      exported via `src/sim/terrain/index.ts`), a sibling function to
+      `jitterGates` rather than a fifth return value on it — `MODIFIER_GATES`
+      itself is left as the static default (describeTerrain's header table and
+      other consumers still read it unchanged), matching exactly how
+      `jitterGates` itself shipped as an additive, unwired tool. Draws `tx`
+      from `rng.intRange(1, GATE_JITTER_MARGIN - 1)` = `[1,7]` on the south
+      edge, from its own RNG sub-key (`` `${TERRAIN_STREAM}:gates:south2` ``,
+      distinct from `jitterGates`' own `` `${TERRAIN_STREAM}:gates` ``) so the
+      two draws never share a cursor. The range is disjoint from `jitterGates`'
+      own south `tx ∈ [8,47]` **by construction, not by measurement** — `[1,7]`
+      sits strictly below `GATE_JITTER_MARGIN`, so no seed at any grid size
+      with `GATE_JITTER_MARGIN >= 1` can make the two collide (verified this
+      is a structural property, not a today's-constants coincidence).
+      New `tests/terrain-modifier-gate-jitter.test.ts` mirrors
+      `tests/terrain-four-gates.test.ts`'s own rigor: a 5000-seed structural
+      sweep (determinism, key, RNG-cursor independence from `jitterGates`,
+      real seed-to-seed variance, on-border/non-corner/in-range, no collision
+      with the base four) plus a 1000-seed live 5-gate generation sweep
+      (`terrainLegal`, walkable/buildable fractions, gate reach, Core legality,
+      detour, no-tile-collision across all 5 gates) — stricter than
+      `terrain-four-gates.test.ts`'s own 300-seed five-gate sweep. `npx tsc
+      --noEmit` clean; targeted suite 30/30 green in ~5s (no need for the
+      `vitest.fast.config.ts` exclude list). code-reviewer: APPROVE, no
+      Critical/Major findings (scope, architecture rules, RNG independence and
+      range disjointness all independently re-derived, not just read off the
+      comments). qa-playtester: PASS — independently pushed the sweeps to
+      20,000 structural / 3,000 generation seeds plus a battery of edge-case
+      seeds (`0, -1, -(2**31), 2**31, 0xffffffff, 0x100000000, 1.5, NaN, -0`),
+      confirmed `jitterModifierGate` is not imported or wired into any live
+      path (`world.ts` still builds its own independent gate list), found no
+      bug. **QA also found `npm run test:fast` carries 20 pre-existing failures
+      across 9 files** (`act1.test.ts`, `class-board.test.ts`,
+      `class-passive-liveness.test.ts`, `fb015-equipment.test.ts`,
+      `fb036-path-indicators.test.ts`, `tests/grid.test.ts`,
+      `p6b-swordsman.test.ts`, `p6c-plaguebringer.test.ts`,
+      `p6d-nine-classes.test.ts`) — confirmed via `git stash` (twice,
+      independently, by both this item and QA) to reproduce byte-identical on
+      `origin/master` with fb178's diff removed, so **not** fb178's regression.
+      None of those 9 files are `tests/terrain*`, so none are this lane's Scope
+      to fix; logged below for the main lane — refs: fb156, owner feedback
       `terrain-four-gates` ("tier modifiers that add a gate now go to 5").
-- [ ] (fb179) [test] `tests/terrain-anchor-quality.test.ts`'s header comment
-      carries mutant-kill claims that fb166's own commit left "explicitly
-      not reverified" after the 36x20 -> 56x32 resize (code-reviewer's fb166
-      finding, Minor). Re-run the mutation check this file's header describes
-      at the current grid size and either confirm the claims still hold
-      (update the comment to say so, dated) or fix what no longer does.
-      Acceptance: the header's claims are re-measured, not merely carried
-      forward, and say so — refs: fb166 code-reviewer pass, 2026-09-06.
-- [ ] (fb180) [test] `tests/terrain-generation.test.ts`'s `COST_RATIO_CEILING`
-      was widened 80 -> 200 by fb166 with an honest host-measured rationale,
-      but the *paired* "reverted-clamp regression" comparison — the check that
-      the ceiling would actually catch a real regression, not just admit the
-      new baseline — was not re-derived at 56x32 (disclosed shortcut in
-      fb166's own commit). Re-derive that paired comparison at the current
-      grid size so the ceiling is proven load-bearing again, the same standard
-      every other re-fitted number in fb166 met. Acceptance: the
-      reverted-clamp regression check is re-run and green at 56x32, and the
-      file's own comment says so with a date — refs: fb166 shortcut #1.
-- [ ] (fb181) [test] fb166 shipped without a regression test that would have
-      caught its own `GATES.east`/`MODIFIER_GATES` border bug at the exact
-      commit that resized the grid — QA's fb166 finding named the missing
-      check directly: "every `GATES` entry satisfies
-      `tx===0||ty===0||tx===GRID_W-1||ty===GRID_H-1` for the *current*
-      constants." Add it (a new `tests/terrain*`-glob file, since
-      `tests/grid.test.ts` itself is outside this lane's Scope) covering both
-      `GATES` and `MODIFIER_GATES`: every entry sits on the current
-      `GRID_W`/`GRID_H` border, is not a corner, and no two entries (across
-      both lists) share a tile. Acceptance: the test fails against the
-      pre-fb166 broken state (verify by temporarily reverting the constants
-      under test, not just asserting it would) and passes today — refs: fb166
-      QA finding 2, fb156 Log.
+- [x] (fb179) [test] **DONE 2026-09-15 —** `tests/terrain-anchor-quality.test.ts`'s
+      header comment carries mutant-kill claims that fb166's own commit left
+      "explicitly not reverified" after the 36x20 -> 56x32 resize
+      (code-reviewer's fb166 finding, Minor). Re-ran the mutation check
+      (`ROOM_RADIUS` 1/3, an asymmetric block — 1 tile north/west, 2 tiles
+      south/east, now named exactly rather than left as bare "asymmetric" —
+      counting non-Rock, counting Rock instead of Normal) via a scratch script
+      mirroring `suggestCoreAnchor`'s real selection loop exactly (no shipped
+      source touched), over the current layout's 500-seed sample: **81 tie
+      seeds** (was 72 pre-resize), **zero loop-correctness violations** for
+      all 5 mutants, picks moved on 16/17/10/29/57 of the 81 tie seeds
+      respectively. Comment updated in place with these findings, dated.
+      Comment-only diff (no assertion/logic change). code-reviewer: APPROVE —
+      independently reimplemented the mirror from scratch, cross-checked it
+      against two numbers already pinned elsewhere in the file (`tieSeeds:
+      81`, `movedOffLowestIndex: 45`) and reproduced 4 of 5 mutant counts
+      exactly; flagged one Minor (the "asymmetric" shape wasn't named
+      precisely enough to reproduce the exact count verbatim), fixed by
+      naming the shape in the comment. `npx tsc --noEmit` clean; targeted
+      suite 12/12 green — refs: fb166 code-reviewer pass, 2026-09-06.
+- [x] (fb180) [test] **DONE 2026-09-15 —** `tests/terrain-generation.test.ts`'s
+      `COST_RATIO_CEILING` (currently 160, re-tuned by fb166 for the 56x32
+      blob-growth cost) had its *paired* "reverted-clamp regression"
+      comparison — the check that the ceiling would actually catch a real
+      `paint()` regression, not just admit the new baseline — left
+      un-re-derived at 56x32 (fb166's own disclosed shortcut). Re-derived it:
+      a scratch vitest file mirrored the shipped test's exact `measure()`
+      harness (5 interleaved rounds, minimum of each half, warmed, under
+      vitest per the file's own tsx-vs-vitest calibration caveat) against a
+      temporary source patch to `paint()` in `src/sim/terrain/generate.ts`
+      (the (2r+1)^2-square-with-per-tile-bounds-test the pre-fb064a code
+      used), measured, then reverted the source patch immediately — nothing
+      shipped touches `/src/sim` in this item's final diff, only the test
+      file's comments, staying inside this lane's test-only Scope. On this
+      host: healthy (shipped, clamped) read **119.5-119.7** idle across 3
+      readings; clamp reverted read **293.2-301.7** — a clean **~2.45x gap,
+      zero overlap**, comfortably above the 160 ceiling. The paired
+      comparison is proven load-bearing again at the current grid size, not
+      merely carried forward from the 36x20 measurement. Both the header
+      comment and the test's own assertion message updated with the dated
+      re-measurement; bursty-load contention (QA's own bespoke repro tooling)
+      was not re-derived, matching this item's acceptance (idle-only).
+      `npx tsc --noEmit` clean; targeted suite 41/41 green — refs: fb166
+      shortcut #1.
+- [x] (fb181) [test] **DONE 2026-09-15 —** fb166 shipped without a regression
+      test that would have caught its own `GATES.east`/`MODIFIER_GATES`
+      border bug at the exact commit that resized the grid — QA's fb166
+      finding named the missing check directly: "every `GATES` entry
+      satisfies `tx===0||ty===0||tx===GRID_W-1||ty===GRID_H-1` for the
+      *current* constants." Shipped `tests/terrain-gate-legality.test.ts`
+      (new file, `tests/grid.test.ts` itself being outside this lane's
+      Scope): a locally-reimplemented `isLegalGatePosition` (a byte-for-byte
+      mirror of `grid.ts`'s own `assertGatePositionLegal`, not imported, so
+      the test does not share a bug with what it checks) covering both
+      `GATES` and `MODIFIER_GATES` — every entry on the current
+      `GRID_W`/`GRID_H` border, not a corner, no two entries across either
+      list sharing a tile — plus a historical-regression case reconstructing
+      the exact pre-fb153b broken `GATES.east` literal (`{tx:35,ty:17}`,
+      confirmed via `git show ef778af^:src/sim/grid.ts` rather than assumed)
+      and asserting the check correctly flags it illegal, alongside synthetic
+      off-border/corner/non-integer/off-grid/collision cases. Also confirmed
+      from the same historical commit, correcting this file's own initial
+      assumption: `MODIFIER_GATES` was never part of the historical bug (it
+      was already `{tx:3,ty:GRID_H-1}`-shaped, relative not literal) — only
+      `world.ts`'s separate, out-of-scope Fourth Gate literal carried the
+      `{tx:12,ty:19}` defect this file's neighbouring comments describe.
+      `npx tsc --noEmit` clean; targeted suite 4/4 green. code-reviewer:
+      APPROVE — independently re-verified the historical commit, confirmed
+      `isLegalGatePosition` is a faithful predicate-order mirror of the real
+      one, and confirmed the "verify by temporarily reverting" acceptance
+      clause is satisfied in spirit by the reconstructed-fixture approach (a
+      real failing assertion against the literal historical value plus
+      general synthetic cases, not a comment claiming it would fail) even
+      though it does not literally revert the live `grid.ts` export — refs:
+      fb166 QA finding 2, fb156 Log.
 
 ### Generated 2026-09-03 (lane generation rule)
 
@@ -5328,3 +5404,30 @@ file next.
   any of them route through `GATES`/gate-distance fields, worth checking
   when re-deriving the goldens above rather than assuming only the gate-
   literal comparisons moved.
+- (2026-09-15, fb178 shipped — terrain lane) **`npm run test:fast` on this
+  branch (`claude/laughing-hypatia-9fp3cv`, based on current `origin/master`)
+  carries 20 pre-existing failures across 9 files, none of them
+  `tests/terrain*` and none introduced by fb178 — logged here for the main
+  lane, not chased in this item per Scope.** Files: `tests/act1.test.ts`,
+  `tests/class-board.test.ts`, `tests/class-passive-liveness.test.ts`,
+  `tests/fb015-equipment.test.ts`, `tests/fb036-path-indicators.test.ts`,
+  `tests/grid.test.ts` (`rejects a placement that walls a gate off`),
+  `tests/p6b-swordsman.test.ts` (2 cases, both a `buildTower(..., 10, 10).ok`
+  assertion failing), `tests/p6c-plaguebringer.test.ts` (the same
+  `buildTower(..., 10, 10).ok` shape), `tests/p6d-nine-classes.test.ts`
+  (Cryomancer Ice Wall self-cast). Confirmed pre-existing, not fb178's, by
+  `git stash`ing fb178's entire diff (`src/sim/terrain/gates.ts`,
+  `src/sim/terrain/index.ts`) and re-running: identical failures,
+  byte-identical assertion messages, reproduce on the stashed tree — done
+  independently twice, once by this item and once by its own qa-playtester
+  pass. **This is worth the main lane's attention because the entry directly
+  above this one (fb153b, 2026-09-15) records these same files —
+  `tests/grid.test.ts`, `p6d-nine-classes`, `class-board` among them — as
+  fixed and green** as part of that item's own fallout cleanup; either a
+  later main-lane commit on this branch (the `numberScale` economy-split,
+  `fb163`/`fb194`, touches gold/cost fields that a `buildTower(...).ok`
+  assertion at a fixed tile would be sensitive to) reintroduced tile-(10,10)
+  buildability or gold-affordability regressions, or `tests/grid.test.ts`'s
+  gate-sealing case drifted from a later terrain/gate change — worth checking
+  against `fb163`/`fb194`'s own closure notes rather than assumed to be the
+  same fb153b fallout recorded already-fixed above.
