@@ -7,15 +7,21 @@
  *
  * **Bisected. It is not a new regression.** Git-worktree control runs of
  * the same scripted-kit harness (`runClassScripted`'s own shape) at five
- * points — `9b7911c` (2026-09-07, before the entire p12a-p12j BALANCE
- * DIRECTION v2 arc even starts), `53f58ab` (immediately before that arc's
- * PR #41), `1a5912c` (immediately before PR #55/`532d4d9`), `532d4d9`
- * itself (after PR #55's full retune, p12j included), and HEAD (after
- * BACKLOG-CONTENT c004) — reproduce byte-identical `defeat_warden`@wave-3
- * outcomes and `survivalSeconds` for swordsman/pyromancer seeds 1-3 at
- * every single point. Nothing in PR #55's diff, `warden_eater`'s HP
- * re-anchor (p12e), or `kitBuildMul`'s VS gating (p12f) moves this number
- * at all — all three are exonerated as fb196's cause.
+ * points on master's first-parent history — `9b7911c` (2026-09-07 04:58
+ * UTC-4, PR #40), `53f58ab` (2026-09-07 05:21 UTC-4, PR #41's own merge
+ * commit — **correction**: an earlier version of this comment claimed p12a-c
+ * "actually landed" in PR #41; that PR's own squashed items (fb139/fb079/
+ * fb080/fb082/fb083) have nothing to do with p12a-c, and this file does not
+ * claim to know which PR does — the point below holds regardless), `1a5912c`
+ * (immediately before PR #55/`532d4d9`), `532d4d9` itself (after PR #55's
+ * full retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) —
+ * reproduce byte-identical `defeat_warden`@wave-3 outcomes and
+ * `survivalSeconds` for swordsman/pyromancer seed 1 at every single point
+ * (seeds 2-3 were also spot-checked the same way, via a throwaway `tools/`
+ * probe deleted after use, same precedent as fb177/p12h; only seed 1 per
+ * class is pinned by the committed test below). Nothing in PR #55's diff,
+ * `warden_eater`'s HP re-anchor (p12e), or `kitBuildMul`'s VS gating (p12f)
+ * moves this number at all — all three are exonerated as fb196's cause.
  *
  * **The real, already-diagnosed mechanism** is `tests/p6e-class-diversity.
  * test.ts`'s own fb177 write-up (landed inside PR #55, predating fb196):
@@ -52,6 +58,13 @@ import { GATE_TIER, buyCoreUpgrades, scriptClassKit } from './helpers';
 function runScriptedWithContent(config: RunConfig, content: Content, maxTicks = 60 * 60 * 120): RunReport {
   const runCfg = { ...config, policy: 'hybrid' };
   const run = new Run(runCfg, content);
+  // Deliberately does NOT stamp `config.contentHash` back (unlike
+  // `runScripted`, tests/helpers.ts): this function runs the same `config`
+  // object against two different `content` values in the test below, and
+  // stamping the first run's hash onto the shared config would fail the
+  // second run's own hash check (src/sim/world.ts) for an unrelated reason.
+  // `runCfg` (this function's own copy) still carries whatever hash the
+  // caller set, exactly like `runScripted` passes through.
   const policy = makePolicy('hybrid');
   const w = run.world;
   while (!run.done && w.tick < maxTicks) {

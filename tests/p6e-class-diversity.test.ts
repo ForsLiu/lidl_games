@@ -411,15 +411,22 @@
  * passing and named **PR #55** (`532d4d9`) as the prime suspect for a *new*
  * regression, since its own commit history touches `data/classes.json` and
  * `src/sim/enemies.ts` heavily. **Not a new regression.** Git-worktree
- * control runs of the same scripted-kit shape at five points — `9b7911c`
- * (2026-09-07, before the entire p12a-p12j arc even starts), `53f58ab`
- * (immediately before PR #41, which is where p12a-c actually landed),
- * `1a5912c` (immediately before PR #55), `532d4d9` itself (after PR #55's
- * full retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) —
- * reproduce byte-identical `defeat_warden`@wave-3 outcomes and
- * `survivalSeconds` for swordsman/pyromancer seeds 1-3 at every single
- * point. PR #55's diff, `warden_eater`'s HP re-anchor (p12e) and
- * `kitBuildMul`'s VS gating (p12f) are all exonerated.
+ * control runs of the same scripted-kit shape at five points on master's
+ * first-parent history — `9b7911c` (2026-09-07 04:58 UTC-4, PR #40),
+ * `53f58ab` (2026-09-07 05:21 UTC-4, PR #41's own merge commit —
+ * **correction**: an earlier version of this section claimed p12a-c
+ * "actually landed" in PR #41; that PR's own squashed items (fb139/fb079/
+ * fb080/fb082/fb083) are unrelated to p12a-c, and this section does not
+ * claim to know which PR is — the finding below holds regardless), `1a5912c`
+ * (immediately before PR #55), `532d4d9` itself (after PR #55's full
+ * retune, p12j included), and HEAD (after BACKLOG-CONTENT c004) — reproduce
+ * byte-identical `defeat_warden`@wave-3 outcomes and `survivalSeconds` for
+ * swordsman/pyromancer seed 1 at every single point (seeds 2-3 were also
+ * spot-checked the same way via a throwaway `tools/` probe, deleted after
+ * use — only seed 1 per class is pinned by the committed
+ * `tests/fb196-night1-basehpmul.test.ts`). PR #55's diff, `warden_eater`'s
+ * HP re-anchor (p12e) and `kitBuildMul`'s VS gating (p12f) are all
+ * exonerated.
  *
  * The mechanism was already named, inside this same file, by **fb177**
  * above: `baseHpMul` (shipped 20 since p12c, unchanged across every control
