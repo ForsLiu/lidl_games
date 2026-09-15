@@ -205,16 +205,9 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  * Measured at fb064z against shipped `/data`, and **every number here is a
  * reading on one host**, named as such because the normalised unit is not
  * host-independent: `generateTerrain` is memory-bound and `calibrationWork` is
- * pure ALU, so their ratio moves with microarchitecture.
- *
- * **fb166 re-measured every reading below for the 56x32 grid, on this
- * sandbox host** (three consecutive idle runs each; the pre-fb166 readings —
- * "review's host", the 36x20 `worstSeed`/`worstSeedOtherHost` pair — are gone
- * rather than kept as now-unrelated history, since they described a different
- * grid size as much as a different machine). The mean moved from ~80k to
- * ~224k, close to but somewhat over the 2.489x tile-count ratio (56*32 /
- * (36*20)) — the retry-driven and fixed-overhead parts of a generation don't
- * scale with tile count, so a super-linear mean is expected, not a regression.
+ * pure ALU, so their ratio moves with microarchitecture. Review measured a
+ * mean of ~47k on its box against ~82k on this one — a 1.75x spread on a
+ * metric that removes *load*, not *machine*.
  *
  * That is why the guards below are split by what each can honestly carry:
  *  - the **retry ledger** is exact and reproducible, so it is pinned tightly;
@@ -227,52 +220,66 @@ export function quantile(costs: Ledger['costs'], q: number): readonly [number, n
  * right response is to re-measure and re-record, never to relax a ceiling.
  */
 export const MEASURED = {
-  /** Mean cost of one generation, calibration units. This host at 56x32:
-   * 223.8k-224.6k idle across three runs (~0.4% spread). The spread *within*
-   * one run is why nothing here is asserted tighter than a same-run ratio;
-   * the absolute number is host- and grid-size-relative, which is what
-   * `MEAN_CEILING` being an order of magnitude looser is for. */
-  meanUnits: 224_000,
+  /** Mean cost of one generation, calibration units. This host: 76.0k-83.8k
+   * idle across two agents' probes (~10% spread), rising with load to ~95k at
+   * 12-way and ~176k at 48-way contention. Review's host: ~45k idle. The
+   * spread *between hosts* is the point of the `MEAN_CEILING` note below; the
+   * spread *within* one is why nothing here is asserted tighter than a
+   * same-run ratio.
+   *
+   * fb166: one reading at 56x32, on this host, ~67.0k — inside the old
+   * grid's own idle spread rather than the ~2.5x rise the tile-count ratio
+   * alone would suggest. Both `attempt()`'s scatter cost (proportional to
+   * `density * interior`) and its corridor-walk cost (proportional to
+   * perimeter) scale with the resize, but calibration units are also a ratio
+   * against host noise — this is not asserted anywhere and is recorded as one
+   * data point, not a new baseline. */
+  meanUnits: 80_000,
   /** p95 as a multiple of the same run's mean — the host-free number. Three
-   * idle runs at 56x32: 1.025, 1.022, 1.026. */
-  p95OverMean: 1.025,
-  /** p99 over mean, same three idle runs: 1.042, 1.032, 1.045. */
-  p99OverMean: 1.040,
-  /** The costliest seed in the sample, and what it costs: 1.999-2.021 times
-   * the mean over three idle runs *on this host*. At 56x32 the sample's sole
-   * retry-taking seed (`retrySeeds` below) is also its costliest — a
-   * one-retry sample makes the identity and the retry-cost story the same
-   * seed, which was not true at the old grid's two-retry sample. */
-  worstSeed: -329,
-  /** Identical to `worstSeed` at fb166, and expected to be on every host: with
-   * only one retry-taking seed in the sample (`retryCount: 1`), there is no
-   * second candidate for "worst" to disagree about — retry-set membership is
-   * deterministic, not host-dependent, so any host's argmax lands on the same
-   * seed. Kept as its own field (rather than deleted) because the two-retry
-   * case this distinction existed for could return if a future retune moves
-   * more seeds onto the retry path. */
-  worstSeedOtherHost: -329,
-  worstOverMean: 2.01,
-  /** A retry seed's raw cost against the plain population's median. Idle,
-   * three runs at 56x32: 2.009, 2.021, 1.991 — the same ~2x reading the old
-   * grid had, now off a population of *one* retry seed rather than two (see
-   * `tests/terrain-cost-retry-ratio.test.ts`'s own header for what that
-   * changes about the "no averaging" argument). **Under load it is not a
-   * band at all** — the pre-fb166 QA measured 9.1, 12.7 and 16.6 at 12- and
-   * 24-way contention for the same structural reason, which a smaller
-   * population only sharpens. What carries there is the one-sided floor:
-   * contention can only inflate a raw timing, so `> 1.5` is a claim noise
-   * cannot manufacture a failure for, which is the whole reason this
-   * assertion has no upper bound. */
+   * idle runs: 1.038, 1.035, 1.034. Under 10-way contention it reads *below*
+   * one (0.90-0.95), because there the mean is dragged up by a handful of
+   * interrupted seeds; the ceiling holds either way. */
+  p95OverMean: 1.035,
+  /** p99 over mean, same idle reading: 1.062, 1.056, 1.059 (4.2-7.0 at
+   * 10-way, which is why it is recorded and not asserted). */
+  p99OverMean: 1.055,
+  /** The costliest seed in the sample, and what it costs: 2.053, 2.033, 2.118
+   * times the mean over idle runs *on this host* (re-measured after both
+   * estimator fixes: 2.012-2.055). Review's host names
+   * the other retry seed at 2.06x on every idle probe, which is why the
+   * identity is recorded per-host and never asserted — a per-seed maximum is
+   * the one statistic no normalisation can rescue. What the test asserts
+   * instead is the aggregate behind it: a retry-taking seed's raw cost against
+   * the plain population's median.
+   *
+   * fb166: NOT re-measured at 56x32 — these two identities predate the grid
+   * resize, and `sampleSeeds()` at the new grid retries at only one of them
+   * (`-329`; see `retrySeeds` below). Neither field is asserted by any test
+   * (`terrain-cost-retry-ratio.test.ts` reads, never asserts, the argmax), so
+   * this is a known-stale timing observation left for whoever next re-runs
+   * the perf tier, not a claim about the current retry set. */
+  worstSeed: 2147483532,
+  worstSeedOtherHost: 2485897837,
+  worstOverMean: 2.07,
+  /** A retry seed's raw cost against the plain population's median. Idle it is
+   * the tightest number in the file and the only one calibration-free on both
+   * sides: 1.93-2.09 over 28 observations across two agents. **Under load it is
+   * not a band at all** — QA measured 9.1, 12.7 and 16.6 at 12- and 24-way
+   * contention, because a population of two has no averaging and a seed
+   * interrupted in all three rounds keeps its inflated minimum. What carries
+   * there is the one-sided floor: contention can only inflate a raw timing, so
+   * `> 1.5` is a claim noise cannot manufacture a failure for, which is the
+   * whole reason this assertion has no upper bound. */
   retryOverPlain: 2.0,
-  /** The unsatisfiable config, warm, against the same run's mean: 8.55x at
-   * 56x32 (single reading; the old grid's 8.42-10.49 was two agents' probes,
-   * not re-taken in pairs here). Cold it reads far higher, which is V8
-   * specialising for a second config shape and not the generator — see the
-   * test. */
-  hostileOverMean: 8.55,
-  /** fb166 (56x32): 1 of 1500 seeds retried, at 2 attempts (was 2 of 1500 at
-   * 36x20). */
+  /** The unsatisfiable config, warm, against the same run's mean: 8.42-10.49
+   * across two agents' probes.
+   * Cold it reads 42x, which is V8 specialising for a second config shape and
+   * not the generator — see the test. */
+  hostileOverMean: 9.5,
+  /** fb166 re-measured at 56x32: 1 of 1500 seeds retried (was 2 at 36x20), at
+   * 2 attempts. The bigger board gives every band more headroom (see
+   * `tests/terrain-band-ledger.test.ts`'s file header), so the retry-taking
+   * share fell along with it. */
   retryCount: 1,
   retrySeeds: [-329] as const,
   /** The largest attempt count *observed*, not `cfg.maxAttempts` (which is 8).
