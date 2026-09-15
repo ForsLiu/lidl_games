@@ -430,42 +430,58 @@ red, which is what made fb193's own re-measurement clause impossible to
 honor.**
 
 - [ ] (fb196) [bug] **top priority — found working fb193, outranks it.**
+      **Root cause found this session, PR #55 exonerated; full-roster
+      re-measurement still open — this item stays open for that half.**
       `tests/p6e-class-diversity.test.ts` (gate **G8**) is red for nearly the
-      entire 12-class roster on HEAD (`e9ec061`), **before any fb193/194/195
-      change**: of the file's non-`.skip`-ed assertions, only 3 pass. The
-      failure mode is uniform and severe — most classes report
-      `defeat_warden/w3/early-loss` (the character dies in or immediately
-      after the very **first** VS block, wave 3), not the wave-11-to-17 wall
-      PROGRESS.md's p10i names as the roster's known open problem. Confirmed
-      on a clean tree (`git stash`, re-ran the file against `e9ec061`
-      directly, 10 of 10 then-non-skipped assertions failed — pyromancer,
-      archer, stormcaller, animist, paladin, bloodlord and at least one more
-      class each 0-4/12 wins with most seeds `defeat_warden@w3`; the
-      fingerprint-distance pin expected 16, measured 20; the T5 companion
-      band measured 0/12). This predates fb193 entirely — fb193's own
-      `maxHpMul`/`defenseBonus` bands (verified independently correct and
-      isolated to the 4 classes they're authored on: fingerprint-distance
-      moved 20->27, no *other* class's result changed) were not remotely
-      enough to move swordsman/necromancer/engineer into band against
-      whatever is now killing the roster in the first VS block. Prime
-      suspect: **PR #55** (`532d4d9`, merged into master **today**,
-      2026-09-14), a long-lived branch reconciling independent Q192-Q196
-      numbering with master's own — its own commit message already admits
-      `p6e-class-diversity.test.ts` "has been stale since 2026-09-03,
-      predating this whole balance arc" and explicitly deferred fixing it
-      (filed as a since-collided `fb177` in the old branch's own numbering).
-      `data/classes.json` alone changed 271 lines in that merge; `baseHpMul`
-      (20) and `warden_eater.hp` (18,250 = 365,000/20) are internally
-      consistent so p12e's own re-anchor is not implicated by inspection.
-      Not yet root-caused — needs a real bisection (`git bisect` or a
-      targeted control run per class against each file `532d4d9` touched:
-      `data/classes.json`, `src/sim/enemies.ts`) rather than another guess.
-      Acceptance: root cause identified and named with a control-run pair
-      proving it; a regression test pins the specific mechanism (not just
-      re-measures win rate); `tests/p6e-class-diversity.test.ts` re-measured
-      in full afterward with every class's real number recorded (whichever
-      way it lands) before fb193/194/195 resume — refs: SPEC-FINAL §14 G8,
-      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3.
+      entire 12-class roster on HEAD, most classes reporting
+      `defeat_warden/w3` (the character dies in the very **first** VS/Night
+      block), not the wave-11-to-17 wall PROGRESS.md's p10i names as the
+      roster's known open problem.
+
+      **The bisection (this session):** a `git worktree` control run at
+      `1a5912c` (master's tip immediately *before* PR #55's squash-merge,
+      `532d4d9`) reproduces `archer` seed 1's HEAD result identically —
+      same outcome (`defeat_warden`), same wave (3), same `coreHp` (29.16/110
+      on both sides), `survivalSeconds` within sub-tick noise (30.27 vs
+      30.25). Archer's own `data/classes.json` row is untouched
+      by the merge (only the two inert `maxHpMul`/`defenseBonus` fields
+      p13a added later, plus reformatting). **PR #55 did not introduce
+      this** — it predates the merge. Pinned as a fast regression test:
+      `tests/fb196-night1-baseline.test.ts`.
+
+      **The mechanism:** `data/enemies.json`'s `baseHpMul: 20` (p12c,
+      2026-09-07, already on master before PR #55 branched) applies to
+      every non-final-boss enemy at every wave, including Night 1 — the
+      run's least-built economy, where `classBasicAttack` is TD-only
+      (`run.ts`) so a class's kit Actives are its *entire* VS damage
+      contribution, and `kitPowerMul` is still near 1x that early
+      (`wavesCleared`-driven). A flat 20x enemy-HP multiplier lands hardest
+      exactly there. This is the same mechanism the parent test file's own
+      header already diagnosed for `swordsman`.
+
+      **A second, separate finding:** the parent file's own trailing
+      comments claim archer/pyromancer/stormcaller/plaguebringer are
+      "in band" (5-6/12) after the p12j retune. None reproduce — a fresh
+      12-seed control sweep this session measures archer 0/12, pyromancer
+      0/12, stormcaller 0/12, plaguebringer 0/12 (cryomancer 4/12 vs.
+      documented 5, animist 4/12 vs. documented 8 — the latter plausibly
+      fb185's already-suspected c004 `summonCap` drift; time_lord 8/12
+      matches its documented number exactly). Since PR #55 was a squash-
+      merge of a long-lived branch (its own commit message: "reconciling
+      independent Q192-Q196 numbering with master's own"), the intermediate
+      commits p12j's numbers were presumably measured against no longer
+      exist to bisect — squash-merging destroyed that history. Read the
+      5-6/12 figures for those four classes as unreliable, not as a
+      regression this item caused.
+
+      **Remaining acceptance (unblocks fb193/194/195):** a full, honest
+      12-class re-measurement of `tests/p6e-class-diversity.test.ts`
+      (`[balance]`-tier, ~40min sweep per CLAUDE.md rule 8 — this item's own
+      acceptance criterion, not run to completion this session on the
+      scheduler's own time budget) with every class's real number recorded
+      and re-pinned, whichever way it lands — refs: SPEC-FINAL §14 G8,
+      BACKLOG fb193, PR #55 (`532d4d9`), CLAUDE.md working rule 3,
+      tests/fb196-night1-baseline.test.ts.
 - [ ] (fb193) [balance] **ORDER (Q196) — blocked on fb196.** Night-1 melee
       wipes are a survivability problem, not a damage problem (p12j's three
       damage-rounds moved nothing, per Q196). Add `maxHpMul` and

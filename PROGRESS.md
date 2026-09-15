@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb196 root-caused, PR #55 exonerated —
+  full-roster re-measurement still open.** fb196 suspected PR #55
+  (`532d4d9`) as the cause of `tests/p6e-class-diversity.test.ts` (gate G8)
+  reading near-total-roster-red (`defeat_warden@w3`, the first VS/Night
+  block). A `git worktree` control run at `1a5912c` (master's tip
+  immediately before PR #55's squash-merge) reproduces `archer` seed 1's
+  current-HEAD result byte-for-byte (same outcome, wave, `coreHp`,
+  `survivalSeconds`) against byte-identical `data/classes.json` — PR #55
+  did not introduce this failure; it predates the merge. Root mechanism:
+  `data/enemies.json`'s `baseHpMul: 20` (p12c, already on master before PR
+  #55 branched) applies to every enemy at every wave, including Night 1,
+  the run's least-built economy, where `classBasicAttack` is TD-only so a
+  class's kit Actives are its entire VS damage contribution. Pinned as a
+  fast regression test, `tests/fb196-night1-baseline.test.ts` (one seed, no
+  `beforeAll` sweep). Separately: the parent test file's own documented
+  in-band figures for archer/pyromancer/stormcaller/plaguebringer (5-6/12)
+  do not reproduce at any commit in current history (fresh control sweep
+  this session: all four measure 0/12) — PR #55 was a squash-merge of a
+  long-lived branch, so the intermediate commits those numbers were
+  presumably measured against no longer exist to bisect against; read them
+  as unreliable rather than as a regression. Full 12-class re-measurement
+  (`[balance]`-tier, ~40min sweep, fb196's own acceptance criterion) was not
+  run to completion this session on the scheduler's time budget — fb196
+  stays open for that half; fb193/194/195 stay blocked on it per the
+  2026-09-14 owner priority directive. `npm run test:fast` green (298
+  files, 4318 passed, unchanged pass count) — refs: SPEC-FINAL §14 G8,
+  BACKLOG fb196/fb193/p13a, CLAUDE.md working rule 3 and measurement rules.
+
 - **2026-09-14 — main lane: BACKLOG p13a done — per-class survivability
   bands landed, re-measured honestly, widens G8's red rather than closing
   it.** `maxHpMul`/`defenseBonus` (QUESTIONS Q196 ORDER) added to
