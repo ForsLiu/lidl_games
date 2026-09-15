@@ -152,12 +152,25 @@ const cfg = loadTerrain();
 // ~35-39 to ~85-97 idle (five back-to-back runs on this host: 88.1, 89.3,
 // 84.5, 84.9, 97.3) — the scatter-blob growth cost, not `paint()`, now
 // dominates the numerator. 160 keeps roughly the same ~1.6-1.9x headroom over
-// the worst observed reading that the old 80/38.7 pair had (~2.1x), without
-// re-measuring the reverted-clamp arm, which needs a temporary source patch
-// this pass did not make — see the header above for how that arm was
-// originally measured, and re-run it here before trusting this ceiling's
-// detection floor for a real `paint()` regression rather than for the
-// blob-growth cost this fixture now mostly measures.
+// the worst observed reading that the old 80/38.7 pair had (~2.1x).
+//
+// fb180 (2026-09-15): the reverted-clamp arm above was re-derived at this grid
+// size, via a temporary source patch to `paint()` in `src/sim/terrain/
+// generate.ts` (reverted immediately after measuring, per this lane's
+// test-only Scope — not shipped). Same harness as the test below (`measure()`,
+// 5 interleaved rounds, minimum of each half, under vitest — the calibration
+// caveat above about tsx-vs-vitest applies). On this host: healthy (shipped,
+// clamped `paint()`) read **119.5-119.7** idle across three repeated readings
+// (a different host than the 88-97 range recorded just above, consistent with
+// this file's own "calibrated for the vitest runner... a larger effect than
+// the headroom" caveat); clamp reverted read **293.2-301.7** across three
+// readings — a clean **~2.45x gap with zero overlap** against the worst
+// healthy reading, comfortably above `COST_RATIO_CEILING = 160`. The paired
+// comparison is proven load-bearing again at 56x32: a real `paint()`
+// regression of this shape is still caught, not merely a claim carried
+// forward from the 36x20-era measurement. Bursty-load contention was not
+// re-derived (QA's own bespoke busy-loop repro, not reproduced here); the
+// idle-only re-derivation is what this item's acceptance asks for.
 const COST_RATIO_CEILING = 160;
 /** Ordinary generations timed as the denominator, and the seeds they use. */
 const BASE_SEEDS = 64;
@@ -894,8 +907,9 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     expect(
       reading.ratio,
       'one maxed-radius attempt against one ordinary generation ' +
-        '(healthy ~85-97 idle on the 56x32 grid, fb166 — see the ceiling comment above; ' +
-        'bursty-load and reverted-clamp readings were not re-taken at this grid size)',
+        '(healthy ~85-120 idle on the 56x32 grid, fb166/fb180 — see the ceiling comment above; ' +
+        'reverted-clamp re-measured at 56x32 by fb180, ~293-302, ~2.45x clear; ' +
+        'bursty-load was not re-taken at this grid size)',
     ).toBeLessThan(COST_RATIO_CEILING);
   });
 

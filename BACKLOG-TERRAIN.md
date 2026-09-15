@@ -523,24 +523,50 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       None of those 9 files are `tests/terrain*`, so none are this lane's Scope
       to fix; logged below for the main lane — refs: fb156, owner feedback
       `terrain-four-gates` ("tier modifiers that add a gate now go to 5").
-- [ ] (fb179) [test] `tests/terrain-anchor-quality.test.ts`'s header comment
-      carries mutant-kill claims that fb166's own commit left "explicitly
-      not reverified" after the 36x20 -> 56x32 resize (code-reviewer's fb166
-      finding, Minor). Re-run the mutation check this file's header describes
-      at the current grid size and either confirm the claims still hold
-      (update the comment to say so, dated) or fix what no longer does.
-      Acceptance: the header's claims are re-measured, not merely carried
-      forward, and say so — refs: fb166 code-reviewer pass, 2026-09-06.
-- [ ] (fb180) [test] `tests/terrain-generation.test.ts`'s `COST_RATIO_CEILING`
-      was widened 80 -> 200 by fb166 with an honest host-measured rationale,
-      but the *paired* "reverted-clamp regression" comparison — the check that
-      the ceiling would actually catch a real regression, not just admit the
-      new baseline — was not re-derived at 56x32 (disclosed shortcut in
-      fb166's own commit). Re-derive that paired comparison at the current
-      grid size so the ceiling is proven load-bearing again, the same standard
-      every other re-fitted number in fb166 met. Acceptance: the
-      reverted-clamp regression check is re-run and green at 56x32, and the
-      file's own comment says so with a date — refs: fb166 shortcut #1.
+- [x] (fb179) [test] **DONE 2026-09-15 —** `tests/terrain-anchor-quality.test.ts`'s
+      header comment carries mutant-kill claims that fb166's own commit left
+      "explicitly not reverified" after the 36x20 -> 56x32 resize
+      (code-reviewer's fb166 finding, Minor). Re-ran the mutation check
+      (`ROOM_RADIUS` 1/3, an asymmetric block — 1 tile north/west, 2 tiles
+      south/east, now named exactly rather than left as bare "asymmetric" —
+      counting non-Rock, counting Rock instead of Normal) via a scratch script
+      mirroring `suggestCoreAnchor`'s real selection loop exactly (no shipped
+      source touched), over the current layout's 500-seed sample: **81 tie
+      seeds** (was 72 pre-resize), **zero loop-correctness violations** for
+      all 5 mutants, picks moved on 16/17/10/29/57 of the 81 tie seeds
+      respectively. Comment updated in place with these findings, dated.
+      Comment-only diff (no assertion/logic change). code-reviewer: APPROVE —
+      independently reimplemented the mirror from scratch, cross-checked it
+      against two numbers already pinned elsewhere in the file (`tieSeeds:
+      81`, `movedOffLowestIndex: 45`) and reproduced 4 of 5 mutant counts
+      exactly; flagged one Minor (the "asymmetric" shape wasn't named
+      precisely enough to reproduce the exact count verbatim), fixed by
+      naming the shape in the comment. `npx tsc --noEmit` clean; targeted
+      suite 12/12 green — refs: fb166 code-reviewer pass, 2026-09-06.
+- [x] (fb180) [test] **DONE 2026-09-15 —** `tests/terrain-generation.test.ts`'s
+      `COST_RATIO_CEILING` (currently 160, re-tuned by fb166 for the 56x32
+      blob-growth cost) had its *paired* "reverted-clamp regression"
+      comparison — the check that the ceiling would actually catch a real
+      `paint()` regression, not just admit the new baseline — left
+      un-re-derived at 56x32 (fb166's own disclosed shortcut). Re-derived it:
+      a scratch vitest file mirrored the shipped test's exact `measure()`
+      harness (5 interleaved rounds, minimum of each half, warmed, under
+      vitest per the file's own tsx-vs-vitest calibration caveat) against a
+      temporary source patch to `paint()` in `src/sim/terrain/generate.ts`
+      (the (2r+1)^2-square-with-per-tile-bounds-test the pre-fb064a code
+      used), measured, then reverted the source patch immediately — nothing
+      shipped touches `/src/sim` in this item's final diff, only the test
+      file's comments, staying inside this lane's test-only Scope. On this
+      host: healthy (shipped, clamped) read **119.5-119.7** idle across 3
+      readings; clamp reverted read **293.2-301.7** — a clean **~2.45x gap,
+      zero overlap**, comfortably above the 160 ceiling. The paired
+      comparison is proven load-bearing again at the current grid size, not
+      merely carried forward from the 36x20 measurement. Both the header
+      comment and the test's own assertion message updated with the dated
+      re-measurement; bursty-load contention (QA's own bespoke repro tooling)
+      was not re-derived, matching this item's acceptance (idle-only).
+      `npx tsc --noEmit` clean; targeted suite 41/41 green — refs: fb166
+      shortcut #1.
 - [ ] (fb181) [test] fb166 shipped without a regression test that would have
       caught its own `GATES.east`/`MODIFIER_GATES` border bug at the exact
       commit that resized the grid — QA's fb166 finding named the missing
