@@ -102,7 +102,11 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
   });
 
   it('electric wire grid: linked Tesla Coils zap enemies on the wire every 0.5s', () => {
-    const w = new World(cfg(), content);
+    // fb153b (56x32 grid): `tiles()` finds buildable ground but not
+    // necessarily two tiles within Tesla's own linkRange of each other on
+    // real terrain — practice mode's flat board keeps the raster scan's
+    // first two hits adjacent.
+    const w = new World(cfg({ practice: true }), content);
     const [t1, t2] = tiles(w, 2);
     build(w, TESLA, t1.tx, t1.ty);
     build(w, TESLA, t2.tx, t2.ty);
@@ -335,7 +339,8 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
   });
 
   it('b046: electric wire grid zaps nothing once w.dying is set', () => {
-    const w = new World(cfg(), content);
+    // fb153b (56x32 grid): same reasoning as the link test above.
+    const w = new World(cfg({ practice: true }), content);
     const [t1, t2] = tiles(w, 2);
     build(w, TESLA, t1.tx, t1.ty);
     build(w, TESLA, t2.tx, t2.ty);

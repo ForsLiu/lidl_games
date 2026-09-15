@@ -7,8 +7,8 @@ import { loadContent } from '../src/sim/content';
 
 describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
-    expect(GRID_W).toBe(36);
-    expect(GRID_H).toBe(20);
+    expect(GRID_W).toBe(56);
+    expect(GRID_H).toBe(32);
     expect(GATES.length).toBe(3);
     const g = new Grid();
     for (const gate of GATES) expect(g.tile[g.idx(gate.tx, gate.ty)]).toBe(TileType.Gate);

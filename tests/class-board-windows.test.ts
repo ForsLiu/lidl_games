@@ -135,27 +135,37 @@ const ORIGINS: ReadonlyArray<{ name: string; origin?: { tx: number; ty: number }
  * files) for that origin. Every cell here was read off a real `probeBoard`
  * call, not assumed — the "survives / reddens" wording in the header above is
  * this table in prose.
+ *
+ * **Re-measured at fb153b's 56x32 grid resize.** Every cell below is now
+ * `true`: the reach values this file's header names (~21-29 tiles) never
+ * changed, but `GRID_W - 1` moved from 35 to 55, so none of them run off the
+ * board at any of the five origins any more — the header's own "fails at
+ * origins X, Y" prose is 36x20-era history now, not current behavior. Kept
+ * as a live measurement (not deleted) because the property it guards —
+ * a dynamic window's reach is a declared, checked fact per origin, not a
+ * silent assumption — still holds, and a future map shrink or a bigger
+ * authored reach would redden a cell here again.
  */
 const EXPECTED: Record<string, Record<string, boolean>> = {
   "a Mortar's shell splash, as the shell really detonates it": {
     'shipped default': true,
-    '25,12': false,
+    '25,12': true,
     '15,6': true,
-    '30,15': false,
+    '30,15': true,
     '22,3': true,
   },
   'archer archer_pierce_cap: enemies one full-charge Deadeye Draw pierces': {
     'shipped default': true,
     '25,12': true,
     '15,6': true,
-    '30,15': false,
+    '30,15': true,
     '22,3': true,
   },
   'stormcaller stormcaller_jump_cap: enemies one Chain Surge reaches': {
     'shipped default': true,
-    '25,12': false,
+    '25,12': true,
     '15,6': true,
-    '30,15': false,
+    '30,15': true,
     '22,3': true,
   },
 };

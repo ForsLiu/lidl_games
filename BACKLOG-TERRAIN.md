@@ -5276,3 +5276,55 @@ file next.
   was pre-resize (the old ledger's own two ceiling-edge witnesses record the
   identical situation at 36x20). Not a defect to fix — a claim to not
   repeat uncorrected.
+- (2026-09-15, fb153b shipped — main lane) **The main-lane half of the grid
+  resize landed: `GATES.east` and `world.ts:591`'s Fourth Gate `south`
+  literal are fixed, and that reddens every `tests/terrain*` golden/ledger
+  that takes `GATES`/gate positions as an input.** This is the coordinate
+  fix this lane's own fb166 entry above named "outside this lane's Scope"
+  and asked the main lane for: `GATES.east` (`src/sim/grid.ts`) moved from
+  the stale 36x20-era `{tx:35,ty:17}` (an ordinary interior tile at 56x32,
+  not a border tile — `assertGatePositionLegal` was correct that it isn't
+  one) to `{tx: GRID_W - 1, ty: 17}`; `world.ts:591`'s independent Fourth
+  Gate `south` literal moved from `{tx:12,ty:19}` to `{tx:12,ty:GRID_H-1}`.
+  Both are real border tiles now, closing the live gameplay bug QA measured
+  in this lane's own fb166 QA round (roughly a third of Act I spawns
+  entering far closer to the Core than the other two gates).
+  **Consequence for this lane: `generateTerrain` takes the gate list as an
+  RNG-relevant input, so every golden hash, ledger and statistical measure
+  keyed to the old `GATES.east` is now stale, not just the literal coordinate
+  comparisons.** `npm run test:fast` on this lane's own suite immediately
+  after the fix, uncontended: **17 `tests/terrain*` files red, ~88
+  assertions** — `terrain-describe` (19, its golden dump strings embed gate
+  positions as literal text), `terrain-band-ledger` (10), `terrain-anchor-
+  quality` (10), `terrain-generation` (9, includes the determinism goldens),
+  `terrain-approach` (8), `terrain-seed-domain` (5), `terrain-high-contest`
+  (4), `terrain-run-provenance` (4), `terrain-flat` (3), `terrain-grid-view`
+  (3), `terrain-gates-dump` (3 — its own `.skip`'d "describes a live Fourth
+  Gate run correctly" case is now unblocked, since `world.ts:591` reads a
+  real border position; re-enable it), `terrain-headroom` (3), `terrain-grid`
+  (2), `terrain-cost` (2), `terrain-core-placement` (1), `terrain-verify` (1),
+  `terrain-grid-gates` (1). Left entirely untouched — every one of these
+  files, and `data/terrain.json`, is this lane's Scope, not main lane's, and
+  re-deriving a statistical ledger over hundreds or thousands of seeds is
+  this lane's own tooling to run, not a coordinate edit main lane can make
+  correctly from outside. Main lane verified its own share green
+  (`tests/grid.test.ts`, `p1a-sealing`, `fb077-terrain-wiring`,
+  `p8d-boss-termination`, `b007-tile-bounds`, plus fallout in
+  `content-complete`/`class-board`/`class-board-windows`/`p6d-nine-classes`/
+  `c4-stacking`/`fb034-max-towers`/`hud-controls`/`p2c-vs-specials`/
+  `p3b-multi-summon` — all real-generated-terrain tile assumptions broken by
+  the corrected seed-1 map, fixed the same way this lane fixes its own golden
+  drift: practice mode where the test didn't need organic terrain, a
+  re-measured buildable tile where it did) — see BACKLOG.md fb153b for the
+  full main-lane write-up. **Also worth this lane's attention: the corrected
+  gate position changes real full-run combat outcomes, not just terrain
+  shape** — `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control
+  pair flips (swordsman `defeat_warden` -> `victory`; pyromancer
+  `defeat_warden` -> `defeat_core`) at the exact seed/config fb196/fb193/p13a
+  measured G8 against. Both assertions `.skip`'d in that file with the
+  finding; a fresh BACKLOG.md item (**fb197**) asks for a full G8
+  re-measurement against the corrected gate position — this lane's own
+  1..500/1..1000/domain-wide seed sweeps may be affected the same way if
+  any of them route through `GATES`/gate-distance fields, worth checking
+  when re-deriving the goldens above rather than assuming only the gate-
+  literal comparisons moved.

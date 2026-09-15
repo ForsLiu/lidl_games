@@ -588,7 +588,7 @@ export class World {
     this.gates = GATES.slice(0, 3);
     if (this.mods.extraGates > 0) {
       // Fourth Gate opens the south wall.
-      this.gates.push({ key: 'south', tx: 12, ty: 19 });
+      this.gates.push({ key: 'south', tx: 12, ty: GRID_H - 1 });
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
       }

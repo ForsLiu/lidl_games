@@ -413,7 +413,10 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
   });
 
   it('still pays its cooldown when no tile could be placed (every target tile already occupied)', () => {
-    const w = worldWith('cryomancer');
+    // fb153b (56x32 grid): real generated terrain no longer guarantees
+    // (12,9)/(12,10)/(12,11) are open ground at seed 1 — practice mode's flat
+    // board keeps the pre-occupy setup below deterministic.
+    const w = worldWith('cryomancer', { practice: true });
     w.warden.x = 10;
     w.warden.y = 10;
     const arrow = content.towerByKey.get('arrow_spire')!;
@@ -449,7 +452,10 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
   });
 
   it('a stand-still VS cast reroutes enemies immediately, not only after the Warden crosses a tile', () => {
-    const w = worldWith('cryomancer');
+    // fb153b (56x32 grid): needs the wall's tile (12,10) to actually be open,
+    // navigable ground under the Warden's own row — practice mode's flat
+    // board guarantees that regardless of seed-1 real terrain.
+    const w = worldWith('cryomancer', { practice: true });
     w.gold = 500;
     w.warden.x = 10;
     w.warden.y = 10;
@@ -467,7 +473,10 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
   });
 
   it('the field un-stales once a VS-cast wall is gone, not only when it goes up', () => {
-    const w = worldWith('cryomancer');
+    // fb153b (56x32 grid): same practice-mode reasoning as the reroute test
+    // above — (12,10) must be real, open ground for the field to stale/
+    // un-stale on it at all.
+    const w = worldWith('cryomancer', { practice: true });
     w.gold = 500;
     w.warden.x = 10;
     w.warden.y = 10;

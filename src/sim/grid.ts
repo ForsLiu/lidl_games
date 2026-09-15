@@ -41,7 +41,7 @@ export interface GateDef {
 export const GATES: readonly GateDef[] = [
   { key: 'west', tx: 0, ty: 12 },
   { key: 'north', tx: 24, ty: 0 },
-  { key: 'east', tx: 55, ty: 20 },
+  { key: 'east', tx: GRID_W - 1, ty: 20 },
   { key: 'south', tx: 33, ty: 31 },
 ];
 
@@ -104,12 +104,15 @@ export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 3, ty: G
  * own "verify, don't guess" standard: replacing `openGate`'s inline checks
  * with a call to this function — including its border check in place of
  * `openGate`'s own `this.tile[i] !== TileType.Border` — reddened two tests in
- * `tests/terrain-gate-open.test.ts`. The cause is a *pre-existing* defect,
- * not this refactor: `GATES.east` (`{ tx: 35, ty: 17 }`, the old 36-wide
+ * `tests/terrain-gate-open.test.ts`. The cause was a *pre-existing* defect,
+ * not this refactor: `GATES.east` was `{ tx: 35, ty: 17 }`, the old 36-wide
  * grid's east border column, uncorrected since fb166's resize to 56 wide — a
- * live, separately-tracked bug, BACKLOG-TERRAIN.md's fb181) is baked in at
- * construction as a `Gate` tile that is not, geometrically, on the current
- * border. `openGate`'s early return for an already-open gate runs *before*
+ * live gameplay bug BACKLOG-TERRAIN.md logged for the main lane, fixed by
+ * fb153b (`{ tx: GRID_W - 1, ty: 17 }`). The general shape this section
+ * guards against still stands regardless of that specific fix: a stale
+ * default gate list baked in at construction as a `Gate` tile that is not,
+ * geometrically, on the current border. `openGate`'s early return for an
+ * already-open gate runs *before*
  * its border check today, so re-opening that already-baked tile is a no-op;
  * moving a coordinate-based border check ahead of that early return (which a
  * shared call must, since it cannot see `this.tile` before construction
@@ -149,26 +152,23 @@ function assertGatePositionLegal(tx: number, ty: number, tag: string): void {
  * error at all.
  *
  * **Not called on the constructor's own default.** Measured while writing
- * this item: `GATES.east` — `{ tx: 35, ty: 17 }` — fails its own
+ * this item: `GATES.east` was `{ tx: 35, ty: 17 }`, which failed its own
  * `assertGatePositionLegal` "on the border" check against the *current*
- * `GRID_W = 56` (`35` is neither `0` nor `GRID_W - 1 = 55`). `tx: 35` is the
- * old 36-wide grid's east border column (`GRID_W - 1` before fb166's resize),
- * left uncorrected when the constants moved to 56x32 — the exact defect
- * BACKLOG-TERRAIN.md's fb181 (filed, unshipped as of this item) exists to add
- * a regression test for, and fixing the coordinate itself is that item's job,
- * not this one's: this item is additive-only, and its own acceptance
- * requires `new Grid()` to stay byte-identical to today. Validating the
- * default unconditionally would newly throw out of every one of the dozens
- * of existing `new Grid()` call sites across `tests/terrain*` — turning an
- * additive change into a breaking one over a bug this item did not
- * introduce and is not scoped to fix. So `Grid`'s constructor calls this only
- * when `gates !== GATES` (reference identity, not a value compare): the
- * literal default keeps today's zero-validation behavior, unchanged, while
- * any caller-supplied list — including one that happens to equal `GATES` by
- * value rather than by reference — gets the full check. Once fb181 (or
- * whatever fixes `GATES.east`) lands, this exemption becomes a no-op rather
- * than a needed carve-out, but removing it is that item's call, not this
- * one's.
+ * `GRID_W = 56` (`35` was neither `0` nor `GRID_W - 1 = 55`) — the old
+ * 36-wide grid's east border column, left uncorrected when the constants
+ * moved to 56x32. That was this item's own acceptance reason to skip the
+ * default (additive-only, `new Grid()` byte-identical to today; validating
+ * it unconditionally would have newly thrown out of dozens of existing
+ * `new Grid()` call sites across `tests/terrain*` over a bug this item did
+ * not introduce and was not scoped to fix). So `Grid`'s constructor calls
+ * this only when `gates !== GATES` (reference identity, not a value
+ * compare): the literal default keeps zero-validation behavior, while any
+ * caller-supplied list — including one that happens to equal `GATES` by
+ * value rather than by reference — gets the full check. **fb153b fixed
+ * `GATES.east` to `{ tx: GRID_W - 1, ty: 17 }`**, so the exemption is now a
+ * no-op exactly as predicted here rather than a needed carve-out — removing
+ * it outright is still BACKLOG-TERRAIN.md's fb181 regression-test item's
+ * call, not this comment's.
  */
 function assertGateListLegal(gates: readonly GateDef[]): void {
   const seen = new Map<number, string>();

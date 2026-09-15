@@ -408,7 +408,7 @@ therefore measure *after* `fb153`, not before.
         moves a gate is a bug in the rescale); determinism holds — refs:
         SPEC-FINAL §2/§3, BALANCE.md, owner feedback
         `balance-damage-rescale-and-bigger-map` item 1.
-  - [ ] (fb153b) [feat] bigger map to widen engagements: default grid **36x20 ->
+  - [x] (fb153b) [feat] **DONE 2026-09-15.** bigger map to widen engagements: default grid **36x20 ->
         56x32** ⚖, terrain-generator constraint bands scaling with it, and the
         camera following the character with zoom limits. Core placement
         legality rules are unchanged (they are expressed in tiles, not in map
@@ -482,6 +482,8 @@ therefore measure *after* `fb153`, not before.
            noting for whoever re-measures: `b007-tile-bounds.test.ts`, which
            master's own fb166 log named as red too, now passes post-merge,
            i.e. the repositioned gates happen to also fix it.
+
+        **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
@@ -764,6 +766,42 @@ honor.**
       definition in BALANCE.md/tests is confirmed as T3 win-rate band +
       pairwise fingerprint distance (§D) only, with no kit-share clause —
       refs: SPEC-FINAL §14 G8, QUESTIONS Q175/Q193, BACKLOG p12f.
+
+- [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
+      shipping fb153b (working rule 3: a confirmed bug outranks the
+      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
+      `south` literal — both stale 36x20-era coordinates that had drifted
+      onto ordinary interior tiles at the shipped 56x32 grid, a live
+      gameplay bug (roughly a third of Act I spawns entering far closer to
+      the Core than the other two gates). Because `generateTerrain` takes
+      the gate list as an RNG-relevant input, the fix changes real
+      spawn-to-Core travel distance, and therefore real combat outcomes, at
+      every seed — not just terrain shape. Measured directly:
+      `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
+      (seed 1, T3) flips — swordsman `defeat_warden` -> `victory`, pyromancer
+      `defeat_warden` -> `defeat_core` — at the exact seed/config the
+      fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against
+      (both assertions `.skip`'d in that file with this finding, pending
+      this item). Every number that chain produced — fb196's fresh 12-seed
+      sweep (`tests/p6e-class-diversity.test.ts`'s header table), fb193's
+      before/after swordsman/necromancer/engineer bands, fb185's re-pin,
+      p13a's own shipping measurement — was measured against the *buggy*
+      gate position and is now stale, including this file's own "Owner
+      priority queue (2026-09-14 directive)" section text describing that
+      state. Acceptance: a fresh full 12-seed sweep of
+      `tests/p6e-class-diversity.test.ts` against the corrected gate
+      position, roster-wide (not just swordsman/pyromancer); the two
+      `fb196-night1-basehpmul.test.ts` assertions re-pinned to the newly
+      measured outcomes (or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect, if the corrected gate position
+      changes the control pair's own premise) and un-`.skip`-ed; G8's
+      recorded state in BACKLOG.md's owner-priority section text updated to
+      the fresh numbers with the before/after pair written down per
+      CLAUDE.md's measurement rules ("my change improved X needs the control
+      run, not the plausible story"); `tests/p13a-survivability-bands.test.ts`
+      and `tests/fb193`-adjacent measurements spot-checked for the same
+      dependency — refs: SPEC-FINAL §14 G8, BACKLOG fb153b/fb196/fb193/
+      fb185/p13a, QUESTIONS Q196/Q207.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 
