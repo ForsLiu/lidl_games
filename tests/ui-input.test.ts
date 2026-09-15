@@ -684,6 +684,24 @@ describe('canvas clicks reach the game', () => {
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
   });
+
+  it('fb167: un-projects through a non-default camera window instead of the whole board', () => {
+    const canvas = fakeCanvas();
+    // A zoomed-in camera window: tiles [10, 30) x [5, 17) of the board.
+    const camera = { left: 10, top: 5, width: 20, height: 12 };
+    // A click a quarter of the way across the CSS box, a third down, lands on
+    // tile (10 + 0.25*20, 5 + (1/3)*12) = (15, 9) within that window — not the
+    // (0.25*GRID_W, (1/3)*GRID_H) the whole-board default would give.
+    const clientX = 0.25 * (GRID_W * TILE);
+    const clientY = (1 / 3) * (GRID_H * TILE);
+    const p = pointerToTile(canvas, clientX, clientY, camera);
+    expect(p.x).toBeCloseTo(15, 5);
+    expect(p.y).toBeCloseTo(9, 5);
+    // The same click with no camera (or the whole-board default) lands
+    // somewhere else entirely — proving the camera param is what moved it.
+    const whole = pointerToTile(canvas, clientX, clientY);
+    expect(whole.x).not.toBeCloseTo(p.x, 1);
+  });
 });
 
 describe('pause (playtest request)', () => {

@@ -24,12 +24,13 @@
 
 import type { Command, DevOp, Phase, RunConfig, RunOutcome } from '../sim/types';
 import type { World } from '../sim/world';
-import { GRID_H, GRID_W, TILE } from '../sim/grid';
+import { TILE } from '../sim/grid';
 import { finishSundering } from '../sim/sundering';
 import { applyDot, applyFrost, applyFrozen } from '../sim/enemies';
 import { pickAt, type Selection } from './selection';
 import { mountCodex } from './codex';
 import { isDevBuild } from '../meta/devprofile';
+import type { CameraViewRect } from '../render/canvas';
 
 /** The slice of `Game` (main.ts) the hook needs — kept narrow and typed on purpose. */
 export interface AuditBridge {
@@ -40,6 +41,8 @@ export interface AuditBridge {
   setSelection(sel: Selection): void;
   toggleCharacterPanel(): void;
   toggleDpsPanel(): void;
+  /** fb167: the camera's current visible tile-space window — see `worldToScreen`. */
+  cameraViewRect(): CameraViewRect;
 }
 
 export interface StonewakeAuditApi {
@@ -82,13 +85,15 @@ export interface StonewakeAuditApi {
   offersOpen(): boolean;
   /**
    * World tile coordinates to viewport (CSS/screenshot) pixel coordinates, via
-   * the `#sw-canvas` element's own bounding box — the sim/renderer use a fixed
-   * 1:1 `TILE`-pixel grid with no camera scroll in either Act. This ignores
-   * `render/canvas.ts`'s transient screen-shake translate, so it can be a few
-   * px off the actual painted position right after a hit; the audit scenes
-   * settle briefly before screenshotting, which decays shake to ~0, but a
-   * pixel sample taken at this exact point is a close approximation, not a
-   * guarantee.
+   * the `#sw-canvas` element's own bounding box. fb167: the renderer now pans
+   * a camera window around the Warden rather than always showing the whole
+   * board 1:1, so this un-projects through `cameraViewRect()` the same way
+   * `src/ui/input.ts`'s `pointerToTile` does for a click, instead of assuming
+   * the whole board is on screen. This ignores `render/canvas.ts`'s transient
+   * screen-shake translate, so it can be a few px off the actual painted
+   * position right after a hit; the audit scenes settle briefly before
+   * screenshotting, which decays shake to ~0, but a pixel sample taken at
+   * this exact point is a close approximation, not a guarantee.
    */
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
   /** `worldToScreen` applied to the Warden's current position. */
@@ -204,9 +209,10 @@ export function installAuditHook(bridge: AuditBridge): void {
       const canvas = document.querySelector('#sw-canvas') as HTMLCanvasElement | null;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
-      const scaleX = rect.width / (GRID_W * TILE);
-      const scaleY = rect.height / (GRID_H * TILE);
-      return { x: rect.left + x * TILE * scaleX, y: rect.top + y * TILE * scaleY };
+      const cam = bridge.cameraViewRect();
+      const scaleX = rect.width / (cam.width * TILE);
+      const scaleY = rect.height / (cam.height * TILE);
+      return { x: rect.left + (x - cam.left) * TILE * scaleX, y: rect.top + (y - cam.top) * TILE * scaleY };
     },
     wardenScreenPoint() {
       const w = bridge.world();

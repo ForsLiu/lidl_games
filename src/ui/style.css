@@ -65,14 +65,18 @@ html, body {
   /*
    * `Renderer.resize` (src/render/canvas.ts) reads `.sw-stage`'s own laid-out
    * box and sets this inline width to the largest size that both fits inside
-   * it and keeps the 36:20 grid aspect ratio, then backs the canvas at that
-   * size times the device pixel ratio so it stays crisp rather than upscaled.
-   * Height follows the aspect ratio here in CSS, never pinned inline — fixing
-   * both dimensions inline would distort a window whose ratio doesn't match
-   * the grid's. `max-width`/`max-height` are a pre-JS/no-JS safety net only;
-   * the inline width from `resize()` is what actually drives sizing.
+   * it and keeps the grid's own aspect ratio (GRID_W/GRID_H, src/sim/grid.ts),
+   * then backs the canvas at that size times the device pixel ratio so it
+   * stays crisp rather than upscaled. Height follows the aspect ratio here in
+   * CSS, never pinned inline — fixing both dimensions inline would distort a
+   * window whose ratio doesn't match the grid's. `max-width`/`max-height` are
+   * a pre-JS/no-JS safety net only; the inline width from `resize()` is what
+   * actually drives sizing. fb167: this stays the *whole-board* aspect even
+   * once the camera only shows a zoomed-in window of the board — the canvas
+   * element's own CSS footprint never shrinks below what the whole board
+   * would letterbox to, only what it displays inside that footprint does.
    */
-  aspect-ratio: 36 / 20;
+  aspect-ratio: 56 / 32;
   height: auto;
   max-width: 100%;
   max-height: 100%;
@@ -91,8 +95,8 @@ html, body {
   /*
    * fb082: `--cv-top`/`--cv-bottom` (set by `Hud.syncStageOverlayGeometry`,
    * hud.ts) are the canvas's own letterboxed offset from the stage's top/
-   * bottom edges — 0px whenever the stage fills exactly to the grid's 36:20
-   * aspect (or isn't laid out yet, e.g. jsdom), reproducing the old
+   * bottom edges — 0px whenever the stage fills exactly to the grid's own
+   * aspect ratio (or isn't laid out yet, e.g. jsdom), reproducing the old
    * stage-edge-relative behavior unchanged in that case.
    */
   top: calc(var(--cv-top, 0px) + 8px);
@@ -1135,7 +1139,7 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
    * hud.ts) are the canvas's own letterboxed horizontal center / top offset
    * within the stage — falls back to the stage-centered `50%`/`0px` the
    * banner used before whenever the stage isn't laid out (jsdom) or the
-   * canvas already fills it exactly (the 36:20 aspect case).
+   * canvas already fills it exactly (the on-aspect case).
    */
   left: var(--cv-cx, 50%);
   top: calc(var(--cv-top, 0px) + 10px);

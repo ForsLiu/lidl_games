@@ -3,7 +3,7 @@
  *
  * fb082: the floating rails (fb065) and boss banner (fb072) used to anchor to
  * `.sw-stage`'s full box, which drifts away from the canvas's own letterboxed
- * rect at any container aspect ratio other than the grid's 36:20 — both
+ * rect at any container aspect ratio other than the grid's own — both
  * items' own DONE notes logged this without filing it. `Hud.update()` now
  * re-derives `Renderer.resize()`'s (src/render/canvas.ts) letterboxing math
  * from `.sw-stage`'s `clientWidth`/`clientHeight` and publishes the canvas's
@@ -108,7 +108,7 @@ describe('fb082: overlay anchor geometry tracks the letterboxed canvas, not the 
 
     hud.update(w);
 
-    // width-bound: cssW = round(min(900, 1000*1.75)) = 900, cssH = 900/1.75 = 514.2857...
+    // width-bound: cssW = round(min(900, 1000*1.75)) = 900, cssH = 900/1.75 = 514.2857142857143.
     expect(cvVars(root)).toEqual({
       left: '0px',
       right: '0px',
