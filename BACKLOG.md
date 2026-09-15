@@ -434,6 +434,54 @@ therefore measure *after* `fb153`, not before.
         the camera/render half as **fb167** in BACKLOG-UI.md; this item keeps
         the sim half and lands **after** both, since flipping the constant
         first would redden two other lanes' suites at their next merge.
+        **Partially landed by the `claude/epic-tesla-qq1385` merge (PR #21,
+        2026-09-15).** That branch's own fb156 (BACKLOG-TERRAIN.md) already did
+        this item's `GATES`/`MODIFIER_GATES` repositioning half (4 gates,
+        `GATES.length` 3 -> 4, `west`/`north`/`east` moved off their old
+        36x20-relative spots, `MODIFIER_GATES`'s one entry renamed `south` ->
+        `south2`) — kept as-is at the merge since it is a strict completion of
+        what this item deferred, not a competing design. `CORE_X`/`CORE_Y`
+        are still unmoved (untouched by both branches) and remain this item's
+        to place. Two pieces of this item's own acceptance are still open,
+        confirmed red by the merge's post-merge `npm run test:fast`:
+        1. `src/sim/world.ts:588` still does `GATES.slice(0, 3)` and the
+           `extraGates` modifier still pushes a hand-typed
+           `{ key: 'south', tx: 12, ty: 19 }` literal — both stale against the
+           new `GATES`/`MODIFIER_GATES` shape (the modifier literal now
+           collides in spirit with the base list's own `south` key and sits
+           off the resized border). `tests/terrain-gates-dump.test.ts`'s
+           `it.skip('describes a live Fourth Gate run correctly...')` is
+           skipped for exactly this reason — this item should read all of
+           `GATES` (not slice 3) and push `MODIFIER_GATES[0]` by reference
+           instead of a literal, then un-skip that test.
+        2. The repositioned `west`/`north`/`east` (not just the new `south`)
+           change what a fixed seed's terrain looks like through `World`,
+           which moves `tests/class-board.ts`'s shared probed board and
+           ripples into every file that imports it plus a few real-run
+           outcomes — confirmed still red post-merge: `act1.test.ts` (2),
+           `class-board.test.ts` (8), `class-board-windows.test.ts` (5),
+           `class-passive-liveness.test.ts` (2), `fb015-equipment.test.ts` (2),
+           `fb036-path-indicators.test.ts` (1), `fb196-night1-basehpmul.test.ts`
+           (1, a real scripted run that now ends `defeat_core` not
+           `defeat_warden` — new since PR #21 predates that test), `p6b-
+           swordsman.test.ts` (2), `p6c-plaguebringer.test.ts` (1), `p6d-nine-
+           classes.test.ts` (1). Each needs its golden value re-measured
+           against the real post-reposition board/run, not hand-derived —
+           `class-board.test.ts`'s own comments explain what each importer
+           needs preserved. Not attempted at the merge: the source branch's
+           own fb156 write-up found and logged this exact list (minus
+           fb196, added by master after that branch forked) as main-lane
+           work and deliberately did not fix it either, and this item is
+           where SPEC-FINAL/BACKLOG process already routes it. The other
+           `test:fast` red files at the merge (`content-complete`,
+           `grid.test.ts`, `p1a-sealing`, `p8d-boss-termination`,
+           `t2-selection`, `ui-fb082/102/106`, `ui-input`, `fb077-terrain-
+           wiring`) were already red on `origin/master` before the merge
+           (unchanged since fb166 landed there) and are this item's
+           pre-existing share, not new from PR #21 — one exception worth
+           noting for whoever re-measures: `b007-tile-bounds.test.ts`, which
+           master's own fb166 log named as red too, now passes post-merge,
+           i.e. the repositioned gates happen to also fix it.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 

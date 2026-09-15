@@ -31,7 +31,6 @@ import { describe, expect, it } from 'vitest';
 
 import { Hud } from '../src/ui/hud';
 import { World } from '../src/sim/world';
-import { GRID_W, GRID_H } from '../src/sim/grid';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 

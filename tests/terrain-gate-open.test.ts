@@ -4,7 +4,7 @@
  * `Grid.syncTerrain` is private and neither `markDirty` nor `refresh` calls it,
  * so a raw `tile[]` write that lands *after* the last `applyTerrain`/
  * `placeCore` updates `blocked` (through `staticBlocked`) and leaves every
- * terrain array untouched. Measured at fb065c: after writing a Gate at
+ * terrain array untouched. Measured at fb065c (36x20): after writing a Gate at
  * (12, 19) the tile reads `tile=Gate`, `blocked=0` — the sim walks through it —
  * while `terrainKind` still says `Rock`, so a repro taken with
  * `gridTerrain` draws a mountain on a walkable gate.
@@ -15,11 +15,43 @@
  * such write in the repo today and it is *ordered safely* — it opens the gate
  * before `applyRunTerrain`, so `syncTerrain` covers it — but nothing enforces
  * that ordering, and fb065c made the resulting dump reachable from a real run.
+ *
+ * **fb166 note (36x20 -> 56x32 resize).** `world.ts`'s real Fourth Gate write
+ * is the literal tile (12, 19); at 56x32 the border moved to y=31 and that
+ * literal is now 12 rows short of it, deep in the ordinary interior. Until
+ * fb156, `MODIFIER_GATES`' own coordinate had the same problem, so this file
+ * stood in with the real south wall in the same column — (12, GRID_H - 1) —
+ * rather than either literal, to keep exercising an actual border tile
+ * instead of one that no longer was one.
+ *
+ * **fb156 note (3 base gates -> 4, `MODIFIER_GATES` repositioned).** The
+ * modifier's own coordinate is fixed at the source now: `MODIFIER_GATES`'s
+ * `south2` sits at a genuine border tile, (45, 31) (renamed from `south`,
+ * which the new base `GATES` list owns — see `grid.ts`). This file's
+ * hand-picked stand-in is retired in favor of importing `MODIFIER_GATES`
+ * directly, so the tests below exercise the real constant rather than a
+ * parallel hand-maintained copy of its position. `world.ts`'s own literal
+ * push, `{ key: 'south', tx: 12, ty: 19 }`, is untouched by fb156 and is a
+ * separate, still-unfixed, out-of-scope bug (BACKLOG-TERRAIN.md's fb166
+ * filing; the fix is main-lane's fb153b, same file) — it now also collides
+ * with the new base `south` gate's key, a second reason it needs the same
+ * rename `MODIFIER_GATES` already got.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, Grid, GRID_H, GRID_W, TileType } from '../src/sim/grid';
+import {
+  CORE_H,
+  CORE_W,
+  CORE_X,
+  CORE_Y,
+  GATES,
+  Grid,
+  GRID_H,
+  GRID_W,
+  MODIFIER_GATES,
+  TileType,
+} from '../src/sim/grid';
 import {
   generateTerrain,
   gridTerrain,
@@ -32,18 +64,14 @@ import { applyRunTerrain } from '../src/sim/world';
 const cfg = loadTerrain();
 
 /**
- * A stand-in for the south wall tile `world.ts` opens as the Fourth Gate.
- *
- * fb166: NOT `MODIFIER_GATES`' actual `south` entry, `{ tx: 12, ty: 19 }` —
- * that coordinate was the 36x20 grid's bottom border (`ty: 19` was
- * `GRID_H - 1`) and is an ordinary interior tile at 56x32 (the border row is
- * now `y: 31`), so `openGate` correctly refuses it as "not a border tile".
- * That is the same gate-coordinate breakage flagged for `GATES`' `east`
- * entry, logged in BACKLOG-TERRAIN.md for the main lane. This file tests the
- * generic late/early gate-opening mechanic, not the Fourth Gate's specific
- * position, so a real border tile at the same `tx` stands in for it.
+ * The gate these tests open as a stand-in for `world.ts`'s Fourth Gate.
+ * fb156 fixed `MODIFIER_GATES`'s own position — `south2` at (45, 31) is a
+ * genuine border tile — so this imports the real constant directly instead
+ * of hand-picking a substitute border tile the way this file used to (see
+ * the file header). `world.ts`'s own literal push, `{ key: 'south', tx: 12,
+ * ty: 19 }`, is a separate, still-unfixed, out-of-scope bug.
  */
-const SOUTH = { tx: 12, ty: GRID_H - 1 };
+const SOUTH = MODIFIER_GATES[0];
 
 /** Every border tile that is not already a gate, in a fixed order. */
 function borderTiles(): Array<readonly [number, number]> {
@@ -66,14 +94,7 @@ function applied(seed: number): Grid {
 }
 
 describe('fb065e — opening a gate after terrain is applied', () => {
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('the raw write leaves the terrain arrays stale — the defect, pinned', () => {
+  it('the raw write leaves the terrain arrays stale — the defect, pinned', () => {
     // Kept as the regression: this is what `openGate` exists to make
     // unnecessary, and it is still reachable because `tile` is a public array.
     const g = applied(7);
@@ -92,32 +113,27 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     expect(gridTerrain(g).kind[i]).toBe(TerrainKind.Rock);
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('...and the staleness is not border-only, which the first record understated', () => {
+  it('...and the staleness is not border-only, which the first record understated', () => {
     // QA's finding. The accepted case was written as a border-row story — gates
     // live on the border, `syncTerrain` skips `Border`, the border is rock — and
     // all of that is true, but none of it is what causes the staleness. Any
     // structural `tile[]` write after the last sync leaves the terrain arrays
     // holding the old answer, wherever it lands. Measured on an *interior*
-    // tile: (6,1) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
+    // tile: (15,3) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
     // there gives `Gate`/`Rock`/`blocked=0` — identical to the border case.
+    // (fb166, 56x32: (6,1), the fixture measured at 36x20, was `Rough` rather
+    // than `Rock` on this seed at that size, so it no longer showed the
+    // `blocked` flip; (6,2) was the nearest tile that still did. fb156, 4
+    // gates: the fourth gate moves the generator's carve differently and (6,2)
+    // itself is now `Rough`/unblocked on this seed — (15,3) is the fixture's
+    // new home.)
     //
     // No shipped API can produce this (`openGate` refuses a non-border tile and
     // `placeCore` refuses non-normal terrain), so it is a defect in the
     // *record* rather than a new hole; recorded here so the accepted case is
     // stated as wide as it is.
-    //
-    // fb166: (49, 1), not (6, 1) — the old grid's interior Rock witness at
-    // seed 7 is a different tile's map now, so this is a freshly found
-    // interior Rock tile on the same seed at 56x32.
     const g = applied(7);
-    const i = g.idx(49, 1);
+    const i = g.idx(15, 3);
     expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
       TileType.Open,
       TerrainKind.Rock,
@@ -131,13 +147,11 @@ describe('fb065e — opening a gate after terrain is applied', () => {
       TerrainKind.Rock,
       0,
     ]);
-    // The border framing was not wrong about the border, though: every
-    // top/bottom border tile that is not a gate is `Rock` on every generated
-    // map (336 tiles checked over these 3 seeds — 2 * GRID_W per seed — with
-    // exactly 3 exceptions, one per seed: `north`'s gate at (18, 0) is the
-    // only one of the three `GATES` entries that actually sits on this
-    // 56x32 grid's top/bottom border; `east`'s no longer does, which is the
-    // gate-coordinate breakage this file's header note points at).
+    // The border framing was not wrong about the border, though: every one of
+    // these two border rows that is not a gate on it is `Rock` on every
+    // generated map (5500 checked over seeds 1..50; the 100 exceptions are the
+    // 2 top/bottom-row gates — `north` and, since fb156, `south` too — x 50
+    // seeds).
     for (const seed of [1, 7, 40]) {
       const map = generateTerrain(seed, cfg);
       for (let x = 0; x < GRID_W; x++) {
@@ -197,21 +211,15 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     expect(g.blocked[ci]).toBe(1);
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('does not check that the gate it opened is reachable, and that is a decision', () => {
+  it('does not check that the gate it opened is reachable, and that is a decision', () => {
     // `openGate` refuses what cannot *be* a gate (a non-border tile, a corner)
-    // but not what no map can *reach*. fb166 re-measured at 56x32 over seeds
-    // 1, 7, 40, 52, 99 and every legal single opening: **203 of 830 (24.5%)**
-    // leave some gate unreachable, because the border tile chosen may sit
-    // behind a rock shelf — close to the old grid's 25.9% rate, and `opened`
-    // rose with the bigger board's longer perimeter (170 non-gate border
-    // tiles now, against the old grid's 101).
+    // but not what no map can *reach*. Measured over seeds 1, 7, 40, 52, 99 and
+    // every legal single opening: **183 of 820 (22.3%)** leave some gate
+    // unreachable, because the border tile chosen may sit behind a rock shelf.
+    // (fb166, 56x32: was 203/830 (24.5%) at the 3-gate default; fb156's fourth
+    // base gate excludes one more already-open border tile per seed (830 ->
+    // 820) and leaves the board better-connected overall, at about the same
+    // order of stranding rate. Before fb166, 36x20 read 131/505 (25.9%).)
     //
     // Left to the caller on purpose: the reachable set depends on the whole
     // board, `applyRunTerrain` already re-checks `allGatesReachable()` and
@@ -234,17 +242,10 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         if (!g.allGatesReachable()) stranded++;
       }
     }
-    expect({ opened, stranded }).toEqual({ opened: 830, stranded: 203 });
+    expect({ opened, stranded }).toEqual({ opened: 820, stranded: 183 });
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('openGate writes the tile and re-derives the terrain in one step', () => {
+  it('openGate writes the tile and re-derives the terrain in one step', () => {
     const g = applied(7);
     const i = g.idx(SOUTH.tx, SOUTH.ty);
     expect(g.terrainKind[i]).toBe(TerrainKind.Rock);
@@ -259,14 +260,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     expect(gridTerrain(g).kind[i]).toBe(TerrainKind.Normal);
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('re-derives the same arrays as opening the gate before the SAME overlay', () => {
+  it('re-derives the same arrays as opening the gate before the SAME overlay', () => {
     // What this does and does not say. Given one overlay, the two orderings
     // produce the same board — that is the array re-derivation `openGate`
     // exists for, and it is compared over every mask `syncTerrain` touches plus
@@ -325,14 +319,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     }
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('does NOT make late opening safe — the claim this item first shipped wrong', () => {
+  it('does NOT make late opening safe — the claim this item first shipped wrong', () => {
     // **The correction, pinned so it cannot drift back.** `grid.ts`'s doc block
     // said `openGate` "gives the same board either way", i.e. that it removed
     // the ordering constraint. Measured, that is false and dangerously so.
@@ -342,14 +329,19 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // again, so an unreachable gate stays unreachable and a wave spawns into a
     // sealed pocket.
     //
-    // A 40-seed window of the 300-seed reading recorded in BACKLOG-TERRAIN.md
-    // (77/300 = 25.7% sealed when opened late, 0/300 under world's ordering),
-    // both measured on the old 36x20 grid. fb166 re-measured this window at
-    // 56x32: 10/40 = 25.0% sealed late, 0/40 under world's ordering — the rate
-    // held close to the old grid's despite the resize. It is pinned as the
-    // window's own exact count, because a golden that moves is the point. The
-    // claim the case exists to hold is the *contrast*: late opening seals
-    // gates, world's ordering never does.
+    // A 40-seed window, compared against the 300-seed, 36x20 reading recorded
+    // in BACKLOG-TERRAIN.md (77/300 = 25.7% sealed when opened late, 0/300
+    // under world's ordering). Re-measured at fb166 on a stand-in border tile
+    // (since `world.ts`'s own (12, 19) is no longer border at 56x32): that
+    // window read 10/40 = 25%. Re-measured again at fb156 on `SOUTH`, then the
+    // real `MODIFIER_GATES` position (45, 31): 9/40 = 22.5%. Re-measured once
+    // more at the merge with master's own `MODIFIER_GATES` reposition (moved
+    // to `(3, GRID_H - 1)`, out of `jitterGates`' own jitter band — `grid.ts`'s
+    // doc comment): 11/40 = 27.5%, still in the same range as every earlier
+    // reading and not a disagreement — it is pinned as the window's own exact
+    // count, because a golden that moves is the point. The claim the case
+    // exists to hold is the *contrast*: late opening seals gates, world's
+    // ordering never does.
     let sealedLate = 0;
     let sealedReal = 0;
     const warn = console.warn;
@@ -366,14 +358,14 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         // generator is told about it.
         const real = new Grid();
         real.openGate(SOUTH.tx, SOUTH.ty);
-        applyRunTerrain(real, [...GATES, { key: 'south', ...SOUTH }], seed, cfg);
+        applyRunTerrain(real, [...GATES, SOUTH], seed, cfg);
         real.refresh();
         if (real.distAt(SOUTH.tx, SOUTH.ty) === -1) sealedReal++;
       }
     } finally {
       console.warn = warn;
     }
-    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 10, sealedReal: 0 });
+    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 11, sealedReal: 0 });
   });
 
   it('refuses what it cannot honestly open', () => {
@@ -404,14 +396,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     }
   });
 
-  // TODO(fb166 / fb153b): skipped because SOUTH = (12,19) (world.ts's
-  // hardcoded Fourth Gate spot) no longer sits on the 56x32 border — border
-  // rows/cols are now 0/31 and 0/55, and this coordinate was chosen for the
-  // old 36x20 arena's border. `Grid.openGate`'s own border check correctly
-  // refuses it now; that is the check doing its job on stale data, not a
-  // bug in `openGate` or in this test. Re-enable once fb153b relocates
-  // `south` onto the new border — see BACKLOG-TERRAIN.md's Log, fb166 filing.
-  it.skip('is refused once structures stand, like its two siblings', () => {
+  it('is refused once structures stand, like its two siblings', () => {
     // `applyTerrain` and `placeCore` both refuse live occupancy, for the same
     // reason: re-deriving the board under a standing tower can bury it in rock
     // that no walker can path to or destroy.
