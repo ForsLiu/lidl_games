@@ -125,7 +125,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { isScaledClassPath, loadContent } from '../src/sim/content';
+import { isInverseScaledClassPath, isScaledClassPath, loadContent } from '../src/sim/content';
 
 const content = loadContent();
 
@@ -512,7 +512,11 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'bloodlord',
     slot: 'passive',
-    token: '3%',
+    // fb163/fb194 (QUESTIONS Q180/Q191): `leech` is the lifesteal crossing
+    // constant, inverse-scaled by `1 / numberScale` — the authored 0.03 (3%)
+    // loads as 0.3 (30%), and this file's own convention (fb164) is to state
+    // the *loaded* figure.
+    token: '30%',
     means: 'lifesteal on normal damage',
     keywords: ['lifesteal'],
     status: { kind: 'field', path: ['passive', 'mods', 'leech'], as: 'pct' },
@@ -1042,7 +1046,15 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       // raw authored document by exactly that factor — the divergence
       // fb164 exists to close between the *sentence* and the sim, not one
       // this check should paper over between the loader and the raw file.
-      const factor = isScaledClassPath(path) ? content.modifiers.numberScale : 1;
+      //
+      // fb163/fb194: `leech` (Bloodlord's Blood Frenzy passive) is
+      // inverse-scaled — the loaded value diverges from authored by
+      // `1 / numberScale`, not `numberScale`.
+      const factor = isScaledClassPath(path)
+        ? content.modifiers.numberScale
+        : isInverseScaledClassPath(path)
+          ? 1 / content.modifiers.numberScale
+          : 1;
       expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(
         readFrom(RAW, c)! * factor,
         9,

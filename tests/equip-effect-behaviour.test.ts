@@ -53,7 +53,7 @@ import { buildTower, towerCost, towerDamage } from '../src/sim/towers';
 import { upgradeCost } from '../src/sim/upgrades';
 import type { TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg, scaled } from './helpers';
+import { cfg, numberScale, scaled } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
@@ -96,7 +96,8 @@ describe('c022 (§7) Normal Ring: life regen +1', () => {
   it('raises the hpRegen stat by exactly 1 over the same world without the ring', () => {
     const wWith = worldWith({ equipment: ['normal_ring'] });
     const wNone = worldWith();
-    expect(wWith.derived.hpRegen).toBeCloseTo(wNone.derived.hpRegen + scaled(1), 9);
+    // fb163/fb194: `hpRegen` is economy B (character regen) — no longer scaled.
+    expect(wWith.derived.hpRegen).toBeCloseTo(wNone.derived.hpRegen + 1, 9);
   });
 
   it('a wounded Warden heals faster per second with the ring than without it', () => {
@@ -112,15 +113,18 @@ describe('c022 (§7) Normal Ring: life regen +1', () => {
     const control = healedOverASecond([]);
     expect(gained).toBeGreaterThan(control);
     // The whole gap is the ring's hpRegen point, spread over one second.
-    expect(gained - control).toBeCloseTo(scaled(1), 3);
+    // fb163/fb194: `hpRegen` is economy B — no longer scaled.
+    expect(gained - control).toBeCloseTo(1, 3);
   });
 });
 
-describe('c022 (§7) Bleeding Ring: +0.01% lifesteal', () => {
-  it('authors the leech stat at 0.0001, not 0.01', () => {
+describe('c022 (§7) Bleeding Ring: +0.1% lifesteal (loaded — authored 0.01%)', () => {
+  it('authors the leech stat at 0.0001, loaded at 0.001 (the lifesteal inverse correction, fb163/fb194)', () => {
     const wWith = worldWith({ equipment: ['bleeding_ring'] });
     const wNone = worldWith();
-    expect(wWith.derived.leech - wNone.derived.leech).toBeCloseTo(0.0001, 12);
+    // fb163/fb194: `leech` is the lifesteal crossing constant — inverse-scaled
+    // (`1 / numberScale`), so the authored 0.0001 (0.01%) loads as 0.001 (0.1%).
+    expect(wWith.derived.leech - wNone.derived.leech).toBeCloseTo(0.0001 / numberScale(), 12);
   });
 
   it('the healed amount is the damage dealt times the leech stat', () => {

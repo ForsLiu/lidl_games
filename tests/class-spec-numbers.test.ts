@@ -86,7 +86,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { isScaledClassPath, loadContent } from '../src/sim/content';
+import { isInverseScaledClassPath, isScaledClassPath, loadContent } from '../src/sim/content';
 import { scaled } from './helpers';
 import {
   blockBody,
@@ -1565,12 +1565,20 @@ function readLoaded(f: Figure): number | undefined {
   if (!f.path) return undefined;
   const walked = walk(content.classByKey.get(f.cls), f.path);
   if (typeof walked !== 'number') return undefined;
-  // fb153a: `numberScale` divides every authored kit *magnitude* at load. §4
-  // states the authored figure and `data/classes.json` still holds it, so the
-  // ledger reads the loaded value back through the scale rather than restating
-  // §4 in display units — and the bridge test at the foot of this file then
-  // proves the scaler applied exactly that factor to exactly these paths.
-  const raw = isScaledClassPath(f.path) ? walked / content.modifiers.numberScale : walked;
+  // fb153a: `numberScale` divides every authored economy-A kit *magnitude* at
+  // load. §4 states the authored figure and `data/classes.json` still holds
+  // it, so the ledger reads the loaded value back through the scale rather
+  // than restating §4 in display units — and the bridge test at the foot of
+  // this file then proves the scaler applied exactly that factor to exactly
+  // these paths.
+  //
+  // fb163/fb194: `leech` (Bloodlord's Blood Frenzy passive) is inverse-scaled
+  // instead — reconstructed by multiplying back by `numberScale`, not dividing.
+  const raw = isScaledClassPath(f.path)
+    ? walked / content.modifiers.numberScale
+    : isInverseScaledClassPath(f.path)
+      ? walked * content.modifiers.numberScale
+      : walked;
   return f.as ? f.as(raw) : raw;
 }
 

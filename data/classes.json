@@ -402,7 +402,7 @@
       },
       "passive": {
         "name": "Blood Frenzy",
-        "description": "3% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
+        "description": "30% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
         "mods": {
           "leech": 0.03
         },
