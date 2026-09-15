@@ -578,11 +578,13 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   // at load, one layer above the schema this census fuzzes.
   // fb153a: the global HP/damage rescale. `negative`/`zero` are rejected
   // (`num.positive()`), `fractional` is accepted because the shipped value *is*
-  // fractional (0.1) — a scale has no integrality to violate — and
-  // `drop-key`/`rename-key` are the optional-with-a-default back-compat shape
-  // every other field of this kind here has: a file predating the item loads at
-  // the 1.0 identity.
-  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
+  // fractional (0.1) — a scale has no integrality to violate — and `drop-key`
+  // is the optional-with-a-default back-compat shape every other field of
+  // this kind here has: a file predating the item loads at the 1.0 identity.
+  // `rename-key` closed at fb184: `ModifiersFileSchema` is now `.strict()`, so
+  // a typo'd/renamed top-level key (the `numberScal3` class Q181 found) is a
+  // load error, not a silent fall-through to the default.
+  'modifiers.numberScale': ['fractional', 'drop-key'],
   'modifiers.tierBudgetPerStep': ['fractional'],
   'modifiers.tierCoreDamagePerStep': ['fractional'],
   'modifiers.tierEnemyHpPerStep': ['fractional'],

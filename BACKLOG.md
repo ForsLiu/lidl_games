@@ -364,15 +364,30 @@ not here.
       carried from the old 35% run) — refs: QUESTIONS Q175/Q193, BALANCE
       DIRECTION v2 §A, BACKLOG p12a/p12f.
 
-- [ ] (fb184) [bug] **cheap closer** (QUESTIONS Q181 ORDER) — the loader
-      refuses an unknown top-level key in `data/modifiers.json`, closing the
-      `"numberScal3"`-typo class of silent mis-scale Q181 found. Acceptance:
-      a schema/loader rule rejects an unrecognized top-level key in
-      `modifiers.json` with a message naming the field; every currently
-      legitimate top-level key still loads; a regression test pins the
-      typo repro (`numberScal3`) now failing to load instead of silently
-      defaulting `numberScale` to 1.0 — refs: QUESTIONS Q181, SPEC-FINAL
-      §12 rule 4.
+- [x] (fb184) [bug] **DONE 2026-09-15 — cheap closer** (QUESTIONS Q181 ORDER) —
+      the loader refuses an unknown top-level key in `data/modifiers.json`,
+      closing the `"numberScal3"`-typo class of silent mis-scale Q181 found.
+      Shipped as `.strict()` on `ModifiersFileSchema` (`src/sim/content.ts`),
+      the same convention already used elsewhere in that file for exactly
+      this purpose (architecture rule 4). New
+      `tests/fb184-modifiers-unknown-key.test.ts` pins the `numberScal3` typo
+      repro (confirmed red-first: throws without `.strict()`, passes with
+      it) and confirms every currently-legitimate top-level key still loads.
+      `tests/q7-loader-holes.ts`'s `modifiers.numberScale` census entry
+      updated to drop the now-closed `'rename-key'` hole (`'fractional'`/
+      `'drop-key'` stay open, unaffected). code-reviewer found no
+      Critical/Major issues (two non-blocking nits, not applied);
+      qa-playtester confirmed the acceptance criteria, traced every writer
+      of `modifiers.json` (the Tuner's `saveTunerFile` validates through the
+      same now-strict schema, so no transient key can ever be persisted),
+      and confirmed the thrown `ZodError` literally names the offending key.
+      `npm run test:fast` shows the same 22 pre-existing terrain/grid/
+      class-board failures as baseline (fb166's grid-resize gap, unrelated
+      to this item) — this item introduced zero new failures and closed one
+      pre-existing `tests/q7-data-fuzz.test.ts` regression along the way
+      (the fuzz census's own "stale hole" check, which now correctly reports
+      `modifiers.numberScale`'s `rename-key` hole as closed) — refs:
+      QUESTIONS Q181, SPEC-FINAL §12 rule 4.
 
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
