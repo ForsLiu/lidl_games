@@ -969,8 +969,14 @@ function fireBloodTithe(w: World, cls: ClassDef, aimX: number | undefined, aimY:
   const eff = cls.active1;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius, (st) => !st.tithed);
   if (!s) return;
-  // fb153a: an HP floor, so it scales with the pool it floors.
-  s.hp = Math.max(w.content.modifiers.numberScale, s.hp - s.hp * (eff.titheHpFraction ?? 0));
+  // fb163/fb194 (QUESTIONS Q180/Q191): `s.hp` (a tower's own HP) is economy B
+  // and no longer scaled by `numberScale` at all, so this floor moved off
+  // that axis too — a bare 1 HP, the same unscaled floor every other
+  // economy-B magnitude in the sim now uses (`world.ts`'s `coreMaxHp`,
+  // `stats.ts`'s `derive`). fb153a's own version scaled this floor with
+  // `numberScale` because `s.hp` was economy-A-shaped under its uniform
+  // scheme; it no longer is.
+  s.hp = Math.max(1, s.hp - s.hp * (eff.titheHpFraction ?? 0));
   s.tithed = true;
   w.emit('class_active', s.tx + 0.5, s.ty + 0.5, 0, 0);
 }

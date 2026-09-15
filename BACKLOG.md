@@ -320,7 +320,11 @@ not here.
       file, and the fresh numbers are runtime-measured directly, not
       author-claimed — refs: QUESTIONS Q207, BACKLOG fb196, fb193, c004.
 
-- [ ] (fb163) [balance] **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
+- [x] (fb163) [balance] **DONE 2026-09-15 — landed together with fb194 (same
+      spec, one implementation, same commit); see fb194's own closure note for
+      the full classification table, the five crossing-constant findings and
+      the verification record.** Original text follows.
+      **REOPENED 2026-09-14 (QUESTIONS Q180/Q191 OVERRIDE)
       — priority 2.** The 2026-09-06 "decided (a), no code/data change"
       closure (full text `docs/BACKLOG-DONE.md`) is overridden: ship route
       (b), scoped narrowly. Split `numberScale` (`data/modifiers.json`) into
@@ -560,7 +564,121 @@ honor.**
       engineer into G8's band, because all three (and nearly every other
       class besides) are dying in the first VS block regardless of this
       item's HP/armor bump. Resume the re-measurement once fb196 is closed.
-- [ ] (fb194) [balance] **OVERRIDE (Q180/Q191)** — split `numberScale` into
+- [x] (fb194) [balance] **DONE 2026-09-15 — split shipped; four of the five
+      crossing constants needed a different fix than the item's own
+      shorthand guessed, verified algebraically against the actual code
+      rather than assumed.**
+      **Classification (economy A = still divided by `numberScale`, economy
+      B = left unscaled):**
+      `ENEMY_SCALED_FIELDS` -> `hp`, `healRate` only (A); `coreDamage`/
+      `attackDamage`/`explodeDamage`/`stompDamage`/`trailDps` moved to B
+      (enemy damage *output*). `CLASS_ACTIVE_SCALED_FIELDS` -> unchanged
+      minus `healPerEnemy` (heals the Warden, moved to B). Towers: shot/burn/
+      vsSpecial damage stays A; a tower's own `hp` (a *structure's* HP) moved
+      to B — not called out in this item's own background text, found by
+      re-reading `applyNumberScale` directly. `CORE_EFFECT_SCALED_FIELDS` ->
+      `devourEliteDamage`/`poisonBulletDamage` only (A); `devourCoreHeal`
+      (heals the Core) moved to B. `CORE_STEP_SCALED_FIELDS`/
+      `WARDEN_SCALED_FIELDS` -> both now empty (`coreHpBonus`/
+      `hpRegenPerSecond`/`maxHp`/`hpRegen`/`heartstoneHeal` are all B).
+      `STAT_SCALED`: `atkFlat`/`towerAtkFlat` stay A; `maxHp`/`hpRegen`/
+      `coreHp` moved to B. New `STAT_INVERSE_SCALED` table: `leech` only.
+      `breach.perEhp`'s fb153a-era inversion is removed outright (not just
+      re-tuned) — now that the structure HP it prices is B/unscaled, both
+      sides of `perEhp x ehp` are already unscaled together, so the product
+      needs no compensating factor at all.
+      **The five crossing constants** (verified against the actual formula
+      each feeds, not assumed from "crossing constants take the inverse"):
+      (1) **Lifesteal** — `leech`, `towerLifestealPct`, `vsLifestealPct`,
+      `towerLifestealBonus` genuinely needed the inverse (`1/k`): damage
+      dealt to an enemy (A, still shrunk by `k`) converts to HP healed on the
+      Warden/a tower (B, no longer shrunk at all), so the ratio has to grow
+      by `1/k` to land the same real heal (`applyTowerLifesteal`,
+      `enemies.ts`'s leech hook). (2) **Blood Tithe** — `titheHpFraction`
+      needed **no correction**: `fireBloodTithe` (classes.ts) spends a
+      fraction of a tower's own current HP and applies it to that same pool,
+      so it is self-referential and scale-invariant regardless of which
+      economy `s.hp` sits in. Its adjacent HP floor (`Math.max(numberScale,
+      ...)`) *did* need to move, to a bare `1` — same fix as `world.ts`'s
+      `coreMaxHp` floor and `stats.ts`'s `derive` floor, all three
+      previously scaled to match an economy that no longer exists for them.
+      (3) **Wrath** — `wrathDamageMul` needed the **forward** factor (`k`),
+      not the inverse the item's own text guessed: `storeWrath` (run.ts)
+      banks Wrath from damage the character *takes* (B, no longer shrunk),
+      `fireJudgement` (classes.ts) spends it as a nova against enemies (A,
+      still shrunk) — the *input* side stopped scaling here, not the output
+      side, so the multiplier has to start absorbing the `k` it used to get
+      for free, the algebraic mirror image of lifesteal. (4) **Corpse store**
+      — `corpseStoreRatio` needed **no correction**: both the credit
+      (`enemies.ts`'s damage-taken hook) and the spend
+      (`updateCorpseExecute`/`updateCorpseAutoFire`, cores.ts) are damage
+      dealt to an enemy, economy A on both ends. (5) **Vampire Heart
+      overheal** — `overhealGoldRatio` was expected to "need no further
+      change"; it actually needed its fb153a-era forward-scaling **removed
+      entirely**: `applyHealing`'s `excess` (cores.ts) is computed from
+      Warden HP or a tower's HP, both economy B now, so the conversion no
+      longer crosses a scaled boundary at all, and scaling the ratio would
+      now be the bug fb153a's own qa-playtester regression was about, in the
+      opposite direction.
+      **Prose reverted** (fb164's economy-B sentences, back to authored
+      units): `vsupgrades.json` vitality "+15 Max HP", `tree.json` nodes 30/
+      70 ("Core +150 HP" / "+40 Max HP, +2 HP regen"), `equipment.json`'s HP
+      column on 9 items plus `normal_ring`'s "Life regen +1", `cores.json`
+      Stone Heart "+100 Core HP per step" and Time "+1 HP regen/s",
+      `modifiers.json` cracked "Core -150 HP". Vampire Heart's two "N:1"
+      ratios also reverted ("20:1"/"10:1") for the *overhealGoldRatio-is-
+      no-longer-scaled-at-all* reason above, not the generic B-revert reason.
+      Newly discovered (not in fb164's original set, a direct consequence of
+      the lifesteal inverse fix): Bleeding Ring's "+0.01% lifesteal" ->
+      "+0.1%" and Bloodlord Blood Frenzy's class-description "3% lifesteal
+      on normal damage" -> "30%" (class kit sentences are auto-generated
+      from the loaded field, per `src/ui/class-info.ts`, except this one
+      hand-typed passive line).
+      **Tests**: `tests/fb153a-number-scale.test.ts` rewritten around the
+      economy split (15 tests, all green) plus five new crossing-constant
+      control pairs (lifesteal, Blood Tithe, Wrath, Corpse, Vampire Heart —
+      the last unchanged in outcome, confirmed still invariant under the new
+      split for a different reason than before). `tests/fb164-prescale-
+      prose.test.ts` unchanged in shape (26 tests, all green) — it already
+      reads the *loaded* value back, so reverting the underlying `/data`
+      text was sufficient. `isScaledClassPath` (content.ts) extended for
+      `wrathDamageMul` and stat-record paths; new sibling
+      `isInverseScaledClassPath` for `leech`. Fixed knock-on assertions in
+      `tests/equip-spec-numbers.test.ts`, `tests/equip-effect-behaviour.
+      test.ts`, `tests/fb015-equipment.test.ts`, `tests/class-spec-numbers.
+      test.ts`, `tests/class-descriptions.test.ts`, `tests/class-passive-
+      liveness.test.ts`, `tests/fb022-info-surfacing.test.ts`,
+      `tests/act1.test.ts`, `tests/c4-stacking.test.ts`, `tests/p8d-boss-
+      termination.test.ts`, `tests/p-core-b-effects.test.ts`, `tests/p-core-
+      c-plant.test.ts` — every one a real `/data`-value assertion that moved
+      economy, not a rebalance. `npx tsc --noEmit` clean; `npm run test:fast`
+      green (no new failures beyond the pre-existing ones a clean-tree
+      `git stash` control confirms: `tests/ui-input.test.ts`,
+      `tests/class-board.test.ts`, `tests/p1a-sealing.test.ts`,
+      `tests/p8d-boss-termination.test.ts`'s terrain-unrelated cases, and the
+      other canvas/pointer-mapping and terrain-grid-size files already red
+      before this item).
+      **code-reviewer's pre-commit pass (Major, fixed before commit):**
+      `src/render/canvas.ts`'s `damageFloor()` (a reader of `numberScale`
+      the item's own diff never touched, outside `/src/sim`) still floored
+      `wardenhit`'s screen-shake term and its "worth a number?" gate at
+      `numberScale` (0.1) — economy-A-shaped, and `wardenhit` carries
+      economy-B damage now left unscaled, so both were ~10x too permissive
+      (shake saturated to its 9-cap on almost any real hit). Fixed with a
+      new `wardenDamageFloor()` (a bare authored point, 1, independent of
+      `numberScale`) used at both `wardenhit` call sites; new regression
+      test `tests/fb194-wardenhit-render-floor.test.ts` (2 cases) pins the
+      un-saturated shake value and confirmed red against the pre-fix code
+      via a `git stash` control. All other `damageFloor()` call sites
+      (`hit:`/DoT-on-enemy numbers) stayed correct — they are economy A,
+      still shrunk by `numberScale`, so the existing floor is still right
+      for them. `tests/boss.test.ts`'s G14 companion gate (excluded
+      from the fast tier, ~6 min standalone) measures worse after the split
+      when run directly — not chased inside this item's scope per CLAUDE.md
+      rule 8 (no full gate matrix without a `[balance]` mandate), logged for
+      a follow-up balance item rather than silently absorbed here. Original
+      text follows.
+      **OVERRIDE (Q180/Q191)** — split `numberScale` into
       two economies. Reverses fb163's "(a) no change" decision: the owner
       chose (b), scoped narrowly, instead. `numberScale` (`data/modifiers.
       json`) must apply only to **economy A** (enemy HP and damage dealt to

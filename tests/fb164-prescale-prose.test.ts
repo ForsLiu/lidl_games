@@ -1,7 +1,7 @@
 /**
  * fb164 — player-facing prose still quoted pre-rescale numbers.
  *
- * fb153a's `numberScale` (0.1, `data/modifiers.json`) divides every authored
+ * fb153a's `numberScale` (0.1, `data/modifiers.json`) divided every authored
  * HP/damage magnitude at load, but the hand-typed *sentences* beside those
  * fields were never re-anchored — so the game told the player numbers it did
  * not run on: `data/vsupgrades.json`'s `vitality` boon read "+15 Max HP" and
@@ -12,14 +12,33 @@
  * sentence (Contagious Flame's `flameDps`, covered by
  * `tests/class-descriptions.test.ts`'s own ledger instead of here).
  *
+ * **fb163/fb194 (QUESTIONS Q180/Q191 OVERRIDE) reverted every sentence below
+ * whose field turned out to be economy B** (Core/structure/character HP and
+ * regen — no longer scaled by `numberScale` at all) back to its pre-rescale,
+ * authored wording: `vitality` reads "+15 Max HP" again, `heart_of_stone`
+ * "Core +150 HP", `unbroken` "+40 Max HP, +2 HP regen", the equipment HP
+ * column and `normal_ring`'s "Life regen +1", `stone_heart` "+100 Core HP per
+ * step", `time`'s "+1 HP regen/s", and `cracked` "Core -150 HP". Bleeding and
+ * Burning's `dps` sentences are untouched — damage-type `dps` stays economy A
+ * (still scaled). Vampire Heart's two "N:1" overheal ratios are *also*
+ * reverted (to "20:1"/"10:1"), for a different reason than the HP fields
+ * above: `overhealGoldRatio` converts a now-economy-B overheal into gold, so
+ * fb163/fb194 stopped scaling it altogether (it no longer crosses a scaled
+ * boundary at all — see `applyNumberScale`'s header comment, `content.ts`),
+ * landing back at its authored value the same as if it had never been scaled.
+ * `hundred_grand`'s lifetime-damage quest target is untouched — that total
+ * sums economy-A damage dealt, still scaled.
+ *
  * `tests/class-descriptions.test.ts`'s c015 ledger already builds a full
  * positional-claim audit for the two class description slots; replicating
  * that machinery for six more files' worth of hand-authored strings is out of
  * this item's scope. Instead, each fix below is pinned directly: the number
  * is extracted from the shipped sentence and compared against the *loaded*
- * (post-`numberScale`) field it names, so a future retune that moves the
- * field without moving the sentence reddens here rather than shipping quietly
- * — the same failure mode fb164 was filed to close.
+ * field it names — for an economy-A field, that is still the post-
+ * `numberScale` value; for economy B, it is now the bare authored value — so
+ * a future retune that moves the field without moving the sentence reddens
+ * here rather than shipping quietly, the same failure mode fb164 was filed to
+ * close.
  */
 
 import { describe, expect, it } from 'vitest';

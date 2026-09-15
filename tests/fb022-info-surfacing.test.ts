@@ -44,7 +44,7 @@ import { emptyStats, STAT_KIND, type StatKey } from '../src/sim/stats';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
 import type { MetaState } from '../src/sim/types';
-import { cfg, scaled } from './helpers';
+import { cfg } from './helpers';
 
 const content = loadContent();
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
@@ -254,10 +254,12 @@ describe('fb022 Surface 2: Core screen + in-run Core tooltip show TD/VS effect a
 
     const text = hudCoreTooltip(w);
     expect(text).toContain('step 1/3');
-    // Base VS lifesteal (0.01 -> 1%) is live from the moment the Core is chosen —
-    // the exact label + value the shared formatter (info-format.ts) produces,
-    // not a substring that a coincidentally similar number could also satisfy.
-    expect(text).toContain(`${fieldLabel('vsLifestealPct')}: ${fieldValueText('vsLifestealPct', 0.01)}`);
+    // Base VS lifesteal (authored 0.01 -> loaded 0.1 -> 10%, fb163/fb194's
+    // lifesteal inverse correction) is live from the moment the Core is
+    // chosen — the exact label + value the shared formatter (info-format.ts)
+    // produces, not a substring that a coincidentally similar number could
+    // also satisfy.
+    expect(text).toContain(`${fieldLabel('vsLifestealPct')}: ${fieldValueText('vsLifestealPct', 0.1)}`);
     expect(text).toContain(`${Math.ceil(w.coreHp)}`);
   });
 
@@ -464,11 +466,11 @@ describe('fb022: changing a /data value changes the displayed text with no code 
  * screen and the in-run character panel's class-info block.
  */
 describe('b053: class-passive mods render leech/cdr as a percentage, not a raw decimal', () => {
-  it("Bloodlord's Blood Frenzy passive (leech: 0.03) renders \"+3% Leech\", not \"+0.03\"", () => {
+  it("Bloodlord's Blood Frenzy passive (authored leech: 0.03, loaded 0.3 — fb163/fb194's lifesteal inverse correction) renders \"+30% Leech\", not \"+0.3\"", () => {
     const bloodlord = content.classes.classes.find((c) => c.key === 'bloodlord')!;
     const html = classAbilitiesMarkup(bloodlord);
-    expect(html).toContain('+3% Leech');
-    expect(html).not.toContain('+0.03');
+    expect(html).toContain('+30% Leech');
+    expect(html).not.toContain('+0.3');
   });
 });
 
@@ -478,13 +480,13 @@ describe('b053: class-passive mods render leech/cdr as a percentage, not a raw d
  * rounded away to "+0% Leech" — indistinguishable from no mod at all.
  */
 describe('b054: a sub-1% mod magnitude renders with enough precision to stay non-zero', () => {
-  it("the Bleeding Ring's leech: 0.0001 mod line reads \"+0.01% Leech\", not \"+0% Leech\"", () => {
+  it("the Bleeding Ring's leech (authored 0.0001, loaded 0.001 — fb163/fb194's lifesteal inverse correction) mod line reads \"+0.1% Leech\", not \"+0% Leech\"", () => {
     const bleedingRing = content.equipmentByKey.get('bleeding_ring')!;
-    expect(bleedingRing.mods.leech).toBeCloseTo(0.0001, 10);
+    expect(bleedingRing.mods.leech).toBeCloseTo(0.001, 10);
     const lines = modLines(bleedingRing.mods);
     const leechLine = lines.find((l) => l.key === 'leech')!;
     expect(leechLine).toBeTruthy();
-    expect(leechLine.text).toBe('+0.01% Leech');
+    expect(leechLine.text).toBe('+0.1% Leech');
     expect(leechLine.text).not.toContain('+0%');
   });
 
@@ -526,11 +528,12 @@ describe('b056: formatPercent (hud.ts) shares formatPct instead of its own flat-
     const w = new World(cfg({ classKey: 'swordsman', equipment: ['bleeding_ring'] }));
     w.recomputeDerived();
     const bleedingRing = content.equipmentByKey.get('bleeding_ring')!;
-    expect(bleedingRing.mods.leech).toBeCloseTo(0.0001, 10);
+    // fb163/fb194: `leech` is inverse-scaled — authored 0.0001 loads as 0.001.
+    expect(bleedingRing.mods.leech).toBeCloseTo(0.001, 10);
 
     const html = characterPanelMarkup(characterPanelData(w), w);
-    expect(html).toContain('+0.01%');
-    expect(html).toContain('Equipment: Bleeding Ring: +0.01%');
+    expect(html).toContain('+0.1%');
+    expect(html).toContain('Equipment: Bleeding Ring: +0.1%');
     expect(html).not.toContain('Leech</span><b>0%');
   });
 });
@@ -643,16 +646,18 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     const { hud, text } = hudWarden(w);
 
     hud.update(w, undefined, sel);
-    // fb153a: the pool is authored 100 x `numberScale`.
-    expect(text()).toContain(`Health${scaled(100)} / ${scaled(100)}`);
+    // fb163/fb194: `maxHp` is economy B (the character's own HP pool) — no
+    // longer scaled by `numberScale` at all, so the pool is the bare authored
+    // 100.
+    expect(text()).toContain(`Health100 / 100`);
 
     const hp = w.warden.hp;
-    w.stats.add('src:test', 'maxHp', scaled(50));
+    w.stats.add('src:test', 'maxHp', 50);
     w.recomputeDerived();
     expect(w.warden.hp).toBe(hp);
 
     hud.update(w, undefined, sel);
-    expect(text()).toContain(`Health${scaled(100)} / ${scaled(150)}`);
+    expect(text()).toContain(`Health100 / 150`);
   });
 
   it('a dash-charge-cap change alone refreshes the Dash row', () => {

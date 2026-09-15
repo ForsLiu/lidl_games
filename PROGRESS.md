@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb163/fb194 done — `numberScale` split
+  into two economies (QUESTIONS Q180/Q191 OVERRIDE), reversing fb163's
+  original 2026-09-06 "(a) no change" closure.** Economy A (enemy HP, damage
+  dealt to enemies) stays divided by `numberScale`; economy B (enemy damage
+  output, Core/structure/character HP and regen, equipment flats on that
+  axis) is left unscaled. Reclassified `ENEMY_SCALED_FIELDS`/
+  `CLASS_ACTIVE_SCALED_FIELDS`/`CORE_EFFECT_SCALED_FIELDS`/
+  `CORE_STEP_SCALED_FIELDS`/`WARDEN_SCALED_FIELDS`/`STAT_SCALED`
+  (content.ts/statkeys.ts) and, found by re-reading `applyNumberScale`
+  directly rather than trusting the item's own field-list background, moved
+  a tower's own `hp` (a structure's HP) to economy B too — `breach.perEhp`'s
+  fb153a-era inversion is removed outright since both sides of `perEhp x ehp`
+  are unscaled together now. Of the five owner-named crossing constants,
+  only two (lifesteal, `leech`/`towerLifestealPct`/`vsLifestealPct`/
+  `towerLifestealBonus`) actually needed the inverse factor the item's text
+  guessed for all five: Wrath's `wrathDamageMul` needed the **forward**
+  factor instead (the algebraic mirror of lifesteal — its *input* side
+  stopped scaling, not its output side); Blood Tithe's `titheHpFraction` and
+  the Corpse Core's `corpseStoreRatio` needed **no correction** (both
+  self-referential/same-economy on both ends); Vampire Heart's
+  `overhealGoldRatio` needed its existing forward-scaling **removed**, not
+  confirmed unchanged as guessed — the HP pool it converts moved to economy
+  B, so the conversion no longer crosses a scaled boundary at all. Reverted
+  fb164's economy-B prose (`vsupgrades.json`, `tree.json`, `equipment.json`,
+  `cores.json`, `modifiers.json`) to authored units, plus two sentences the
+  lifesteal inverse fix newly requires (Bleeding Ring "+0.1% lifesteal",
+  Bloodlord Blood Frenzy "30% lifesteal on normal damage") that were never
+  in fb164's original set. `tests/fb153a-number-scale.test.ts` rewritten
+  around the split (economy-aware census, five new crossing-constant control
+  pairs); knock-on `/data`-value assertions fixed across a dozen other test
+  files. `npx tsc --noEmit` clean; `npm run test:fast` green against a
+  clean-tree control (no new failures beyond terrain-grid-size and
+  canvas/pointer-mapping issues already red before this item).
+  `tests/boss.test.ts`'s G14 gate (excluded from the fast tier) measures
+  worse when run standalone post-split — logged as a follow-up, not chased
+  here per CLAUDE.md rule 8. code-reviewer's pre-commit pass caught one
+  Major issue outside the item's own `/src/sim` scope: `src/render/
+  canvas.ts`'s `damageFloor()` still floored `wardenhit`'s screen-shake and
+  number-visibility gate at `numberScale`, now economy-A-shaped, while
+  `wardenhit` itself carries economy-B (unscaled) damage — shake saturated
+  to its cap on nearly every hit. Fixed with a new `wardenDamageFloor()`
+  (bare authored point, 1); new regression test `tests/fb194-wardenhit-
+  render-floor.test.ts` confirmed red pre-fix via `git stash`, green after.
+  Full classification table and per-constant findings: BACKLOG fb163/fb194's
+  own closure text.
+
 - **2026-09-15 — main lane: BACKLOG fb193 closed, no new code/data — already
   satisfied by p13a, confirmed by fb196.** fb193 ordered the
   `maxHpMul`/`defenseBonus` survivability bands plus a G8 re-measurement for

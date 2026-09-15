@@ -384,6 +384,18 @@ function damageFloor(w: World): number {
   return w.content.modifiers.numberScale;
 }
 
+/**
+ * fb194: `wardenhit` carries economy-B damage (the character's own HP axis),
+ * which the numberScale split stopped scaling — `damageFloor`'s
+ * `numberScale`-sized floor is economy-A-shaped and now ~10x too permissive
+ * for it (it would saturate the shake term and show every hit as a number).
+ * One authored point is still the right floor; it just no longer moves with
+ * `numberScale`.
+ */
+function wardenDamageFloor(): number {
+  return 1;
+}
+
 function damageText(v: number): string {
   if (v >= 10) return String(Math.round(v));
   if (v >= 1) return v.toFixed(1);
@@ -532,8 +544,8 @@ export class Renderer {
         case 'wardenhit':
           // The shake reads the hit in authored units, so a rescale moves the
           // numbers on screen without flattening the feedback behind them.
-          view.shake = Math.max(view.shake, Math.min(9, 2 + (e.a / damageFloor(w)) * 0.25));
-          if (e.a >= damageFloor(w) && view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
+          view.shake = Math.max(view.shake, Math.min(9, 2 + (e.a / wardenDamageFloor()) * 0.25));
+          if (e.a >= wardenDamageFloor() && view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
             this.numbers.push({
               x: e.x,
               y: e.y,

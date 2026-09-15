@@ -1070,19 +1070,23 @@ describe('c037: character-passive and equipped-item bonuses on the same stat key
     expect(both, 'not silently additive (would read 0.70)').not.toBeCloseTo(0.7, 6);
   });
 
-  it('Bloodlord Blood Frenzy (3% leech) and Bleeding Ring (0.01% leech) add to 3.01%, not multiply to 3.0103%', () => {
+  it('Bloodlord Blood Frenzy (30% loaded leech) and Bleeding Ring (0.1% loaded leech) add to 30.1%, not multiply', () => {
+    // fb163/fb194 (QUESTIONS Q180/Q191): `leech` is the lifesteal crossing
+    // constant, inverse-scaled by `1 / numberScale` — authored 0.03/0.0001
+    // load as 0.3/0.001. Stated in loaded units here since `.derived.leech`
+    // is the loaded value the sim actually runs on.
     const base = passiveWorld('swordsman').derived.leech;
     const passiveOnly = passiveWorld('bloodlord').derived.leech;
     const equipOnly = passiveWorldWithEquipment('swordsman', ['bleeding_ring']).derived.leech;
     const both = passiveWorldWithEquipment('bloodlord', ['bleeding_ring']).derived.leech;
 
     expect(base, 'no source, no lifesteal').toBeCloseTo(0, 10);
-    expect(passiveOnly, 'Blood Frenzy alone').toBeCloseTo(0.03, 10);
-    expect(equipOnly, 'Bleeding Ring alone').toBeCloseTo(0.0001, 10);
+    expect(passiveOnly, 'Blood Frenzy alone').toBeCloseTo(0.3, 10);
+    expect(equipOnly, 'Bleeding Ring alone').toBeCloseTo(0.001, 10);
     // `leech` is deliberately `flat`, not `mul` (statkeys.ts) — the two
     // sources sum, they do not compound.
-    expect(both, 'both sources together, summed').toBeCloseTo(0.0301, 10);
-    expect(both, 'not silently multiplicative (would read 0.030103)').not.toBeCloseTo(1.03 * 1.0001 - 1, 6);
+    expect(both, 'both sources together, summed').toBeCloseTo(0.301, 10);
+    expect(both, 'not silently multiplicative (would read 0.3003)').not.toBeCloseTo(1.3 * 1.001 - 1, 6);
   });
 
   it('proven live, not vacuous — swapping which formula backs each stat reddens the row it no longer matches', () => {
