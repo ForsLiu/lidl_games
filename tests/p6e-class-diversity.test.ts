@@ -484,7 +484,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
-import { isKitSource } from '../src/sim/enemies';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { cfg, classifyMargin, GATE_TIER, runScripted, summarizeMargins } from './helpers';
@@ -581,23 +580,11 @@ interface ClassMeasurement {
   allDamage: Record<string, number>;
   /** ownDamage total / allDamage total. */
   ownShare: number;
-  /**
-   * p12d (BALANCE DIRECTION v2 §D clause (i), same denominator p12a/c002
-   * measured): own-kit share of the character's **VS-only** damage
-   * (`damageByWeaponVs`), restricted to seeds that reached
-   * `QUALIFYING_WAVE` — reusing `class-kit-damage-share.test.ts`'s exact
-   * method rather than inventing a second one.
-   */
-  vsShare: number;
   topLabel: string;
   /** p10z: every seed's raw report, kept so a retune probe can classify margin (`classifyMargin`/`summarizeMargins`, `tests/helpers.ts`) without a second sweep. */
   reports: RunReport[];
 }
 
-/** BALANCE DIRECTION v2 §D clause (i), p12a's own target. */
-const KIT_SHARE_TARGET = 0.35;
-/** class-kit-damage-share.test.ts's own qualifying-wave filter, reused verbatim (p12d). */
-const QUALIFYING_WAVE = 12;
 /** BALANCE DIRECTION v2 §D clause (ii). */
 const FINGERPRINT_FLOOR = 0.15;
 
@@ -656,8 +643,6 @@ beforeAll(() => {
     const reports: RunReport[] = [];
     const ownDamage: Record<string, number> = {};
     const allDamage: Record<string, number> = {};
-    const ownVs: Record<string, number> = {};
-    const allVs: Record<string, number> = {};
     for (const seed of SEEDS) {
       const report = runClassScripted(key, seed);
       reports.push(report);
@@ -681,22 +666,13 @@ beforeAll(() => {
         allDamage[k] = (allDamage[k] ?? 0) + v;
         if (!content.towerByKey.has(k)) ownDamage[k] = (ownDamage[k] ?? 0) + v; // a tower key: hybrid's build, not the kit
       }
-      // p12d (clause (i)): the VS-only half, same non-participation rule as
-      // class-kit-damage-share.test.ts — a run that never reached the
-      // qualifying wave can't speak to a target stated about a developed run.
-      if (report.wavesCleared < QUALIFYING_WAVE) continue;
-      for (const [k, v] of Object.entries(report.damageByWeaponVs)) {
-        allVs[k] = (allVs[k] ?? 0) + v;
-        if (isKitSource(k)) ownVs[k] = (ownVs[k] ?? 0) + v;
-      }
     }
     const ownTotal = sumValues(ownDamage);
     const allTotal = sumValues(allDamage);
     const ownShare = allTotal > 0 ? ownTotal / allTotal : 0;
-    const vsShare = sumValues(allVs) > 0 ? sumValues(ownVs) / sumValues(allVs) : 0;
     const topLabel =
       ownShare >= MATERIALITY_SHARE ? describeSource(cls, argmaxKey(ownDamage)) : argmaxKey(allDamage);
-    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, vsShare, topLabel, reports });
+    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, topLabel, reports });
   }
 }, 6_000_000);
 
@@ -1027,12 +1003,22 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
 
 /**
  * p12d (BACKLOG.md, BALANCE DIRECTION v2 §D): replaces the retired
- * "top damage source differs across >=9 of 12 classes" clause with the two
- * checks the owner verdict specifies. Both reuse this file's own T3
- * `beforeAll` sweep (`measurements`) rather than launching a second one —
- * clause (i)'s `vsShare` is computed alongside `ownShare` above; clause
- * (ii)'s vectors are built from the same `allDamage` records G22's method
- * already reads.
+ * "top damage source differs across >=9 of 12 classes" clause with the
+ * check the owner verdict specifies — pairwise fingerprint distance (clause
+ * (ii)), built from the same `allDamage` records G22's method already
+ * reads.
+ *
+ * **fb183/fb195 (2026-09-15, QUESTIONS Q175/Q193, owner verdict) removed
+ * this describe's former clause (i)** ("every class's own-kit VS damage
+ * share is >=35% from wave 12"): the owner's DECISION amending BALANCE
+ * DIRECTION v2 §A confirms **G8 is T3 win-rate band + pairwise fingerprint
+ * distance only, with no kit-share clause** — clause (i) was measuring the
+ * same own-kit-VS-share metric `tests/class-kit-damage-share.test.ts`
+ * already owns as a BALANCE.md target (now restated to >=15% from wave 12
+ * for the nine in-scope classes), so keeping a second, G8-labelled copy
+ * here duplicated it under a name the gate never actually carried. The
+ * metric's single home is now `class-kit-damage-share.test.ts`; this file
+ * no longer computes `vsShare` at all.
  */
 describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   /** G22's `l1Distance` (`tests/p-core-f-gates.test.ts`), reused verbatim (also duplicated in `tests/class-kit-fingerprint.test.ts`, out of Scope there). */
@@ -1049,33 +1035,6 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
     for (const k of keys) sum += Math.abs((a[k] ?? 0) - (b[k] ?? 0));
     return sum;
   }
-
-  // c002/c030 (BACKLOG-CONTENT, T1, 12 seeds) already found this unreachable
-  // from `data/classes.json` alone — best was `plaguebringer` at 17.85%,
-  // 0/12 classes at the 35% target (QUESTIONS Q175, BACKLOG p12f, still
-  // open). Measured here live at T3 (GATE_TIER) instead of T1 — a harder
-  // reference tier does not change which side of the wall this sits on
-  // (the mechanism is structural: VS-wielded weapon damage inherits the
-  // full tower-upgrade/Constellation scaling stack and the kit does not, so
-  // the denominator outgrows the numerator regardless of tier) — `.skip`-ed
-  // with the fresh T3 number rather than assumed from the T1 one, per
-  // CLAUDE.md's control-run rule. Re-enable point: p12f.
-  it.skip('every class\'s own-kit VS damage share is >=35% from wave 12 (clause i)', () => {
-    const meeting = CLASS_KEYS.filter((k) => measurements.get(k)!.vsShare >= KIT_SHARE_TARGET);
-    const breakdown = CLASS_KEYS.map(
-      (k) => `${k}: ${(measurements.get(k)!.vsShare * 100).toFixed(2)}%`,
-    ).join(', ');
-    expect(meeting.length, `${meeting.length}/${CLASS_KEYS.length} at >=35% — ${breakdown}`).toBe(
-      CLASS_KEYS.length,
-    );
-  });
-
-  // Pins the honest T3 measurement so a future change is forced to
-  // re-examine this rather than silently drifting.
-  it('the current (red) own-kit VS-share count is pinned, not silently drifting', () => {
-    const meeting = CLASS_KEYS.filter((k) => measurements.get(k)!.vsShare >= KIT_SHARE_TARGET);
-    expect(meeting.length).toBe(0);
-  });
 
   // class-kit-fingerprint.test.ts (BACKLOG-CONTENT c033) measured this exact
   // clause first, at T1 with KIT_FP_SEEDS=2 (directional): 50/66 pairs meet
@@ -1108,8 +1067,7 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   }); // measured: 16/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07)
 
   // Pins the honest T3 measurement (16/66, see the skip above) so a future
-  // change is forced to re-examine this rather than silently drifting —
-  // same exact-pin shape as clause (i)'s own pin three cases above.
+  // change is forced to re-examine this rather than silently drifting.
   //
   // fb185/fb196 full fresh re-run (2026-09-15, QUESTIONS Q207): 16 was
   // itself already stale — fb193's own commit message records this moved

@@ -21,6 +21,17 @@
  *   KIT_SHARE_MEASURE=1 npx vitest run tests/class-kit-damage-share.test.ts
  *   KIT_SHARE_MEASURE=1 KIT_SHARE_CLASSES=swordsman KIT_SHARE_SEEDS=2 npx vitest run ...
  *
+ * **RESTATED (2026-09-15, fb183/fb195, QUESTIONS Q175/Q193, owner
+ * verdict).** The target below this point was originally >=35%; the owner's
+ * own DECISION amending BALANCE DIRECTION v2 §A restates it to **own-kit VS
+ * share >=15% from TD wave 12**, measured for the **nine classes whose kit
+ * has a damaging VS Active** (`KIT_SHARE_EXEMPT` below carves out
+ * bloodlord/engineer/animist, measured for the record only). `KIT_SHARE_
+ * TARGET` is now `0.15`; every historical "35%"/"0.35" figure recorded below
+ * this point predates the restatement and is kept only as the record of why
+ * it changed — see this file's own fresh re-measurement in BALANCE.md's
+ * "Kit relevance target" §3 for the live 15%-target numbers.
+ *
  * -- RECORDED (2026-09-06, `c030`, `KIT_SHARE_MEASURE=1`, 12 classes x seeds
  * 1-12 = 144 full **T1** runs, ~140 min wall clock, on this branch's HEAD --
  *
@@ -301,8 +312,23 @@ interface Row {
   outcomes: string[];
 }
 
-/** BALANCE.md's p12a target: own-kit share of the character's VS damage. */
-const KIT_SHARE_TARGET = 0.35;
+/**
+ * BALANCE.md's restated target (fb183/fb195, QUESTIONS Q175/Q193, owner
+ * verdict): own-kit share of the character's VS damage >= 15% from TD wave
+ * 12 — a BALANCE.md target, not a G8 clause. Was 0.35 (BALANCE DIRECTION v2
+ * §A's original text); the owner's own restatement text: the character
+ * wields every built tower in VS, so wielded damage dominating is the
+ * design working as intended, not a gap to close by matching it.
+ */
+const KIT_SHARE_TARGET = 0.15;
+
+/**
+ * The nine classes whose kit has a damaging VS Active, measured against
+ * `KIT_SHARE_TARGET`. `bloodlord`, `engineer` and `animist` are exempt
+ * (identity via lifesteal/tithe and summons respectively, per Q175) and are
+ * measured for the record only, never against the floor.
+ */
+const KIT_SHARE_EXEMPT = new Set(['bloodlord', 'engineer', 'animist']);
 
 /**
  * Runs below this `wavesCleared` are excluded from the VS-share record.
@@ -392,15 +418,20 @@ beforeAll(() => {
       `  ${r.key.padEnd(14)} win ${String(r.wins).padStart(2)}/${SEEDS.length}` +
       `  ownShare ${(r.ownShare * 100).toFixed(2).padStart(6)}%` +
       `  vsKitShare ${(r.vsShare * 100).toFixed(2).padStart(6)}%  top: ${r.topLabel}` +
-      `  (kit top: ${r.ownTop})`,
+      `  (kit top: ${r.ownTop})` +
+      `${KIT_SHARE_EXEMPT.has(r.key) ? '  [exempt, informational]' : ''}`,
   );
-  const meeting = rows.filter((r) => r.vsShare >= KIT_SHARE_TARGET).length;
+  // fb183/fb195: the 15% target is measured for the nine in-scope classes
+  // only; bloodlord/engineer/animist are exempt (record only, never counted
+  // against the floor).
+  const inScope = rows.filter((r) => !KIT_SHARE_EXEMPT.has(r.key));
+  const meeting = inScope.filter((r) => r.vsShare >= KIT_SHARE_TARGET).length;
   console.log(
-    `\n[c002/p12a] kit damage share, ${KEYS.length} classes x ${SEEDS.length} seeds\n` +
+    `\n[c002/fb183/fb195] kit damage share, ${KEYS.length} classes x ${SEEDS.length} seeds\n` +
       `${lines.join('\n')}\n  distinct top sources: ${distinct.size}/${rows.length}` +
       ` -> [${[...distinct].join(', ')}]\n` +
-      `  classes at/over the ${(KIT_SHARE_TARGET * 100).toFixed(0)}% VS kit-share target:` +
-      ` ${meeting}/${rows.length}\n`,
+      `  in-scope classes at/over the ${(KIT_SHARE_TARGET * 100).toFixed(0)}% VS kit-share target:` +
+      ` ${meeting}/${inScope.length}\n`,
   );
 }, 6_000_000);
 
