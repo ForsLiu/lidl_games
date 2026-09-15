@@ -505,6 +505,8 @@ export class Renderer {
   private cameraActive = false;
   /** fb167: the `camera.viewTilesW` `resize()` last applied to the backing store, so a pan-only camera change (viewTilesW unchanged) doesn't force a redundant backing-store resize every frame. */
   private cameraViewTilesWApplied = GRID_W;
+  /** fb168: set by `ingest()` on a `'sunder'` event, consumed by the next `update()` — see that case's own doc comment. */
+  private cameraSnapPending = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -692,6 +694,14 @@ export class Renderer {
           break;
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
+          // fb168 (qa-playtester, fb167 verification): `finishSundering`
+          // (src/sim/sundering.ts) teleports the Warden to the Core the same
+          // tick this fires — an ordinary camera ease would lag behind for a
+          // few frames, briefly leaving the Warden outside the visible
+          // window right as the VS wave begins. Forces the next `update()`
+          // to snap instead, the same discontinuity-handling `reducedMotion`
+          // and first-activation already get.
+          this.cameraSnapPending = true;
           break;
         // p10h: the 2s TD<->VS screen sweep, keyed by direction; a fresh
         // transition overwrites rather than queues, since the two boundaries
@@ -1048,8 +1058,9 @@ export class Renderer {
    * live Warden (most `Renderer`-constructing tests) keeps the old
    * whole-board camera default untouched — see `camera`'s own doc comment.
    * When provided, re-centers the camera on the Warden, clamped so its view
-   * window never shows past a map edge; snaps instantly on first activation
-   * and whenever `reducedMotion` is on, otherwise eases toward the target so
+   * window never shows past a map edge; snaps instantly on first activation,
+   * whenever `reducedMotion` is on, or right after a Sundering teleport
+   * (`cameraSnapPending`, fb168), otherwise eases toward the target so
    * ordinary movement reads as a smooth follow rather than a jump-cut.
    */
   update(dt: number, view: ViewState, w?: World): void {
@@ -1094,9 +1105,10 @@ export class Renderer {
       if (!wasActive) this.resize(this.dpr || globalThis.devicePixelRatio || 1);
       const targetCx = clampCameraCenter(w.warden.x, this.camera.viewTilesW, GRID_W);
       const targetCy = clampCameraCenter(w.warden.y, this.camera.viewTilesH, GRID_H);
-      if (!wasActive || view.settings.reducedMotion) {
+      if (!wasActive || view.settings.reducedMotion || this.cameraSnapPending) {
         this.camera.cx = targetCx;
         this.camera.cy = targetCy;
+        this.cameraSnapPending = false;
       } else {
         const t = 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt);
         this.camera.cx += (targetCx - this.camera.cx) * t;

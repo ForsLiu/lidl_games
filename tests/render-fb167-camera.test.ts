@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Renderer, type ViewState } from '../src/render/canvas';
 import { GRID_H, GRID_W } from '../src/sim/grid';
+import { finishSundering } from '../src/sim/sundering';
 import { World } from '../src/sim/world';
 import { defaultSettings } from '../src/ui/settings';
 import { cfg } from './helpers';
@@ -188,5 +189,52 @@ describe('fb167: reducedMotion is respected', () => {
     r.update(0.1, reduced(), w); // same small step, but reducedMotion is on
     const rect = r.cameraViewRect();
     expect(rect.left + rect.width / 2).toBeCloseTo(32, 5);
+  });
+});
+
+/** Mirrors `canvas.ts`'s own `clampCameraCenter` (private) so the test can predict a clamped target without reaching into internals. */
+function clampCameraAxis(pos: number, viewTiles: number, gridSize: number): number {
+  const half = viewTiles / 2;
+  if (viewTiles >= gridSize) return gridSize / 2;
+  return Math.min(gridSize - half, Math.max(half, pos));
+}
+
+describe('fb168: the camera snaps on a Sundering teleport, not just first activation', () => {
+  it('snaps straight to the (possibly edge-clamped) Core center the same tick finishSundering teleports the Warden there', () => {
+    const r = new Renderer(bareCanvas());
+    const w = new World(cfg());
+    // Settle the camera far from the Core first, with reducedMotion off, so
+    // an ordinary (non-snapping) ease would leave a visible gap if fb168's
+    // fix were absent.
+    w.warden.x = 5;
+    w.warden.y = 5;
+    r.update(1, view(), w);
+    const zoom = r.cameraViewRect(); // viewTilesW/H are stable across this test — only pan changes below
+    finishSundering(w); // teleports w.warden to the Core center and emits 'sunder'
+    r.ingest(w, view()); // drains the 'sunder' fx event into cameraSnapPending
+    r.update(1 / 60, view(), w); // reducedMotion off, one ordinary small step
+    const rect = r.cameraViewRect();
+    const expectedCx = clampCameraAxis(w.warden.x, zoom.width, GRID_W);
+    const expectedCy = clampCameraAxis(w.warden.y, zoom.height, GRID_H);
+    expect(rect.left + rect.width / 2).toBeCloseTo(expectedCx, 5);
+    expect(rect.top + rect.height / 2).toBeCloseTo(expectedCy, 5);
+  });
+
+  it('without the fix, the same step would only ease partway — proving this test is non-vacuous', () => {
+    // Same setup as above, but skip ingest() so cameraSnapPending is never
+    // set — reproduces the pre-fix behavior and confirms the assertion above
+    // would actually have failed without it.
+    const r = new Renderer(bareCanvas());
+    const w = new World(cfg());
+    w.warden.x = 5;
+    w.warden.y = 5;
+    r.update(1, view(), w);
+    const zoom = r.cameraViewRect();
+    finishSundering(w);
+    // No r.ingest(w, view()) here.
+    r.update(1 / 60, view(), w);
+    const rect = r.cameraViewRect();
+    const expectedCx = clampCameraAxis(w.warden.x, zoom.width, GRID_W);
+    expect(rect.left + rect.width / 2).not.toBeCloseTo(expectedCx, 5);
   });
 });

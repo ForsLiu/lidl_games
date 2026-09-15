@@ -125,24 +125,32 @@ not already expose it) logs that need below instead of reaching into
       `class-board-windows`, none newly broken by this item) — refs:
       SPEC-FINAL §11, BACKLOG.md fb153b, BACKLOG-TERRAIN.md fb166.
 
-- [ ] (fb168) [bug] qa-playtester (fb167 verification): the camera eases
-      toward the Warden instead of snapping when `finishSundering()`
-      (`src/sim/sundering.ts`) teleports the Warden to the Core on the
-      TD->VS transition — the same discontinuity `reducedMotion`'s snap path
-      already special-cases for a different trigger (first activation), just
-      not for this one. Repro: settle the camera on a Warden standing far
-      from the Core, call `finishSundering(w)`, then one more
-      `renderer.update()` — the Warden is briefly outside `cameraViewRect()`
-      (~1 frame at a normal desktop stage size, ~13 frames / 0.22s at the
-      16-tile min-zoom a small/mobile stage clamps to). Cosmetic only — no
-      input or gameplay effect, `pointerToTile` and the edge/zoom clamps stay
-      correct throughout. Acceptance: the `'sunder'` fx event (or an
-      equivalent signal `canvas.ts`'s `ingest()` already reads) marks the
-      next camera update as a snap instead of an ease, the same way first
-      activation and `reducedMotion` already do; a regression test in
-      `tests/render-fb167-camera.test.ts` reproduces qa-playtester's repro
-      (import `finishSundering` from `src/sim/sundering.ts`) — refs: fb167,
-      `src/render/canvas.ts`'s camera-activation block, `src/sim/sundering.ts`.
+- [x] (fb168) [bug] **DONE 2026-09-15.** qa-playtester (fb167 verification):
+      the camera eased toward the Warden instead of snapping when
+      `finishSundering()` (`src/sim/sundering.ts`) teleports the Warden to
+      the Core on the TD->VS transition. Fixed by a new `cameraSnapPending`
+      flag (`src/render/canvas.ts`): `ingest()`'s existing `'sunder'` case
+      (already handled for screen shake) now also sets it; `update()`'s
+      camera block treats it as a third snap trigger alongside first
+      activation and `reducedMotion`, clearing it once consumed. Checked
+      `src/sim/sundering.ts` for any other Warden-teleporting transition that
+      should set the same flag — only `finishSundering` ever moves the
+      Warden (`advanceToNextBlock`, the VS->TD reverse boundary, doesn't), so
+      no second site was missed. Two new cases in
+      `tests/render-fb167-camera.test.ts` (`fb168: the camera snaps on a
+      Sundering teleport...`): one proving the fix (camera lands exactly on
+      the post-teleport, edge-clamp-aware target after one ordinary
+      `update()`), one a counter-proof that the same assertion fails without
+      `ingest()` ever seeing the `'sunder'` event, so the first test isn't
+      vacuous. code-reviewer APPROVE, no Critical/Major findings (traced the
+      fast-forward tick-batch-vs-once-per-frame `ingest()`/`update()` timing
+      for a stuck-flag/double-consumption hazard — none found, since JS is
+      single-threaded and `update()` always runs after that frame's
+      `ingest()` calls). `npx tsc --noEmit` clean; targeted file 13/13,
+      plus `tests/p10h-transition-sweep.test.ts`, `tests/dps-panel.test.ts`,
+      `tests/g2-determinism.test.ts` (other Sundering-adjacent suites) green
+      — refs: fb167, `src/render/canvas.ts`'s camera-activation block,
+      `src/sim/sundering.ts`.
 
 ### Blocked out of Scope
 
