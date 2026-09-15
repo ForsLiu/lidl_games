@@ -19,7 +19,26 @@
   `modifiers.json` (the Tuner's save path validates through the same
   now-strict schema) for a false-rejection risk — found none. `npm run
   test:fast` baseline unchanged (22 pre-existing terrain/grid/class-board
-  failures from fb166's grid resize, none new).
+  failures from fb166's grid resize, none new). A separate commit on this
+  same push (`721a0ba`) removed an unused `GRID_W`/`GRID_H` import in
+  `tests/ui-fb102-bossbar-rail-overlap.test.ts` that was failing
+  `tsc --noEmit` and blocking `npm run build`/CI's "Typecheck and build"
+  step outright — pre-existing on the branch before this session, not
+  touched by the fb184 commit, needing no behavior change or regression
+  test (tsc is its own guard). **CI confirmed still red after both fixes,
+  for reasons neither touches**: GitHub Actions run `34961182758`'s
+  "fast tier + build" job fails with the exact same 22 tests across 8
+  files (`class-board*`, `content-complete`, `fb077-terrain-wiring`,
+  `grid`, `p1a-sealing`, `terrain-cost`, `b007-tile-bounds`) as the local
+  baseline — and master's own most recent CI run (`34953890149`, the
+  commit this branch started from) is independently `conclusion: failure`
+  for the identical reason, already self-documented in that commit's own
+  message ("npm run test:fast currently fails 40 tests, all inside
+  tests/ui*... known consequence of fb166's grid resize landing without
+  its paired fb167 fix — not introduced by or in scope for this item").
+  Not chased further inside this item: it is a large, already-tracked,
+  cross-lane gap (fb166 done; fb167/fb153b's sim half still open) outside
+  fb184's scope and this main-lane session's remit.
   **Skipped this cycle, logged reason:** the priority-directive item after
   fb193 is **fb194** (and the file's separately-reopened **fb163** asks for
   the identical fix under Q180/Q191 — split `numberScale` into two
