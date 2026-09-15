@@ -567,19 +567,37 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       was not re-derived, matching this item's acceptance (idle-only).
       `npx tsc --noEmit` clean; targeted suite 41/41 green — refs: fb166
       shortcut #1.
-- [ ] (fb181) [test] fb166 shipped without a regression test that would have
-      caught its own `GATES.east`/`MODIFIER_GATES` border bug at the exact
-      commit that resized the grid — QA's fb166 finding named the missing
-      check directly: "every `GATES` entry satisfies
-      `tx===0||ty===0||tx===GRID_W-1||ty===GRID_H-1` for the *current*
-      constants." Add it (a new `tests/terrain*`-glob file, since
-      `tests/grid.test.ts` itself is outside this lane's Scope) covering both
-      `GATES` and `MODIFIER_GATES`: every entry sits on the current
-      `GRID_W`/`GRID_H` border, is not a corner, and no two entries (across
-      both lists) share a tile. Acceptance: the test fails against the
-      pre-fb166 broken state (verify by temporarily reverting the constants
-      under test, not just asserting it would) and passes today — refs: fb166
-      QA finding 2, fb156 Log.
+- [x] (fb181) [test] **DONE 2026-09-15 —** fb166 shipped without a regression
+      test that would have caught its own `GATES.east`/`MODIFIER_GATES`
+      border bug at the exact commit that resized the grid — QA's fb166
+      finding named the missing check directly: "every `GATES` entry
+      satisfies `tx===0||ty===0||tx===GRID_W-1||ty===GRID_H-1` for the
+      *current* constants." Shipped `tests/terrain-gate-legality.test.ts`
+      (new file, `tests/grid.test.ts` itself being outside this lane's
+      Scope): a locally-reimplemented `isLegalGatePosition` (a byte-for-byte
+      mirror of `grid.ts`'s own `assertGatePositionLegal`, not imported, so
+      the test does not share a bug with what it checks) covering both
+      `GATES` and `MODIFIER_GATES` — every entry on the current
+      `GRID_W`/`GRID_H` border, not a corner, no two entries across either
+      list sharing a tile — plus a historical-regression case reconstructing
+      the exact pre-fb153b broken `GATES.east` literal (`{tx:35,ty:17}`,
+      confirmed via `git show ef778af^:src/sim/grid.ts` rather than assumed)
+      and asserting the check correctly flags it illegal, alongside synthetic
+      off-border/corner/non-integer/off-grid/collision cases. Also confirmed
+      from the same historical commit, correcting this file's own initial
+      assumption: `MODIFIER_GATES` was never part of the historical bug (it
+      was already `{tx:3,ty:GRID_H-1}`-shaped, relative not literal) — only
+      `world.ts`'s separate, out-of-scope Fourth Gate literal carried the
+      `{tx:12,ty:19}` defect this file's neighbouring comments describe.
+      `npx tsc --noEmit` clean; targeted suite 4/4 green. code-reviewer:
+      APPROVE — independently re-verified the historical commit, confirmed
+      `isLegalGatePosition` is a faithful predicate-order mirror of the real
+      one, and confirmed the "verify by temporarily reverting" acceptance
+      clause is satisfied in spirit by the reconstructed-fixture approach (a
+      real failing assertion against the literal historical value plus
+      general synthetic cases, not a comment claiming it would fail) even
+      though it does not literally revert the live `grid.ts` export — refs:
+      fb166 QA finding 2, fb156 Log.
 
 ### Generated 2026-09-03 (lane generation rule)
 
