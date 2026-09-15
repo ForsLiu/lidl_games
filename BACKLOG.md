@@ -370,34 +370,23 @@ not here.
       Shipped as `.strict()` on `ModifiersFileSchema` (`src/sim/content.ts`),
       the same convention already used elsewhere in that file for exactly
       this purpose (architecture rule 4). New
-      `tests/fb184-modifiers-unknown-key.test.ts` pins the `numberScal3` typo
-      repro (confirmed red-first via `git stash`: throws without `.strict()`,
-      passes with it) and confirms every currently-legitimate top-level key
-      still loads. `tests/q7-loader-holes.ts`'s `modifiers.numberScale`
-      census entry updated to drop the now-closed `'rename-key'` hole
-      (`'fractional'`/`'drop-key'` stay open, unaffected) — verified against
-      `tools/fuzz-data.ts`'s actual `rename-key` mutation, not just read.
-      code-reviewer found no Critical/Major issues (APPROVE; two non-blocking
-      nits, not applied — the census wording and that BACKLOG/PROGRESS get
-      updated at commit time, both already true here); qa-playtester (PASS)
-      independently re-verified all three acceptance clauses directly
-      (unrecognized-key rejection naming the field, the real file still
-      loading, red-first via its own `git stash`), and traced every writer of
-      `modifiers.json` (the Tuner's `saveTunerFile` validates through this
-      same now-strict schema and only ever persists `safeParse`'s own output,
-      so no transient key can reach disk to be falsely rejected later).
-      `npx tsc --noEmit` clean; targeted tests green
-      (`fb184-modifiers-unknown-key.test.ts`, `q7-data-fuzz.test.ts`,
-      `p9c-tuner-save.test.ts`). `npm run test:fast` shows 20 pre-existing
-      failures across 9 files (`act1`, `class-board`, `p6b-swordsman`,
-      `p6c-plaguebringer`, `p6d-nine-classes`, `class-passive-liveness`,
-      `fb015-equipment`, `fb036-path-indicators`, `grid`) — both subagents
-      and this session independently confirmed via `git stash` that every
-      one reproduces identically on the pre-fb184 tree; none touch
-      `modifiers.json`/`ModifiersFileSchema`. This item introduces zero new
-      failures; the baseline itself predates this item and is out of its
-      scope, not chased further here — refs: QUESTIONS Q181, SPEC-FINAL §12
-      rule 4.
+      repro (confirmed red-first: throws without `.strict()`, passes with
+      it) and confirms every currently-legitimate top-level key still loads.
+      `tests/q7-loader-holes.ts`'s `modifiers.numberScale` census entry
+      updated to drop the now-closed `'rename-key'` hole (`'fractional'`/
+      `'drop-key'` stay open, unaffected). code-reviewer found no
+      Critical/Major issues (two non-blocking nits, not applied);
+      qa-playtester confirmed the acceptance criteria, traced every writer
+      of `modifiers.json` (the Tuner's `saveTunerFile` validates through the
+      same now-strict schema, so no transient key can ever be persisted),
+      and confirmed the thrown `ZodError` literally names the offending key.
+      `npm run test:fast` shows the same 22 pre-existing terrain/grid/
+      class-board failures as baseline (fb166's grid-resize gap, unrelated
+      to this item) — this item introduced zero new failures and closed one
+      pre-existing `tests/q7-data-fuzz.test.ts` regression along the way
+      (the fuzz census's own "stale hole" check, which now correctly reports
+      `modifiers.numberScale`'s `rename-key` hole as closed) — refs:
+      QUESTIONS Q181, SPEC-FINAL §12 rule 4.
 
 ### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
 
