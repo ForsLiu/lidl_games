@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb092 done — G13's "enough builds"
+  floor restored; the 35% share-cap clause re-pinned red, honestly, not
+  closed.** `fb054`'s density pass had left `tests/p10c-weapon-share.
+  test.ts`'s live "enough builds banking all 18 TD waves" assertion
+  failing — re-measured at just **1 of 10** `BUILDS` reaching the pool
+  (worse than the item's own stale "3 of 10" note), against the `>=4`
+  floor. Reused `fb076`'s own lever (`data/towers.json` `attack.damage` on
+  the same six towers, ~10-29% each: arrow_spire 210->270, ballista
+  216->278, ember_brazier 150->193, frost_obelisk 248->320, mortar
+  4200->5400, venom_spore 588->650; `tesla_coil` untouched, `fb076`'s own
+  T1/T3 coupling-wall pin) — `top.length` now measures 4, floor assertion
+  itself byte-unchanged (checked against `git show HEAD:...`, not assumed).
+  **The 35% cap clause could not close as a side effect**: banking the
+  fourth build leaned on `mortar`, whose own VS share rose to **55.3%**
+  (from the prior `b080` pin of 36.5%) — recorded honestly in the
+  `.skip`-ed clause and the test file's header, not hidden or forced green.
+  A partial-revert attempt (mortar 5400->4550) made both numbers worse
+  (pool back to 2, mortar share to 64.2%) and was reverted; logged in the
+  test file rather than silently dropped. Left open for a dedicated
+  `[balance]` item. Verified full-tier (a `/data` balance value): code-
+  reviewer APPROVE (no Critical/Major — spot-checked the data change
+  against the test's own narrative, confirmed the floor's bytes are
+  unchanged, ran `tests/a4-single-type.test.ts`'s live solo-T3 clause
+  directly and confirmed all seven towers, six of them raised here, still
+  measure 0/5). qa-playtester PASS — independently re-ran the probe rather
+  than trusting the diff, confirmed `npm run test:fast` shows the identical
+  20-failure set before/after via its own `git stash` control, and spot-
+  checked `tests/boss.test.ts`'s live scripted-win case (63.5s, clear of
+  the 20s floor `fb099` once broke on these same towers).
+  **QA also found one pre-existing, unrelated bug — not filed as a new
+  BACKLOG item this session (standing instruction for this run: never
+  generate new backlog items), flagging it here for a future session to
+  file instead.** `tests/a4-single-type.test.ts`'s live `p12h` case (T1
+  solo-tower viability with `baseHpMul` reverted to identity) now measures
+  `ember_brazier`/`frost_obelisk` at 0/5 and `venom_spore` at 2/5 against
+  its own docstring's claimed `{5,5,5,5,4,4,5}` table — confirmed
+  byte-identical with and without this session's diff via `git stash`
+  bisection, so some other `/data` change landed after p12h broke it,
+  undetected because the file sits outside the fast tier (~615s
+  standalone). `tests/p11d-g13-t3-margin.test.ts`'s "measured 17/18"
+  comment is also stale at HEAD (actual 2/18) — same pre-existing-drift
+  shape, also unrelated to this diff. Neither chased further here — refs:
+  SPEC-FINAL §14 G13, BACKLOG fb054/fb076/b080.
+
 - **2026-09-15 — main lane: BACKLOG fb184 done — loader closes the
   `numberScal3`-typo class of silent mis-scale (QUESTIONS Q181).**
   `ModifiersFileSchema` (`src/sim/content.ts`) now carries `.strict()`, the
