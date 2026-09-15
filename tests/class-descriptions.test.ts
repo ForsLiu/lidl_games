@@ -125,7 +125,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, isScaledClassPath } from '../src/sim/content';
+import { isScaledClassPath, loadContent } from '../src/sim/content';
 
 const content = loadContent();
 
@@ -246,8 +246,9 @@ const NO_NUMBER: readonly { cls: string; slot: Slot; why: string }[] = [
     slot: 'passive',
     why:
       'Kinship\'s sentence is "Aura effects also affect summons" — a routing rule with no magnitude. ' +
-      '(§4.2 additionally states a "summon cap +1" for it, which is unimplemented and tracked as a ' +
-      "row of c008's ledger; it is not in the shipped sentence, so it is not a claim here.)",
+      '(§4.2 additionally states a "summon cap +1" for it; c004 authored that half onto the passive\'s ' +
+      "`mods` (c008's ledger), but the shipped sentence still only states the aura routing rule, so " +
+      'the cap is not a claim here.)',
   },
 ];
 
@@ -377,8 +378,10 @@ const LEDGER: readonly Claim[] = [
     // p12a (BALANCE DIRECTION v2 §A): 2 -> 6 with the x3 kit re-anchor. The
     // sentence is authored in `data/classes.json` beside the field it quotes,
     // so the re-anchor had to move both — this row is what makes that a
-    // decision rather than a silent desync.
-    token: '6',
+    // decision rather than a silent desync. fb164: fb153a's `numberScale`
+    // (0.1) then moved the *loaded* value to 0.6 without moving the sentence,
+    // which `readLoaded` now reads directly — so the token moves with it.
+    token: '0.6',
     means: "the burning aura's damage per second",
     // "/s" is outside the extractor's unit set, so the keyword is what holds
     // the rate: QA reworded it to "damage/minute" against a per-second field.
@@ -557,14 +560,17 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'animist',
     slot: 'towerPassive',
-    token: '+10%',
+    token: '+8%',
     means: 'tower area',
     keywords: ['area'],
-    // Authored on the *global* `area` key for want of a `towerArea`, so the
-    // sentence's "All towers" is narrower than what the field reaches. That is
-    // c013's measurement, not this file's: the number matches, the noun does
-    // not.
-    status: { kind: 'field', path: ['towerPassive', 'mods', 'area'], as: 'pct' },
+    // fb083: authored on its own `towerArea` key now — before the fix this
+    // rode the *global* `area` key for want of one, so the sentence's "All
+    // towers" was narrower than what the field actually reached. That
+    // reach was (and still partly is) c013's measurement, not this file's:
+    // the number matches, and the noun matches too as of fb083. p12j
+    // (2026-09-07): 10% -> 8%, G8 nerf pass (animist was over the win-rate
+    // ceiling); description updated in step, ledger token follows.
+    status: { kind: 'field', path: ['towerPassive', 'mods', 'towerArea'], as: 'pct' },
   },
 
   /* ---------------------------------------------------------- §4.2 Paladin */
@@ -635,7 +641,9 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'time_lord',
     slot: 'towerPassive',
-    token: '+10%',
+    // p12j (2026-09-07): 10% -> 5%, G8 nerf pass (time_lord was over the
+    // win-rate ceiling); description updated in step, ledger token follows.
+    token: '+5%',
     means: 'tower range per bonus level',
     keywords: ['range'],
     status: { kind: 'field', path: ['towerPassive', 'bonusRangeMul'], as: 'pct' },
@@ -643,7 +651,7 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'time_lord',
     slot: 'towerPassive',
-    token: '+10%',
+    token: '+5%',
     means: 'tower AoE area per bonus level',
     // Latent only because `bonusRangeMul === bonusAoeMul` today; QA swapped the
     // two nouns and the first draft could not tell.
@@ -771,30 +779,24 @@ function readFrom(doc: RawClassesDoc, c: Claim): number | undefined {
   return as ? CONVERT[as](raw) : raw;
 }
 
-/** The same value as `loadContent()` carries it — what the sim actually runs on. */
+/**
+ * The same value as `loadContent()` carries it — what the sim actually runs
+ * on. fb164: this used to read a scaled path (`isScaledClassPath`) back
+ * through `numberScale` to compare against the *authored* number a sentence
+ * quoted — that measured "does the sentence match /data" rather than "does
+ * the sentence match what the sim runs on", and left the one scaled claim
+ * (pyromancer's Contagious Flame) free to quote a number six times too large.
+ * fb164 re-anchored every affected `/data` sentence (`classes.json` included)
+ * to the post-scale magnitude, so this now reads `loadContent()`'s value
+ * straight, with no un-scaling step.
+ */
 function readLoaded(c: Claim): number | undefined {
   const path = claimPath(c);
   if (!path) return undefined;
   const walked = walk(content.classByKey.get(c.cls), path);
   if (typeof walked !== 'number') return undefined;
-  // fb153a: `numberScale` divides every authored kit magnitude at load. A
-  // description sentence quotes the *authored* number and `data/classes.json`
-  // still holds it, so the claim is read back through the scale rather than
-  // rewritten in display units.
-  //
-  // **This narrows the guarantee, and the narrowing is tracked, not hidden**
-  // (code review, Major 5). This file's header states its purpose as "a retune
-  // moves the field and leaves the sentence behind, and the player is then told
-  // a number the sim does not run on". Between the sentence and the *authored*
-  // field that invariant still holds and is still checked here. Between the
-  // sentence and what the sim actually *runs on* it no longer does — every
-  // quoted magnitude in `/data` is now a factor of `numberScale` off what the
-  // player sees, uniformly. That is a real, shipped defect, filed as BACKLOG
-  // **fb164**, whose acceptance re-points this read back at the loaded value
-  // once the sentences derive their numbers instead of quoting them.
-  const raw = isScaledClassPath(path) ? walked / content.modifiers.numberScale : walked;
   const as = claimConvert(c);
-  return as ? CONVERT[as](raw) : raw;
+  return as ? CONVERT[as](walked) : walked;
 }
 
 function description(cls: string, slot: Slot): string {
@@ -1034,7 +1036,17 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       }
     }
     for (const c of DATA_HOMED) {
-      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(readFrom(RAW, c)!, 9);
+      const path = claimPath(c)!;
+      // fb164: `readLoaded` now reads the post-`numberScale` value, so a
+      // scaled path (today, only pyromancer's `flameDps`) diverges from the
+      // raw authored document by exactly that factor — the divergence
+      // fb164 exists to close between the *sentence* and the sim, not one
+      // this check should paper over between the loader and the raw file.
+      const factor = isScaledClassPath(path) ? content.modifiers.numberScale : 1;
+      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(
+        readFrom(RAW, c)! * factor,
+        9,
+      );
     }
   });
 

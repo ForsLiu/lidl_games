@@ -55,6 +55,10 @@ export const STAT_KEYS = [
   'bleedLifesteal',
   /** fb042 (§6.3, Q146): a one-time addition to `content.waves.startGold` at World construction — the additive, non-compounding replacement for the retired Ember/relic Constellation nodes' dead stats. */
   'startingGold',
+  /** fb083 (§2, §4.2, QUESTIONS Q163): a towers-only Area, the same split `towerRange`/`charRange` already made for Range — `area` alone is the character's own kit (`classArea`, classes.ts) and every §5 tower/wielded-attack radius shared it, so a "towers" passive (Animist's Wide Grove) or a tower-side mechanic (Time Lord's Chronal Surge) authored on the bare `area` key widened the caster's own Actives too, never the intent of either. `effectiveTowerRange`/`effectiveTowerAoe` and `fireTower`'s own local `area` alias (towers.ts) read this instead of `area`; `vswield.ts`'s wielded-attack radii deliberately keep reading the character's own `area`/`charRange` per its own §6.1 "rides the character's stats" doc comment. */
+  'towerArea',
+  /** fb084 (§4.2 Animist "summon cap +1"): a generic point bonus on top of a class's own authored `active.summonCap` and its `class_line` skill-card bonus — the three `classes.ts` summon sites (`fireSummonTurret`/`fireRaiseSkeletons`/`fireManifestSpirit`) add it alongside `classLineBonus(w)` so a passive can raise the cap without a class-key check in code. */
+  'summonCap',
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -71,6 +75,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   power: 'mul',
   attackSpeed: 'mul',
   area: 'mul',
+  towerArea: 'mul',
   moveSpeedPct: 'mul',
   maxHpPct: 'mul',
   pickupPct: 'mul',
@@ -116,6 +121,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   towerAtkFlat: 'flat',
   bleedLifesteal: 'flat',
   startingGold: 'flat',
+  summonCap: 'flat',
   // A reduction with its own cap (`cdrCap`), not a multiplier on a base. V3 §2's
   // rule is about boosts; see QUESTIONS Q62.
   //
@@ -144,6 +150,7 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
   power: 'percent',
   attackSpeed: 'percent',
   area: 'percent',
+  towerArea: 'percent',
   moveSpeedPct: 'percent',
   maxHpPct: 'percent',
   pickupPct: 'percent',
@@ -178,6 +185,7 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
   dashCharges: 'point',
   burnSpread: 'point',
   luck: 'point',
+  summonCap: 'point',
   // Booleans in disguise (see `STAT_KIND`'s comment) — not a percent either.
   secondWind: 'point',
   lastStandSundering: 'point',
@@ -225,6 +233,7 @@ export const STAT_SCALED: Record<StatKey, boolean> = {
   burnSpread: false,
   luck: false,
   startingGold: false,
+  summonCap: false,
   // Fractions and booleans authored like point totals.
   leech: false,
   cdr: false,
@@ -236,6 +245,7 @@ export const STAT_SCALED: Record<StatKey, boolean> = {
   power: false,
   attackSpeed: false,
   area: false,
+  towerArea: false,
   moveSpeedPct: false,
   maxHpPct: false,
   pickupPct: false,

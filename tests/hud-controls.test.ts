@@ -151,10 +151,11 @@ describe('in-run control row', () => {
     expect(panel.hidden).toBe(true);
   });
 
-  // code-reviewer finding: both `#sw-modal` and `#sw-charpanel` are opaque,
-  // full-stage overlays, so opening the character panel over an already-
-  // showing pause card or level-up offer screen used to hide it and eat its
-  // clicks rather than refuse to open.
+  // code-reviewer finding: `#sw-modal` is an opaque, full-stage overlay and
+  // `#sw-charpanel` a corner-docked one (fb157), but both share the same
+  // stacking context — opening the character panel over an already-showing
+  // pause card or level-up offer screen used to hide it and eat its clicks
+  // rather than refuse to open.
   it('refuses to open over the pause card, and over the level-up offer screen', () => {
     const w = new World(cfg());
     hud.setPaused(true, w);
@@ -181,11 +182,11 @@ describe('in-run control row', () => {
 
   // qa-playtester finding on fb004: the above test only covered opening the
   // panel *over* an already-showing modal. The reverse — opening the panel
-  // first, then a level-up fires or the player hits Escape — let both opaque
-  // full-stage overlays show at once, the panel on top eating the modal's
-  // clicks (the single most common real interaction, since level-ups happen
-  // constantly in Act II, exactly when a player is likely to have the panel
-  // open to check their build).
+  // first, then a level-up fires or the player hits Escape — let both
+  // overlays show at once, the panel eating the modal's clicks (the single
+  // most common real interaction, since level-ups happen constantly in Act
+  // II, exactly when a player is likely to have the panel open to check
+  // their build).
   it('closes itself if a level-up offer screen opens while it is showing', () => {
     const w = new World(cfg());
     hud.toggleCharacterPanel(w);

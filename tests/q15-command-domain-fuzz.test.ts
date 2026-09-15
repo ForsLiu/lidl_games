@@ -27,6 +27,7 @@ import {
   runCoreUpgradeProbe,
   runSingleProbe,
   type CensusEntry,
+  type Family,
 } from '../tools/fuzz-command-domain';
 import { runInPhase } from '../tools/fuzz-input';
 import { buildTower } from '../src/sim/towers';
@@ -58,6 +59,21 @@ const EXPECTED_FIELD_KEYS = [
   'dev.fast_forward.amount',
 ] as const;
 
+/**
+ * fb119 filed this whole suite `.skip`-ed after root-causing a real
+ * `ERR_MODULE_NOT_FOUND` in the worker (a `worker_threads.Worker`'s
+ * `--import tsx/esm` transforms its entry file but does not give that
+ * file's own extensionless imports resolution, so `fuzz-command-domain-
+ * worker.ts`'s `./fuzz-command-domain` import — and everything beneath it in
+ * `/src/sim` — died at worker startup). fb172 landed the scoped fix this
+ * file's old write-up asked for: `tools/fuzz-command-domain-worker-boot.mjs`
+ * registers the loader *on the worker thread itself* before dynamically
+ * importing the real worker, which is exactly what makes the transitive
+ * extensionless graph resolve. That fix is live and this suite now runs and
+ * passes in full (fb174 re-verified: 30/30 green) — the `.skip` above this
+ * comment had gone stale and was still silently dropping the whole file
+ * until fb174 removed it.
+ */
 describe('q15 command-argument domain fuzz', () => {
   let census: CensusEntry[];
 
@@ -139,6 +155,107 @@ describe('q15 command-argument domain fuzz', () => {
       const r = await probeInWorker('dev.xp.amount', 'posInf', 4000);
       expect('hangs' in r && r.hangs).toBe(false);
     }, 15000);
+
+    // fb172 (code review): the case above asserts only the *negative* limb, so
+    // nothing proved the deadline path still fires — and that path is the
+    // whole reason these probes pay for a worker at all. It became newly
+    // load-bearing when a `.mjs` bootstrap was put between parent and worker
+    // to register the TS loader on the worker thread, since a bootstrap that
+    // swallowed the timeout would leave a genuine hang hanging the runner
+    // instead. A 1 ms deadline beats worker startup (~500 ms) every time, so
+    // this forces the limb deterministically without needing a probe that
+    // really loops forever.
+    it('reports `hangs` and terminates the worker when the deadline is impossible', async () => {
+      const r = await probeInWorker('pick.index', 'negative', 1);
+      expect('hangs' in r && r.hangs).toBe(true);
+    }, 15000);
+
+    // fb173 (qa-playtester on fb172): `setTimeout` clamps any delay above
+    // 2**31-1 — and `Infinity`/`NaN` — down to **1 ms**, so asking for a
+    // *longer* deadline used to produce the shortest possible one and every
+    // probe came back a false `hangs`. That is not hypothetical: it is
+    // reachable through `bench/q44-worker-timing-probe.ts`, the tool built to
+    // tell a real hang from a slow one, which reported "75/75 never resolved"
+    // at a 3e9 ms ceiling — precisely the wrong conclusion, from the
+    // instrument meant to prevent it. A rejected deadline is the only safe
+    // answer: silently substituting 4000 would hide the caller's mistake.
+    it.each([Infinity, NaN, 2 ** 31, -1, 0])('refuses the unusable deadline %p rather than clamping it to 1 ms', async (ms) => {
+      await expect(probeInWorker('pick.index', 'negative', ms)).rejects.toThrow(/deadline/i);
+    });
+  });
+
+  describe('runCensus() retries a load-induced hangs once before recording it (fb174)', () => {
+    // A concurrent test run can stretch worker startup past the deadline
+    // (measured 3/3 reproductions, a different combo hanging each time — the
+    // signature of contention, not a real hang). Without a retry, that false
+    // verdict is what the "matches the recorded holes exactly" test above
+    // would see, and — worse, per fb174's filed report — is exactly what
+    // used to reach `classify()` never at all while this suite was `.skip`-ed
+    // (see this file's top comment), so nothing was ever red to say a
+    // combination had gone untested. `runCensus`'s injectable `prober` param
+    // (default `probeInWorker`) lets this prove the retry path without
+    // paying for a real worker or a real timeout.
+    it('a hangs verdict on the first attempt does not get recorded — the retried real outcome does', async () => {
+      // Keyed on the target combo's own fieldKey/family, not on call order —
+      // `runCensus`'s iteration order is an implementation detail this test
+      // should not depend on.
+      const targetKey = FIELD_SPECS[0].key;
+      const targetFamily = FAMILIES[0];
+      let targetCalls = 0;
+      const fakeProber = async (fieldKey: string, family: Family) => {
+        if (fieldKey === targetKey && family === targetFamily) {
+          targetCalls++;
+          if (targetCalls === 1) return { hangs: true as const };
+        }
+        // A non-empty `problems` classifies as 'accepted' for either
+        // category (see `classify()`), so the expected verdict here does
+        // not depend on which field this is.
+        return { fieldKey, family, threw: false, problems: ['forced by fb174 test'], digestChanged: false };
+      };
+      const census = await runCensus(4000, 1, fakeProber);
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      expect(census.length).toBe(total); // nothing dropped from the output
+      expect(targetCalls).toBe(2); // exactly one retry, for the combo that hung
+      const entry = census.find((e) => e.fieldKey === targetKey && e.family === targetFamily)!;
+      expect(entry.verdict).toBe('accepted'); // surfaced the real outcome, not 'hangs'
+      expect(entry.detail).toContain('forced by fb174 test');
+    });
+
+    it('a hangs verdict on one combo does not affect its concurrently-running neighbors', async () => {
+      // The motivating scenario: one combo times out (load contention) while
+      // several others, sharing the same `mapLimit` concurrency pool, resolve
+      // normally at the same time.
+      const targetKey = FIELD_SPECS[0].key;
+      const targetFamily = FAMILIES[0];
+      let targetCalls = 0;
+      const fakeProber = async (fieldKey: string, family: Family) => {
+        if (fieldKey === targetKey && family === targetFamily) {
+          targetCalls++;
+          if (targetCalls === 1) return { hangs: true as const };
+        }
+        return { fieldKey, family, threw: false, problems: [], digestChanged: false };
+      };
+      const census = await runCensus(4000, 6, fakeProber);
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      expect(census.length).toBe(total);
+      expect(targetCalls).toBe(2);
+      const entry = census.find((e) => e.fieldKey === targetKey && e.family === targetFamily)!;
+      expect(entry.verdict).toBe('rejected'); // surfaced, not left as 'hangs'
+      // Every other combo resolved cleanly on its first (only) call, unaffected.
+      for (const e of census) {
+        if (e.fieldKey === targetKey && e.family === targetFamily) continue;
+        expect(e.verdict).toBe('rejected');
+      }
+    });
+
+    it('a combination that hangs twice is still recorded as hangs, not dropped or retried again', async () => {
+      const fakeProber = async () => ({ hangs: true as const });
+      const total = FIELD_SPECS.length * FAMILIES.length;
+      const census = await runCensus(4000, total, fakeProber);
+      expect(census.length).toBe(total);
+      expect(census.every((e) => e.verdict === 'hangs')).toBe(true);
+      expect(census.every((e) => e.detail.includes('retried once'))).toBe(true);
+    });
   });
 
   describe('closed finding (BACKLOG b007): an out-of-grid tx used to alias onto a real tile one row up, for both upgrade and sell', () => {

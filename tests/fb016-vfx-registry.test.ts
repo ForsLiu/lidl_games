@@ -103,7 +103,10 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
     expect(missing.classes).toEqual(['a_brand_new_class']);
     expect(missing.cores).toEqual(['a_brand_new_core']);
     // The real content alone is fully covered — this is what keeps the check honest.
-    expect(missingVfxCoverage(realClassKeys, realCoreKeys)).toEqual({ classes: [], cores: [] });
+    // fb098 added a third, optional `towerKeys` param; omitted here (defaults
+    // to `[]`) since this test's own scope is classes/Cores — fb098's own
+    // test file covers tower VFX coverage the same way.
+    expect(missingVfxCoverage(realClassKeys, realCoreKeys)).toEqual({ classes: [], cores: [], towers: [] });
   });
 });
 

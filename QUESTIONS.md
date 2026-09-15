@@ -11,6 +11,56 @@ Entries are numbered **Q1–Q32** so verdicts can be given compactly, e.g.
 
 ## Verdict log
 
+- **2026-09-14 (feedback/verdicts-q168-205)** — Q168–Q205 verdicts applied in
+  full: every entry not named below is **approved** as its chosen default.
+  Q168 approved (additive shape); fb124's full-charge-only variant is not
+  wanted — **closed**. Q171 approved, all nine, including "rock and high
+  ground stop the Warden"; the Act II high-ground residual is accepted as a
+  non-issue and closed, and the Burrower's widened untargetable window is
+  capped at 3 s ⚖ per surfacing (fb129). Q172 **ORDER** fb128 — carry the
+  sub-tick cooldown remainder (control run required, low priority). Q174
+  approved; fb118's global renumbering stays queued at low priority. Q175
+  and Q193 approved as evidence; **DECISION** (amends BALANCE DIRECTION v2
+  §A): the 35% own-kit-share target fought the owner's own VS design (the
+  character wields every tower, so wielded damage is supposed to dominate).
+  Restated: own-kit VS share target = 15% ⚖ from TD wave 12, a BALANCE.md
+  target (not a G8 clause), measured for the nine classes whose kit has a
+  damaging VS Active; bloodlord, engineer and animist are exempt and
+  measured for the record only. Keep `kitPowerMul`/`kitBuildMul` as shipped;
+  do not pursue route (b). G8 = T3 win-rate band + pairwise fingerprint
+  distance (§D) only. Q177 approved (baseHpMul 20, T1 re-anchor). Q180 and
+  Q191 **OVERRIDE** — option (b), scoped narrowly: split the factor.
+  `numberScale` applies only to economy A (enemy HP and damage dealt to
+  enemies); economy B (enemy damage output, character/Core/structure HP,
+  equipment flats, regen) is NOT scaled, and the five crossing constants
+  (lifesteal, Blood Tithe, Wrath, Corpse store, Vampire Heart overheal) take
+  the inverse factor. Revert fb164's prose re-anchoring for economy B
+  numbers — filed as the economy-split item, normal priority. Q181
+  approved; **ORDER** the cheap closer — loader refuses unknown top-level
+  keys in modifiers.json. Q182–Q184, Q192, Q194–Q195, Q197, Q199, Q200,
+  Q202–Q205 approved (final boss spawns at a gate; round-robin cursor;
+  censoring recorded; p12e resolved via Q192; the `/data` re-anchor of
+  `warden_eater.hp`). Q196 approved — p12j's 9/12 stands; **ORDER** (new
+  item, ahead of any further G8 re-tune): per-class survivability bands —
+  add `maxHpMul`/`defenseBonus` to `data/classes.json`, authored ⚖:
+  swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10 (on top of
+  Guardian Stance), necromancer x1.2/+5, all other classes x1.0/+0; then
+  re-measure G8 for swordsman, necromancer and engineer. Q201 (both the
+  `fb162`-merge entry and the `p12i` entry, a numbering collision) approved:
+  master's unconditional overkill clamp stands, and censored runs are
+  excluded from `winRate` and named rather than folded in as a loss.
+  **PRIORITY DIRECTIVE** issued for the batch, in order: (1) the
+  survivability item (Q196); (2) the economy-split item (Q180/Q191); (3)
+  the kit-share target restatement in BALANCE.md and tests (Q193); (4) the
+  queued content-lane items (equipment sets fb056, Madness King fb057,
+  Voltbolt fb059, Plaguebringer charge fb061, poison-barrel pin fb062), and
+  check why `lane/content`'s routine delivered nothing since Sep 3; (5)
+  everything else in queue order. Filed as BACKLOG items **fb193**
+  (survivability bands), **fb194** (economy split), **fb195** (kit-share
+  restatement) in BACKLOG.md ahead of the existing queue, per the
+  directive's order; fb129/fb128 already existed and are unchanged; the
+  content-lane check is logged in BACKLOG-CONTENT.md's Log.
+
 - **2026-09-01 (feedback/verdicts-q134-154)** — Q134–Q154 verdicts applied in
   full: every entry not named below is **approved** as its chosen default.
   Q138 **OVERRIDE**: balance tooling (`tools/sim.ts`, `tools/sweep.ts`,
@@ -478,23 +528,23 @@ Q91 and Q102 corrections if not yet done.
 
 - **Q167. [fb093] SPEC-FINAL.md's §5.5 Time Core worked example ("step 1: passive income +1 gold/s") is now stale against `/data/cores.json` (`goldPerSecond` 1 -> 3, this item's own fix).** Not a design conflict — §5.5 explicitly marks all Core numbers ⚖, so the file was always licensed for exactly this kind of gate-driven retune (the same license `b070` already used once for Corpse's `storeRatio`). code-reviewer's review of fb093 flagged the drift rather than let a future reader rediscover it from a spec/data mismatch. Chosen default: log it here rather than edit SPEC-FINAL.md's own inline example text — CLAUDE.md's sources-of-truth order treats SPEC-FINAL as the design authority, not a live-synced mirror of `/data`, and every other ⚖-marked Core number already carries the same drift (SPEC-FINAL was never re-edited after `b070`'s `storeRatio` change either) — no owner action needed, this is a documentation note, not a verdict request. — Reason: CLAUDE.md sources-of-truth order (§1) and measurement rules; SPEC-FINAL §5.5's own ⚖ marking. — (owner verdict: approved. ORDER (after the balance pass): append a generated "Current tuned values" appendix to SPEC-FINAL listing every ⚖ number from /data, regenerated by `npm run status`, so the spec never silently drifts from data again. Filed as fb138.)
 
-- **Q168. [BACKLOG-CONTENT c017, owed to the merge] A skill card that raises a cap must raise whatever else holds the value below that cap, or it buys nothing.** `min(cap, natural) + bonus` is identically `min(cap + bonus, natural + bonus)`, so adding a `class_line` bonus to a resolved value is not a reinterpretation of "cap +N" — it is the only reading of it that binds when the cap is not the binding term. Authoring rule that follows: a `class_line` card naming a cap is only payable if `/data` puts that cap **below** every other ceiling on the same value. Shipped Archer data put `pierceCap 6` at exactly `1 + chargeCapSeconds`, which is the boundary case, and it was dead. Chosen default: the additive shape in `fireDeadeyeDraw` (`min(pierceCap, 1 + floor(held)) + classLineBonus`), whose visible cost is that the bonus also lands on a partial charge; the full-charge-only variant is BACKLOG fb124 and is the owner's call. — Reason: SPEC-FINAL §2 ("base-less stats ... add") and §6.3's ladder; measured red-first in `tests/class-deeper-draw.test.ts`.
+- **Q168. [BACKLOG-CONTENT c017, owed to the merge] A skill card that raises a cap must raise whatever else holds the value below that cap, or it buys nothing.** `min(cap, natural) + bonus` is identically `min(cap + bonus, natural + bonus)`, so adding a `class_line` bonus to a resolved value is not a reinterpretation of "cap +N" — it is the only reading of it that binds when the cap is not the binding term. Authoring rule that follows: a `class_line` card naming a cap is only payable if `/data` puts that cap **below** every other ceiling on the same value. Shipped Archer data put `pierceCap 6` at exactly `1 + chargeCapSeconds`, which is the boundary case, and it was dead. Chosen default: the additive shape in `fireDeadeyeDraw` (`min(pierceCap, 1 + floor(held)) + classLineBonus`), whose visible cost is that the bonus also lands on a partial charge; the full-charge-only variant is BACKLOG fb124 and is the owner's call. — Reason: SPEC-FINAL §2 ("base-less stats ... add") and §6.3's ladder; measured red-first in `tests/class-deeper-draw.test.ts`. — (owner verdict: approved, additive shape. The full-charge-only variant is NOT wanted — fb124 closed.)
 
-- **Q169. [BACKLOG-CONTENT c018, owed to the merge] Engineer `active2.cooldownSeconds` 12 -> 3 and Animist `active1.cooldownSeconds` 16 -> 4, retuned so the two summon-cap cards can be reached.** The cadence ceiling `floor((duration - 1/60) / cooldown) + 1` must reach `summonCap + maxRank * perRank` or the §6.3 cap card is dead data; of the three fields that set it, §4.2 authors both durations and both caps and nothing authors an Active's cooldown, so the cooldown moved. Note the exact-multiple off-by-one: `Run.step` casts before `updateClassSummons` expires, so when `duration / cooldown` is an integer the n-th summon never coexists with the first (a round 5.0 s reads 4, not 5) — the next ⚖ pass that reaches for a round number will hit it. — Reason: SPEC-FINAL §4.2, §6.3; the only free lever; measured in `tests/class-line-bonus.test.ts`'s deviation block.
+- **Q169. [BACKLOG-CONTENT c018, owed to the merge] Engineer `active2.cooldownSeconds` 12 -> 3 and Animist `active1.cooldownSeconds` 16 -> 4, retuned so the two summon-cap cards can be reached.** The cadence ceiling `floor((duration - 1/60) / cooldown) + 1` must reach `summonCap + maxRank * perRank` or the §6.3 cap card is dead data; of the three fields that set it, §4.2 authors both durations and both caps and nothing authors an Active's cooldown, so the cooldown moved. Note the exact-multiple off-by-one: `Run.step` casts before `updateClassSummons` expires, so when `duration / cooldown` is an integer the n-th summon never coexists with the first (a round 5.0 s reads 4, not 5) — the next ⚖ pass that reaches for a round number will hit it. — Reason: SPEC-FINAL §4.2, §6.3; the only free lever; measured in `tests/class-line-bonus.test.ts`'s deviation block. — (owner verdict: approved)
 
-- **Q170. [BACKLOG-CONTENT c019, owed to the merge] `active2_cdr` is a cast-rate card, not a summon-count card.** On a class whose Active2 summons against a cap, at any cap rank where a summon outlives a full lap of that cap (`floor((duration - 1/60) / cooldown) >= cap`), the cap binds the count and no cooldown reduction can add a summon. What the card buys there is how fast the board fills from empty and how young the set on it stays; turrets have no HP, so those two are the whole of its remaining value. Deliberate, and the price of Q169's reachable caps; **not** a claim the card never buys summons — at Engineer cap rank 2 (cap 4) a turret outlives only 3 laps, so cdr rank 1 buys +0.67 mean turrets, and Animist's Recall Totem (cap 1, enforced in code) buys uptime 0.7492 -> 0.9989 -> 1.0000, its second rank worth one tenth of one percent. Two of twelve cards are affected; the other ten have no cap to collide with. — Reason: SPEC-FINAL §6.3 vs §4.2 caps in direct tension; pinned across all twelve classes in `tests/class-active2-cdr.test.ts`.
+- **Q170. [BACKLOG-CONTENT c019, owed to the merge] `active2_cdr` is a cast-rate card, not a summon-count card.** On a class whose Active2 summons against a cap, at any cap rank where a summon outlives a full lap of that cap (`floor((duration - 1/60) / cooldown) >= cap`), the cap binds the count and no cooldown reduction can add a summon. What the card buys there is how fast the board fills from empty and how young the set on it stays; turrets have no HP, so those two are the whole of its remaining value. Deliberate, and the price of Q169's reachable caps; **not** a claim the card never buys summons — at Engineer cap rank 2 (cap 4) a turret outlives only 3 laps, so cdr rank 1 buys +0.67 mean turrets, and Animist's Recall Totem (cap 1, enforced in code) buys uptime 0.7492 -> 0.9989 -> 1.0000, its second rank worth one tenth of one percent. Two of twelve cards are affected; the other ten have no cap to collide with. — Reason: SPEC-FINAL §6.3 vs §4.2 caps in direct tension; pinned across all twelve classes in `tests/class-active2-cdr.test.ts`. — (owner verdict: approved)
 
-- **Q171. [lane/terrain fb064h-fb064v, folded at the 2026-09-04 lane merge] Terrain design decisions taken inside the lane (BACKLOG-TERRAIN.md's Log carries the measurements), extending Q162.** (1) Core placement: `validateCorePlacement` agrees with `legalCoreAnchors` by construction (same rules, one enumeration), pinned over 100 seeds; the suggested anchor is the legal anchor nearest `CORE_X/CORE_Y`, tie-broken by build room — a balance-neutral choice, since Core-to-gate distance is what every wave is tuned against. (2) High ground: there is no `boss` family — bosses classify as `ground` and their *specials* are exempt because `boss.ts` is not a call site; a blanket boss exemption let the Gatebreaker chew a cliff tower from below. The trait-typo guard is a test, not a loader rule (an inert family is not unpayable data). (3) Seed domain is `[-2^31, 2^32-1]`, not int32: run seeds are drawn `>>> 0`, so half of real seeds sit above 2^31 and `seed | 0` destroyed `requestedSeed`'s provenance in the normal case; the retry walk wraps modulo 2^32 and `-0` is normalised. (4) The repro dump: tile rows carry tiles only, gates are a header line; two integrity checks (hash + glyph histogram) because neither covers the other; the parse never re-measures bands. (5) `density.jitter` is bounded only by `frac`: `scatter()` is best-effort, so a budget ceiling is not a placement ceiling and would refuse configs the generator satisfies. (6) Uncontestable high plots are *repaired* to rock, not rejected — a band on the count would be a construction invariant that can never fail. (7) The approach band (`maxGateDetour`, checked from both sides) is measured to the suggested anchor, which makes `ROOM_RADIUS` legality-affecting; its rule-4 exemption is re-opened as BACKLOG fb134. (8) Character passage is a per-kind `blocksCharacter` flag in `data/terrain.json`: rock and high ground stop the Warden (the owner's open veto is "character flies over rock"; one-line data edit if so). (9) At the merge, the run's gate list is threaded as the *last* parameter of every gate-reading terrain function so the lane's positional calls survive; `describeTerrain` still reads the base `GATES` (fb134). Open, for the owner: the Act II residual — with melee denied the cliff edge and Spitters skipping structures during the VS phase, every high-ground tower is uncontestable in Act II — and the Burrower's widened untargetable window (both BACKLOG fb129). — Reason: each is the most spec-consistent default under §12 rule 4 and CLAUDE.md's measurement rules; none is marked ⚖ or `[designer-fill]`, so they are logged for an owner verdict rather than picked silently.
+- **Q171. [lane/terrain fb064h-fb064v, folded at the 2026-09-04 lane merge] Terrain design decisions taken inside the lane (BACKLOG-TERRAIN.md's Log carries the measurements), extending Q162.** (1) Core placement: `validateCorePlacement` agrees with `legalCoreAnchors` by construction (same rules, one enumeration), pinned over 100 seeds; the suggested anchor is the legal anchor nearest `CORE_X/CORE_Y`, tie-broken by build room — a balance-neutral choice, since Core-to-gate distance is what every wave is tuned against. (2) High ground: there is no `boss` family — bosses classify as `ground` and their *specials* are exempt because `boss.ts` is not a call site; a blanket boss exemption let the Gatebreaker chew a cliff tower from below. The trait-typo guard is a test, not a loader rule (an inert family is not unpayable data). (3) Seed domain is `[-2^31, 2^32-1]`, not int32: run seeds are drawn `>>> 0`, so half of real seeds sit above 2^31 and `seed | 0` destroyed `requestedSeed`'s provenance in the normal case; the retry walk wraps modulo 2^32 and `-0` is normalised. (4) The repro dump: tile rows carry tiles only, gates are a header line; two integrity checks (hash + glyph histogram) because neither covers the other; the parse never re-measures bands. (5) `density.jitter` is bounded only by `frac`: `scatter()` is best-effort, so a budget ceiling is not a placement ceiling and would refuse configs the generator satisfies. (6) Uncontestable high plots are *repaired* to rock, not rejected — a band on the count would be a construction invariant that can never fail. (7) The approach band (`maxGateDetour`, checked from both sides) is measured to the suggested anchor, which makes `ROOM_RADIUS` legality-affecting; its rule-4 exemption is re-opened as BACKLOG fb134. (8) Character passage is a per-kind `blocksCharacter` flag in `data/terrain.json`: rock and high ground stop the Warden (the owner's open veto is "character flies over rock"; one-line data edit if so). (9) At the merge, the run's gate list is threaded as the *last* parameter of every gate-reading terrain function so the lane's positional calls survive; `describeTerrain` still reads the base `GATES` (fb134). Open, for the owner: the Act II residual — with melee denied the cliff edge and Spitters skipping structures during the VS phase, every high-ground tower is uncontestable in Act II — and the Burrower's widened untargetable window (both BACKLOG fb129). — Reason: each is the most spec-consistent default under §12 rule 4 and CLAUDE.md's measurement rules; none is marked ⚖ or `[designer-fill]`, so they are logged for an owner verdict rather than picked silently. — (owner verdict: approved, all nine, including "rock and high ground stop the Warden". Of the two open items: (a) the Act II high-ground residual is accepted as a non-issue — towers are inert during VS waves and enemies hunt the Warden, so an uncontestable inert tower changes nothing; closed, no action. (b) the Burrower's widened untargetable window is capped at 3s ⚖ per surfacing — small item, folded into fb129's acceptance.)
 
-- **Q172. [BACKLOG-CONTENT c009 Log, session 6] Tower attack speed is quantised to whole 60 Hz ticks, and bonuses under a per-tower threshold change nothing.** `tickCooldown` (`types.ts:17`) clamps to 0 and `updateTowers` re-adds the interval from that exact 0, so the sub-tick remainder is discarded every shot rather than accumulated: rate of fire is `ceil(interval / (dt * speed))` ticks per shot. Arrow Spire (42.86 ticks): +0% and +2% both fire every 43 ticks; +3% is the first step that moves it. Not filed as a bug — possibly intended, and only visible far below anything shipped (Wind Slash is +10%) — but `tests/class-tower-passive-liveness.test.ts` had to declare a tick-floor exception to its "a retune never reddens this file" rule, and a `towerAttackSpeed` tuning pass in small steps will find inert steps. Owner call: carry the remainder (BACKLOG fb128, control run required) or record the floor as intended. — Reason: CLAUDE.md measurement rules; SPEC-FINAL §12 rule 1's fixed 60 Hz step is silent on remainder handling.
+- **Q172. [BACKLOG-CONTENT c009 Log, session 6] Tower attack speed is quantised to whole 60 Hz ticks, and bonuses under a per-tower threshold change nothing.** `tickCooldown` (`types.ts:17`) clamps to 0 and `updateTowers` re-adds the interval from that exact 0, so the sub-tick remainder is discarded every shot rather than accumulated: rate of fire is `ceil(interval / (dt * speed))` ticks per shot. Arrow Spire (42.86 ticks): +0% and +2% both fire every 43 ticks; +3% is the first step that moves it. Not filed as a bug — possibly intended, and only visible far below anything shipped (Wind Slash is +10%) — but `tests/class-tower-passive-liveness.test.ts` had to declare a tick-floor exception to its "a retune never reddens this file" rule, and a `towerAttackSpeed` tuning pass in small steps will find inert steps. Owner call: carry the remainder (BACKLOG fb128, control run required) or record the floor as intended. — Reason: CLAUDE.md measurement rules; SPEC-FINAL §12 rule 1's fixed 60 Hz step is silent on remainder handling. — (owner verdict: ORDER fb128 — carry the sub-tick cooldown remainder, control run required, low priority.)
 
-- **Q173. [BACKLOG-UI fb098, owed to the merge] `MIN_DISTANCE` (`src/render/colorblind-sim.ts`) is a tunable that would normally get an entry here per the `COLOR_DISTANCE_MIN` precedent (`tools/audit/checks.ts`).** The UI lane documented its numbers in that file's header instead, since QUESTIONS.md is outside its Scope. Logged here for cross-reference symmetry; no owner action needed. — Reason: same convention as `COLOR_DISTANCE_MIN`'s own entry.
+- **Q173. [BACKLOG-UI fb098, owed to the merge] `MIN_DISTANCE` (`src/render/colorblind-sim.ts`) is a tunable that would normally get an entry here per the `COLOR_DISTANCE_MIN` precedent (`tools/audit/checks.ts`).** The UI lane documented its numbers in that file's header instead, since QUESTIONS.md is outside its Scope. Logged here for cross-reference symmetry; no owner action needed. — Reason: same convention as `COLOR_DISTANCE_MIN`'s own entry. — (owner verdict: approved)
 
-- **Q174. [lane merge 2026-09-04] Backlog ids stopped being global.** The UI lane's 2026-09-04 generation runs assigned fb076-fb113 while BACKLOG.md assigned fb076-fb099, so 18 ids name two items; the four ids duplicated *inside* BACKLOG-UI.md (fb089/fb090/fb091/fb097, filed there from the other lanes at the 2026-09-03 merge) were renumbered fb114-fb117 at this merge, and the cross-file collision is BACKLOG fb118 (it touches 30+ committed test filenames, so it is an item, not a merge-time edit). Chosen default until fb118 lands: new ids start at fb118 in every file and a lane takes the next free number across all four files, as the 2026-09-03 merge note already said. — Reason: CLAUDE.md Lanes ("ids unchanged"); the note existed and was not read — the fix is a check, not another note.
+- **Q174. [lane merge 2026-09-04] Backlog ids stopped being global.** The UI lane's 2026-09-04 generation runs assigned fb076-fb113 while BACKLOG.md assigned fb076-fb099, so 18 ids name two items; the four ids duplicated *inside* BACKLOG-UI.md (fb089/fb090/fb091/fb097, filed there from the other lanes at the 2026-09-03 merge) were renumbered fb114-fb117 at this merge, and the cross-file collision is BACKLOG fb118 (it touches 30+ committed test filenames, so it is an item, not a merge-time edit). Chosen default until fb118 lands: new ids start at fb118 in every file and a lane takes the next free number across all four files, as the 2026-09-03 merge note already said. — Reason: CLAUDE.md Lanes ("ids unchanged"); the note existed and was not read — the fix is a check, not another note. — (owner verdict: approved; fb118 stays queued at low priority; the "next free id across all four files" rule stands.)
 
-- **Q175. [p12a] BALANCE DIRECTION v2 §A's own-kit-share target (>=35% of the character's VS damage) is unreachable by §A's own two levers, by a factor of ~30-500x per class — the binding constraint is VS-wielded weapon scaling, not kit numbers.** p12a built both mechanisms §A orders — `kitPowerMul` (`1 + 0.12 x wavesCleared`, x3.16 by wave 18, applied at `damageEnemy`'s single choke point to every `class_*` source) and the x3 re-anchor of all 29 authored absolute kit-damage magnitudes in `data/classes.json` — and measured the target with a control pair (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, 12 classes x seeds 1-2, T1, `cycles: 6`, full tree; recorded per class in `tests/class-kit-damage-share.test.ts`'s header and BALANCE.md's "Kit relevance target"). Control: 0.00%-1.67% VS kit share. Treatment: 0.00%-5.16%; **0 of 12 classes reach 35%**, best `time_lord` 5.16%, and four classes (`bloodlord`/`paladin` via `titheDamageMul`/`wrathDamageMul`, `engineer`/`animist` via `summonStatMul`) did not move at all, because their kit damage is a multiplier on a number that is not the kit's own and so is outside the re-anchor's field set by design. The two levers together are worth ~9.5x at wave 18 and that is already in the treatment column: closing the remaining gap needs another ~7x on the best class and 100x+ on the eight under 0.6%. Gate deltas for the anchor, measured against a `git worktree` control at HEAD: G1's mean victorious run 33.39 -> 33.41 min at 24/24 wins both sides (well inside its 30-36 band), and `boss.test.ts` (G14) green in both trees — the anchor moves the kit without moving the run, precisely because the kit is such a small fraction of the total that this Q is about. The mechanism, measured rather than argued: in a VS wave the built towers are inert and the character *wields* them (`src/sim/vswield.ts`), and that wielded damage inherits the full tower-upgrade + Constellation scaling stack while the kit inherits none of it — swordsman seed 1 puts 134.3M of its 134.5M VS damage through wielded weapons. So the denominator grows with the player's build and the numerator does not, and no `data/classes.json` edit can close a gap that widens as the run goes on. A second, independent reason the treatment column barely moved, found by qa-playtester and worth carrying into p12f: **12 of the 29 re-anchored values cannot move this metric at all.** Every `basicAttack.dps` was tripled, but the class basic attack is TD-only (`src/sim/run.ts:541`, `if (!w.huntsWarden) classBasicAttack(w, cls)`, Q117), and the target is a VS-window ratio. That also explains `bloodlord`/`paladin`'s flat 0.00% more directly than the multiplier-shaped-kit story does: in VS their only damaging kit source is an Active whose magnitude is a multiplier, so they have no authored VS kit number at all. Three candidate fixes, all outside a single [balance] item's blast radius: (a) scale the kit on the same axis the wielded weapons ride (make `kitPower` read the build, not the wave count); (b) cut wielded-weapon scaling in VS so the two sides start comparable — a shared lever of exactly p12b/p12c's size; (c) restate the target against a denominator that excludes wielded weapons, which changes what §A is asking for. Chosen default, pending an owner verdict: **keep both p12a mechanisms as shipped** (they are ordered, they are measurable, and (a)/(b) both build on `kitPower` existing), **record the target as measured-red rather than force it**, and file the closure as **BACKLOG p12f**, sequenced after p12c so it tunes against p12b/p12c's new baseline rather than the pre-directive one. — Reason: CLAUDE.md rule 5 (choose, log, continue) and the item's own "full 12/12 may not be reachable in one item — log the real per-class numbers, don't force it"; SPEC-FINAL §14 G8.
+- **Q175. [p12a] BALANCE DIRECTION v2 §A's own-kit-share target (>=35% of the character's VS damage) is unreachable by §A's own two levers, by a factor of ~30-500x per class — the binding constraint is VS-wielded weapon scaling, not kit numbers.** p12a built both mechanisms §A orders — `kitPowerMul` (`1 + 0.12 x wavesCleared`, x3.16 by wave 18, applied at `damageEnemy`'s single choke point to every `class_*` source) and the x3 re-anchor of all 29 authored absolute kit-damage magnitudes in `data/classes.json` — and measured the target with a control pair (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, 12 classes x seeds 1-2, T1, `cycles: 6`, full tree; recorded per class in `tests/class-kit-damage-share.test.ts`'s header and BALANCE.md's "Kit relevance target"). Control: 0.00%-1.67% VS kit share. Treatment: 0.00%-5.16%; **0 of 12 classes reach 35%**, best `time_lord` 5.16%, and four classes (`bloodlord`/`paladin` via `titheDamageMul`/`wrathDamageMul`, `engineer`/`animist` via `summonStatMul`) did not move at all, because their kit damage is a multiplier on a number that is not the kit's own and so is outside the re-anchor's field set by design. The two levers together are worth ~9.5x at wave 18 and that is already in the treatment column: closing the remaining gap needs another ~7x on the best class and 100x+ on the eight under 0.6%. Gate deltas for the anchor, measured against a `git worktree` control at HEAD: G1's mean victorious run 33.39 -> 33.41 min at 24/24 wins both sides (well inside its 30-36 band), and `boss.test.ts` (G14) green in both trees — the anchor moves the kit without moving the run, precisely because the kit is such a small fraction of the total that this Q is about. The mechanism, measured rather than argued: in a VS wave the built towers are inert and the character *wields* them (`src/sim/vswield.ts`), and that wielded damage inherits the full tower-upgrade + Constellation scaling stack while the kit inherits none of it — swordsman seed 1 puts 134.3M of its 134.5M VS damage through wielded weapons. So the denominator grows with the player's build and the numerator does not, and no `data/classes.json` edit can close a gap that widens as the run goes on. A second, independent reason the treatment column barely moved, found by qa-playtester and worth carrying into p12f: **12 of the 29 re-anchored values cannot move this metric at all.** Every `basicAttack.dps` was tripled, but the class basic attack is TD-only (`src/sim/run.ts:541`, `if (!w.huntsWarden) classBasicAttack(w, cls)`, Q117), and the target is a VS-window ratio. That also explains `bloodlord`/`paladin`'s flat 0.00% more directly than the multiplier-shaped-kit story does: in VS their only damaging kit source is an Active whose magnitude is a multiplier, so they have no authored VS kit number at all. Three candidate fixes, all outside a single [balance] item's blast radius: (a) scale the kit on the same axis the wielded weapons ride (make `kitPower` read the build, not the wave count); (b) cut wielded-weapon scaling in VS so the two sides start comparable — a shared lever of exactly p12b/p12c's size; (c) restate the target against a denominator that excludes wielded weapons, which changes what §A is asking for. Chosen default, pending an owner verdict: **keep both p12a mechanisms as shipped** (they are ordered, they are measurable, and (a)/(b) both build on `kitPower` existing), **record the target as measured-red rather than force it**, and file the closure as **BACKLOG p12f**, sequenced after p12c so it tunes against p12b/p12c's new baseline rather than the pre-directive one. — Reason: CLAUDE.md rule 5 (choose, log, continue) and the item's own "full 12/12 may not be reachable in one item — log the real per-class numbers, don't force it"; SPEC-FINAL §14 G8. — (owner verdict: approved as evidence. DECISION (amends BALANCE DIRECTION v2 §A): the 35% own-kit-share target fought the owner's own VS design — the character wields every tower, so wielded damage is supposed to dominate. Restated: own-kit VS share target = 15% ⚖ from TD wave 12, a BALANCE.md target (not a G8 clause), measured for the nine classes whose kit has a damaging VS Active; bloodlord, engineer and animist are exempt (identity via lifesteal/tithe and summons) and measured for the record only. Keep `kitPowerMul` and `kitBuildMul` as shipped; do not pursue route (b) (no cuts to wielded scaling). G8 = T3 win-rate band + pairwise fingerprint distance (§D) only.)
 
-- **Q176. [p12b] A geometric tier ladder cannot satisfy both halves of BALANCE DIRECTION v2 §B, because the difficulty response is bimodal over a factor of under 3.** *(Its measurements stand as taken, against `baseHpMul: 1.0`. Its impossibility conclusion is **withdrawn** — see Q177: the region where T5 lands in band was never swept, and on p12c's re-anchored base a geometric ladder does put T3 in band with T5 at its ceiling.)* §B asks for a ladder of the shape `x^(N-1)` with T3 in `[35%,70%]` and T5 in `[5%,20%]`. p12b built the ladder (three scalars in `data/modifiers.json`, read through `src/sim/tiers.ts`, `x^(tier-1)` so T1 is exactly 1.0 and every existing T1 measurement survives) and swept it against the G1 harness (engineer, scripted kit bot, `modifiers: []` so only the ladder varies). Measured, one variable (the tier) against the shipped 4.0/1.9/1.7 ladder, 12 seeds per rung: T1 100%, T2 100%, **T3 50%**, T4 **0%**, T5 **0%**. The cliff from "wins every seed" to "loses every seed" is about **one tier-step wide**. A geometric ladder forces `T4 = T3 × p` and `T5 = T3²`, so any per-step putting T3 mid-band necessarily puts T4 and T5 past the cliff; conversely a per-step gentle enough to land T5 in `[5%,20%]` leaves T3 winning ~100%. **A geometric ladder can hold at most one contested rung** — the clauses are mutually exclusive under §B's own shape, not a tuning miss. (The exploratory sweep that chose 4.0/1.9/1.7 is recorded in BALANCE.md for provenance only: qa-playtester correctly flagged that it varies all three scalars per row with unequal `n` and a non-monotonic pair, so it supports no per-axis claim — the single-variable tier ladder above is what the conclusion rests on.) **And the damage is not confined to T5:** T4 is 0/12 too, dying in Act I wave 1 with 0-5 kills, and since a tier unlocks only by winning the one below it, **T5 is unreachable in normal play**. The shipped ladder trades five fake rungs (pre-p12b, tier scaled nothing but the boss) for three real ones plus two broken ones; neither state is shippable. Chosen default, pending an owner verdict: **T3 wins the conflict** (per step 4.0 / 1.9 / 1.7 → T3 50% over 12 seeds, 37.5% over G1's 24, zero timeouts at any rung), because §B's structural instruction is that T3 becomes the reference tier the four gates measure at, while the T5 band is a ⚖ companion assertion; T5's and T4's 0% are recorded rather than forced, and pinned by a liveness gate (`tests/p12b-tier-ladder.test.ts`: every rung must clear a wave and score a kill) so the *shape* of the failure — nothing dies, rather than the run is merely hard — is not rediscovered. One further correction owed to qa-playtester: the first version of this entry and of BALANCE.md claimed zero tick-cap timeouts at every rung and concluded p12e's clause was pre-satisfied; **2 of G1's 24 T3 seeds do stall**, both censored victories, making the honest T3 figures 11/24 = 45.8% uncensored and a 39.20 min uncensored mean. Two ways out, both bigger than a [balance] item: (a) drop the geometric shape for a **per-tier table**, which can place all five rungs independently and is a small schema change; (b) attack the bimodality itself — Q159 already measured that a `TREE_AUTO_MAX` scripted build's outcome is governed by tick-cap exhaustion or one-off early RNG rather than by any smooth gradient, so it wins outright or dies, and no ladder shape can turn that into a graded curve. (a) makes the gates measurable now; (b) is the real fix and is the same wall Q157-Q161/Q166 describe. Filed as **BACKLOG p12g**. Sub-decision logged here rather than separately: the three scalars live in `data/modifiers.json` beside `tierRewardPerStep` rather than in §B's suggested new `data/tiers.json`, so the tier ladder is one file (§B's own text allows "or wherever tier scalars live"); and the final boss now takes the ladder's HP rung **instead of** its old borrowed `tierRewardPerStep` scale (SPEC 5.5's "×tier multiplier" had no real tier multiplier to name until now), so there is one tier HP scaling in the sim rather than two compounding. At the shipped per-step that is a large, deliberate boss buff rather than a like-for-like swap (×1.70 → ×16.0 at T3, ×2.40 → ×256 at T5), so G14's own measurements were re-pointed to T3 and re-measured rather than assumed. Related scope note: §B named only `coreDamage` among the enemy damage stats, so `explodeDamage`/`stompDamage`/`attackDamage` deliberately do not scale with tier. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules; SPEC-FINAL §14 G1/G8/G14/G23, SPEC 5.5.
+- **Q176. [p12b] A geometric tier ladder cannot satisfy both halves of BALANCE DIRECTION v2 §B, because the difficulty response is bimodal over a factor of under 3.** *(Its measurements stand as taken, against `baseHpMul: 1.0`. Its impossibility conclusion is **withdrawn** — see Q177: the region where T5 lands in band was never swept, and on p12c's re-anchored base a geometric ladder does put T3 in band with T5 at its ceiling.)* §B asks for a ladder of the shape `x^(N-1)` with T3 in `[35%,70%]` and T5 in `[5%,20%]`. p12b built the ladder (three scalars in `data/modifiers.json`, read through `src/sim/tiers.ts`, `x^(tier-1)` so T1 is exactly 1.0 and every existing T1 measurement survives) and swept it against the G1 harness (engineer, scripted kit bot, `modifiers: []` so only the ladder varies). Measured, one variable (the tier) against the shipped 4.0/1.9/1.7 ladder, 12 seeds per rung: T1 100%, T2 100%, **T3 50%**, T4 **0%**, T5 **0%**. The cliff from "wins every seed" to "loses every seed" is about **one tier-step wide**. A geometric ladder forces `T4 = T3 × p` and `T5 = T3²`, so any per-step putting T3 mid-band necessarily puts T4 and T5 past the cliff; conversely a per-step gentle enough to land T5 in `[5%,20%]` leaves T3 winning ~100%. **A geometric ladder can hold at most one contested rung** — the clauses are mutually exclusive under §B's own shape, not a tuning miss. (The exploratory sweep that chose 4.0/1.9/1.7 is recorded in BALANCE.md for provenance only: qa-playtester correctly flagged that it varies all three scalars per row with unequal `n` and a non-monotonic pair, so it supports no per-axis claim — the single-variable tier ladder above is what the conclusion rests on.) **And the damage is not confined to T5:** T4 is 0/12 too, dying in Act I wave 1 with 0-5 kills, and since a tier unlocks only by winning the one below it, **T5 is unreachable in normal play**. The shipped ladder trades five fake rungs (pre-p12b, tier scaled nothing but the boss) for three real ones plus two broken ones; neither state is shippable. Chosen default, pending an owner verdict: **T3 wins the conflict** (per step 4.0 / 1.9 / 1.7 → T3 50% over 12 seeds, 37.5% over G1's 24, zero timeouts at any rung), because §B's structural instruction is that T3 becomes the reference tier the four gates measure at, while the T5 band is a ⚖ companion assertion; T5's and T4's 0% are recorded rather than forced, and pinned by a liveness gate (`tests/p12b-tier-ladder.test.ts`: every rung must clear a wave and score a kill) so the *shape* of the failure — nothing dies, rather than the run is merely hard — is not rediscovered. One further correction owed to qa-playtester: the first version of this entry and of BALANCE.md claimed zero tick-cap timeouts at every rung and concluded p12e's clause was pre-satisfied; **2 of G1's 24 T3 seeds do stall**, both censored victories, making the honest T3 figures 11/24 = 45.8% uncensored and a 39.20 min uncensored mean. Two ways out, both bigger than a [balance] item: (a) drop the geometric shape for a **per-tier table**, which can place all five rungs independently and is a small schema change; (b) attack the bimodality itself — Q159 already measured that a `TREE_AUTO_MAX` scripted build's outcome is governed by tick-cap exhaustion or one-off early RNG rather than by any smooth gradient, so it wins outright or dies, and no ladder shape can turn that into a graded curve. (a) makes the gates measurable now; (b) is the real fix and is the same wall Q157-Q161/Q166 describe. Filed as **BACKLOG p12g**. Sub-decision logged here rather than separately: the three scalars live in `data/modifiers.json` beside `tierRewardPerStep` rather than in §B's suggested new `data/tiers.json`, so the tier ladder is one file (§B's own text allows "or wherever tier scalars live"); and the final boss now takes the ladder's HP rung **instead of** its old borrowed `tierRewardPerStep` scale (SPEC 5.5's "×tier multiplier" had no real tier multiplier to name until now), so there is one tier HP scaling in the sim rather than two compounding. At the shipped per-step that is a large, deliberate boss buff rather than a like-for-like swap (×1.70 → ×16.0 at T3, ×2.40 → ×256 at T5), so G14's own measurements were re-pointed to T3 and re-measured rather than assumed. Related scope note: §B named only `coreDamage` among the enemy damage stats, so `explodeDamage`/`stompDamage`/`attackDamage` deliberately do not scale with tier. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules; SPEC-FINAL §14 G1/G8/G14/G23, SPEC 5.5. — (owner verdict: approved as its chosen default — not individually named in the Q168-205 batch; its measurements and the withdrawal of its impossibility conclusion already stand per Q177.)
 
 - **Q177. [p12c] T1 re-anchored to contested margins, and a retraction: the tier ladder is *not* impossible — the real blocker is the tick cap.** §C's targets are met. `data/enemies.json` gained a roster-wide `baseHpMul`, shipped at **20**, giving **16/24 (66.7%) wins, 33% close-win, median Core HP at victory 53.8%** — the win-rate band `[55%,90%]`, the `>=25% close-win` clause and the 30-60% median all satisfied. Getting there first required showing that §C's own named levers do not move what §C measures: `waves.hpScalePerWave` **compounds per wave** (`p^(wave-1)`), so 1.22 -> 1.34 — x4.9 more HP by wave 18 — still gave 12/12 wins and moved the median margin only 100% -> 90.9%, because it lands on the waves the tower line already dominates; and enemy `coreDamage` was inert *at the difficulty it was measured against*, with the Core at 100% at victory leaving nothing to scale. (That last is a property of the old baseline, not of the game: post-anchor 7 of 24 seeds lose to the Core, so `coreDamage` and p12b's rung are live again.) The lever is a flat roster-wide factor, the shape fb025's global x10 pass already used.
 
@@ -502,27 +552,27 @@ Q91 and Q102 corrections if not yet done.
 
   **What the correction exposed instead, and it is worse.** Re-running T3's 24 seeds with the tick cap lifted from 45 to 120 simulated minutes: **62.5% wins and zero timeouts**, against 37.5% and six timeouts at the 45-minute cap. A quarter of the seed set was being censored, and censored seeds are disproportionately *wins* — so every rung's recorded rate is biased down by an amount that grows with how contested the tier is. That makes the tick cap, not the ladder, the thing blocking a trustworthy measurement of any of these gates: the ladder's apparent ordering (66.7 / 41.7 / 37.5 / 33.3 / 20.8) is monotone only on censored numbers, and cannot be confirmed until the censoring is gone. Chosen default: **ship the ladder** (`baseHpMul` 20, per-step 1.07/1.05/1.03 — T1 66.7%, T3 in band on both the censored and uncensored readings, every rung playable with real close-wins, which also fixes p12b's dead-content failure) and record the ordering as *unconfirmed pending §E*. **p12g is retired** — its premise, that no ladder shape works, is the claim being retracted here — and **p12e (timeout elimination) is promoted to the blocker for this whole arc**, since no gate measured against a 45-minute cap can be trusted while a quarter of its seeds hit it.
 
-  **The cost of the anchor, named rather than buried.** G13's solo-viability clause (`tests/a4-single-type.test.ts`) went from 5/5/5/5/4/5/4 to **0/5 for all seven towers**: at x20 enemy HP no single tower type holds the wave curve alone. `.skip`-ed with that number, re-enable point p12d. That is a real trade — a tower that soloed the whole curve was a statement about a difficulty the bot won 100% of the time with the Core untouched — but it is the owner's to accept or reject, and it is the strongest argument against keeping the anchor at 20. The final boss also takes the roster multiplier (365,000 -> 7.3M at T1); its fight-length case still passes, measured, not assumed. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules — this entry is itself an application of "'my change improved X' needs the control run", the control here being the sweep that was not run; BALANCE DIRECTION v2 §B/§C/§E, SPEC-FINAL §14.
+  **The cost of the anchor, named rather than buried.** G13's solo-viability clause (`tests/a4-single-type.test.ts`) went from 5/5/5/5/4/5/4 to **0/5 for all seven towers**: at x20 enemy HP no single tower type holds the wave curve alone. `.skip`-ed with that number, re-enable point p12d. That is a real trade — a tower that soloed the whole curve was a statement about a difficulty the bot won 100% of the time with the Core untouched — but it is the owner's to accept or reject, and it is the strongest argument against keeping the anchor at 20. The final boss also takes the roster multiplier (365,000 -> 7.3M at T1); its fight-length case still passes, measured, not assumed. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules — this entry is itself an application of "'my change improved X' needs the control run", the control here being the sweep that was not run; BALANCE DIRECTION v2 §B/§C/§E, SPEC-FINAL §14. — (owner verdict: approved — baseHpMul 20, T1 re-anchor.)
 
-- **Q178. [environment setup] A missing browser makes the four UI suites SKIP, not fail — and the skip is loud, overridable, and refusable.** `tests/b032`/`b034`/`b035`/`b036` called `chromium.launch({ headless: true })` directly, so a checkout installed with `npm install --ignore-scripts` (no browser download) failed them in `beforeAll` with `Executable doesn't exist`. In the run report that is indistinguishable from the fold regressions these files exist to catch — and this file's own history (BACKLOG-CONTENT c001's red/green table) shows how much hand-auditing that ambiguity has already cost. A missing browser is a missing tool, so `tests/helpers/browser.ts` now decides availability and the suites use `describe.skipIf(!hasChromium)`, the repo's existing idiom (`class-kit-damage-share.test.ts:328`) — chosen over aliasing `describe.skip` because a bare `describe(` still satisfies `tools/gate-audit.ts`'s `hasLiveTopLevelDescribe` regex, which exists precisely to catch a gate backed by a fully skipped file; no gate cites these four today, so that was latent, not live. Three sub-decisions, each the narrow reading: (1) **availability is decided by launching, not by probing a path.** `chromium.executablePath()` reports the full-Chrome build (`chromium-1234/chrome-linux64/chrome`) while `launch({ headless: true })` resolves the separate `chromium-headless-shell` download — verified live against `coreBundle.js:43106` — so feeding the former back as `executablePath` takes Playwright's custom-binary branch and silently runs these layout assertions under a different browser than `tools/ui-audit.ts` uses, and mis-skips a host installed with `--only-shell`. Launching is the only check that agrees with what the suites do. (2) **The skip never covers a real failure.** Only Playwright's missing-executable message counts; a browser that exists but will not start still throws (verified: an existing non-executable path gives `spawn ... EACCES` and the file goes red). (3) **Neither escape hatch can fail quietly.** `PLAYWRIGHT_CHROMIUM_EXECUTABLE` is the opt-in for a sandbox shipping its own Chromium at an unpinned build, and throws when set to a path that does not exist rather than degrading to a skip; `STONEWAKE_REQUIRE_BROWSER=1` turns absence into a hard failure for a CI job that must not read green on skipped UI coverage; and the default skip prints why. The override stays **off by default**: this sandbox's Chromium is build 1194 against a pinned 1234, and these suites assert layout through fixed `waitForTimeout` delays — `b032` passed standalone under it and flaked inside a full `test:fast` run, the same load-sensitivity c001 recorded. Pinned by `tests/helpers-browser.test.ts`. Known gap, not fixed here: `tools/ui-audit.ts:464` still launches directly and so still hard-fails in an `--ignore-scripts` checkout; sharing the helper would mean either a `tools/` file (which moves `tests/q47-cli-crash-coverage.test.ts`'s exact 26-file census) or a tool importing from `tests/`, so it is left as an owner call. — Reason: CLAUDE.md working rule 3 (a test that cannot distinguish a missing tool from a regression is a bug) and rule 5 (choose, log, continue); no SPEC-FINAL § governs test-harness policy.
+- **Q178. [environment setup] A missing browser makes the four UI suites SKIP, not fail — and the skip is loud, overridable, and refusable.** `tests/b032`/`b034`/`b035`/`b036` called `chromium.launch({ headless: true })` directly, so a checkout installed with `npm install --ignore-scripts` (no browser download) failed them in `beforeAll` with `Executable doesn't exist`. In the run report that is indistinguishable from the fold regressions these files exist to catch — and this file's own history (BACKLOG-CONTENT c001's red/green table) shows how much hand-auditing that ambiguity has already cost. A missing browser is a missing tool, so `tests/helpers/browser.ts` now decides availability and the suites use `describe.skipIf(!hasChromium)`, the repo's existing idiom (`class-kit-damage-share.test.ts:328`) — chosen over aliasing `describe.skip` because a bare `describe(` still satisfies `tools/gate-audit.ts`'s `hasLiveTopLevelDescribe` regex, which exists precisely to catch a gate backed by a fully skipped file; no gate cites these four today, so that was latent, not live. Three sub-decisions, each the narrow reading: (1) **availability is decided by launching, not by probing a path.** `chromium.executablePath()` reports the full-Chrome build (`chromium-1234/chrome-linux64/chrome`) while `launch({ headless: true })` resolves the separate `chromium-headless-shell` download — verified live against `coreBundle.js:43106` — so feeding the former back as `executablePath` takes Playwright's custom-binary branch and silently runs these layout assertions under a different browser than `tools/ui-audit.ts` uses, and mis-skips a host installed with `--only-shell`. Launching is the only check that agrees with what the suites do. (2) **The skip never covers a real failure.** Only Playwright's missing-executable message counts; a browser that exists but will not start still throws (verified: an existing non-executable path gives `spawn ... EACCES` and the file goes red). (3) **Neither escape hatch can fail quietly.** `PLAYWRIGHT_CHROMIUM_EXECUTABLE` is the opt-in for a sandbox shipping its own Chromium at an unpinned build, and throws when set to a path that does not exist rather than degrading to a skip; `STONEWAKE_REQUIRE_BROWSER=1` turns absence into a hard failure for a CI job that must not read green on skipped UI coverage; and the default skip prints why. The override stays **off by default**: this sandbox's Chromium is build 1194 against a pinned 1234, and these suites assert layout through fixed `waitForTimeout` delays — `b032` passed standalone under it and flaked inside a full `test:fast` run, the same load-sensitivity c001 recorded. Pinned by `tests/helpers-browser.test.ts`. Known gap, not fixed here: `tools/ui-audit.ts:464` still launches directly and so still hard-fails in an `--ignore-scripts` checkout; sharing the helper would mean either a `tools/` file (which moves `tests/q47-cli-crash-coverage.test.ts`'s exact 26-file census) or a tool importing from `tests/`, so it is left as an owner call. — Reason: CLAUDE.md working rule 3 (a test that cannot distinguish a missing tool from a regression is a bug) and rule 5 (choose, log, continue); no SPEC-FINAL § governs test-harness policy. — (owner verdict: approved)
 
 - **Q179. [fb152] The DoT tick cadence is a `/data` constant with four design choices around it, and one measured consequence that is p12e's, not this item's.** The owner's order (`feedback/processed/20260905-190000-bug-dot-tick-cadence.md`) fixes the cadence at 0.25 s per DoT *instance* and requires the total over a stack's duration to be unchanged. Chosen defaults: (1) the number lives in `data/damagetypes.json` as top-level `dotTickInterval`, optional-with-default-0.25 like every other back-compat field there, with a loader rule refusing an interval coarser than any dot row's own `duration` (a cadence past the duration would deliver the row as one delayed hit, which is not a damage-over-time). (2) Each stack banks **two** numbers, `accTime` and `accDamage`, not one: everything authored per *second* (Burning's `armorShredPerSecond`, the splash's shred) prices the banked **time**, while the damage is banked at the dps in force on each frame — so a stack whose `dps` is rewritten mid-window (`applyDot`'s `refresh: 'shortest'` overwrite, Fire Poison's `firePoisonBoost` doubling) pays exactly what it accrued instead of re-pricing banked time at the new rate. (3) A stack's bank is flushed early **only** when the stack ends, which is what makes the last partial interval clipped-and-paid rather than dropped; `dotOutstanding` (Spreading Plague's C10 transfer) now counts the bank alongside `dps * remaining`, since an unpaid bank is owed exactly as much as time on the clock is. An **evicted** stack's bank is dropped with it — paying it at eviction would credit the incoming type's source with the outgoing type's damage. (4) The accumulators are hashed in `hashWorld`: two runs agreeing on `dps`/`remaining` but differing on what is banked diverge on the next tick. (5) The **time-varying** multipliers a DoT tick takes — `kitPowerMul`, Frozen's +30% damage taken, the final boss's damage-taken ramp — are priced **per frame as the bank accrues** (`dotVaryingMul`, a second bank `accScaled`), not once at the flush instant; the Warden's i-frame/god-mode window is applied the same way (`wardenDamageBlocked`, accrued frame by frame, `preGated` at the flush). Both were qa-playtester findings against the first implementation, and both were straight violations of the "total unchanged" clause: a Frozen window that opened and closed inside one interval vanished entirely (40.70 -> 40.00 on the repro), one that opened on an interval's last frame billed the whole interval at +30%, and a 0.2 s dash erased either nothing or a whole 0.25 s of converted DoT, retroactively including damage accrued before the dash began. (6) The **neighbour splash** flushes even when the tick killed the carrier (code-review finding): the bank was accrued while it was alive, and the pre-existing `!e.dead` guard cost one frame before this item and a whole interval after it — measured, a 20 dps / 3 s burn splashing 60 paid 55 when its carrier died on the last tick and 20 of 25 when it died at 1.25 s. The splash banks the **unscaled** damage, because each neighbour prices its own multipliers at the flush. (7) Scope boundary, logged rather than assumed: four per-frame `dot: true` sources are **zones, not §3 DoT instances**, and keep their 60 Hz cadence — `wardenAreaDamage`'s enemy ground fire (`combat.ts:597`, the one that still emits a `wardenhit` number every frame), the enemy fire field (`combat.ts:615`), Contagious Flame's touch damage (`classes.ts`) and the Time core's drain (`cores.ts`). If the owner's complaint was about the *numbers* rather than about §3 stacks, `combat.ts:597` is the remaining half; filed as **fb161**.
 
-**The measured consequences, corrected.** Re-timing every tick re-rolls each seed's trajectory: the control pair on seed 1 (`npm run sim --seed 1 --policy hybrid`) is `defeat_core` both sides at 114,864 -> 108,332 ticks. An earlier version of this entry read that run's `damageByType` (poison 2.57M -> 3.13M) as evidence of "no systematic DoT weakening"; **that inference is withdrawn** — qa-playtester showed the instrument is inflated by the change itself, because a killing tick books its whole banked lump into `damageByWeapon`/`damageByType`/`corpseStore` while only the target's remaining hp actually lands (a 1-hp husk books 2.5 where the per-frame code booked 1.17). Filed as **fb162**. What *is* controlled: each stack's total is exact (pinned per path in `tests/fb152-dot-tick-cadence.test.ts`), and DoT-only kills land **up to one interval late, never early** — kill frame 6 -> 14 at 1 hp, 119 -> 134 at 20 hp. That is a directional balance effect of the owner's order, not chaos, and it costs two things, both recorded in PROGRESS "Known issues" rather than tuned away (no balance tuning outside P10): `tests/boss.test.ts`'s single-seed victory pin flipped on seed 1 and is now a four-seed mechanism check (4 of 6 sampled seeds still win with a boss kill), and on seed 52 `tests/fb077-terrain-wiring.test.ts`'s soak went from resolving inside its 45-minute cap to `running` at **120** minutes — ending in the boss fight with `warden_eater` at 1.10M of 7.30M hp, which is **p12e's censored-run defect verbatim** (Q177), not a terrain-stranding regression. The one path where a total genuinely changes is stack **eviction** at the shared 50-slot budget: the evicted stack's bank dies with its slot (bounded by one interval, dwarfed by the `remaining` the eviction already discards), pinned as deliberate in the regression test rather than fixed, because paying it would either credit the incoming type's source or deal damage from inside `applyDot`. — Reason: CLAUDE.md architecture rule 4 and rule 5 (choose, log, continue); its measurement rules for the control pair and for the withdrawn inference; SPEC-FINAL §3.
+**The measured consequences, corrected.** Re-timing every tick re-rolls each seed's trajectory: the control pair on seed 1 (`npm run sim --seed 1 --policy hybrid`) is `defeat_core` both sides at 114,864 -> 108,332 ticks. An earlier version of this entry read that run's `damageByType` (poison 2.57M -> 3.13M) as evidence of "no systematic DoT weakening"; **that inference is withdrawn** — qa-playtester showed the instrument is inflated by the change itself, because a killing tick books its whole banked lump into `damageByWeapon`/`damageByType`/`corpseStore` while only the target's remaining hp actually lands (a 1-hp husk books 2.5 where the per-frame code booked 1.17). Filed as **fb162**. What *is* controlled: each stack's total is exact (pinned per path in `tests/fb152-dot-tick-cadence.test.ts`), and DoT-only kills land **up to one interval late, never early** — kill frame 6 -> 14 at 1 hp, 119 -> 134 at 20 hp. That is a directional balance effect of the owner's order, not chaos, and it costs two things, both recorded in PROGRESS "Known issues" rather than tuned away (no balance tuning outside P10): `tests/boss.test.ts`'s single-seed victory pin flipped on seed 1 and is now a four-seed mechanism check (4 of 6 sampled seeds still win with a boss kill), and on seed 52 `tests/fb077-terrain-wiring.test.ts`'s soak went from resolving inside its 45-minute cap to `running` at **120** minutes — ending in the boss fight with `warden_eater` at 1.10M of 7.30M hp, which is **p12e's censored-run defect verbatim** (Q177), not a terrain-stranding regression. The one path where a total genuinely changes is stack **eviction** at the shared 50-slot budget: the evicted stack's bank dies with its slot (bounded by one interval, dwarfed by the `remaining` the eviction already discards), pinned as deliberate in the regression test rather than fixed, because paying it would either credit the incoming type's source or deal damage from inside `applyDot`. — Reason: CLAUDE.md architecture rule 4 and rule 5 (choose, log, continue); its measurement rules for the control pair and for the withdrawn inference; SPEC-FINAL §3. — (owner verdict: approved)
 
-- **Q180. [fb153a] The owner's global rescale is shipped as one authored factor rather than 150 edited rows — and the measurement says a single factor cannot deliver both halves of the order's readability goal.** The order (`feedback/processed/20260905-190000-balance-damage-rescale-and-bigger-map.md` item 1) is "divide all damage sources AND all enemy/structure HP by the same factor (start at /10, tune) so relative balance is preserved". Chosen defaults: (1) it lives in `data/modifiers.json` as `numberScale` (shipped **0.1** ⚖, optional with a `1.0` identity default) and is applied by `applyNumberScale` to the *parsed* content at load — the shape `baseHpMul`'s own header already argues for ("one tunable number rather than 20 edited rows, so the authored per-enemy identity ratios stay readable and untouched"), and the only shape that leaves SPEC-FINAL §4/§5/§7/§9's stated figures true of `/data`, which four ledger files (`class-spec-numbers`, `equip-spec-numbers`, `class-descriptions`, `m19c`) exist to enforce. `Content.raw` keeps the authored documents, so `contentHash` still hashes what is on disk and a stale replay against an edited `numberScale` fails loudly. (2) A `ContentOverrides` document is in **authored** units — it is the same thing the Tuner saves and the loader reads off disk — so feeding a *loaded* view back in scales it twice; one test did exactly that and is fixed, and `tests/fb153a-number-scale.test.ts` pins the round trip. (3) `towers.breach.perEhp` is **inverse**-scaled: it prices a wall's effective HP into a pathing cost that is compared against `breach.base`, which is on no HP axis, so scaling both would have made every wall ~10x cheaper to path through — a pathing change wearing a rescale's clothes. (4) Three `Math.max(1, ...)` magnitude floors (`attackStructure`'s structure-dps floor, Blood Tithe's structure-HP floor, `derive`'s `maxHp` floor) and four `src/sim/boss.ts` damage literals are rule-4 debt that had to scale with the data; the structure-dps floor alone was swallowing the whole rescale for weak enemies and flattened the tier ladder's structure rung to exactly 1.0. **The completeness risk is the whole item**, so it is closed by a census rather than by greps: `tests/fb153a-number-scale.test.ts` walks every numeric leaf of every `/data` file, compares loaded against authored, and requires any field whose *name* reads like an HP/damage/heal/attack quantity to be classified either way with a reason. Three fields on the HP axis (`healRate`, `devourCoreHeal`, `healPerEnemy`, plus `heartstoneHeal`) had already been missed by two rounds of name greps and were found by that census. **Proportionality, measured** (control pair, `npm run sim -- --seed N --policy hybrid`, scale 1.0 vs 0.1): seeds 1 and 9 are identical in outcome, waves cleared, VS waves, kills and leaks; seed 3 differs by 35 of 42,220 ticks and matches on everything else; `damageTotal` is exactly /10 on all three. **The finding the owner should see:** at 0.1 the on-screen hit distribution over a seed-1 run is median **60** in minutes 0-3 and **88** past minute 20 (p90 110-844, max 1205), so the order's "mid/late hits are double digits" clause is met and "typical early hits are single digits" is not — and no single factor can meet both, because the median hit size is nearly *flat* across a run (60 -> 88) rather than growing, while the spread from the smallest authored magnitude to the largest displayed hit is about five orders of magnitude. A factor of /100 puts typical hits at 6-9 (both clauses met on the enemy-facing side) but takes the character's pool to 1 HP and an equipment "+1 Max HP" to +0.01. The structural reason is that `/data` already carries **two** economies: enemy HP and damage dealt *to* enemies (big — tower damage 150-4200 against enemy HP 80-365,000 x `baseHpMul` 20), versus enemy damage output, Core/structure/character HP and equipment flats (already single/double digit). A factor that makes the first readable makes the second vanish. Scaling only the first is not balance-neutral — lifesteal, Blood Tithe, Wrath, the Corpse store and Vampire Heart all convert between the two — so it needs measurement and an owner verdict rather than a silent choice. Chosen default: **ship the owner's own starting factor (/10) as ordered**, record the cost (the character sheet now reads 10 max HP and +0.1-HP equipment rows), and file the two-economy split as **fb163** for the owner to accept or veto. (5) **A cross-axis conversion's direction depends on whether the constant is a factor or a divisor, and getting it backwards is invisible to a census.** `breach.perEhp` multiplies an HP quantity, so it takes `1/k`; `overhealGoldRatio` *divides* one (`gold += excess / ratio`), so it takes `k`. Both were shipped as `1/k` on review's reasoning, and qa-playtester's control pair caught the second: Vampire Heart paid 100x less gold and diverged materially on 5 of 5 seeds (one victory becoming a `defeat_core`, one run timing out), while flipping those two lines alone restored 0 of 5. The lesson is in the *test shape*, not the constant: `tests/p-core-b-effects.test.ts` read the divisor back out of the loaded content, which made its assertion `implementation === implementation` at every scale, so it passed with the bug present. Cross-scale invariants now have a cross-scale control (`tests/fb153a-number-scale.test.ts`'s "an HP-to-gold conversion pays the same gold at every scale", verified to fail against the inverted version), and the census's linearity case sweeps `numberScale` across its whole legal range rather than only the shipped value — which is how the last unscaled HP floor (`world.ts`'s `coreMaxHp`) was found. — Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and its measurement rules for the control pair; SPEC-FINAL §2/§3.
+- **Q180. [fb153a] The owner's global rescale is shipped as one authored factor rather than 150 edited rows — and the measurement says a single factor cannot deliver both halves of the order's readability goal.** The order (`feedback/processed/20260905-190000-balance-damage-rescale-and-bigger-map.md` item 1) is "divide all damage sources AND all enemy/structure HP by the same factor (start at /10, tune) so relative balance is preserved". Chosen defaults: (1) it lives in `data/modifiers.json` as `numberScale` (shipped **0.1** ⚖, optional with a `1.0` identity default) and is applied by `applyNumberScale` to the *parsed* content at load — the shape `baseHpMul`'s own header already argues for ("one tunable number rather than 20 edited rows, so the authored per-enemy identity ratios stay readable and untouched"), and the only shape that leaves SPEC-FINAL §4/§5/§7/§9's stated figures true of `/data`, which four ledger files (`class-spec-numbers`, `equip-spec-numbers`, `class-descriptions`, `m19c`) exist to enforce. `Content.raw` keeps the authored documents, so `contentHash` still hashes what is on disk and a stale replay against an edited `numberScale` fails loudly. (2) A `ContentOverrides` document is in **authored** units — it is the same thing the Tuner saves and the loader reads off disk — so feeding a *loaded* view back in scales it twice; one test did exactly that and is fixed, and `tests/fb153a-number-scale.test.ts` pins the round trip. (3) `towers.breach.perEhp` is **inverse**-scaled: it prices a wall's effective HP into a pathing cost that is compared against `breach.base`, which is on no HP axis, so scaling both would have made every wall ~10x cheaper to path through — a pathing change wearing a rescale's clothes. (4) Three `Math.max(1, ...)` magnitude floors (`attackStructure`'s structure-dps floor, Blood Tithe's structure-HP floor, `derive`'s `maxHp` floor) and four `src/sim/boss.ts` damage literals are rule-4 debt that had to scale with the data; the structure-dps floor alone was swallowing the whole rescale for weak enemies and flattened the tier ladder's structure rung to exactly 1.0. **The completeness risk is the whole item**, so it is closed by a census rather than by greps: `tests/fb153a-number-scale.test.ts` walks every numeric leaf of every `/data` file, compares loaded against authored, and requires any field whose *name* reads like an HP/damage/heal/attack quantity to be classified either way with a reason. Three fields on the HP axis (`healRate`, `devourCoreHeal`, `healPerEnemy`, plus `heartstoneHeal`) had already been missed by two rounds of name greps and were found by that census. **Proportionality, measured** (control pair, `npm run sim -- --seed N --policy hybrid`, scale 1.0 vs 0.1): seeds 1 and 9 are identical in outcome, waves cleared, VS waves, kills and leaks; seed 3 differs by 35 of 42,220 ticks and matches on everything else; `damageTotal` is exactly /10 on all three. **The finding the owner should see:** at 0.1 the on-screen hit distribution over a seed-1 run is median **60** in minutes 0-3 and **88** past minute 20 (p90 110-844, max 1205), so the order's "mid/late hits are double digits" clause is met and "typical early hits are single digits" is not — and no single factor can meet both, because the median hit size is nearly *flat* across a run (60 -> 88) rather than growing, while the spread from the smallest authored magnitude to the largest displayed hit is about five orders of magnitude. A factor of /100 puts typical hits at 6-9 (both clauses met on the enemy-facing side) but takes the character's pool to 1 HP and an equipment "+1 Max HP" to +0.01. The structural reason is that `/data` already carries **two** economies: enemy HP and damage dealt *to* enemies (big — tower damage 150-4200 against enemy HP 80-365,000 x `baseHpMul` 20), versus enemy damage output, Core/structure/character HP and equipment flats (already single/double digit). A factor that makes the first readable makes the second vanish. Scaling only the first is not balance-neutral — lifesteal, Blood Tithe, Wrath, the Corpse store and Vampire Heart all convert between the two — so it needs measurement and an owner verdict rather than a silent choice. Chosen default: **ship the owner's own starting factor (/10) as ordered**, record the cost (the character sheet now reads 10 max HP and +0.1-HP equipment rows), and file the two-economy split as **fb163** for the owner to accept or veto. (5) **A cross-axis conversion's direction depends on whether the constant is a factor or a divisor, and getting it backwards is invisible to a census.** `breach.perEhp` multiplies an HP quantity, so it takes `1/k`; `overhealGoldRatio` *divides* one (`gold += excess / ratio`), so it takes `k`. Both were shipped as `1/k` on review's reasoning, and qa-playtester's control pair caught the second: Vampire Heart paid 100x less gold and diverged materially on 5 of 5 seeds (one victory becoming a `defeat_core`, one run timing out), while flipping those two lines alone restored 0 of 5. The lesson is in the *test shape*, not the constant: `tests/p-core-b-effects.test.ts` read the divisor back out of the loaded content, which made its assertion `implementation === implementation` at every scale, so it passed with the bug present. Cross-scale invariants now have a cross-scale control (`tests/fb153a-number-scale.test.ts`'s "an HP-to-gold conversion pays the same gold at every scale", verified to fail against the inverted version), and the census's linearity case sweeps `numberScale` across its whole legal range rather than only the shipped value — which is how the last unscaled HP floor (`world.ts`'s `coreMaxHp`) was found. — Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and its measurement rules for the control pair; SPEC-FINAL §2/§3. — (owner verdict: OVERRIDE — option (b), scoped narrowly. A character sheet reading "10 max HP" and equipment "+0.1 HP" is not acceptable. Split the factor: `numberScale` applies only to economy A (enemy HP and damage dealt to enemies: tower/kit/wielded/Core attacks); economy B (enemy damage output, character/Core/structure HP, equipment flats, regen) is NOT scaled. The five crossing constants (lifesteal, Blood Tithe, Wrath, Corpse store, Vampire Heart overheal) take the inverse factor so their outputs are unchanged; verify each with the existing cross-scale invariant test shape (as done for `overhealGoldRatio`), one control pair each. Revert fb164's prose re-anchoring for economy B numbers. Normal priority, one item — reopens fb163, supersedes Q191's close-as-(a).)
 
-- **Q181. [fb153a, qa-playtester] A typo in `numberScale`'s key silently ships the pre-rescale game, and that is the one `/data` field where the optional-with-a-default shape is dangerous.** `"numberScal3": 0.1` in `data/modifiers.json` loads clean at the `1.0` identity — every HP and damage number ten times what the designer intended, with no error anywhere. The shape is deliberate and shared with every other back-compat field (`tests/q7-loader-holes.ts` records `rename-key` as accepted for all of them), and it is what lets a file predating this item still load; the difference here is that the default is not "this feature is off" but "a different balance". Chosen default: **keep the shape, do not add a required key** — a required field would break every `ContentOverrides` document in the suite and the Tuner's per-file saves, for a typo class the census test does not detect but a single sim run does (the on-screen numbers are ten times larger). Logged so the next reader of a "the numbers are suddenly huge" report checks the key spelling first. If an owner wants it closed, the cheap version is a loader rule that refuses an unknown top-level key in `modifiers.json` specifically. — Reason: CLAUDE.md rule 5 and architecture rule 4's "refuse unpayable data" weighed against the back-compat contract every other field here relies on.
+- **Q181. [fb153a, qa-playtester] A typo in `numberScale`'s key silently ships the pre-rescale game, and that is the one `/data` field where the optional-with-a-default shape is dangerous.** `"numberScal3": 0.1` in `data/modifiers.json` loads clean at the `1.0` identity — every HP and damage number ten times what the designer intended, with no error anywhere. The shape is deliberate and shared with every other back-compat field (`tests/q7-loader-holes.ts` records `rename-key` as accepted for all of them), and it is what lets a file predating this item still load; the difference here is that the default is not "this feature is off" but "a different balance". Chosen default: **keep the shape, do not add a required key** — a required field would break every `ContentOverrides` document in the suite and the Tuner's per-file saves, for a typo class the census test does not detect but a single sim run does (the on-screen numbers are ten times larger). Logged so the next reader of a "the numbers are suddenly huge" report checks the key spelling first. If an owner wants it closed, the cheap version is a loader rule that refuses an unknown top-level key in `modifiers.json` specifically. — Reason: CLAUDE.md rule 5 and architecture rule 4's "refuse unpayable data" weighed against the back-compat contract every other field here relies on. — (owner verdict: approved; ORDER the cheap closer — loader refuses unknown top-level keys in `modifiers.json`.)
 
 - **Q182. [fb154] VS ground spawns move to the gates, and the two sub-decisions the order does not name.** The owner's order (`feedback/processed/20260905-190000-feature-vs-spawn-from-gates.md`) amends SPEC-FINAL §6: a VS wave's enemies come out of the same gates a TD wave uses, all gates active, rifts and bursts included, with fliers keeping their edge spawn on the owner's own designer note. Two things it leaves open, chosen here: (1) **the final boss spawns at a gate too.** It is a ground enemy and it goes through the same `pickSpawnPoint`; the order's exception is for fliers, not for bosses, and a Warden-Eater materialising at the rim while every other ground enemy walks out of a gate would be the odd one out. Gates sit on the rim anyway, so the arrival distance barely moves. (2) **Round-robin over a hashed cursor, not a random draw.** `World.vsGateCursor` advances one gate per served ground spawn and is hashed with the rest of the world, so a wave's arrivals are spread evenly across every gate rather than clustering by luck, and a replay picks the same gates in the same order. A random draw would have been fewer lines and is what the order's "round-robin **or** budget-split" allows, but it makes "all gates active" a statistical claim rather than a structural one. **The balance consequence is real and is the item's own acceptance clause** ("sweeps re-recorded because spawn distance changed"): enemies now walk the map from a gate instead of appearing at the rim near the Warden, so they live longer, more die on the way, and runs lengthen. Measured against the **shipped** code (an earlier three-seed reading in this entry was taken before the distance rule below and is superseded — qa-playtester re-measured all of it): over seeds 1-12, mean run length **120,988 -> 137,073 ticks (+13.3%), 10 of 12 longer**, mean kills 38,324 -> 44,790 (+17%), mean leaks 66.3 -> 56.8 (-14%). Seed 1 flips the other way from the first reading — `defeat_core` 108,332 -> **`victory` 138,237**, kills 19,961 -> 50,068, leaks 106 -> 61 — and seed 3 is 42,255 -> 42,273. The censored count moves **1/12 -> 5/12** and the hybrid sweep's median run 36.6 -> 40.1 min, both instances of p12e's tick-cap defect rather than new ones; per-run sim cost rises ~60% because the enemies live longer (0.0899 -> 0.1269 ms/tick). Not tuned back: no balance tuning outside P10, and the order is explicit that the sweeps get re-recorded rather than the change softened. (3) **"All gates active" is conditional on where the player stands, and that is a deliberate trade.** The distance rule below removes any gate within `min(spawnDistance, 12)` tiles of the Warden from the rotation, and on a 36x20 map that is not a corner case: qa-playtester swept every open tile of the seed-1 map and found all three gates live from only **19.4%** of them (two from 76.4%). In a live run — where the Warden moves — the measured shares are 21.6%-40.4% per gate rather than a flat third. The alternative is spawning the wave on top of the player, which is what the rule exists to stop, so the trade is taken: **no gate is ever permanently off**, and `tests/fb154-vs-gate-spawns.test.ts` pins a 15% floor per gate over a walked circuit rather than an even split, because an even split is not what this rule can deliver. On a bigger map (`fb153b`'s 56x32) the constraint loosens on its own.
 
-**The gate was re-measured, and the two review findings turned out to be one root cause.** code-reviewer measured G1's live win-rate clause (`tests/p10d-run-length.test.ts`, T3, 24 seeds, fast-tier-excluded) going green -> red on the first version of this item — 6/21 = 28.6%, under its [35%,70%] band — and separately found that `gateSpawn` had dropped `spawns.spawnDistance`, so a ground enemy (the Warden-Eater included) could materialise on top of a Warden standing near a gate. With the distance rule added, the same 24-seed suite reads **9/24 wins, 40.9% of resolved seeds, mean 38.11 min** — inside the band and level with the pre-fb154 baseline the file's own header records (9/24). The band regression was the missing distance rule, not the gates; no `/data` value was touched, which is what the standing "no balance tuning outside P10" constraint requires. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules; SPEC-FINAL §6 as amended.
+**The gate was re-measured, and the two review findings turned out to be one root cause.** code-reviewer measured G1's live win-rate clause (`tests/p10d-run-length.test.ts`, T3, 24 seeds, fast-tier-excluded) going green -> red on the first version of this item — 6/21 = 28.6%, under its [35%,70%] band — and separately found that `gateSpawn` had dropped `spawns.spawnDistance`, so a ground enemy (the Warden-Eater included) could materialise on top of a Warden standing near a gate. With the distance rule added, the same 24-seed suite reads **9/24 wins, 40.9% of resolved seeds, mean 38.11 min** — inside the band and level with the pre-fb154 baseline the file's own header records (9/24). The band regression was the missing distance rule, not the gates; no `/data` value was touched, which is what the standing "no balance tuning outside P10" constraint requires. — Reason: CLAUDE.md rule 5 (choose, log, continue) and its measurement rules; SPEC-FINAL §6 as amended. — (owner verdict: approved — final boss spawns at a gate; round-robin cursor; censoring recorded, p12e resolved via Q192.)
 
-- **Q183. [fb155] The enemy attack registry publishes a number the sim agrees with rather than a number the sim reads — because reading it moved the sim.** The owner's `ui-enemy-attack-indicators` order needs each enemy to state its attack kind and reach so the renderer stops deriving both from the `traits` array. All 20 rows now carry `attackKind` (a closed enum) and `attackRange`, with `specialRange` on the three elites/bosses whose special has its own radius (Colossus stomp 2.0, Herald empower 5, Warden-Eater slam 5.5 — the last moving `SLAM_RADIUS` out of `boss.ts` and into `/data`, one more rule-4 literal closed). Chosen defaults: (1) **the fields are required, not optional.** An optional attack registry is one the next enemy silently omits, and the renderer would be back to guessing; the cost is that every `ContentOverrides` document in the suite must carry them, which the schema enforces loudly rather than defaulting. (2) **The loader refuses disagreement in both directions**: a row whose `attackRange` differs from the radius the sim uses for its kind (`explodeRadius` for a bomber, `healRadius` for a healer, `buffRadius` for a buffer, `radius + spawns.contactPadding` for melee), a row whose kind contradicts its own traits (a Spitter authored `melee` would draw a sword and shoot from four tiles), and an elite whose special radius is unpublished. That is what makes the published number worth drawing. It also closed **23 previously-recorded holes** in `tests/q7-loader-holes.ts`: mutating `radius`, `explodeRadius`, `healRadius`, `buffRadius`, `stompRadius` or `spawns.contactPadding` now breaks an agreement rule instead of loading silently. (3) **What a row publishes is what it does, not what its neighbours do.** An enemy that deals contact damage attacks at its contact reach; its blast or aura is a *special*, published separately — the first version had the Bomber publishing 1.5 and the Warlock 3 while both actually hit at 0.8, which would have drawn a 3-tile ring on an enemy that swings at 0.8 (code review). The Mender and the Herald deal no contact damage at all, so for them the aura **is** the attack. The Warden-Eater is the one row whose attacks are scripted in `boss.ts` rather than dealt by the contact loop, so its `attackRange` is the charge's reach (`CHARGE_WIDTH + radius`) and its `specialRange` is the slam's, both pinned by measurement rather than by the loader. That last number was wrong on the first pass in a way only measurement could catch: the authored 5.5 was being spent as the ring's *lifetime* (`radius / SLAM_EXPAND`) rather than as its reach, so the ring really reached 6.4 and the renderer would have under-drawn the boss's one area attack by a tile (qa-playtester). `boss.ts` now derives the lifetime from the published reach, and the test grows a real ring and measures it. (4) **The melee path still *computes* its reach** (`radius + contactPadding`) rather than reading the authored field, and this is the interesting one: the two agree to 1e-6 by construction, but `0.4 + 0.45` is `0.8500000000000001`, not `0.85`, so reading the authored value moved Shellback's and Charger's contact distance by one ULP — enough to flip seed 5 from a `victory` at 144,299 ticks to a 45-minute timeout. Measured, then reverted: a change to what the game *displays* must not re-roll what it *does*. The published field is therefore the contract, the loader rule is the enforcement, and `tests/fb155-enemy-attack-registry.test.ts` measures the real connect/shoot distance so the contract is checked against the world and not only against the schema. — Reason: CLAUDE.md rule 5 and architecture rule 4; SPEC-FINAL §9/§11; owner feedback `ui-enemy-attack-indicators`.
+- **Q183. [fb155] The enemy attack registry publishes a number the sim agrees with rather than a number the sim reads — because reading it moved the sim.** The owner's `ui-enemy-attack-indicators` order needs each enemy to state its attack kind and reach so the renderer stops deriving both from the `traits` array. All 20 rows now carry `attackKind` (a closed enum) and `attackRange`, with `specialRange` on the three elites/bosses whose special has its own radius (Colossus stomp 2.0, Herald empower 5, Warden-Eater slam 5.5 — the last moving `SLAM_RADIUS` out of `boss.ts` and into `/data`, one more rule-4 literal closed). Chosen defaults: (1) **the fields are required, not optional.** An optional attack registry is one the next enemy silently omits, and the renderer would be back to guessing; the cost is that every `ContentOverrides` document in the suite must carry them, which the schema enforces loudly rather than defaulting. (2) **The loader refuses disagreement in both directions**: a row whose `attackRange` differs from the radius the sim uses for its kind (`explodeRadius` for a bomber, `healRadius` for a healer, `buffRadius` for a buffer, `radius + spawns.contactPadding` for melee), a row whose kind contradicts its own traits (a Spitter authored `melee` would draw a sword and shoot from four tiles), and an elite whose special radius is unpublished. That is what makes the published number worth drawing. It also closed **23 previously-recorded holes** in `tests/q7-loader-holes.ts`: mutating `radius`, `explodeRadius`, `healRadius`, `buffRadius`, `stompRadius` or `spawns.contactPadding` now breaks an agreement rule instead of loading silently. (3) **What a row publishes is what it does, not what its neighbours do.** An enemy that deals contact damage attacks at its contact reach; its blast or aura is a *special*, published separately — the first version had the Bomber publishing 1.5 and the Warlock 3 while both actually hit at 0.8, which would have drawn a 3-tile ring on an enemy that swings at 0.8 (code review). The Mender and the Herald deal no contact damage at all, so for them the aura **is** the attack. The Warden-Eater is the one row whose attacks are scripted in `boss.ts` rather than dealt by the contact loop, so its `attackRange` is the charge's reach (`CHARGE_WIDTH + radius`) and its `specialRange` is the slam's, both pinned by measurement rather than by the loader. That last number was wrong on the first pass in a way only measurement could catch: the authored 5.5 was being spent as the ring's *lifetime* (`radius / SLAM_EXPAND`) rather than as its reach, so the ring really reached 6.4 and the renderer would have under-drawn the boss's one area attack by a tile (qa-playtester). `boss.ts` now derives the lifetime from the published reach, and the test grows a real ring and measures it. (4) **The melee path still *computes* its reach** (`radius + contactPadding`) rather than reading the authored field, and this is the interesting one: the two agree to 1e-6 by construction, but `0.4 + 0.45` is `0.8500000000000001`, not `0.85`, so reading the authored value moved Shellback's and Charger's contact distance by one ULP — enough to flip seed 5 from a `victory` at 144,299 ticks to a 45-minute timeout. Measured, then reverted: a change to what the game *displays* must not re-roll what it *does*. The published field is therefore the contract, the loader rule is the enforcement, and `tests/fb155-enemy-attack-registry.test.ts` measures the real connect/shoot distance so the contract is checked against the world and not only against the schema. — Reason: CLAUDE.md rule 5 and architecture rule 4; SPEC-FINAL §9/§11; owner feedback `ui-enemy-attack-indicators`. — (owner verdict: approved as its chosen default.)
 
-- **Q184. [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.** Regenerating `STATUS.md` for the first time since fb152/fb153a/fb154 shipped shows the 88-run snapshot (2 seeds/cell, T1) going from **win rate 1.0 on all ten policies and 0/88 timeouts** to **0-0.5 and 24/88 timeouts**, with mean run length 33.69 -> 31.63 min. Read carefully, that is one mechanism reported twice: a run sitting at the 45-minute cap is scored a loss by this snapshot, so a change that makes runs *longer* looks like a change that makes them *harder*. The two ordered changes that lengthen runs are fb152 (a DoT kill lands up to one interval late, so enemies live longer) and fb154 (VS enemies walk in from the gates instead of appearing at the rim — measured +13.3% run length over seeds 1-12 and censored seeds 1/12 -> 5/12); fb153a is proportional and moves nothing. The gate that is actually measured rather than snapshotted agrees: G1's 24-seed T3 win rate reads **9/24 wins, 40.9% of resolved seeds**, inside its `[35%,70%]` band, because it excludes censored seeds from the denominator by design (Q159/Q160's own reasoning). Chosen default: **record the snapshot honestly and do not tune** — the owner's orders are explicit that sweeps are re-recorded rather than softened, no balance tuning happens outside P10, and the cap itself is **p12e**, already filed as the blocker for the whole p12 arc with "zero `'running'` outcomes tolerated in any gate matrix" as its acceptance. What this session adds to p12e is the size of its bill: at T1, on the shipped content, a quarter of the snapshot is now censored. STATUS.md's gate table above the snapshot is read from HANDOFF.md and is stale relative to it (HANDOFF has been stale since m20a, per CLAUDE.md); regenerating it is `p10f`'s, and until then the two halves of that report describe different trees. — Reason: CLAUDE.md measurement rules ("a deferral is a measurement with an expiry date"); SPEC-FINAL §14 G1; QUESTIONS Q177/Q159.
+- **Q184. [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.** Regenerating `STATUS.md` for the first time since fb152/fb153a/fb154 shipped shows the 88-run snapshot (2 seeds/cell, T1) going from **win rate 1.0 on all ten policies and 0/88 timeouts** to **0-0.5 and 24/88 timeouts**, with mean run length 33.69 -> 31.63 min. Read carefully, that is one mechanism reported twice: a run sitting at the 45-minute cap is scored a loss by this snapshot, so a change that makes runs *longer* looks like a change that makes them *harder*. The two ordered changes that lengthen runs are fb152 (a DoT kill lands up to one interval late, so enemies live longer) and fb154 (VS enemies walk in from the gates instead of appearing at the rim — measured +13.3% run length over seeds 1-12 and censored seeds 1/12 -> 5/12); fb153a is proportional and moves nothing. The gate that is actually measured rather than snapshotted agrees: G1's 24-seed T3 win rate reads **9/24 wins, 40.9% of resolved seeds**, inside its `[35%,70%]` band, because it excludes censored seeds from the denominator by design (Q159/Q160's own reasoning). Chosen default: **record the snapshot honestly and do not tune** — the owner's orders are explicit that sweeps are re-recorded rather than softened, no balance tuning happens outside P10, and the cap itself is **p12e**, already filed as the blocker for the whole p12 arc with "zero `'running'` outcomes tolerated in any gate matrix" as its acceptance. What this session adds to p12e is the size of its bill: at T1, on the shipped content, a quarter of the snapshot is now censored. STATUS.md's gate table above the snapshot is read from HANDOFF.md and is stale relative to it (HANDOFF has been stale since m20a, per CLAUDE.md); regenerating it is `p10f`'s, and until then the two halves of that report describe different trees. — Reason: CLAUDE.md measurement rules ("a deferral is a measurement with an expiry date"); SPEC-FINAL §14 G1; QUESTIONS Q177/Q159. — (owner verdict: approved as its chosen default; censoring recorded, further resolved by Q201 (p12i)'s `tools/status.ts` change.)
 
-- **Q185. [fb140] CI caps the fast tier at two worker threads, and the cap is this item's decision rather than a deferral to one that does not own it.** The owner's `feature-ci-workflow` order says "worker cap env from the cpu-cap item (fb087)". Read against fb087's actual text, there is nothing to inherit: fb087's acceptance is retry-tolerant scratch cleanup and a load-scaled settle deadline (or moving the files to the excluded tier), and it defines no environment variable and no cap — so a deferral would have been recorded against a fiction that never lands (code review). Meanwhile this workflow sets `STONEWAKE_REQUIRE_BROWSER=1`, which turns the four Playwright UI suites from self-skipping into must-run on a shared 4-vCPU runner, and fb087's own text names those four plus `q45`/`q49`/`q52`, `q15` and `q13` as load-sensitive and "all green in isolation". A CI whose first run is expected red is not the visible signal the order asks for, so the fast tier runs at `--poolOptions.threads.maxThreads=2` (accepted by this tree's vitest 2.1) and `docs/CI.md` says fb087 owns making the family robust, not the cap. Two smaller calls in the same item, both recorded where they are read rather than only here: the **badge** lives at the top of `docs/CI.md` because the repository has no README (with the line to paste if one is ever created), and there is **no `/audit` PNG upload** — the order asks for one "if the ui-audit runs", nothing in CI runs `npm run ui-audit`, and `audit/` is gitignored, so the step would have been a permanent silent no-op. — Reason: CLAUDE.md rule 5 (choose, log, continue); owner feedback `feature-ci-workflow`.
+- **Q185. [fb140] CI caps the fast tier at two worker threads, and the cap is this item's decision rather than a deferral to one that does not own it.** The owner's `feature-ci-workflow` order says "worker cap env from the cpu-cap item (fb087)". Read against fb087's actual text, there is nothing to inherit: fb087's acceptance is retry-tolerant scratch cleanup and a load-scaled settle deadline (or moving the files to the excluded tier), and it defines no environment variable and no cap — so a deferral would have been recorded against a fiction that never lands (code review). Meanwhile this workflow sets `STONEWAKE_REQUIRE_BROWSER=1`, which turns the four Playwright UI suites from self-skipping into must-run on a shared 4-vCPU runner, and fb087's own text names those four plus `q45`/`q49`/`q52`, `q15` and `q13` as load-sensitive and "all green in isolation". A CI whose first run is expected red is not the visible signal the order asks for, so the fast tier runs at `--poolOptions.threads.maxThreads=2` (accepted by this tree's vitest 2.1) and `docs/CI.md` says fb087 owns making the family robust, not the cap. Two smaller calls in the same item, both recorded where they are read rather than only here: the **badge** lives at the top of `docs/CI.md` because the repository has no README (with the line to paste if one is ever created), and there is **no `/audit` PNG upload** — the order asks for one "if the ui-audit runs", nothing in CI runs `npm run ui-audit`, and `audit/` is gitignored, so the step would have been a permanent silent no-op. — Reason: CLAUDE.md rule 5 (choose, log, continue); owner feedback `feature-ci-workflow`. — (owner verdict: approved)
 
 - **Q186. [CI q13] A timing assertion that divides one measurement by another
   belongs in the single-threaded perf config, not in a looser bound.** CI run
@@ -551,7 +601,7 @@ Q91 and Q102 corrections if not yet done.
   out of it — the cheaper measurement, being nearer timer resolution, inflates
   proportionally more. That is why a10 (absolute ms), p10e (two granularities)
   and now q13 (two worlds) all ended up in the same config from three
-  different-looking failures.
+  different-looking failures. — (owner verdict: approved)
 
 - **Q187. [fb168] Q178's open owner call, decided: the shared dev-server helper
   is a `tools/` file, and the census it moves is a census doing its job.** Q178
@@ -583,7 +633,7 @@ Q91 and Q102 corrections if not yet done.
   continue) and rule 4's "a loader rule that refuses unpayable data is worth
   more than a comment"; the same argument applies to a contract learned from a
   red CI run, which is worth exactly as much as the number of copies that carry
-  it.
+  it. — (owner verdict: approved)
 
 - **Q188. [fb165] Two perf fixtures, not one re-pointed fixture — and the
   clustering statistic that reads a gate-spawned horde backwards.**
@@ -619,7 +669,7 @@ Q91 and Q102 corrections if not yet done.
   is not. The false start is recorded in the test rather than deleted.
   — Reason: CLAUDE.md's measurement rules ("my change improved X needs the
   control run"; "check a `/data` row's blast radius before calling it narrow",
-  applied here to a fixture's readers) and working rule 5.
+  applied here to a fixture's readers) and working rule 5. — (owner verdict: approved)
 
 - **Q189. [fb161] Which of fb152's four leftover per-frame sources take the
   cadence: one, and the other three are asserted to stay.** The item asks for a
@@ -662,7 +712,7 @@ Q91 and Q102 corrections if not yet done.
   killing it partway through the window. The fixture now uses a pool nothing can
   exhaust. A cost probe that is quietly measuring a death is the same class of
   error as fb165's centroid statistic. — Reason: CLAUDE.md working rule 5 and
-  the measurement rules; owner feedback `dot-tick-cadence`, SPEC-FINAL §3.
+  the measurement rules; owner feedback `dot-tick-cadence`, SPEC-FINAL §3. — (owner verdict: approved)
 
 - **Q189a. [fb161, code review] The per-field bank was measured wrong twice, and
   the correction is why the emit rate is a total rather than per field.** The
@@ -695,5 +745,733 @@ Q91 and Q102 corrections if not yet done.
   The general lesson, and the reason this is written down: **an acceptance
   criterion can name the wrong denominator.** "Per ground field" was a
   reasonable reading of a mechanism nobody had counted, and passing it exactly
-  would have shipped a half-fix. Measure the thing the complaint is about.
+  would have shipped a half-fix. Measure the thing the complaint is about. — (owner verdict: approved, folded into Q189's approval.)
 
+- **Q190. [fb164] "Derive it live" vs "match the loaded value" — took the
+  second, and logged the first as future work rather than building it.**
+  fb164's acceptance offered a disjunction: every prose sentence quoting an
+  HP/damage magnitude either *derives* it from the loaded value at render
+  time, or *matches* it as authored text. The item text's own preference is
+  for deriving (so a later `numberScale` retune can't re-break the same
+  sentences), but deriving means a templating layer — `{field}`-style
+  placeholders in every affected `/data` description plus a render-time
+  interpolation pass wired into every UI call site that shows one (hud.ts,
+  class-info.ts, tower-info.ts, core-info.ts, the stash/equipment panels, the
+  tree UI, the damage-type tooltip) — which is new UI-wide infrastructure, not
+  a bug fix, and was judged out of scope for one backlog item.
+  Took the "matches the loaded value" branch instead: every affected sentence
+  (`data/damagetypes.json`, `data/vsupgrades.json`, `data/equipment.json`,
+  `data/tree.json`, `data/cores.json`, `data/modifiers.json`,
+  `data/quests.json`, one `data/classes.json` sentence) was hand-edited to the
+  post-`numberScale` figure, and `tests/fb164-prescale-prose.test.ts` pins
+  each one against the *live loaded value* (not a hardcoded expected number),
+  so a future retune that moves a field without moving its sentence reddens
+  there rather than shipping quietly — the same failure mode fb164 itself was
+  filed to close.
+  **Filed as future work, not done here:** a real derive-at-render templating
+  layer (extending `src/ui/info-format.ts`'s existing generic field-list
+  rendering, fb022/fb028) would make every such sentence permanently immune to
+  a retune, at the cost of a UI-wide refactor. Worth doing if `numberScale`
+  (or an equivalent global rescale) is retuned again; not worth it as a
+  one-off for a factor that, once corrected, only drifts again on a repeat of
+  the same kind of change. — (owner verdict: approved)
+
+- **Q191. [fb163] The two-economy call: (a), keep one factor and accept the
+  coarse character sheet — not (b)'s second factor, not (c)'s reformatting,
+  because (c) is already substantially shipped.** fb163 asked for a verdict
+  among three options because one global `numberScale` cannot make tower-
+  damage-vs-enemy-HP's huge range single-digit without making the already-
+  small character/equipment economy fractional (0.1 HP, +1.5 Max HP — which
+  fb164 just finished re-anchoring the prose to, on the assumption the single
+  factor stays).
+  Checked (c) first, since it looked like the cheapest option: the display
+  layer already does almost everything "format large numbers compactly"
+  would ask for. `damageText` (`src/render/canvas.ts:229`) rounds floating
+  combat numbers to whole numbers at 10+ and one/two decimals below it;
+  `formatDamage`/`formatDps` (`src/ui/hud.ts:2223-2229`) comma-group every
+  DPS-panel total via `toLocaleString()`. The one raw, ungrouped number left
+  (`src/ui/hud.ts:1090`, the Core HP readout) never reaches four digits post-
+  scale (base 50, plus at most a few hundred from upgrades/tree/modifiers),
+  so grouping it would add punctuation with nothing to punctuate. There is no
+  further formatting work (c) would add.
+  That leaves (a) vs (b). (b) — a second factor plus a named conversion
+  constant at each of lifesteal, Blood Tithe, Wrath, the Corpse store and
+  Vampire Heart, each requiring its own before/after control-run measurement
+  — is a multi-day balance-validation undertaking for a purely cosmetic gain
+  (shaving typical hits from 2-3 digits to 1), and it would re-open every
+  sentence fb164 just finished re-anchoring (a second character-side factor
+  moves those numbers again). Chose **(a)**: the single `numberScale` (0.1)
+  stays exactly as fb153a shipped it, the "single-digit early hits" sub-
+  clause is accepted as unmet (fb153a's own entry already recorded this — the
+  order's stricter reading, not its "single/double-digit... on typical hits"
+  main clause, which *is* met), and no code or `/data` changes are made.
+  Acceptance's "five crossing points, each measured with a before/after
+  control pair" is (b)'s own verification burden and does not apply once (b)
+  is not the chosen option; fb163 is closed on that basis. — (owner verdict: OVERRIDE — option (b), scoped narrowly (see Q180's restated text for the exact split). This reopens fb163 rather than closing it on (a); normal priority, one item.)
+
+- **Q192. [p12e] The boss's own pacing ramps were fitted pre-p12c; the fix is
+  to re-anchor its authored HP, not to exempt it from the roster multiplier in
+  code.** Q177 diagnosed p12e's run-length tail as entirely the boss fight
+  once `baseHpMul: 20` applied to `warden_eater` like every other enemy
+  (7.3M at T1). The item's two candidates — re-anchor `warden_eater.hp` in
+  `/data`, or exempt the boss from `baseHpMul` in code — produce identical
+  runtime numbers by construction (`18,250 x baseHpMul(20) = 365,000`), so
+  only the re-anchor needed an actual run. Measured at T3 over 24 seeds
+  (120-minute cap, so nothing censors either reading): HEAD's boss-kill-time
+  spread is 313-1153s (3.7x, longest run 51.15 min); re-anchoring
+  `warden_eater.hp` 365,000 -> 18,250 (exactly /`baseHpMul`) tightens that to
+  190-226s (1.19x, longest run 36.3 min) and moves the win rate by one seed
+  (11/24 -> 10/24 of 24, still inside G1's `[35%,70%]` band). At T1 the
+  re-anchor is bit-for-bit the boss's pre-p12c fixture (36,500 effective hp),
+  so every T1-pinned boss test is unaffected by construction. Chosen: the
+  **`/data`-only re-anchor** — same runtime numbers as the code-exemption
+  alternative, no engine change, per CLAUDE.md architecture rule 4.
+  Re-measured over the same 24 seeds: 0 stall at either the original
+  45-minute cap or a lifted 120-minute one, so `tests/p10d-run-length.test.ts`'s
+  tick-cap case and `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak are
+  both un-skipped. Full table in BALANCE.md "Boss HP re-anchor (p12e)". —
+  Reason: CLAUDE.md rule 5 (choose, log, continue), architecture rule 4, and
+  its measurement rules (control pair, before/after both recorded); SPEC-FINAL
+  §14 G1/G14, BALANCE DIRECTION v2 §E, QUESTIONS Q177. — (owner verdict: approved — the /data re-anchor of warden_eater.hp.)
+
+- **Q193. [p12f] BALANCE DIRECTION v2 §A's own-kit-share target: chose route
+  (a) from Q175 — `kitPowerMul` now rides the player's actual `typeMastery`
+  investment, not only wave count — and it moves the metric without closing
+  it: 0/12 classes still clear 35%, but 11 of 12 move in the intended
+  direction (best: plaguebringer 19.69% -> 25.71%).** Re-diagnosed before
+  picking: `class_active` damage already multiplies by `w.derived.powerMul`
+  exactly like a wielded attack does (`classes.ts:280` vs `vswield.ts:375`),
+  so `powerMul` (the Constellation/stat stack) was never the actual gap Q175's
+  prose named. The real asymmetry is `typeMasteryMul` (`progression.ts`): a
+  per-built-tower-type VS boon marked `"uncapped": true`
+  (`data/vsupgrades.json`) that keeps compounding every level-up for the run's
+  length, applied only to wielded damage — while the kit's own upgrade path
+  (skill cards) caps at `maxRank` 2 and stops being offered, so every
+  level-up past that point can only grow the wielded side. Implemented as
+  `kitBuildMul(w)` (`src/sim/enemies.ts`), a second factor on `kitPowerMul`
+  reading the *average* rank across `w.typeMasteryRanks` through
+  `typeMasteryMul`'s own `1 + perRank * rank` formula — average, not sum, so
+  the kit never gets ahead of what any single wielded attack earns for the
+  same investment; multiplicative with the existing wave term. `/src/sim`,
+  not `/data`, because Q175 already showed no `data/classes.json` magnitude
+  could reach this: architecture rule 4's data-only preference is overridden
+  here on that basis, recorded per the rule's own "wherever possible."
+  Measured with p12a's own control-pair method (`KIT_SHARE_MEASURE=1
+  KIT_SHARE_SEEDS=2`, fresh control against this session's HEAD since
+  p12c/p12e landed since p12a's original control): full before/after table
+  in BALANCE.md "p12f — kitBuildMul: riding the same axis". `bloodlord`
+  stays flat at 0.00% by construction (its only VS-attributed kit source is
+  the TD-only `basicAttack.dps`, per Q175) — not a failure of this item's
+  lever, a separate still-open problem. G1 (`tests/p10d-run-length.test.ts`)
+  and G14 (`tests/boss.test.ts`) both re-confirmed green before and after,
+  no band violation, no new tick-cap timeout. **What remains unclosed and
+  deliberately unattempted**: the dominant share of the gap is not any single
+  uncapped boon but the sheer breadth of simultaneously-summed wielded
+  sources across every built tower type plus `upgradeStatMul`'s tier-upgrade
+  scaling baked into `wielded.damage` itself (Q175's "134.3M of 134.5M is
+  wielded" swordsman figure) — closing that is route (b) (cut VS-wielded
+  scaling, a p12b/p12c-sized shared lever) or a larger route (a) pass, both
+  out of this item's blast radius per its own filing reasoning. Recorded red
+  rather than forced, same as Q175 itself. **Follow-up (independent
+  code-review Major finding, first pass inadequate, real bug found and fixed
+  by independent qa-playtester):** `kitPowerMul` applies to TD damage too,
+  not just VS, and the before/after table only checked G1/G14. A first
+  attempt at closing this spot-checked `swordsman` (byte-identical to its
+  pre-p12f reading) and called it clean — wrong, because that class's losing
+  seeds all die in Act I before any VS phase, which cannot exercise the
+  mechanism at all. qa-playtester proved the real effect directly:
+  `w.typeMasteryRanks` is never reset between VS blocks, so a class/seed that
+  *survives* past its first VS block carries the build factor into every
+  later TD block, inflating `ownShare` (G8's own metric) 26-57% on the two
+  classes measured (`swordsman` 0.56%->0.88%, `plaguebringer`
+  14.05%->17.73%, reproduced via two independent methods). **Fixed**:
+  `kitBuildMul` now gates on `w.huntsWarden`, the same predicate
+  `damageByWeaponVs` itself uses for "VS only" — returns exactly 1 outside
+  VS regardless of ranks invested, proven by two new pinned unit tests
+  (`tests/p12a-kit-power.test.ts`) rather than inferred from any one class's
+  seed set. G1/G14 re-confirmed green after the fix. Full account: BALANCE.md
+  "p12f" section's two follow-up paragraphs. — Reason: CLAUDE.md rule 5
+  (choose, log, continue), the item's own "you do not have to hit >=9/12 —
+  honest measurement, don't force it," and measurement rules (control pair,
+  before/after both recorded, blast-radius check before calling a lever
+  narrow); SPEC-FINAL §14 G8, BALANCE DIRECTION v2 §A, QUESTIONS Q175,
+  BACKLOG p12f. — (owner verdict: approved as evidence; superseded by Q175's restated own-kit-share target (15% ⚖ from TD wave 12; bloodlord/engineer/animist measured for the record only) — the route-(b)/further-route-(a) question this entry left open is closed by Q175's restatement, not pursued further.)
+
+- **Q194. [p12h] The pre-p12c G13 solo-viability regression bisected: fb077's
+  terrain wiring, not any of the three named-by-date candidates.** BACKLOG
+  p12h asked why `tests/a4-single-type.test.ts` measured
+  `{arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1,
+  mortar 3, venom_spore 0}` of 5 T1 clears at HEAD, against an authored
+  5/5/5/5/4/5/4 table, well before p12c's own `baseHpMul:20` anchor touched
+  anything. Three candidates were named by date: fb076 (tower retune), fb025
+  (x10 enemy-HP pass), p12a (kit-damage re-anchor). All three are exonerated
+  by direct evidence, not elimination-by-story: fb025 predates the regression
+  by a full session and was already fixed by b080 (2026-09-03, confirmed
+  16/16 green then); `data/towers.json` is provably byte-unchanged since
+  fb076 authored the exact 5/5/5/5/4/5/4 table this clause was measured
+  against (`git log --follow -- data/towers.json` shows no write between
+  fb076 and HEAD), so it cannot be the cause of a regression in the field it
+  authored; p12a's 29 changed values live in `data/classes.json` (class kit
+  damage) and its `src/sim/enemies.ts` changes gate strictly on the `class_`
+  source prefix (`scalesWithKitPower`), which no tower-sourced damage reads —
+  its basicAttack.dps buffs to engineer/pyromancer (the two classes
+  `a4probe.ts` actually probes) are a net help to this TD-only-basic-attack
+  probe (`classBasicAttack` auto-fires TD-only, `run.ts:541`), not a hurt.
+  **The actual cause: fb077** ("wire generated terrain into every
+  non-practice `World` run", 2026-09-04, landed the same day as fb076,
+  several unrelated commits later — not the "very next commit": fb076 is
+  05becf2, and four intervening commits (fb093/fb094/fb095/a feedback-filing
+  commit) sit between it and fb077's own parent, 1c9546e; none of them touch
+  towers, enemies, waves or `a4probe.ts`, so the isolation still holds).
+  `a4probe.ts`'s `RunConfig` never sets a practice flag, so every solo-tower
+  probe run went from the open flat arena fb076 was tuned against to a
+  seeded, obstacle-bearing generated map — a change fb077's own acceptance
+  text re-measured G1/G14/G17 against (run length and boss timing "move"
+  with terrain) but never checked against this fast-tier-excluded G13 suite,
+  the same blind spot the whole p12h item exists to close. Control run (git
+  worktree, `data/*.json` byte-identical both sides): commit 1c9546e
+  (fb077's immediate parent) T1/seeds 1-2 = 7/7 towers 2/2 clears, 18/18
+  waves every run; commit 967463d (fb077 applied, the very next commit after
+  1c9546e) same seeds =
+  every tower down, three of seven (ember_brazier/frost_obelisk/venom_spore)
+  collapsing to a wave-3 death. The HEAD-control figure itself was also
+  reproduced bit-exactly by checking out p12b (23b6f6c, `baseHpMul` still at
+  1.0 identity): {arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk
+  0, tesla_coil 1, mortar 3, venom_spore 0} of 5, matching the qa-playtester
+  p12c-session reading exactly. **Chose re-band over fix** (CLAUDE.md rule 5:
+  choose, log, continue): fb077 is a real SPEC-FINAL §10.5 feature landing,
+  not a tuning mistake to revert, and a `data/towers.json` retune that holds
+  against *variable, per-seed* generated terrain (not a fixed HP ladder) is
+  materially more work than this bisection item's own scope — the same
+  reasoning p12c gave for deferring its own re-anchor's assertion rewrite to
+  p12d. The clause stays `.skip`-ed with its already-measured honest numbers;
+  what changed is that the cause is now on record instead of unexplained.
+  Follow-up filed as BACKLOG p12i: either retune solo-tower economy against
+  the terrain-bearing curve, or decide (an inbox-verdict-shaped design call,
+  not a unilateral one, since it changes what G13 measures) that this clause
+  should run on the flat fallback arena instead of real terrain — "does a
+  single tower type break the wave curve" and "does a single tower type
+  survive an adversarial map roll" are different claims. — Reason: measured,
+  not guessed (CLAUDE.md measurement rules: "check a `/data` row's blast
+  radius before calling it narrow," "grep readers, not just writers" — here
+  extended to "grep the commit log, not just the candidate list handed to
+  you"); SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, p12i. — (owner verdict: approved)
+
+- **Q195. [fb177] G8's post-p12a-p12h re-measurement: a roster-wide
+  rescramble, not a swordsman-only regression — bisected to `baseHpMul: 20`
+  (p12c) plus an undocumented reference-tier move (p12b), re-pinned rather
+  than fixed.** `tests/p6e-class-diversity.test.ts`'s 12-class `beforeAll`
+  sweep hadn't run since b080 (2026-09-03); fb177 flagged one incidental
+  finding (swordsman 2/12) as the lead to chase. The full re-run (fresh table
+  in the test file's own fb177 header paragraph) found something bigger:
+  **only `archer` (5/12) is honestly inside G8's `[5,8]`-of-12 win-rate
+  band** — 8 of the other 11 classes are under the 35% floor, 3
+  (cryomancer/animist/time_lord) are over the 70% ceiling. Bisected
+  swordsman's own collapse by name (git worktree control runs, `data/*.json`
+  byte-identical, p12h's method): 12/12 unchanged through fb077 alone and
+  p12a alone (both exonerated for this gate specifically); p12b alone —
+  running its own shipped-then-immediately-superseded `tierEnemyHpPerStep:
+  4.0` (16x HP at T3, replaced by 1.07/1.05/1.03 one commit later in p12c) —
+  drops it to 0/12; p12c's *settled* state (the fitted ladder plus
+  `baseHpMul: 20`) reads 3/12, within one seed of HEAD's 2/12; the
+  fb152/fb153a checkpoint reproduces HEAD's 2/12 bit-for-bit (same two
+  winning seeds). **`baseHpMul: 20` is the dominant, persisting cause.**
+  Also found and corrected along the way: **p12b silently moved this file's
+  own reference tier from T1 to T3** (`tier: 1` -> `tier: GATE_TIER`,
+  `GATE_TIER=3`) without updating the file's "T1, concretely: `tier: 1`"
+  header sentence or any of the eleven per-class `.skip` comments below it —
+  a real doc/code drift, now corrected in the header, and a secondary
+  compounding contributor to the swordsman number (p12b's ladder rung stacks
+  on top of `baseHpMul`). This directly connects to the still-blocked p12d
+  (formalizing T1/T3/T5 companion bands for G1/G8/G14/G23) — p6e had
+  quietly already made the T3 move p12d is supposed to formalize.
+  **A correction to fb177's own hypothesis, not just a confirmation**: the
+  item's text read "wave 3, Act I, TD-only, no causal path to any VS
+  mechanic" and used that to argue *against* `baseHpMul`. That's backwards —
+  `defeat_warden` can only fire while `w.huntsWarden` is true
+  (`src/sim/world.ts`: `phase==='act2'||'levelup'`), never during TD, and
+  `cycleWaveEnd` splits 18 TD waves across 6 VS blocks (3 TD waves/block), so
+  "wave 3" is the *first VS/Night block*, not an Act-I death — confirmed
+  directly (`run.world.act2Time` reads 18-40s into that block's 75s budget
+  at the moment of defeat). `baseHpMul` applies at the single `makeEnemy`
+  choke point *before* VS's own overlay multipliers, so it inflates Night-1
+  enemy HP by the same x20 as every TD wave gets — landing hardest on the
+  block with the least built economy of the whole run. `classBasicAttack` is
+  TD-only (`run.ts:550`), so a class's kit Actives alone carry 100% of that
+  fight's output regardless of basic-attack strength. The table's two
+  worst-hit classes — swordsman (10/12 Night-1 losses) and bloodlord (8/12)
+  — are the roster's two shortest-range classes (`basicAttack.range: 2.5`)
+  and rank #1/#3 by `basicAttack.dps` (78, 51): exactly the stat that fight
+  cannot use. Corroborated by the data pattern across all 12 classes, not
+  exhaustively proven per class. **Chose re-pin over fix, for all eleven
+  remaining classes.** A swordsman-only data tune (the Cryomancer/Paladin/
+  Necromancer style already in this file) was considered but not attempted
+  once the full table showed the problem is roster-wide and pulls in
+  opposite directions (some classes need buffs, some need nerfs) — a
+  balance-analyst re-tune pass, not this bisect item's blast radius, and
+  reverting `baseHpMul` would re-break p12c's own deliberate T3
+  contested-margin fit and every other gate riding it. `archer` un-skipped
+  (real, green, in-band); the other eleven re-pinned with fresh numbers.
+  Follow-up filed as BACKLOG p12j (full roster re-tune against the new T3 +
+  `baseHpMul: 20` baseline, informed by the Night-1/basicAttack-TD-only
+  mechanism above). — Reason: measured, not guessed (CLAUDE.md: "a deferral
+  is a measurement with an expiry date," "check a `/data` row's blast radius
+  before calling it narrow" — `baseHpMul` looked TD-only-relevant and isn't);
+  SPEC-FINAL §14 G8, BACKLOG fb177, p12b, p12c, p12j, p12h (bisect method
+  precedent). — (owner verdict: approved)
+
+- **Q196. [p12j] The roster-wide G8 re-tune Q195 called for — 10 of 12
+  classes now in band, `data/classes.json` only, two honestly left open.**
+  Balance-analyst method throughout: state a hypothesis, change one lever (or
+  a small, named conceptual group of levers) at a time, re-measure over the
+  real 12-seed `beforeAll`-equivalent harness (a scratch probe,
+  `tools/p12j-probe.ts`, reusing `tests/helpers.ts`'s exact `runScripted`/
+  `scriptClassKit`/`GATE_TIER`/`cfg` — deleted before this item's commit,
+  final numbers reconfirmed by the real test file's own full `beforeAll`),
+  keep every round's number whether it helped, did nothing, or hurt. Full
+  before -> after table:
+
+  | class | before | after | rounds | what moved it |
+  |---|---|---|---|---|
+  | swordsman | 2/12 | 2/12 | 3 | nothing — see below |
+  | plaguebringer | 3/12 | 6/12 | 3 | Poison Barrel damage 24->40 + radius 3->5, *and* Poison Boost cooldownSeconds 14->8 — all three land together; damage+radius alone (cooldown left at 14) independently re-measures at 4/12, still under floor. Corrected in the second follow-up below — an earlier draft of this row named cooldown as a rejected lever, which was wrong. |
+  | engineer | 3/12 | 5/12 | 3 (2 reverted/dialed back) | Pop Turret summonStatMul/cap/cooldown (a towerHp passive buff tried first made it worse, 3/12->2/12; the first Pop Turret buff got G8 to 7/12 but broke G14's boss test, dialed back — see below) |
+  | pyromancer | 2/12 | 5/12 | 1 | Immolation Wave damage 135->200 |
+  | archer | 5/12 | 5/12 | 0 | untouched (already in band per fb177) |
+  | necromancer | 3/12 | 4/12 | 3 (2 reverted) | Raise summonStatMul 0.65->0.90 alone; stacking a cooldown cut collapsed it to 0/12, stacking a cap raise gave 2/12 — both reverted, best-of-3 kept |
+  | cryomancer | 9/12 | 5/12 | 1 | Glaciate damage 60->40 (nerf) |
+  | stormcaller | 4/12 | 5/12 | 2 | Chain Surge damage alone did nothing (4/12->4/12); cooldown 8->5 on top moved it |
+  | bloodlord | 4/12 | 5/12 | 3 (2 reverted) | Blood Tithe titheDamageMul/titheHpFraction/cooldown/radius all buffed together, + Crimson Rush healPerEnemy 2->10 at cooldown 6 (cooldown 4 alone was worse; a towerHp passive fix tried first was also worse) |
+  | animist | 9/12 | 8/12 | 2 (1 abandoned) | Wide Grove area 10%->4% first (in band at 6/12, but broke `tests/class-wide-grove-reach.test.ts`'s RING probe placement — 9 failures); 10%->8% instead, which clears both the probe and G8, at the ceiling with no headroom. Corrected in the second follow-up below — an earlier draft of this row and this file's other documents still had the abandoned 4%/6-12 draft as final. |
+  | paladin | 3/12 | 5/12 | 1 | Judgement wrathDamageMul 2.2->3.2 |
+  | time_lord | 10/12 | 8/12 | 1 | Chronal Surge bonusRangeMul/bonusAoeMul 0.10->0.05 (nerf) |
+
+  **10/12 in band at this point in the item, clears SPEC-FINAL §14's own G8
+  ratio (>=9/12, fb013) — see the follow-up at the end of this entry for why
+  the final number is 9/12, not 10.**
+  Both remaining classes got genuine multi-round attempts, not a one-shot
+  give-up, and both are the two classes fb177's header names sharing the
+  *identical* diagnosed mechanism (shortest range, #1/#3 basicAttack.dps,
+  first-VS-block wipe): **swordsman** got 3 materially different lever
+  rounds — Circle Slash damage alone (180->260); +cooldown 6->3/knockback
+  3->6; a drastic damage->450/radius->6/minDamage->100 plus a Dash Slash
+  rework (damage->200/cooldown->2) — and every single round reproduced
+  *exactly* the same 10/12 first-VS-block `defeat_warden`@w3 result, not one
+  seed's outcome ever changed. That is itself a real finding, not a null
+  result to shrug off: kit-Active damage is provably not this class's
+  bottleneck, so whatever is (most likely raw Warden HP/mitigation against
+  the Night-1 HP swarm, given damage this large couldn't dent the outcome)
+  sits outside a `classes.json`-only lever this item can reach — flagged for
+  a follow-up with `/src` in scope, not fixed here per this item's own
+  guardrail. Left at the smallest tested buff (damage 260 only) rather than
+  an untested/extreme value sitting in `/data` for zero measured gain.
+  **necromancer** landed one win short of band (4/12, needs 5) after 3
+  rounds each trying a different lever on top of its one improvement; kept
+  the best-measured config over two later attempts that both measured worse.
+  The sharpest disconfirmation of a clean "shortest range +
+  highest-basicAttack-dps" causal story: **bloodlord shares swordsman's
+  exact diagnosed mechanism per fb177 and *did* move** (4/12->5/12) on a
+  completely different lever (Blood Tithe/Crimson Rush numbers, not raw
+  damage) — so the shared trait correlates with the roster-wide collapse but
+  isn't sufficient on its own to predict which classes a kit-numbers retune
+  can rescue. `tests/p6e-class-diversity.test.ts`'s 9 newly-in-band classes
+  un-skipped with their fresh numbers; swordsman/necromancer re-pinned with
+  the honest post-retune count and the specific rounds tried, not the
+  pre-retune fb177 numbers. Two stray towerPassive description strings
+  (animist "Wide Grove", time_lord "Chronal Surge") still quoting the old
+  percentage after a numeric nerf were also corrected — a small but real
+  content/data drift caught along the way, not this item's main finding.
+  **A real gate-coupling hit** (CLAUDE.md's A4/A7 lesson, and the same class
+  of bug p12h found in this file's own neighborhood): engineer's first Pop
+  Turret buff (`summonStatMul` 0.30->0.55, cap 2->3, cooldown 3->2) cleared
+  G8 (7/12) but broke `tests/boss.test.ts`'s T1 mechanism check — that file's
+  own `runScripted(cfg(...))` calls default `classKey` to `'engineer'`
+  (`tests/helpers.ts`'s `cfg()`), and the stronger Pop Turret killed the
+  Warden-Eater in 15-17s against the test's own ">20s, not trivially short"
+  floor (seed 4 then seed 3, as the tuning moved). Caught only because this
+  item's guardrail said to re-run G1 (`tests/p10d-run-length.test.ts`) and
+  G14 (`tests/boss.test.ts`) directly — both excluded from `test:fast`,
+  neither touched since p12e/p12f, so `npm run test:fast` alone would have
+  shipped this broken. Bisected the window by hand: `summonStatMul: 0.42`
+  still broke the >20s floor (17.2s); `0.34` fixed that but dropped the boss
+  test's own T1 win-count below its `>=2 of 4 seeds` floor (only 1 seed
+  reached/killed the boss); `0.38` (cooldown 2.5, cap 3) is the value that
+  keeps both G8 (5/12, right at the floor) and G14's boss mechanism check
+  green — engineer's final number in the table above already reflects this
+  *at the time this item's own session wrote it*; see the follow-up below.
+
+  **Follow-up (2026-09-07, found directly by the lead session, not a
+  delegated reviewer): this item's own "no independent review" flag was
+  accurate — a real pass, run after a mid-session container restart,
+  found two genuine regressions self-review missed.** Re-running `npm run
+  test:fast` turned up: (1) engineer's retuned `summonCap: 3` was nominally
+  unreachable at its own 2.5s Pop Turret cast cadence
+  (`cadenceCeiling(10s, 2.5s) = 4`, one short of `summonCap(3) +
+  maxBonus(2) = 5`), breaking `tests/class-line-bonus.test.ts`'s c018 case
+  and `tests/class-active2-cdr.test.ts`'s c019 case — both exist
+  specifically to catch a cap that reads reachable on paper but isn't at
+  the real cadence; (2) the "two stray description strings...corrected"
+  claim above was half-true — `data/classes.json` was fixed but
+  `tests/class-descriptions.test.ts`'s own ledger tokens for those two rows
+  were never updated to match, so the file's own c015 checks broke.
+  Fixed both: `cooldownSeconds` 2.5->2.4 for the cadence bug (smallest cut
+  that restores reachability; G1/G14 re-verified clean at that value too),
+  ledger tokens corrected to `+8%`/`+5%`/`+5%`. Re-running the full G8
+  sweep after the cooldown fix surfaced a further, *honest* consequence,
+  not a bug: engineer's own chaotic seed trajectory moved by exactly one
+  win on that 0.1s change, **5/12 -> 4/12**, dropping back out of band.
+  Not chased with another retune round — the cadence bug was the real
+  defect, and re-tuning `summonStatMul`/cap again to chase this exact seed
+  count risks reopening the G14 coupling this item already spent 3 rounds
+  closing once; re-pinned honestly (`it.skip`, same as swordsman/
+  necromancer). **The item's real final number is 9/12, not 10/12** — one
+  seed short of the earlier claim, still clearing SPEC-FINAL's own ">=9 of
+  12" exactly at the boundary. `tests/p6e-class-diversity.test.ts`'s header
+  paragraph updated in place with the full account. — Reason: measured, not
+  guessed, per this item's own
+  "iterate: measure, adjust, re-measure, at least 2-3 rounds" instruction and
+  CLAUDE.md's balance-analyst method (hypothesis first, one lever at a time
+  where practical, keep every round's number even when it hurts); SPEC-FINAL
+  §14 G8, BACKLOG p12j, fb177, Q195.
+
+  **Second follow-up (2026-09-07): a real independent code-reviewer agent,
+  dispatched by the lead session on the container-restart recovery commit,
+  found two Major discrepancies between this entry's table and what
+  `data/classes.json` actually ships.** Both re-verified directly (throwaway
+  `tools/`-script probe reusing `runClassScripted`, deleted after use).
+  **animist**: the table said Wide Grove `area` retuned 10%->4%
+  (9/12->6/12); the shipped value is 10%->8%. Re-measured: 4% independently
+  gives 6/12 but breaks `tests/class-wide-grove-reach.test.ts`'s live-derived
+  RING probe placement (9 failures, reproduced directly) — 8% clears both
+  and independently re-measures at 8/12, the G8 band ceiling with no
+  headroom. This was in fact the *later*, correct decision — it was already
+  recorded accurately in `tests/class-spec-numbers.test.ts`'s own ledger row
+  for this field (`kind: 'retuned'`, `actual: 0.08`, with the wide-grove-reach
+  rationale spelled out), it just never made it into this table,
+  `tests/p6e-class-diversity.test.ts`'s comment, PROGRESS.md, or BACKLOG.md —
+  a real instance of one document telling the truth while three others still
+  carried an abandoned draft. **plaguebringer**: the table (before this
+  follow-up's edit) credited only Poison Barrel's `active1` damage/radius,
+  naming Poison Boost's `active2.cooldownSeconds` cut (14->8) as a rejected,
+  reverted lever. False: reverting `cooldownSeconds` to 14 while keeping the
+  shipped `active1` damage/radius independently re-measures at 4/12, still
+  under floor — the cooldown cut is load-bearing, not a discarded
+  experiment. Fixed the table rows above in place, plus
+  `tests/p6e-class-diversity.test.ts`'s header table and both classes'
+  trailing `it` comments, plus BACKLOG.md's p12j entry and this file's
+  PROGRESS.md entry. Neither correction changes any class's in/out-of-band
+  verdict or the roster's 9-of-12 tally. A third, Minor finding from the
+  same review: BACKLOG.md's p12j entry said "3 genuine regressions" while
+  naming two root causes (the c018/c019 cadence bug, and the
+  class-descriptions ledger miss) — left as a cosmetic note, since "3
+  genuine regressions" is also a defensible read counting failing test
+  cases rather than root causes. **Lesson, sharpened from the one just above
+  it**: cross-document *consistency* (three documents agreeing with each
+  other) is not the same evidence as document-vs-data *correctness* — this
+  item's four documents were internally consistent with each other on
+  animist and still wrong, because the fourth (the spec-numbers ledger) held
+  the truth alone and nothing cross-checked the other three against it or
+  against the actual shipped file. — Reason: a real independent
+  code-reviewer pass, not self-review or a repeat of the same
+  cross-document check; CLAUDE.md's measurement rules ("check a `/data`
+  row's blast radius", "my change improved X needs the control run");
+  SPEC-FINAL §14 G8; BACKLOG p12j. — (owner verdict: approved — p12j's 9/12 stands. ORDER (new item, before any further G8 re-tune): per-class survivability bands. Add `maxHpMul` and `defenseBonus` fields to `data/classes.json` (engine reads them at derive), authored ⚖: swordsman x1.6/+10, bloodlord x1.4/+5, paladin x1.5/+10 (on top of Guardian Stance), necromancer x1.2/+5, all other classes x1.0/+0. Rationale: Night-1 melee wipes are a survivability problem, not a damage problem. Then re-measure G8 for swordsman, necromancer and engineer; engineer may be re-tuned within the G14 >20s boss-fight floor. Filed as BACKLOG p13a — top of PRIORITY DIRECTIVE.)
+
+**Merge note (PR #55, 2026-09-14):** this branch and `origin/master` both
+numbered new entries Q192-Q196 independently after diverging from a shared
+Q191. This branch's Q192-Q196 (above) are kept as-numbered since they were
+already pervasively cross-referenced across `/tests`, BALANCE.md,
+PROGRESS.md and BACKLOG.md. Master's five colliding entries are kept too,
+renumbered Q201-Q205 in the order master appended them (its own Q197/Q199/
+Q200 did not collide and are unchanged below).
+
+- **Q201** (was Q192 on `origin/master`). [fb162, integrator merge] Two independent fixes for the same
+  overkill-ledger bug collided at merge; master's unconditional clamp was
+  kept over the branch's narrower `bankedTick`-scoped one.** `claude/admiring-
+  cray-lj5pov` fixed fb162 by clamping only the two real fb152 bank-flush
+  sites, deliberately leaving Time Lord's/the Corpse Core's designed-overkill
+  executes booking their full raw amount past a target's hp. Master had
+  already merged a simpler, unconditional `Math.min(dmg, hpBeforeHit)` clamp
+  at the same choke point, with its own `tests/fb162-dot-kill-overkill
+  .test.ts` explicitly pinning a **direct** overkill as clamped too — the
+  opposite of what the branch's `bankedTick` scoping intended to preserve.
+  A real semantic conflict on shared sim core, not a textual one. Resolved by
+  the merge's own standing rule (master wins on shared sim core): kept
+  master's shape, removed the now-dead `bankedTick` opt and its two call
+  sites, and dropped the branch's `tests/fb162-dot-overkill.test.ts`, which
+  pinned the discarded behavior. Neither `p12a-kit-power.test.ts` nor
+  `fb013-timelord.test.ts` depend on an execute overkilling a near-dead
+  target, so master's stricter clamp does not regress either. See PROGRESS.md
+  for the full reconciliation note. — (owner verdict: approved — master's unconditional overkill clamp stands; a designed execute books at most the target's remaining HP.)
+
+- **Q202** (was Q193 on `origin/master`). [fb139] The owner feedback names a literal machine path,
+  `D:\lidl_inbox`, as the F8 hotkey's write target — a path that exists only
+  on the owner's own Windows dev machine and cannot be meaningfully created
+  or verified from this Linux checkout.** Chosen default: the same
+  `dataDir`-injection shape `p9c`'s `tunerPlugin.ts` already established for
+  `/data` — `bugReportPlugin`/`bugReportSaveMiddleware` take `inboxDir`/
+  `replaysDir` parameters, defaulting to the literal `D:\\lidl_inbox` (Windows)
+  or a repo-relative `inbox/` (any other host — the merge's own platform-check
+  fold-in, since a literal Windows path is a bogus folder name rather than a
+  meaningful path on POSIX) and a repo-relative `replays/` directory
+  respectively, so the owner's real `npm run dev` writes exactly where the
+  feedback text says while every test injects a temp directory
+  (`tests/fb139-bug-report-plugin.test.ts`, `tests/fb139-bug-report-
+  replay.test.ts`) and never touches either path. — Reason: CLAUDE.md's gap
+  rule (fill with the most spec-consistent default and log it) — the
+  alternative, silently substituting a different directory for the default,
+  would mean the owner's own dev server never actually writes where the
+  order says. — (owner verdict: approved)
+
+- **Q203** (was Q194 on `origin/master`). [fb079] SPEC-FINAL §10.5 (terrain generation & Core placement) is
+  appended, written from `feedback/processed/20260903-121255-feature-terrain-
+  generation.md` verbatim plus the `lane/terrain` design decisions already
+  logged at Q162/Q171.** `data/terrain.json`/the generator itself were built
+  and merged by `lane/terrain` before SPEC-FINAL's own §16 reconcile folded
+  Q162/Q171's decisions into QUESTIONS.md, but nobody had appended the
+  section SPEC-FINAL's own §14 G2/§13 references presuppose — §10 still read
+  the pre-terrain fixed 36×20/3-gate map. This item's whole content is the
+  owner's own feedback file plus decisions already owner-approved at Q162/
+  Q171; nothing new is chosen here beyond where the append lands (as §10.5,
+  the id the feedback file itself names) and folding G2's wording/§13's
+  totals to match, both explicitly asked for in the BACKLOG item's
+  acceptance text. — Reason: CLAUDE.md's gap rule and working rule 5 (never
+  stop to ask, choose and log) — the section is marked `[designer-fill]`
+  itself per its own owner-feature tag, so the owner may still veto or
+  reshape it via a later inbox verdict. — (owner verdict: approved)
+  **Merge note (2026-09-07):** this branch and master each wrote §10.5
+  independently from the same feedback file; master's landed version is kept,
+  with two fidelity fixes made at the merge — the quote was still missing its
+  title and `Priority: normal` lines (both present in the source memo), and
+  the character-passage bullet had drifted to claim the shipped default lets
+  the character fly over rock, when `data/terrain.json` and
+  `src/sim/terrain/character.ts`'s own doc comment both confirm the opposite
+  (the vetoed reading shipped, unresolved) — restored to match this branch's
+  own, verified text.
+
+- **Q199. [fb081] c001 aligned `vswield.ts`/`classes.ts`'s line-shaped Actives
+  with Area, leaving `towers.ts`'s two line-kind tower attacks (`single`,
+  `pierce`) the lone unscaled outlier — and the two kinds are not actually
+  the same shape of problem.** Chosen default: `single`'s `lineHit` call
+  resolves its beam's footprint the same instant it fires — exactly the
+  shape `vswield.ts`/`classes.ts` already scale — so it now passes
+  `LINE_HALF_WIDTH * area` too, closing the inconsistency by alignment.
+  `pierce` is different: its actual footprint is a travelling bolt that
+  collides via `updateProjectiles`'s fixed-radius (`0.45`) point check, not a
+  line at all by the time it resolves; `LINE_HALF_WIDTH` there only steers
+  `bestLineDirection`'s aim heuristic (which direction packs the most
+  enemies into an assumed corridor before the bolt is even spawned).
+  Scaling that heuristic would bias which direction gets picked without
+  widening what the bolt can actually hit, so it is pinned unscaled with a
+  reason at the call site rather than aligned. — Reason: CLAUDE.md rule 5;
+  the two kinds' hit resolution is not the same mechanism, so "align or pin"
+  resolves to different answers for each rather than one blanket choice.
+  Owner-vetoable if a real line-shaped footprint is wanted for `pierce` bolts
+  too (a larger change: `updateProjectiles`' point collision would need to
+  become a line sweep) — refs: SPEC-FINAL §2 Area, §6; BACKLOG.md fb081,
+  fb083 (the still-open `towerArea` stat-key gap this does not touch). — (owner verdict: approved)
+  **Superseded at the master merge (2026-09-07, this file's fb081 commit):**
+  `pierce`'s aim-only argument stands, but on reconciliation `towers.ts`'s
+  `pierce` case ships scaled (`LINE_HALF_WIDTH * area`) after all, matching
+  `vswield.ts`'s wielded `pierce` case — biasing the aim heuristic toward the
+  actual wider corridor a high-Area build already hits with was judged the
+  more consistent default than a pinned exception two call sites disagreed
+  on (BACKLOG.md fb081b, closed moot by this same alignment). Still
+  owner-vetoable either way. — (owner verdict: approved.)
+
+- **Q204** (was Q195 on `origin/master`). [fb083] A new tower-only Area stat key (`towerArea`) closes the
+  Animist Wide Grove/Time Lord Chronal Surge leak into the caster's own kit
+  Actives — but `effectiveTowerAoe` (`towers.ts`) is shared by three callers,
+  not two, and two genuine design choices fall out of that.** (1)
+  `classes.ts`'s `towerSummonProfile` — the shape Engineer's Pop Turret and
+  the Animist's own Manifest spirit both clone their AoE from, since each is
+  a literal tower clone — calls `effectiveTowerAoe` too. Chosen default:
+  these stay on the `'tower'` route (the function's default), so Wide Grove/
+  Chronal Surge's "all towers" text keeps reaching a turret/spirit summon
+  exactly as it reaches a real tower, which is the more spec-consistent
+  reading of "towers" than carving summons out as a special case nothing
+  asked for. (2) `vswield.ts`'s wielded lob/poison blasts also call
+  `effectiveTowerAoe` (its only other caller) — these must NOT move, per
+  that file's own §6.1 header ("treated as character attacks," riding the
+  character's own Area/range, never the tower-side ones) — so
+  `effectiveTowerAoe` gained an explicit `route: 'tower' | 'character'`
+  parameter (default `'tower'`) rather than splitting into two functions,
+  and `vswield.ts`'s four call sites pass `'character'` explicitly. —
+  Reason: CLAUDE.md's gap rule (most spec-consistent default, logged rather
+  than asked) — a parameter keeps the one formula (`lob`/`poison` AoE
+  shape) in one place rather than forking it, and the tower-clone reading
+  for (1) is a straightforward extension of "these are towers" rather than
+  an invented exception. — (owner verdict: approved)
+
+- **Q205** (was Q196 on `origin/master`). [fb083] Two more shared reads of the old global `area` key —
+  Electric's inherent AoE (`damagetypes.ts`'s `applyDamageType`) and
+  Burning's splash (`enemies.ts`'s `tickDotSplash`) — can't take
+  `effectiveTowerAoe`'s `route` parameter, because neither function is
+  called with a caller-chosen route: both only ever receive a `source`
+  string (the attacking tower's or Active's key).** Left unfixed they would
+  have gone from over-applying (reading the global key on both routes) to
+  under-applying (reading neither, since Wide Grove/Chronal Surge/Normal
+  Bracelet's tower half moved off that key entirely) — a real Tesla Coil or
+  Ember Brazier would stop being widened by its own class's tower passive.
+  Chosen fix: a small shared helper, `enemies.ts`'s exported
+  `isTowerSource(w, source)`, reusing the exact idiom `dotPotency` already
+  uses for `towerPoisonDamageMul` (`!w.huntsWarden && w.content.towerByKey
+  .has(source)`) — true only for a real tower's own Act I attack, false
+  during VS (`huntsWarden`) even for a source that names a tower key, since
+  a hunting tower's attack is a character-route effect for every other
+  purpose in the sim. Both sites now pick `towerAreaMul`/`areaMul` by that
+  check instead of taking a parameter. — Reason: CLAUDE.md's gap rule
+  (most spec-consistent default) — reusing an existing, already-reviewed
+  idiom for "is this a tower's own hit" beats inventing a second one, and a
+  source check is the only option available to a function that has no
+  caller-chosen route to read. — (owner verdict: approved)
+
+- **Q197. [p12d] G8's T1/T5 companion bands (BALANCE DIRECTION v2 §C) are
+  measured on the shared `hybrid`/`engineer` harness, not per-class.** p12d's
+  acceptance asks for T1/T5 companion checks on G1/G8/G14/G23 alongside each
+  gate's T3 reference-tier band. G1/G14/G23 each already run (or, after this
+  item, run) a single or small (5-Core) scripted harness, so adding two more
+  tiers is a small multiple of their existing cost. G8's own T3 band is
+  inherently per-class (12 classes x 12 seeds already, ~10+ minutes), so a
+  literal per-class T1/T5 expansion would triple that file's cost for a
+  question the shared harness already answers: whether the T1/T5 rungs
+  themselves produce the intended easy/hard skew, independent of which class
+  is asking. Chose to add the companion checks once, on the same
+  `classKey: 'engineer'`/`hybrid` harness `tests/p12c-margin.test.ts` and
+  G1/G14 use, rather than per class. If a future item needs the per-class
+  reading specifically (e.g. to check whether the tier ladder skews any one
+  class's band differently from the rest), that is new work, not implied by
+  this one. — (owner verdict: approved)
+
+- **Q200. [fb174] A single retry plus an 8000 ms deadline does not close q15's
+  census-`hangs` gap under arbitrary concurrent load — only under the load
+  this repo's CI actually runs.** fb174's own qa-playtester pass, re-checking
+  the retry-once fix, forced 5 concurrent `vitest run` processes onto the
+  same file on a 4-core host (a load shape this repo's CI does not produce —
+  one `vitest run` per suite, not five stacked on one file) and got 5/5
+  failures; two full concurrent `npm run test:fast` invocations failed 1/2.
+  Both attempts still exceeding a deadline at that load level is expected —
+  no bounded retry count or deadline is safe against unbounded contention,
+  and BACKLOG-TERRAIN.md independently logs q15 as chronically load-sensitive
+  across unrelated sessions. Chose not to chase this further: raised the
+  default deadline to 8000 ms (fb173's own already-measured concurrent-safe
+  ceiling, `bench/q44-worker-timing-probe.ts`, 0/75 over budget) plus the
+  retry, and left a `hangs` verdict that survives both as a loud, honest
+  test failure rather than a silent hole — the gap fb174 was actually filed
+  to close. Serializing q15 against sibling lanes' CI runs, or an unbounded
+  retry loop, would be new scope past what fb174 asked for. — Reason:
+  CLAUDE.md rule 5 (never stop to ask, choose and log) and rule 6 (only two
+  distinct approaches tried here — retry alone, then retry + re-measured
+  deadline — both already exceed what a single backlog item should chase;
+  a real fix needs its own item if the residual load level ever shows up in
+  this repo's actual CI, not this session's stress-test rig). — (owner
+  verdict: approved)
+
+- **Q201. [p12i] Chose to restate `npm run status`'s balance snapshot rather
+  than chase a lever for the four residual timeout cells.** p12i offered two
+  paths: (a) find a lever that makes cryomancer T1, animist T1 and
+  engineer+`corpse` T3 resolve inside the snapshot's 45-min cap with no
+  HP-anchor change, or (b) restate the cap/policy with a recorded reason so a
+  censored run stops being scored as a loss. p12e (the prior item on this
+  same anchor) already measured that lowering `warden_eater.hp` further to
+  chase these exact four re-breaks the >20s fight-length floor for weak
+  kits — the one HP-shaped lever available was already spent and rejected,
+  and every one of the four wins in a ~80s boss fight once a scripted
+  harness plays the kit, so the cap is genuinely a stock-`hybrid`-policy
+  pacing artifact (the wave-11-to-17 wall, p10i), not evidence the class or
+  Core is weak. Chose (b): `tools/status.ts`'s `winRate` now excludes
+  `outcome === 'running'` (censored) runs from both halves of the ratio
+  instead of folding them in as an uncounted loss, and the snapshot names how
+  many of a cell's seeds censored (`t1Censored`/`t3Censored`/`policyComparison[].censored`,
+  rendered as a "(N censored)" suffix) so a reader sees *why* a cell reads
+  low instead of a bare, misleadingly-flat 0%. A cell where every seed
+  censors still reads 0 by convention (there is no decided seed to compute a
+  real rate from), but the count beside it now says that plainly rather than
+  implying a measured defeat. `npm run status` regenerated against the new
+  code. — Reason: CLAUDE.md rule 5 (never stop to ask, choose and log) and
+  the measurement rules ("check a change's blast radius" — this only changes
+  `tools/status.ts`'s own snapshot arithmetic and rendering, not any `/data`
+  value, any `/src/sim` gate, or any of the real G1/G8/G14/G23 gate tests,
+  which use their own independent scripted harnesses and are unaffected).
+  — (owner verdict: approved — censored runs excluded and named.)
+
+- **Q206. [p13a] The owner-ordered per-class survivability bands (Q196)
+  measure red, and drop two previously-in-band classes out — a real
+  regression, shipped as ordered rather than silently re-tuned.** Q196
+  ORDERed `maxHpMul`/`defenseBonus` for swordsman (x1.6/+10), bloodlord
+  (x1.4/+5), paladin (x1.5/+10), necromancer (x1.2/+5), built as a new
+  `baseRunStats` source (`src/sim/stats.ts`) folded into the existing
+  `maxHpPct`/`armor` stat keys, same mechanism `moveSpeedBonus` already
+  uses — inert by construction for the other eight classes (pinned,
+  `tests/p13a-survivability-bands.test.ts`). Re-measured all four at the
+  real 12-seed T3 scripted-kit cadence (`tests/p6e-class-diversity.test.ts`'s
+  own harness) before shipping, since two of the four (paladin, bloodlord)
+  had *live* (non-`.skip`) tests going in. Every one measured **worse**:
+  swordsman 2/12 -> 0/12, necromancer 4/12 -> 0/12, paladin 5/12 -> 0/12,
+  bloodlord 5/12 -> 3/12 — paladin and bloodlord newly out of band,
+  dropping the roster's in-band count from 9/12 to **7/12**, under SPEC-
+  FINAL §14's own G8 floor (>=9/12). Not a wasted mechanism, though: the
+  diagnosed Night-1 `defeat_warden`@w3 mode the order targeted did shrink
+  measurably where it existed (swordsman 10/12 -> 7/12 first-VS-block
+  wipes) — the extra HP/armor buys real survival past wave 3, and those
+  saved seeds fall instead to the roster's other, already-documented
+  wave-11-to-17 `defeat_core` wall (p10i) rather than converting into wins.
+  The mechanism is therefore working as designed; the *outcome* is a second
+  wall the first one was masking, not a wash, and a seed's fate is
+  RNG-stream-sequenced (architecture rule 2) so a strictly-more-survivable
+  sheet does not monotonically raise its win chance once the run's own
+  trajectory forks earlier — the same chaotic-sensitivity property Q157-
+  Q161/Q166 already measured on this exact mechanism from the damage side.
+  Chosen default: **ship the owner's literal ⚖ figures as ordered**, re-pin
+  all four `.skip` (paladin/bloodlord newly, swordsman/necromancer/engineer
+  already were) with the honest post-band numbers, and log the regression
+  here rather than quietly picking different multipliers the owner did not
+  authorize. Not chased with a second round inside this item — a further
+  retune (either the bands themselves, or an attack on the wave-11-to-17
+  wall directly, p10i's own open item) needs a fresh verdict or its own
+  item, not a silent substitution for numbers that were an explicit order.
+  — Reason: CLAUDE.md rule 5 (choose, log, continue) and rule 6 (the
+  bottleneck this order targeted is real and measurably moved; forcing a
+  second, un-ordered round of retuning inside the same item to chase green
+  is exactly the "fragile tune" the measurement rules warn against); the
+  "check a `/data` row's blast radius" rule (paladin/bloodlord were not
+  named in Q196's own re-measurement clause but were directly affected by
+  the same `/data` edit, and were live tests, not skipped ones); SPEC-FINAL
+  §14 G8, QUESTIONS Q196, BACKLOG p13a. — (owner verdict: pending)
+
+- **Q207. [fb185/fb196] Full fresh re-run of `tests/p6e-class-diversity.test.ts`
+  finds the roster-wide Night-1 wipe is far broader than fb185 assumed, and
+  falsifies fb196's own "prime suspect: PR #55" theory.** fb185 was filed
+  narrowly (animist drifted 8/12->4/12, T5 companion red) on the assumption
+  BACKLOG-CONTENT c004 was the likely cause. Re-running the file's `beforeAll`
+  fresh in full (28 min) found six more previously in-band/live classes also
+  freshly red — cryomancer, plaguebringer, pyromancer, archer, stormcaller —
+  all part of the same `defeat_warden`@w3 first-VS-block wipe fb196 already
+  named top-priority; only `time_lord` still clears its band. Two
+  git-worktree control runs (fb185's own acceptance mechanism): (a) animist
+  at the commit immediately before c004 (`7c3dc18`) measures 6/12 (with one
+  timeout), not the stale comment's 8/12 — c004 is a real but partial
+  contributor to animist's headline number, since the pin had already
+  drifted 8->6 before c004 landed, from the same broader regression; (b) a
+  second control run, added once the full re-run showed the regression was
+  roster-wide rather than animist-specific, measures `pyromancer` at the
+  commit immediately before PR #55 merged (`1a5912c`) — **0/12, the
+  identical `defeat_warden`@w3 signature already present before that
+  merge**, directly falsifying fb196's "prime suspect: PR #55" line. Chosen
+  default: re-pin every newly-red assertion honestly in
+  `tests/p6e-class-diversity.test.ts` (fb185's own acceptance — re-run,
+  diagnose, re-pin, nothing else) rather than chase a fix or a full
+  bisection inside fb185's scope; update fb196's own BACKLOG entry with the
+  falsifying control-run result and a narrowed next-bisection-step
+  suggestion (walk `9a6b9ad`..`1a5912c`, or check `data/waves.json`/
+  `data/enemies.json`/`src/sim/world.ts`'s VS spawn logic — neither
+  `data/classes.json` nor `src/sim/enemies.ts` show a diff at `1a5912c`
+  itself that would explain it) rather than name a new suspect without
+  evidence. Root cause is still open — this is a disproof, not a
+  replacement theory. — Reason: CLAUDE.md rule 5 (choose, log, continue),
+  the measurement rules ("my change improved X needs the control run" cuts
+  both ways — a *suspected* cause needs one too, not just a claimed fix),
+  and working rule 3 (a confirmed roster-wide regression outranks the
+  queue — logged against fb196, which already carries that priority, rather
+  than reopening a second top-priority item for the same bug). — (owner
+  verdict: pending)

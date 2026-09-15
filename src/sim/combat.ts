@@ -10,6 +10,7 @@ import {
   applyPoison,
   applySlow,
   damageEnemy,
+  DOT_TICK_EPS,
   type DamageOptions,
   type WardenDamageOptions,
 } from './enemies';
@@ -374,7 +375,11 @@ export function lineHit(
   // second — has nothing to spend them on.
   if (n >= maxHits) return total;
 
-  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + 2);
+  // The swept rectangle's far corner sits at `sqrt((range/2)^2 + halfWidth^2)`
+  // from the midpoint; a constant margin only bounds that while `halfWidth`
+  // stays small (fb081 — an Area-scaled `halfWidth` above ~2 pushed real
+  // enemies outside a `range*0.5+2` circle before they were ever perp-tested).
+  const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + halfWidth + 2);
   const hits: { e: Enemy; along: number }[] = [];
   for (const e of list) {
     const rx = e.x - x;
@@ -582,25 +587,81 @@ function spawnBurningPatch(w: World, p: Projectile): void {
 
 /* ------------------------------------------------------------ ground areas */
 
+/**
+ * fb082 (matches `applyPoison`'s own pre-existing literal `3` for `maxStacks`
+ * at every ground-poison call site): how many concurrent poison stacks a
+ * ground field's own applications are meant to sustain. Named rather than
+ * re-hardcoded a second time now that the per-application `duration` below
+ * also depends on it.
+ */
+const POISON_STACK_CAP = 3;
+
 export function updateAreas(w: World, dt: number): void {
   /** Summed dps of every live `enemyFire` field covering the Warden this frame (fb161). */
   let coveringDps = 0;
   for (const a of w.areas) {
     if (a.dead) continue;
     a.remaining -= dt;
-    if (a.remaining <= 0) {
-      a.dead = true;
-      continue;
-    }
-    // Boss slam rings grow and damage on their leading edge; boss.ts owns them.
-    if (a.type === 'bossSlam') continue;
-    if (a.type === 'enemyFire') {
-      // fb161: the Warden's share is summed across every covering field and
-      // banked once, below — see `tickGroundFireBank`.
-      if (dist2(a.x, a.y, w.warden.x, w.warden.y) <= a.radius * a.radius) {
-        coveringDps += a.dps;
+    const expired = a.remaining <= 0;
+
+    // fb082: only meaningfully used by the `'poison'` branch below, but
+    // declared out here so the per-application `applyPoison` call (inside
+    // the per-target loop further down) can read the same cadence value.
+    let tick = 1;
+    if (a.type === 'poison') {
+      // fb082 (SPEC-FINAL §4.1: "applying poison damage every second"): a
+      // `'poison'` field used to call `applyPoison` unconditionally every
+      // frame, 60x the intended rate — the stack cap bounds how many
+      // *stacks* an enemy carries, but every one of those extra calls still
+      // overwrote the shortest stack's `remaining` back to a full 1 s, which
+      // is not the same as one real application per second. Gated to a
+      // per-area cadence instead, authored as `tickSeconds` (default 1s).
+      // `acc` advances every frame the area is alive regardless of whether
+      // anything is in range right now — it is the area's own clock, not a
+      // target's — so a target that steps in mid-window is not credited a
+      // free early tick just because it missed the accumulating frames.
+      //
+      // qa-playtester (same session): accumulating and checking the cadence
+      // happens BEFORE this area is marked dead below, unlike every other
+      // type's expiry — a poison area whose whole life is an exact multiple
+      // of its own `tickSeconds` (Venom Spore's own trail blob: `remaining
+      // === tickSeconds` by construction) needs its very last frame to still
+      // have a fair chance to cross the threshold, or the one application it
+      // was ever going to make is lost to a `remaining`/`acc` rounding race
+      // at the boundary — measured, not hypothetical: 0 damage delivered at
+      // the shipped 1.4286 s interval before this ordering fix.
+      a.acc += dt;
+      tick = a.tickSeconds ?? 1;
+      // Same `DOT_TICK_EPS` guard fb152's own accumulator uses (enemies.ts):
+      // summing `dt` in fixed steps can land a float epsilon short of an
+      // exact-looking threshold, which would otherwise delay a tick by a
+      // whole extra frame at some `tickSeconds`/`dt` ratios.
+      if (a.acc < tick - DOT_TICK_EPS) {
+        if (expired) a.dead = true;
+        continue;
       }
-      continue;
+      a.acc -= tick;
+      if (expired) a.dead = true;
+    } else {
+      // Every non-poison type keeps its pre-fb082 expiry behaviour exactly:
+      // an area dying this frame is skipped before its type is even
+      // dispatched, at the cost of a negligible (sub-frame) loss of
+      // continuous `dt`-scaled damage for `'burn'` — unrelated to, and not
+      // reintroduced by, this item.
+      if (expired) {
+        a.dead = true;
+        continue;
+      }
+      // Boss slam rings grow and damage on their leading edge; boss.ts owns them.
+      if (a.type === 'bossSlam') continue;
+      if (a.type === 'enemyFire') {
+        // fb161: the Warden's share is summed across every covering field and
+        // banked once, below — see `tickGroundFireBank`.
+        if (dist2(a.x, a.y, w.warden.x, w.warden.y) <= a.radius * a.radius) {
+          coveringDps += a.dps;
+        }
+        continue;
+      }
     }
     // Ground fields get the same many-target damping as blasts and cones.
     const list = w.enemiesInRadius(a.x, a.y, a.radius).slice();
@@ -614,7 +675,21 @@ export function updateAreas(w: World, dt: number): void {
     for (const e of list) {
       if (e.dead) continue;
       if (a.type === 'poison') {
-        applyPoison(w, e, a.dps * scale, 1.0, 3, a.source);
+        // code-reviewer/qa-playtester (fb082, same session): naively passing
+        // `applyPoison`'s pre-existing `duration: 1.0` unchanged, now that
+        // applications land once per `tick` instead of every frame, let each
+        // stack fully expire before the next arrived — never more than one
+        // concurrent stack, where the pre-fix 60 Hz spam had (by refreshing
+        // the shortest stack continuously) kept all `POISON_STACK_CAP` slots
+        // full almost the whole time. Measured: ~3.5x less total damage over
+        // the barrel's life, silently failing this item's own "TTK unchanged"
+        // acceptance clause. `duration: tick * POISON_STACK_CAP` instead lets
+        // consecutive applications overlap enough to actually reach and hold
+        // the cap (a new stack lands every `tick`; each lives `cap` ticks),
+        // restoring the sustained-cap magnitude the cap was always meant to
+        // produce, while still cadenced correctly — one *application* per
+        // `tick`, not one every frame.
+        applyPoison(w, e, a.dps * scale, tick * POISON_STACK_CAP, POISON_STACK_CAP, a.source);
       } else {
         damageEnemy(w, e, a.dps * scale * dt, a.source, { pure: true, dot: true });
       }

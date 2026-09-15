@@ -434,7 +434,7 @@ the loop. This section is that audit's ledger. BACKLOG.md is rewritten to match.
 
 SPEC-FINAL is mostly V3 made complete and self-contained rather than V3 revised,
 so §§1–13 of this file survive as written — the systems V3 marked for removal are
-the same ones SPEC-FINAL removes. Four things are genuinely new:
+the same ones SPEC-FINAL removes. Five things are genuinely new:
 
 1. **The gate list is consolidated.** §14's **G1–G20** replaces every A-, B- and
    C-gate list. This is a renaming for most surviving gates and a real change for
@@ -451,6 +451,15 @@ the same ones SPEC-FINAL removes. Four things are genuinely new:
    nine classes and the pool are **p6d** and **p7a — both done**.
 4. **§16 names the balance work explicitly**: flip Burning, re-price against G13,
    re-baseline perf as G17. These are **p10a**, **p10c**, **p10e**.
+5. **§10.5 (terrain generation) is new**, added after this reconcile's original
+   pass — SPEC-FINAL as first reconciled had no terrain section at all, even
+   though `lane/terrain` had already built the generator to the owner's own
+   feature feedback (`feedback/processed/20260903-121255-feature-terrain-
+   generation.md`) and logged its design decisions (QUESTIONS Q162, Q171,
+   both owner-approved). **fb079** appends §10.5 verbatim-plus-decisions,
+   extends G2's wording to name generation determinism explicitly, and adds
+   the terrain file to §13's content totals — a docs-only item; no code
+   changed.
 
 ### 8.2 Old id → new id
 
@@ -619,3 +628,19 @@ test header or a QUESTIONS entry can be followed:
 | G8 class win rates | C11 | G18 UI flows | B10 |
 | G9 Swordsman + Plaguebringer | C9 + C10 | G19 liveness | A2, A3, B11 |
 | G10 Archer charge | — (new) | G20 milestone specials | — (new) |
+
+### 8.6 Additions after the reconcile
+
+SPEC-FINAL has grown one section since §16's reconcile landed:
+
+- **§10.5 Terrain generation & Core placement** (fb079, this session): the
+  `lane/terrain` epic (BACKLOG-TERRAIN.md) built random per-seed terrain,
+  player-chosen Core placement, and the tile-kind/high-ground rules to an
+  owner feedback file that predates SPEC-FINAL's own §16 reconcile but was
+  never folded into the spec text itself — the generator, its property tests,
+  and `data/terrain.json` all shipped and merged (QUESTIONS Q162, Q171) while
+  §10 still read the old fixed 36×20/3-gate map. §10.5 now carries the
+  owner's request verbatim plus the lane's logged design decisions; §14's G2
+  gained a terrain-determinism clause and §13's content totals gained the
+  terrain file. No code changed — this is the spec catching up to what
+  `lane/terrain` had already built and measured.

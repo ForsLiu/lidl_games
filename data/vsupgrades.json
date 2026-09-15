@@ -4,7 +4,7 @@
     { "key": "power",    "name": "Attack",       "maxRank": 5, "stat": "power",        "perRank": 0.10, "desc": "+10% Attack", "uncapped": true },
     { "key": "haste",    "name": "Attack Speed", "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.10, "desc": "+10% Attack Speed", "uncapped": true },
     { "key": "swift",    "name": "Move",         "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.10, "desc": "+10% Move Speed", "uncapped": true },
-    { "key": "vitality", "name": "Max HP",       "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP", "uncapped": true },
+    { "key": "vitality", "name": "Max HP",       "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+1.5 Max HP", "uncapped": true },
     { "key": "plating",  "name": "Defense",      "maxRank": 5, "stat": "armor",        "perRank": 5,    "desc": "+5 Defense", "uncapped": true },
     { "key": "reach",    "name": "Area",         "maxRank": 5, "stat": "area",         "perRank": 0.10, "desc": "+10% Area", "uncapped": true },
     { "key": "range",    "name": "Range",        "maxRank": 5, "stat": "charRange",    "perRank": 0.10, "desc": "+10% Range", "uncapped": true }

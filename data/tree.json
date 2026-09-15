@@ -603,7 +603,7 @@
    "kind": "notable",
    "key": "heart_of_stone",
    "name": "Heart of Stone",
-   "desc": "Core +150 HP",
+   "desc": "Core +15 HP",
    "stats": {
     "coreHp": 150
    },
@@ -1388,7 +1388,7 @@
    "kind": "notable",
    "key": "unbroken",
    "name": "Unbroken",
-   "desc": "+40 Max HP, +2 HP regen",
+   "desc": "+4 Max HP, +0.2 HP regen",
    "stats": {
     "maxHp": 40,
     "hpRegen": 2

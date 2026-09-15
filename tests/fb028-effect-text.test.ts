@@ -175,11 +175,15 @@ describe('fb028: in-run equipment section — hover tooltips on the character pa
     expect(html).toContain('(active)');
   });
 
-  it('an owned-but-unequipped item in the stash list also carries its full effect tooltip', () => {
+  // fb157 (owner feedback `ui-character-panel-compact`): the in-run panel
+  // dropped its owned-but-unequipped stash list along with the mid-run swap
+  // UI it existed to feed — equipment is read-only in-run now, so an owned
+  // item that is not equipped has nothing to show here any more.
+  it('an owned-but-unequipped item no longer appears in the (now read-only) in-run panel', () => {
     const w = worldWith(['greatsword']);
     w.ownedEquipment['swordsman_armor'] = 1;
     const html = characterPanelMarkup(characterPanelData(w), w);
-    expect(html).toContain('Circle Slash charging speed scales with attack speed');
+    expect(html).not.toContain('Circle Slash charging speed scales with attack speed');
   });
 
   it('an empty slot carries no tooltip markup', () => {

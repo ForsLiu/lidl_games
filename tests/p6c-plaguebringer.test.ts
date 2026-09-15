@@ -60,6 +60,42 @@ describe('p6c: the loader rejects a ground_poison row missing groundDurationSeco
     const boost: ClassEffect = { name: 'x', kind: 'poison_boost', cooldownSeconds: 1, radius: 0, damage: 0 };
     expect(() => validateClassEffect(boost, 'x')).not.toThrow();
   });
+
+  it('fb082: rejects a ground_poison row whose groundTickSeconds exceeds groundDurationSeconds', () => {
+    // qa-playtester finding: `updateAreas`' cadence gate (combat.ts) never
+    // crosses a threshold larger than the zone's own remaining lifetime, so
+    // an authored `groundTickSeconds` past `groundDurationSeconds` would
+    // silently, permanently disable the mechanic — a loader rule that
+    // refuses unpayable data beats a comment saying it must be valid.
+    const tooSlow = { ...plaguebringer.active1, groundTickSeconds: (plaguebringer.active1.groundDurationSeconds ?? 5) + 1 } as ClassEffect;
+    expect(() => validateClassEffect(tooSlow, 'x')).toThrow(/groundTickSeconds/);
+  });
+
+  it('fb082: rejects a non-positive groundDurationSeconds even with groundTickSeconds left unauthored', () => {
+    // qa-playtester re-QA finding: the exceeds-check above only fires when
+    // both fields are present, so `groundDurationSeconds <= 0` with no
+    // explicit `groundTickSeconds` slipped through and reached
+    // `firePoisonBarrel`'s `?? 1` fallback — a zero/negative lifetime can
+    // never cross even that default cadence, so the zone would be
+    // permanently inert. Checked independently of whether `groundTickSeconds`
+    // happens to be authored.
+    const zero = { ...plaguebringer.active1, groundDurationSeconds: 0 } as ClassEffect;
+    delete (zero as Record<string, unknown>).groundTickSeconds;
+    expect(() => validateClassEffect(zero, 'x')).toThrow(/groundDurationSeconds/);
+    const negative = { ...plaguebringer.active1, groundDurationSeconds: -5 } as ClassEffect;
+    delete (negative as Record<string, unknown>).groundTickSeconds;
+    expect(() => validateClassEffect(negative, 'x')).toThrow(/groundDurationSeconds/);
+  });
+
+  it('fb082: accepts groundTickSeconds exactly equal to groundDurationSeconds', () => {
+    // The boundary itself must stay legal — `updateAreas`' cadence check now
+    // accumulates *before* marking a poison area dead, so a tick and expiry
+    // landing on the same frame still delivers the one scheduled application
+    // (Venom Spore's own trail blob is built this way: tickSeconds ===
+    // remaining exactly).
+    const exact = { ...plaguebringer.active1, groundTickSeconds: plaguebringer.active1.groundDurationSeconds } as ClassEffect;
+    expect(() => validateClassEffect(exact, 'x')).not.toThrow();
+  });
 });
 
 describe('p6c: Poison Barrel — a ground zone that ticks poison for its own duration', () => {

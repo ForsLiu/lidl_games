@@ -67,7 +67,7 @@ import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
 const holders = vi.hoisted(() => {
   const names = [
     'vsupgrades', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
-    'modifiers', 'quests', 'spawns', 'towers', 'tree', 'warden', 'waves',
+    'modifiers', 'quests', 'spawns', 'terrain', 'towers', 'tree', 'warden', 'waves',
   ];
   const h: Record<string, Record<string, unknown>> = {};
   for (const n of names) h[n] = {};
@@ -84,6 +84,12 @@ vi.mock('../data/equipment.json', () => ({ default: holders.equipment }));
 vi.mock('../data/modifiers.json', () => ({ default: holders.modifiers }));
 vi.mock('../data/quests.json', () => ({ default: holders.quests }));
 vi.mock('../data/spawns.json', () => ({ default: holders.spawns }));
+// fb080: resolves to the same on-disk `data/terrain.json` `src/sim/terrain/
+// config.ts` imports (as `'../../../data/terrain.json'`) — Vitest's `vi.mock`
+// keys off the resolved module, not the literal specifier string, so this
+// intercepts that import too even though nothing in `content.ts` itself
+// spells this path (see DATA_FILES's own doc comment in tools/fuzz-data.ts).
+vi.mock('../data/terrain.json', () => ({ default: holders.terrain }));
 vi.mock('../data/towers.json', () => ({ default: holders.towers }));
 vi.mock('../data/tree.json', () => ({ default: holders.tree }));
 vi.mock('../data/warden.json', () => ({ default: holders.warden }));
@@ -245,10 +251,20 @@ describe('q7 — the /data import seam', () => {
     expect(r.error.length).toBeGreaterThan(0);
   });
 
-  it('mocks exactly the files src/sim/content.ts imports', () => {
+  it('mocks exactly the files src/sim/content.ts imports (fb080: terrain is a checked exception, reached indirectly)', () => {
     const src = readFileSync('src/sim/content.ts', 'utf8');
     const imported = new Set<string>();
     for (const m of src.matchAll(/from '\.\.\/\.\.\/data\/([a-z]+)\.json'/g)) imported.add(m[1]);
+    // terrain.json is the one DATA_FILES entry with no `from '../../data/
+    // terrain.json'` in content.ts to match above — content.ts reaches it
+    // through terrain/config.ts's TERRAIN_RAW instead (tools/fuzz-data.ts's
+    // own doc comment on DATA_FILES explains why). Checked explicitly, not
+    // just assumed, so a change that broke either link of that indirection
+    // would fail here rather than silently stop being fuzzed.
+    expect(src).toMatch(/from '\.\/terrain\/config'/);
+    const terrainConfigSrc = readFileSync('src/sim/terrain/config.ts', 'utf8');
+    expect(terrainConfigSrc).toMatch(/from '\.\.\/\.\.\/\.\.\/data\/terrain\.json'/);
+    imported.add('terrain');
     expect([...imported].sort()).toEqual([...DATA_FILES].sort());
   });
 

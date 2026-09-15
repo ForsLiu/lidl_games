@@ -21,7 +21,8 @@ import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice } from '../meta/meta';
 import { questCompletionToasts } from './quests';
 import { ensureActiveSlotMigrated, saveMetaToActiveSlot } from './saveslots';
-import { devProfileActive, startupProfile } from '../meta/devprofile';
+import { devProfileActive, isDevBuild, startupProfile } from '../meta/devprofile';
+import { BugReportBox, buildBugReportBundle, downloadBugReportBundle, postBugReport } from './bugreport';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
 import { Sfx } from '../render/sfx';
@@ -72,6 +73,8 @@ export class Game {
    */
   private dprQuery: MediaQueryList | null = null;
   private paused = false;
+  /** fb139: constructed once, lazily, on the first F8 press — no run means no `document.body` mount is needed yet in headless/test contexts that never press it. */
+  private bugReportBox: BugReportBox | null = null;
   /**
    * p9a: reused verbatim across Retry, and spread-with-a-new-seed across New
    * Run — both carry forward whatever `contentHash` `World`'s constructor
@@ -478,6 +481,20 @@ export class Game {
     // setting that actually applies on resume. Seed it here the same way
     // `setSpeed`/`setShowRanges` above seed their own presentation state.
     this.hud.syncAutoPickToggle(cfg.autoPickLevelUps === true);
+    // fb171: `onFocusLost`'s `blur`/`visibilitychange` listeners (bound below,
+    // via `bindGlobalInput`) can only pause a run that is already showing when
+    // the document backgrounds — a run that BOOTS (fresh or a fb074 resume)
+    // in an already-hidden document (e.g. a browser restoring a background
+    // tab) binds those listeners too late to ever see a hide event; the only
+    // one left to arrive is the reveal, which `onFocusLost`'s own
+    // `!document.hidden` guard correctly ignores. Mirrors that same
+    // `outcome === 'running' && !this.paused` guard at bind time instead
+    // (code-reviewer: `this.paused` is always false here today — just set a
+    // few lines up — but the explicit conjunct keeps that an enforced
+    // invariant rather than an implicit one a future insertion between the
+    // two could silently break), so the player never gets dropped straight
+    // into live combat with no visible pause.
+    if (document.hidden && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
   }
 
   /**
@@ -517,6 +534,58 @@ export class Game {
     this.hud.setPaused(paused, this.run.world);
   }
 
+  /**
+   * fb139: opens the F8 note box. Pauses a running run for the duration (like
+   * Esc) so typing a note cannot cost the player a Core mid-sentence, but
+   * restores whatever pause state was already in effect rather than always
+   * resuming — matches the manual-resume convention `onFocusLost` documents.
+   * Guarded by `bugReportBox.isOpen` so a second F8 while the box is already
+   * open cannot reset the textarea and clobber whatever the player already
+   * typed.
+   */
+  private openBugReportBox(): void {
+    if (!this.run) return;
+    if (!this.bugReportBox) this.bugReportBox = new BugReportBox();
+    if (this.bugReportBox.isOpen) return;
+    const wasPaused = this.paused;
+    const resume = () => {
+      if (this.run && this.run.world.outcome === 'running' && !wasPaused) this.setPaused(false);
+    };
+    if (this.run.world.outcome === 'running' && !wasPaused) this.setPaused(true);
+    this.bugReportBox.open(
+      (note) => {
+        void this.submitBugReport(note);
+        resume();
+      },
+      resume,
+    );
+  }
+
+  /**
+   * fb139: builds the bundle from the live run (current tick/wave/phase, the
+   * full recorded input log, and a canvas screenshot) and hands it to the
+   * dev-server endpoint in a dev build, or triggers a download in a
+   * production one — the same predicate (`isDevBuild()`) `hud.ts`'s Tuner
+   * surface and Screenshot button already gate on, since a production bundle
+   * genuinely has no `/__bugreport/save` endpoint to reach
+   * (`bugReportPlugin.ts`'s `apply: 'serve'`).
+   */
+  private async submitBugReport(note: string): Promise<void> {
+    if (!this.run) return;
+    const screenshotPng = this.hud.canvas.toDataURL('image/png').split(',')[1] ?? '';
+    const bundle = buildBugReportBundle(this.run.world, this.inputLog, note, screenshotPng);
+    if (isDevBuild()) {
+      try {
+        await postBugReport(bundle);
+      } catch {
+        // Best-effort dev convenience — same fire-and-forget tolerance
+        // `persistRun`'s own storage-write failures get (runpersist.ts).
+      }
+    } else {
+      downloadBugReportBundle(bundle);
+    }
+  }
+
   private bindGlobalInput(): void {
     const onKeyDown = makeKeyDownHandler({
       keys: this.keys,
@@ -551,6 +620,29 @@ export class Game {
     });
     window.addEventListener('keydown', (e) => {
       if (!this.run) return;
+      // fb139: F8 is a fixed dev-tooling-style hotkey, not a rebindable
+      // player action (like `hud.ts`'s dev-only Screenshot button), so it is
+      // not routed through `keyBindings`/`onKeyDown`. Repeat-guarded the same
+      // way the dash queue above is — a held F8 must open the box once, not
+      // spam it — and reachable regardless of `this.paused` so a bug can be
+      // reported from a paused run too.
+      if (e.key === 'F8' && !e.repeat) {
+        e.preventDefault();
+        this.openBugReportBox();
+        return;
+      }
+      // fb139 (code-reviewer Critical, same session): while the note box is
+      // open it owns keyboard input entirely. `window`'s `keydown` listener
+      // sees every key typed into the box's own `<textarea>` too (bubbling),
+      // and below this point every branch is a live gameplay effect —
+      // `makeKeyDownHandler`'s unconditional Escape->togglePause and
+      // Enter->'call', `dashQueued`, and every other queued Command — none
+      // of which check focus. Left unguarded, typing a note containing
+      // "call" or an Enter/Escape keypress would queue or fire a real
+      // gameplay action the instant the box closes and the run resumes,
+      // directly against this feature's own point (opening the box pauses
+      // so a note "cannot cost the player a Core mid-sentence").
+      if (this.bugReportBox?.isOpen) return;
       // fb078: mirrors `makeKeyDownHandler`'s own `if (e.repeat) return;` —
       // without it, a browser key-repeat event for a Space the player never
       // released (including one held through an Esc/blur pause) re-arms
@@ -593,6 +685,22 @@ export class Game {
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) return;
       onFocusLost();
+      // fb170 (qa-playtester finding during fb145 QA): this handler's own
+      // comment above already calls `hidden` the last reliable moment before
+      // a mobile freeze/discard, but until now it only paused — the actual
+      // checkpoint write happens in `frame()`'s 60-tick throttle
+      // (`this.inputLog.length - this.lastPersistedLen >= 60`), which the
+      // pause this same call just triggered stops from ever running again.
+      // Flushes directly, bypassing the throttle, through the exact same
+      // `persistRun()` every throttled call already uses — so
+      // `persistDisabled`/cross-tab `runSessionId` ownership are honoured
+      // identically, not re-implemented here. Guarded the same way
+      // `onFocusLost` is (`outcome === 'running'`), so hiding the Hub (no
+      // run) or an already-finished run writes nothing new.
+      if (this.run && this.run.world.outcome === 'running') {
+        this.persistRun();
+        this.lastPersistedLen = this.inputLog.length;
+      }
     });
     // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
     // actual laid-out box (canvas.ts), not a fixed constant, so a live window

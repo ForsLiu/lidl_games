@@ -8,6 +8,18 @@ into the Log below (it becomes main-lane work at merge).
 
 ## Queue (QUALITY.md Alpha/Beta bars + gate G17)
 
+- [ ] (fb182) [polish] token economy (fb178, main lane): this file is well
+      past the 400-line budget fb178 set for live backlog files. Move every
+      `[x]` item to `docs/BACKLOG-DONE.md` under a `## BACKLOG-QUALITY.md`
+      section, in original order, keeping only open/blocked items and the
+      last 10 done ids inline. `tools/status.ts`'s `backlogPaths()` already
+      reads `docs/BACKLOG-DONE.md` (fb178), so a feedback citation moved
+      there stays in STATUS.md's ledger — verify with
+      `npx vitest run tests/fb038-status.test.ts` after. Acceptance: this
+      file under ~400 lines; every open/blocked item's full text unchanged;
+      `npm run test:fast` green — refs: feedback/feature-token-economy.md,
+      BACKLOG.md fb178.
+
 - [ ] (q1) **BLOCKED — out of Scope** [feat] Soak harness: 50 seeded full runs
       headless, assert zero uncaught exceptions and zero NaN in any report
       field — acceptance: `npm run soak` exists and passes; wired into npm
@@ -1175,6 +1187,34 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-09-07 — fb172, filed from the main lane (q15's worker could not start)
+
+`q15`'s fuzzer (this lane's own item, `tests/q15-command-domain-fuzz.test.ts`)
+was failing its **whole suite at collection**, so its 24 cases were counting
+as *skipped* and had not run in some time; `q45`'s `fuzz-command-domain` case
+died of the same cause. Inside a `worker_threads.Worker`,
+`execArgv: ['--import', 'tsx/esm']` gets the entry `.ts` file transformed but
+gives that file's own imports no extensionless resolution, so the worker threw
+`Cannot find module '.../tools/fuzz-command-domain'` at startup. **Not** the
+Windows host-load timeout flake this lane and PROGRESS.md have logged against
+q15 for many sessions — it is deterministic and reproduces on a clean
+checkout. Fixed in the main lane (`tools/` is outside this lane's Scope) by
+registering the loader on the worker thread:
+`tools/fuzz-command-domain-worker-boot.mjs` calls `register()` from
+`tsx/esm/api` then dynamic-`import()`s the real worker; the now-redundant
+`execArgv` came off both Worker sites. Code review verified the round-trips
+are real (75 genuine worker probes, deep-equalled against the in-process
+result) and re-checked the `terminate()`/`hangs` limb live through the new
+bootstrap; its one substantive ask, a **positive** test for that limb (q15
+only ever asserted `hangs === false`), landed as a new case using a 1 ms
+deadline. q15+q45+q47: 56 passed. See BACKLOG.md fb172 and PROGRESS.md.
+
+**Consequence for this lane:** `tools/mutation-probe.ts`'s
+`command-domain-classify-hollow` mutation targets q15, so while q15 died at
+collection that mutation's "goes red" signal was vacuous and its control was
+red. It is live again; worth re-running `tests/q14-mutation-smoke.test.ts`
+(full-tier only) at the next phase or lane-merge point.
 
 ### 2026-08-28 — session 52
 

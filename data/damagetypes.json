@@ -20,7 +20,7 @@
       "duration": 5,
       "maxStacks": 50,
       "refresh": "shortest",
-      "desc": "Each application deals 1 damage per second for 5 seconds. Applications stack independently.",
+      "desc": "Each application deals 0.1 damage per second for 5 seconds. Applications stack independently.",
       "color": "#cc2244",
       "colorblindColor": "#D55E00"
     },
@@ -62,7 +62,7 @@
       "armorShredPerSecond": 1,
       "radius": 1,
       "immuneTrait": "burnImmune",
-      "desc": "Each application deals 1 damage and strips 1 armor per second for 3 seconds; both effects land in a radius around the victim.",
+      "desc": "Each application deals 0.1 damage and strips 1 armor per second for 3 seconds; both effects land in a radius around the victim.",
       "color": "#ff8833",
       "colorblindColor": "#F0E442"
     },

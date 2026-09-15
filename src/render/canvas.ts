@@ -12,32 +12,50 @@ import {
   GRID_W,
   TILE,
   TileType,
+  type Grid,
 } from '../sim/grid';
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
 import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
+import type { ClassDef } from '../sim/content';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
 import { FIXED_DT, type Enemy } from '../sim/types';
 import type { World } from '../sim/world';
+import { classLiveContext } from '../ui/class-live';
 import {
   checkBuild,
   effectiveTowerAoe,
   effectiveTowerMinRange,
   effectiveTowerRange,
   towerCost,
+  type BuildRejection,
 } from '../sim/towers';
+import { loadTerrain, TerrainKind } from '../sim/terrain';
 import {
+  ATTACK_KIND_COLORS,
+  attackKindIconShape,
   ENEMY_COLORS,
+  FLOATING_NUMBER_FONT,
+  floatingNumberFontSize,
+  floatingNumberFontWeight,
   GATE_PATH_COLORS,
   PALETTE,
+  terrainTileFill,
   TERRAIN_COLORS,
   TOWER_COLORS,
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
-import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type BasicImpactShape, type VfxShape } from './vfx-registry';
+import {
+  ACTIVE_KIND_SHAPE,
+  AREA_SCALED_ACTIVE_KINDS,
+  CLASS_VFX,
+  CORE_VFX,
+  type BasicImpactShape,
+  type VfxShape,
+} from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -105,6 +123,14 @@ export interface FloatingNumber {
   color: string;
   /** fb005: Corpse Core execution kills render larger (>1); fb060's DoT ticks render smaller (<1); every other number is 1. */
   fontScale: number;
+  /**
+   * fb159: the raw magnitude driving `floatingNumberFontSize`'s log10 curve
+   * — not re-derived from `text`, which is already rounded/formatted
+   * (`damageText`) and would compound that rounding into the size too. A
+   * non-damage number (`LEVEL UP`) gets a fixed representative value instead
+   * of a real one.
+   */
+  value: number;
 }
 
 /**
@@ -127,6 +153,106 @@ interface CastFx {
 }
 
 const CAST_FX_LIFE = 0.28;
+
+/** fb098: Beacon Totem/Harvest Sprout's ambient aura pulse — a 2s cadence (`FIXED_DT` * 120 ticks), visible for 0.5s of expanding ring. */
+const AURA_PULSE_PERIOD_TICKS = 120;
+const AURA_PULSE_VISIBLE_TICKS = 30;
+
+/**
+ * fb096 (owner feedback `feature-combo-area-indicator`): the merged Dash
+ * Slash + mid-charge Circle Slash hit region, as a centerline (`x1,y1` the
+ * Warden, `x2,y2` the far end of the merged reach) plus a half-width — the
+ * same two-endpoints-and-a-half-width shape `lineHit` (`src/sim/combat.ts`)
+ * itself tests against (`along` clamped to `[0, range]`, `perp` clamped to
+ * `[-halfWidth, halfWidth]`), i.e. a plain rectangle, not a rounded capsule.
+ * The owner feedback's own "capsule/stadium" language describes the combo's
+ * *concept* (a circle swept along a line); the sim's actual hit test has no
+ * rounded cap at either end (a point exactly `range + epsilon` away is never
+ * hit, however close it sits to the centerline) — the acceptance line
+ * ("equal the merged attack's real hit-detection region, not an
+ * approximation") is what a faithful indicator must match, so this is a
+ * rectangle by measurement, not a simplification of a capsule.
+ */
+export interface ComboRect {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  halfWidth: number;
+}
+
+interface ComboAfterimage extends ComboRect {
+  life: number;
+  maxLife: number;
+  color: string;
+}
+
+const COMBO_AFTERIMAGE_LIFE = 0.25;
+
+/**
+ * The `ComboRect` the Swordsman-shaped combo (`charge_nova` Active1 +
+ * `dash_line` Active2 — checked by kind, not by class key, so any future
+ * class authoring the same pair of kinds gets the same indicator for free)
+ * would merge into if released toward `(cursorX, cursorY)` right now, or
+ * `null` when the combo is not currently chargeable — mirrors
+ * `fireDashSlash`'s own merge-eligibility check (`classes.ts`:
+ * `cls.active1.kind === 'charge_nova' && wd.active1Charging`) intersected
+ * with `useClassActive2`'s dispatch (`fireDashSlash` is reachable only when
+ * `cls.active2.kind === 'dash_line'`).
+ *
+ * Every number below is the exact one `fireDashSlash` computes, recomposed
+ * from public `World`/`ClassLiveContext` state the same way fb148's
+ * `dashRangeMul` and fb115's `AREA_SCALED_ACTIVE_KINDS` already do, rather
+ * than reaching into `classDashDuration`/`dashDistance`/`classBaseMoveSpeed`/
+ * `currentMoveSpeed` (all module-private to `src/sim/classes.ts`).
+ */
+export function comboIndicatorRect(w: World, cls: ClassDef, cursorX: number, cursorY: number): ComboRect | null {
+  const wd = w.warden;
+  if (!wd.active1Charging || cls.active1.kind !== 'charge_nova' || cls.active2.kind !== 'dash_line') return null;
+  const dirRaw = normalize(cursorX - wd.x, cursorY - wd.y);
+  const dirX = dirRaw.x !== 0 || dirRaw.y !== 0 ? dirRaw.x : wd.fx;
+  const dirY = dirRaw.x !== 0 || dirRaw.y !== 0 ? dirRaw.y : wd.fy;
+  // fb115: the nova's live (Area-scaled) radius — the exact value `fireDashSlash`
+  // folds into `hitRange` as `mergedRadius`.
+  const mergedRadius = circleSlashValues(cls.active1, wd.active1Charge).radius * w.derived.areaMul;
+  // fb148: `dashRangeMul` is the move-speed ratio every `dash_*` kind shares;
+  // `swordsmanShoes` is `fireDashSlash`'s own explicit extra doubling.
+  const live = classLiveContext(w, cls);
+  const dashRange = (cls.active2.dashRange ?? 0) * (live.dashRangeMul ?? 1) * (live.swordsmanShoes ? 2 : 1);
+  const hitRange = dashRange + mergedRadius;
+  const halfWidth = (cls.active2.dashWidth ?? 0) * w.derived.areaMul;
+  return { x1: wd.x, y1: wd.y, x2: wd.x + dirX * hitRange, y2: wd.y + dirY * hitRange, halfWidth };
+}
+
+/** The 4 corners (tile coords) of a `ComboRect`'s rectangle, winding order p1->p4->p3->p2. */
+export function comboRectCorners(r: ComboRect): { p1x: number; p1y: number; p2x: number; p2y: number; p3x: number; p3y: number; p4x: number; p4y: number } {
+  const dx = r.x2 - r.x1;
+  const dy = r.y2 - r.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len;
+  const py = dx / len;
+  return {
+    p1x: r.x1 + px * r.halfWidth,
+    p1y: r.y1 + py * r.halfWidth,
+    p2x: r.x1 - px * r.halfWidth,
+    p2y: r.y1 - py * r.halfWidth,
+    p3x: r.x2 - px * r.halfWidth,
+    p3y: r.y2 - py * r.halfWidth,
+    p4x: r.x2 + px * r.halfWidth,
+    p4y: r.y2 + py * r.halfWidth,
+  };
+}
+
+/** Traces a `ComboRect`'s rectangle path (tile coords -> pixels), left open for the caller to stroke/fill. */
+function traceComboRectPath(ctx: CanvasRenderingContext2D, r: ComboRect): void {
+  const c = comboRectCorners(r);
+  ctx.beginPath();
+  ctx.moveTo(c.p1x * TILE, c.p1y * TILE);
+  ctx.lineTo(c.p4x * TILE, c.p4y * TILE);
+  ctx.lineTo(c.p3x * TILE, c.p3y * TILE);
+  ctx.lineTo(c.p2x * TILE, c.p2y * TILE);
+  ctx.closePath();
+}
 
 /**
  * fb055: the impact moment of a basic attack, distinct per class (`slash` /
@@ -182,8 +308,6 @@ const DOT_NUMBER_DENSITY_CUTOFF = 150;
 const DOT_NUMBER_NEAR_RADIUS = 8;
 /** fb068: extra distance an already-"near" enemy is allowed to drift before it's dropped, to avoid boundary flicker. */
 const DOT_NUMBER_NEAR_HYSTERESIS = 2;
-/** Smaller than a direct hit's default 1 (`FloatingNumber.fontScale`). */
-const DOT_NUMBER_FONT_SCALE = 0.7;
 
 /** Sum of every live stack's dps for one damage type on this enemy (`e.dots`, sim state). */
 function dotTypeDps(e: Enemy, type: string): number {
@@ -195,6 +319,40 @@ function dotTypeDps(e: Enemy, type: string): number {
 /** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
 function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
   return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
+}
+
+/**
+ * fb116: one line per `BuildRejection` (`src/sim/towers.ts`) for the build
+ * ghost's label — a `Record` over the full union rather than a partial map
+ * plus a fallback string, so a future 7th reason fails TypeScript compilation
+ * here instead of silently rendering nothing (the same exhaustiveness
+ * precedent `ACTIVE_KIND_SHAPE`/`AREA_SCALED_ACTIVE_KINDS` already set for a
+ * `ClassEffect.kind` union).
+ */
+const BUILD_REJECTION_LABELS: Record<BuildRejection, string> = {
+  phase: 'Not buildable now',
+  unknown_tower: 'Unknown tower',
+  occupied: 'Tile occupied',
+  terrain: 'Blocked by terrain',
+  out_of_range: 'Out of build range',
+  gold: 'Not enough gold',
+};
+
+/**
+ * fb116: whether `(x, y)` should read as "the same rock mass" as its
+ * `drawTerrainEdges` caller — either genuinely `TerrainKind.Rock`, or the
+ * permanent map border (also `TerrainKind.Rock` per `generateTerrain`/
+ * `flatTerrain`'s own border-sealing, but with its own solid, already-drawn
+ * fill; an edge line drawn one tile inside it would be a redundant seam right
+ * next to an existing hard wall). Off-grid counts as sealed too, so a rock
+ * tile at the very edge of the addressable interior never draws a line into
+ * nothing.
+ */
+function isInteriorRock(grid: Grid, x: number, y: number): boolean {
+  if (!grid.inBounds(x, y)) return true;
+  const idx = grid.idx(x, y);
+  if (grid.tile[idx] === TileType.Border) return true;
+  return grid.terrainKind[idx] === TerrainKind.Rock;
 }
 
 /** Builds the short-lived line an instant-hit attack leaves behind. */
@@ -242,6 +400,23 @@ export class Renderer {
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
   private basicImpacts: BasicImpactFx[] = [];
+  private comboAfterimages: ComboAfterimage[] = [];
+  /**
+   * fb096: the combo indicator's geometry as of the END of the most recent
+   * `ingest()` call — i.e. up to one tick (1/60s) stale, an imperceptible lag
+   * for a cosmetic afterimage. `ingest()` cannot recompute "the geometry at
+   * the moment of firing" from `World` state alone: `fireDashSlash`
+   * (classes.ts) resets `wd.active1Charging`/`active1Charge` to
+   * false/0 BEFORE emitting `class_active2`, in the same World tick this
+   * event arrives from (the identical data-loss `fb151`'s Log entry
+   * documents for the exact same reason) — caching the last-seen charging
+   * geometry every tick, rather than trying to reconstruct it after the
+   * fact, sidesteps that loss entirely for a cue that only needs to be
+   * approximately right.
+   */
+  private lastComboRect: ComboRect | null = null;
+  /** Whether the combo was chargeable as of the end of the PREVIOUS `ingest()` call — see `lastComboRect`. */
+  private wasComboCharging = false;
   /**
    * fb060: per-enemy, per-DoT-type accumulated seconds toward the next
    * floating number. Keyed by the live `Enemy` object rather than `e.id` so a
@@ -342,6 +517,7 @@ export class Renderer {
             life: 0.6,
             color: damageStyleColor(w, e.k.slice(4), view.settings.accessiblePalette),
             fontScale: 1,
+            value: e.a,
           });
         }
         continue;
@@ -358,7 +534,15 @@ export class Renderer {
           // numbers on screen without flattening the feedback behind them.
           view.shake = Math.max(view.shake, Math.min(9, 2 + (e.a / damageFloor(w)) * 0.25));
           if (e.a >= damageFloor(w) && view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
-            this.numbers.push({ x: e.x, y: e.y, text: `-${damageText(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: `-${damageText(e.a)}`,
+              life: 0.8,
+              color: '#ff8080',
+              fontScale: 1,
+              value: e.a,
+            });
           }
           break;
         case 'execute': {
@@ -371,6 +555,7 @@ export class Renderer {
               life: 1,
               color: style.color,
               fontScale: style.fontScale,
+              value: e.a,
             });
           }
           break;
@@ -385,7 +570,18 @@ export class Renderer {
           break;
         case 'levelup':
           if (this.numbers.length < MAX_OTHER_NUMBERS) {
-            this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff', fontScale: 1 });
+            // fb159: not a damage number, so `value` is a fixed stand-in
+            // (the "large and bold" anchor) rather than a real magnitude —
+            // a level-up announcement earns the emphasis on its own merits.
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: 'LEVEL UP',
+              life: 1.2,
+              color: '#9ff',
+              fontScale: 1,
+              value: FLOATING_NUMBER_FONT.boldThreshold,
+            });
           }
           break;
         case 'sunder':
@@ -401,20 +597,52 @@ export class Renderer {
           this.sweep = { life: SWEEP_DURATION, dir: -1 };
           break;
         case 'shot':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
-          }
+          // fb098 (qa-playtester finding): `'shot'` fires only for a
+          // `single`-kind attack (`towers.ts`/`vswield.ts`'s `case 'single'`)
+          // — Arrow Spire is the only tower with that kind in either phase —
+          // so, like the `cone` fix below, this always reads its own
+          // registered style rather than a `w.huntsWarden`-keyed
+          // `'arrow_volley'` that `theme.ts`'s `STYLES` never registered
+          // (silently falling back to the generic default dart look for
+          // every VS-wielded Arrow Spire shot).
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'arrow_spire', false));
           break;
         case 'manual':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'wardens_arrow', false));
           break;
         case 'arc':
-          if (this.tracers.length < MAX_TRACERS) {
-            this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
-          }
+          // fb098 (qa-playtester finding): the same missing-style-key bug as
+          // `shot` above, for Tesla Coil's `chain`-kind attack — `'chain_
+          // lightning'` (actually Stormcaller's Active1 `ClassEffect.kind`,
+          // not a registered `STYLES` key) never existed in `theme.ts`,
+          // so a VS-wielded Tesla Coil silently fell back to the generic
+          // default. Always reads `tesla_coil`'s own style now.
+          //
+          // Residual, pre-existing gap this fix does not resolve (out of
+          // fb098's own scope — Stormcaller's VFX is fb016's domain): this
+          // `arc` fx event is genuinely shared by three emitters
+          // (`towers.ts`'s TD Tesla Coil fire, `vswield.ts`'s wielded Tesla
+          // Coil, and `classes.ts`'s Stormcaller Chain Surge Active1, all via
+          // `combat.ts`'s `chainHit`) and carries no source field, so the
+          // renderer cannot tell a Stormcaller cast from a Tesla Coil shot.
+          // Before this fix neither case matched a real `STYLES` key; now
+          // both read `tesla_coil`'s. Distinguishing them for real needs a
+          // source-tagged `arc` (or a dedicated event) emitted from
+          // `/src/sim` — outside this lane's Scope, logged below.
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'tesla_coil', true));
           break;
         case 'spit':
           if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'spitter', false));
+          break;
+        // fb098 (qa-playtester finding): Venom Spore's `poison`-kind attack
+        // resolves as an instant hit (no real `Projectile`, unlike Ballista/
+        // Mortar) and only ever emitted `'spore'` — a fire+travel event this
+        // switch had no case for at all, so the tower's shot was completely
+        // invisible in either phase (only the eventual `hit:` flash and the
+        // enemy's own Poison DoT marker showed anything). A tracer, the same
+        // shape `shot`/`spit` already use.
+        case 'spore':
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'venom_spore', false));
           break;
         case 'cone':
           if (this.cones.length < MAX_CONES) {
@@ -424,9 +652,29 @@ export class Renderer {
               dx: e.a,
               dy: e.b,
               life: 0.1,
-              style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
+              // fb098: Ember Brazier is the only `cone`-kind attack (TD tower
+              // fire and a VS-wielded cone both funnel through this one
+              // event), so this always reads its style — the prior
+              // `w.huntsWarden ? 'flame_cone' : 'ember_brazier'` ternary
+              // looked up a style key that was never registered in `theme.ts`'s
+              // `STYLES`, silently falling back to the generic default dart
+              // look for every wielded cone attack instead of reusing Ember
+              // Brazier's own registered fire+travel+impact visual.
+              style: projectileStyle('ember_brazier'),
             });
           }
+          break;
+        // fb098: `pulse` fires for every inherent-radius AoE splash
+        // (Frost Obelisk's TD aura tick, a VS-wielded aura, and any
+        // `damagetypes.json` row with its own splash `radius`, e.g.
+        // Electric) — previously unhandled here (fell to `default: break`),
+        // so Frost Obelisk's periodic tick had no visual at all. A generic
+        // expanding ring (the same `nova` CastFx shape Core explode/Circle
+        // Slash already use) at the emitted radius; a neutral white rather
+        // than a damage-type color since the event itself carries no type —
+        // each struck enemy's own `hit:<type>` flash still carries that.
+        case 'pulse':
+          this.pushCast('nova', e.x, e.y, e.a, 0, '#ffffff');
           break;
         case 'bosstelegraph':
           if (this.telegraphs.length < MAX_TELEGRAPHS) this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
@@ -445,6 +693,19 @@ export class Renderer {
           if (!cls) break;
           const kind = e.k === 'class_active' ? cls.active1.kind : cls.active2.kind;
           const shape = ACTIVE_KIND_SHAPE[kind] ?? 'point';
+          // fb096: a merged Dash Slash — this `class_active2` fired while the
+          // combo was chargeable as of last tick's cache (`lastComboRect`'s
+          // own doc comment) — leaves a brief afterimage of the region it
+          // just hit, using the last geometry seen rather than anything
+          // reconstructed from this (already-reset) tick's `World` state.
+          if (e.k === 'class_active2' && kind === 'dash_line' && this.wasComboCharging && this.lastComboRect) {
+            this.comboAfterimages.push({
+              ...this.lastComboRect,
+              life: COMBO_AFTERIMAGE_LIFE,
+              maxLife: COMBO_AFTERIMAGE_LIFE,
+              color: CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff',
+            });
+          }
           if (shape === 'skip') break;
           const entry = CLASS_VFX[w.cfg.classKey];
           const style = entry ? (e.k === 'class_active' ? entry.q : entry.e) : undefined;
@@ -517,6 +778,12 @@ export class Renderer {
           break;
       }
     }
+    // fb096: refresh the combo-indicator cache for NEXT tick's merge check —
+    // see `lastComboRect`'s own doc comment for why this cannot instead be
+    // computed after the fact, from this tick's own (already-reset) state.
+    const chargingCls = w.content.classByKey.get(w.cfg.classKey);
+    this.lastComboRect = chargingCls ? comboIndicatorRect(w, chargingCls, view.cursorX, view.cursorY) : null;
+    this.wasComboCharging = w.warden.active1Charging;
     this.updateDotNumbers(w, view);
   }
 
@@ -633,7 +900,11 @@ export class Renderer {
               text: damageText(amount),
               life: 0.6,
               color: damageStyleColor(w, type, view.settings.accessiblePalette),
-              fontScale: DOT_NUMBER_FONT_SCALE,
+              // fb159: 80% of the same value-based size (`floatingNumberFontSize`),
+              // not a flat fraction of a fixed 12px — replaces the old
+              // value-blind `DOT_NUMBER_FONT_SCALE`.
+              fontScale: FLOATING_NUMBER_FONT.dotFontScale,
+              value: amount,
             });
           }
           perType.set(type, next - 1);
@@ -679,6 +950,8 @@ export class Renderer {
     this.cones = this.cones.filter((c) => c.life > 0);
     for (const c of this.casts) c.life -= dt;
     this.casts = this.casts.filter((c) => c.life > 0);
+    for (const c of this.comboAfterimages) c.life -= dt;
+    this.comboAfterimages = this.comboAfterimages.filter((c) => c.life > 0);
     for (const b of this.basicImpacts) b.life -= dt;
     this.basicImpacts = this.basicImpacts.filter((b) => b.life > 0);
     for (const [k, v] of [...this.flashes]) {
@@ -716,7 +989,7 @@ export class Renderer {
     this.drawCoreStatus(w);
     this.drawAreas(w);
     this.drawTelegraphs();
-    this.drawStructures(w);
+    this.drawStructures(w, view);
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
@@ -725,6 +998,8 @@ export class Renderer {
     this.drawBasicImpacts(view);
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
+    this.drawComboIndicator(w, view);
+    this.drawComboAfterimages(view);
     this.drawSkillHoverRing(w, view);
     this.drawWieldedHoverRing(w, view);
     this.drawHover(w, view);
@@ -732,6 +1007,7 @@ export class Renderer {
     if (!night) this.drawRangeRings(w, view);
     if (!night && view.settings.showPathIndicators) this.drawPathIndicators(w);
     this.drawCharacterRangeRing(w, view);
+    this.drawEnemyAttackRing(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawCoreLabels(w);
     this.drawNumbers();
@@ -743,17 +1019,34 @@ export class Renderer {
 
   private drawTiles(w: World, night: boolean): void {
     const ctx = this.ctx;
+    // fb116 (BACKLOG-TERRAIN fb064e, the epic's UI half): `data/terrain.json`
+    // already carries a `color` per kind (architecture rule 4 — no literal
+    // terrain-kind colors belong in this file). `TileType.Border`/`Gate` win
+    // over it unconditionally: `generateTerrain`/`flatTerrain` both seal the
+    // permanent border as `TerrainKind.Rock` (so the pathing/build rules that
+    // read `terrainKind` see a consistent wall everywhere), but the BORDER'S
+    // OWN look predates terrain entirely and Training Grounds' flat arena
+    // must keep rendering exactly as it always has ("no change to the
+    // normal-only arena's frame") — only an Open/Core tile's terrain kind is
+    // ever painted.
+    const terrainCfg = loadTerrain();
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
-        const t = w.grid.tile[w.grid.idx(x, y)];
+        const idx = w.grid.idx(x, y);
+        const t = w.grid.tile[idx];
         let color = (x + y) % 2 === 0 ? (night ? PALETTE.tileNight : PALETTE.tileDay) : PALETTE.tileAlt;
         if (night && (x + y) % 2 !== 0) color = '#1a2029';
         if (t === TileType.Border) color = PALETTE.border;
         else if (t === TileType.Gate) color = PALETTE.gate;
+        else {
+          const kind = w.grid.terrainKind[idx];
+          if (kind !== TerrainKind.Normal) color = terrainTileFill(terrainCfg.tiles[kind]?.color ?? color, x, y);
+        }
         ctx.fillStyle = color;
         ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
       }
     }
+    this.drawTerrainEdges(w);
 
     // Core / Heartstone.
     const cx = CORE_X * TILE;
@@ -783,6 +1076,60 @@ export class Renderer {
       ctx.fillStyle = frac > 0.4 ? '#5fe08a' : PALETTE.hpFront;
       ctx.fillRect(cx, cy - 8, cw * frac, 5);
     }
+  }
+
+  /**
+   * fb116: a dark outline on every side of a Rock tile that borders a
+   * non-Rock tile — a marching-squares-lite silhouette (4-neighbor edge
+   * detection, not the full diagonal case table) so a scattered rock cluster
+   * reads as a solid obstacle rather than a checkerboard of same-colored
+   * squares. Deliberately keyed on `terrainKind`, not `TileType`: the
+   * permanent arena border is ALSO `TerrainKind.Rock` (see `drawTiles`'
+   * comment), and painting ITS edge would draw a redundant line one tile
+   * inside the border's own already-solid fill on every normal-only arena —
+   * exactly the "no change to the normal-only arena's frame" acceptance line
+   * this item is pinned against — so a neighbor across the border, or the
+   * border tile itself, is never treated as an edge to draw.
+   */
+  private drawTerrainEdges(w: World): void {
+    const grid = w.grid;
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#00000099';
+    ctx.lineWidth = 2;
+    for (let y = 1; y < GRID_H - 1; y++) {
+      for (let x = 1; x < GRID_W - 1; x++) {
+        const idx = grid.idx(x, y);
+        if (grid.tile[idx] !== TileType.Open && grid.tile[idx] !== TileType.Core) continue;
+        if (grid.terrainKind[idx] !== TerrainKind.Rock) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        if (!isInteriorRock(grid, x, y - 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + TILE, py);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x, y + 1)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py + TILE);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x - 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + TILE);
+          ctx.stroke();
+        }
+        if (!isInteriorRock(grid, x + 1, y)) {
+          ctx.beginPath();
+          ctx.moveTo(px + TILE, py);
+          ctx.lineTo(px + TILE, py + TILE);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.lineWidth = 1;
   }
 
   /** SPEC 5.5 phase 3: everything outside the ring is burning. */
@@ -837,7 +1184,7 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  private drawStructures(w: World): void {
+  private drawStructures(w: World, view: ViewState): void {
     const ctx = this.ctx;
     for (const s of w.structures) {
       if (s.dead) continue;
@@ -851,6 +1198,31 @@ export class Renderer {
       ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
       ctx.strokeStyle = '#00000066';
       ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
+
+      // fb098: Beacon Totem/Harvest Sprout have `attack: null` — `updateTowers`
+      // (towers.ts) skips them entirely, so neither fires a sim event this
+      // renderer could hang a cue on. Their "aura pulse tick" is a purely
+      // presentational, render-side cadence off `w.tick` (deterministic sim
+      // state, not wall-clock time — architecture rule 1 still holds since
+      // this file is `/src/render`, not `/src/sim`) rather than a claim about
+      // when the aura's own math actually re-applies. TD-only (their support
+      // effect does nothing while the Warden is off wielding in VS) and
+      // suppressed under `reducedMotion`, same as this file's other ambient,
+      // repeating cues (fb086).
+      if (!s.petrified && !w.huntsWarden && !view.settings.reducedMotion && (def.buffAura || def.economy)) {
+        const phase = w.tick % AURA_PULSE_PERIOD_TICKS;
+        if (phase < AURA_PULSE_VISIBLE_TICKS) {
+          const t = phase / AURA_PULSE_VISIBLE_TICKS;
+          ctx.globalAlpha = 1 - t;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + TILE / 2, y + TILE / 2, (TILE / 2) * (1 + t), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 1;
+        }
+      }
 
       if (!s.petrified && s.tier > 1) {
         // SPEC-V3 §4 tracks run to eleven levels; a single row of pips at 5px
@@ -1005,7 +1377,44 @@ export class Renderer {
           }
         }
       }
+      // fb158 (owner feedback `ui-enemy-attack-indicators`): every enemy
+      // always shows a small attack-kind marker beside its HP bar. The
+      // offset (7,7) rather than the DoT/time-mark dots' own `py - r` row
+      // is deliberate: code-reviewer measured the marker's largest ("big")
+      // radius (4.5) against the poison dot's fixed radius-3 corner marker
+      // at `(px + r, py - r)` and found a sub-pixel overlap at a smaller
+      // offset — (7,7) clears it with margin at every enemy radius, since
+      // both markers scale with `r` identically.
+      this.drawAttackKindIcon(px + r + 7, py - r - 7, def.attackKind);
     }
+  }
+
+  /**
+   * fb158: one small, shape-*and*-color-distinct marker per
+   * `EnemyDef.attackKind` — shape carries the meaning for a colorblind
+   * player (`ATTACK_KIND_COLORS`, theme.ts, is a plain literal map, not
+   * palette-aware, same as `ENEMY_COLORS`), color is the faster glance cue
+   * for everyone else. Every kind is a circle, filled or hollow, at one of
+   * two radii and one of two opacities — the same primitive-circle
+   * convention this file already uses for every other per-enemy marker
+   * (frost ring, DoT dots, time mark) rather than inventing a bitmap/SVG
+   * icon pipeline this codebase has none of.
+   */
+  private drawAttackKindIcon(x: number, y: number, kind: string): void {
+    const ctx = this.ctx;
+    const color = ATTACK_KIND_COLORS[kind] ?? '#cccccc';
+    const { filled, big, faded } = attackKindIconShape(kind);
+    const r = big ? 4.5 : 3;
+    ctx.globalAlpha = faded ? 0.55 : 1;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (filled) ctx.fill();
+    else ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
   }
 
   /**
@@ -1422,9 +1831,15 @@ export class Renderer {
     const chargeRatio = cap > 0 ? Math.min(1, wd.active1Charge / cap) : 1;
     ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
     if (cls.active1.kind === 'charge_nova') {
+      // fb115: `circleSlashValues` returns the authored (unscaled) radius —
+      // `fireCircleSlash` (classes.ts) wraps it in `classArea(w, authoredRadius)`
+      // == `authoredRadius * w.derived.areaMul` before it ever hits an enemy, so
+      // drawing the bare value here previews a footprint that drifts from the
+      // real one the moment any Area source (an item, a boon) is live. `w.derived`
+      // is public sim state, not a re-derivation of a private helper.
       const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
       ctx.beginPath();
-      ctx.arc(wd.x * TILE, wd.y * TILE, radius * TILE, 0, Math.PI * 2);
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
       ctx.stroke();
     } else if (cls.active1.kind === 'charge_pierce') {
       const dir = normalize(view.cursorX - wd.x, view.cursorY - wd.y);
@@ -1435,6 +1850,60 @@ export class Renderer {
       ctx.moveTo(wd.x * TILE, wd.y * TILE);
       ctx.lineTo((wd.x + ux * len) * TILE, (wd.y + uy * len) * TILE);
       ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb096: the live aim indicator for the merged Dash Slash + mid-charge
+   * Circle Slash combo — `comboIndicatorRect`'s exact rectangle, moving with
+   * the cursor and brightening with hold the same way `drawChargeIndicator`'s
+   * own nova already does, so the two read as one continuous preview rather
+   * than two indicators with different rules.
+   */
+  private drawComboIndicator(w: World, view: ViewState): void {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (!cls) return;
+    const rect = comboIndicatorRect(w, cls, view.cursorX, view.cursorY);
+    if (!rect) return;
+    const ctx = this.ctx;
+    const cap = cls.active1.chargeCapSeconds ?? 3;
+    const chargeRatio = cap > 0 ? Math.min(1, w.warden.active1Charge / cap) : 1;
+    const color = CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff';
+    traceComboRectPath(ctx, rect);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
+    ctx.stroke();
+    ctx.globalAlpha *= 0.15;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb096: the brief fade-out left where the combo indicator was the instant
+   * it merged into a real Dash Slash — `reducedFlash` dims it the same
+   * fraction `drawCasts`'s own fire-moment flash already uses, rather than
+   * removing the cue outright (SPEC-FINAL §11's "respects reduced-flash"
+   * without going silent).
+   */
+  private drawComboAfterimages(view: ViewState): void {
+    if (this.comboAfterimages.length === 0) return;
+    const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    for (const a of this.comboAfterimages) {
+      const t = Math.max(0, a.life / a.maxLife);
+      traceComboRectPath(ctx, a);
+      ctx.strokeStyle = a.color;
+      ctx.fillStyle = a.color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = t * (reduced ? 0.35 : 0.7);
+      ctx.stroke();
+      ctx.globalAlpha *= 0.3;
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
@@ -1677,6 +2146,48 @@ export class Renderer {
   }
 
   /**
+   * fb158 (owner feedback `ui-enemy-attack-indicators`): the attack-range
+   * ring for whichever enemy is hovered or selected — melee reach or ranged
+   * distance, `EnemyDef.attackRange` (fb155 authors it directly; this file
+   * never re-derives it from `traits`). A selected elite/boss additionally
+   * rings its own `specialRange`, dashed, when one is authored — deliberate
+   * emphasis only on a selected threat, not ambient noise on every hover,
+   * the same hover-vs-selected escalation `drawRangeRings` already gives a
+   * lob tower's min-range/splash preview.
+   */
+  private drawEnemyAttackRing(w: World, view: ViewState): void {
+    const ctx = this.ctx;
+    const hoveredSel = pickAt(w, view.cursorX, view.cursorY);
+    const hovered = hoveredSel?.kind === 'enemy' ? selectedEnemy(w, hoveredSel) : null;
+    const selected = view.selection?.kind === 'enemy' ? selectedEnemy(w, view.selection) : null;
+    const ringEnemy = (e: Enemy, isSelected: boolean) => {
+      const def = w.content.enemyById.get(e.defId)!;
+      const cx = e.x * TILE;
+      const cy = e.y * TILE;
+      ctx.strokeStyle = ATTACK_KIND_COLORS[def.attackKind] ?? PALETTE.ghost;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.globalAlpha = isSelected ? 0.85 : 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, def.attackRange * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+      if (isSelected && (e.elite || e.boss) && def.specialRange !== undefined) {
+        ctx.globalAlpha = 0.85;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, def.specialRange * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    };
+    // A selected enemy also under the cursor draws its ring once, at the
+    // (bolder) selected style — not twice at both styles stacked.
+    if (hovered && !(selected && selected.id === hovered.id)) ringEnemy(hovered, false);
+    if (selected) ringEnemy(selected, true);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
    * SPEC-V3 T2: the selected thing gets a visible marker. Towers already get
    * a range ring from T1, so this adds the "you clicked this" halo that was
    * missing — the report was that clicking had no reaction at all.
@@ -1728,13 +2239,37 @@ export class Renderer {
    * `circleSlashValues`/the class effect handlers in classes.ts resolve
    * their hit area from, not a live-scaled preview (a charge-scaled nova's
    * live radius is already shown in-combat by `drawChargeIndicator`).
+   *
+   * fb115: "the same authored radius" was true of the SHAPE but not of the
+   * SCALE for most kinds — `AREA_SCALED_ACTIVE_KINDS` below is every `kind`
+   * whose `fire*` handler in `src/sim/classes.ts` wraps this exact field in
+   * `classArea(w, eff.radius)` (an Area-scaled AoE) rather than passing it raw
+   * into a target/structure SEARCH radius (`nearestEnemy`/`nearestStructure`,
+   * which Area never touches) or a placement offset (`ice_wall`) or an
+   * unused placeholder (`dash_line`, `poison_boost`). Scaling the latter set
+   * would trade one drift bug for a new one the opposite way — verified
+   * per-kind against classes.ts rather than guessed:
+   *   scaled:   burst_damage (fireEffect), charge_nova (fireCircleSlash),
+   *             ground_poison (firePoisonBarrel), frost_nova (fireFrostNova),
+   *             recall_totem (fireRecallTotem), clarion_taunt
+   *             (fireClarionTaunt), judgement (fireJudgement), time_mark
+   *             (fireTimeMark), time_lock (fireTimeLock).
+   *   unscaled: charge_pierce (fireDeadeyeDraw's shot LENGTH reuses the
+   *             field, unrelated to Area), repair_heal/death_pact/
+   *             blood_tithe (nearestStructure search), dash_volley
+   *             (nearestEnemy search), chain_lightning (nearestEnemy
+   *             search), raise_skeletons/manifest_spirit (summonRadius
+   *             search, a different field), ice_wall (`radius` is a
+   *             placement-offset fallback, `(eff.radius || 1)`), dash_line/
+   *             poison_boost (field unused, radius: 0).
    */
   private drawSkillHoverRing(w: World, view: ViewState): void {
     if (!view.hoveredSkill) return;
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return;
     const eff = view.hoveredSkill === 'active1' ? cls.active1 : cls.active2;
-    const radius = eff.radius ?? 0;
+    const areaMul = AREA_SCALED_ACTIVE_KINDS.has(eff.kind) ? w.derived.areaMul : 1;
+    const radius = (eff.radius ?? 0) * areaMul;
     if (radius <= 0) return;
     const ctx = this.ctx;
     ctx.strokeStyle = PALETTE.heartstone;
@@ -1814,17 +2349,37 @@ export class Renderer {
       ctx.fillStyle = PALETTE.text;
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`${def.name}  ${towerCost(w, def)}g`, tx * TILE + TILE + 4, ty * TILE + 12);
+      // fb116: `checkBuild` has named a `'terrain'` rejection (distinct from a
+      // structure sitting on the tile, fb078) since main-lane's own item, but
+      // no UI surface said so — a red ghost on a rock/high tile and a red
+      // ghost on an already-built tile looked identical, with no way to tell
+      // "move the cursor" from "this exact spot can never be built on."
+      if (reason !== null) {
+        ctx.fillStyle = '#ffb3b3';
+        ctx.fillText(BUILD_REJECTION_LABELS[reason], tx * TILE + TILE + 4, ty * TILE + 26);
+      }
     }
   }
 
+  /**
+   * fb159 (owner feedback `ui-damage-font-scaling`): size is `n.value`'s own
+   * `floatingNumberFontSize` curve, not a fixed 12px — a crit/execute's
+   * `fontScale` (data-driven, `executeFontScale`) still multiplies on top,
+   * and a DoT aggregate tick's `fontScale` (`FLOATING_NUMBER_FONT.dotFontScale`)
+   * shrinks it, so "extra styling" survives the rescale rather than being
+   * replaced by it. Weight follows the same value (bold at/above the
+   * large-number anchor, or unconditionally for a crit/execute's own >1
+   * `fontScale`).
+   */
   private drawNumbers(): void {
     const ctx = this.ctx;
     ctx.textAlign = 'center';
     for (const n of this.numbers) {
       ctx.globalAlpha = Math.min(1, n.life * 2);
       ctx.fillStyle = n.color;
-      // fb005: Corpse Core execution kills render larger via `fontScale`.
-      ctx.font = `bold ${Math.round(12 * n.fontScale)}px system-ui, sans-serif`;
+      const size = Math.round(floatingNumberFontSize(n.value, n.fontScale));
+      const weight = floatingNumberFontWeight(n.value, n.fontScale);
+      ctx.font = `${weight} ${size}px system-ui, sans-serif`;
       ctx.fillText(n.text, n.x * TILE, n.y * TILE);
     }
     ctx.globalAlpha = 1;

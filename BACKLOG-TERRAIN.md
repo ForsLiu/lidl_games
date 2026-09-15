@@ -45,51 +45,79 @@ the merge — never edited from this lane.
       band ledger is regenerated with its new numbers; `npm run test:fast`
       shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
       56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
-      **Done 2026-09-06.** `GRID_W`/`GRID_H` flipped to 56x32, kept to those
-      two lines as scoped. **`data/terrain.json` needed no changes** — measured,
-      not assumed: 1000 seeds at the shipped densities/blob/corridor/constraint
-      values hold every band with 0 fallbacks and only 3 retries, so the "blob
-      and density parameters fitted against the old area" this item flagged as
-      its own to re-fit turned out not to need re-fitting; the bands are
-      fractional and the generator's absolute-tile parameters (blob 3-12,
-      corridors width 2) scale down proportionally rather than breaking. All 24
-      `tests/terrain*` files pass under `npm run test:fast` (408 passing, 3
-      `.skip`ped — see below); the band ledger (`terrain-band-ledger.test.ts`)
-      and cost ledger (`terrain-cost.test.ts`, `terrain-cost-ledger.ts`) are
-      re-recorded against fresh domain scans, not carried over.
-
-      **Three tests left `.skip`ped, not fixed, each for a reason that survives
-      inspection:**
-      1. `terrain-seed-domain.test.ts`'s "pins the far-domain seed that sits
-         exactly on the walkable floor" — 1792 tiles is not a multiple of 5, so
-         `0.6 * 1792 = 1075.2` and no integer `walkableCount` can ever equal the
-         stored double `0.6` exactly (checked exhaustively, not argued); the old
-         720-tile grid's exactness was a lattice coincidence, not a property the
-         resize preserves. Real fix is a `/data` or test-semantics call (retune
-         `minWalkableFrac` to an `n/1792` value, or redefine the claim to the
-         true achievable floor `ceil(1792*frac)`), logged rather than made here.
-      2. Two tests in `terrain-gates-dump.test.ts` ("round-trips a four-gate
-         dump byte-identically", "describes a live Fourth Gate run correctly")
-         — both exercise `MODIFIER_GATES`'s `south` gate, which the GATES entry
-         below explains is off the resized border; `parseTerrainDump`'s border
-         check is refusing its own writer's output correctly, and the fix is
-         the same out-of-scope `grid.ts` coordinate move.
-
-      **Confirmed by a full `npm run test:fast` run (not just the terrain
-      subset): breakage outside this lane's Scope, for the main and UI lanes to
-      pick up at the merge**, all traceable to the same two roots (literal
-      36x20-relative coordinates in test fixtures, and the `GATES`/`CORE_X`/
-      `CORE_Y` issue below) — `tests/b007-tile-bounds.test.ts`,
-      `tests/class-board.test.ts`, `tests/content-complete.test.ts`,
-      `tests/fb077-terrain-wiring.test.ts`, `tests/grid.test.ts`,
-      `tests/p1a-sealing.test.ts`, `tests/p8d-boss-termination.test.ts`,
-      `tests/q15-command-domain-fuzz.test.ts`,
-      `tests/q45-cli-schema-violation.test.ts`, `tests/t2-selection.test.ts`,
-      `tests/ui-input.test.ts`, `tests/ui-fb082-overlay-geometry.test.ts`,
-      `tests/ui-fb087-persist-disabled-toast.test.ts`,
-      `tests/ui-fb102-bossbar-rail-overlap.test.ts`,
-      `tests/ui-fb106-extreme-aspect-geometry.test.ts`. None of these are
-      terrain-owned; none were touched.
+      **Shipped 2026-09-14, `data/terrain.json` byte-identical.** `GRID_W`/
+      `GRID_H` flipped to 56x32 in `src/sim/grid.ts` (the two lines this
+      lane's Scope allows); `GATES`/`MODIFIER_GATES`/`CORE_X`/`CORE_Y` in that
+      same file were deliberately left untouched — fb153b (main lane) owns
+      repositioning them, and this item's Scope never included them. Measured
+      before touching `/data`: with the constants flipped and `/data`
+      unchanged, a 3000-seed sweep at the new grid already clears every band
+      comfortably (0 fallbacks, ~0.2-0.3% retry rate, real headroom on every
+      constraint), so "re-fit the bands" turned out not to mean "change the
+      numbers" — the density/blob/radii values already produce a healthy map
+      at 2.5x the tiles, because they are per-interior-tile fractions/absolute
+      radii that scale with the board rather than the old grid's specific
+      dimensions. `data/terrain.json` is confirmed byte-identical to HEAD.
+      What DID need updating, file by file, with `npm test:fast` re-run green
+      after each: every seed/hash/statistic in all 19 `tests/terrain*.test.ts`
+      files the flip reddened (terrain-band-ledger, terrain-generation,
+      terrain-approach, terrain-seed-domain, terrain-grid, terrain-anchor-
+      quality, terrain-high-contest, terrain-flat, terrain-headroom, terrain-
+      describe, terrain-core-placement, terrain-run-provenance, terrain-verify,
+      terrain-grid-view, terrain-gate-open, terrain-gates-dump — 84 assertions
+      total, matching the ~85 estimate), plus `tests/terrain-cost-ledger.ts`'s
+      shared `MEASURED` fixture. Every number was taken from a real run of
+      `generateTerrain`/`measureTerrain` via scratch scripts (never hand-
+      computed); witness/edge searches used scan sizes from 3,000 to 500,000
+      seeds depending on what the property needed, each honestly documented in
+      the test file's own comment — nothing approaches fb064r's original
+      12,000,000-seed searches, which is this item's one deliberate scope
+      reduction against the original ledger's rigor (logged per-file; see each
+      file's own "fb166" comments). One structural finding, not a choice:
+      `minWalkableFrac: 0.6` and `minBuildableNormalFrac: 0.45` no longer land
+      exactly on the tile lattice at 1792 tiles (`0.6 * 1792 = 1075.2`, not an
+      integer, unlike `0.6 * 720 = 432` at the old grid), so no seed can
+      measure exactly either floor any more — `terrain-band-ledger.test.ts`'s
+      `WITNESSES` table now carries those two rows as `kind: 'best-found'`
+      rather than `edge`, and `terrain-headroom.test.ts`'s 12,000-seed sample
+      now contains zero maps sitting exactly on any band edge (was two). The
+      `maxGateDetour` ceiling (a ratio of integer path costs, not a fraction of
+      tile count) stayed exactly reachable; three fresh edge seeds are named
+      across the two files. code-reviewer and qa-playtester both ran on the
+      full diff (see this session's routine log); their findings, if any, are
+      addressed in the same commit or filed as follow-ups below.
+      **Out of scope, logged for the merge (main lane, `fb153b`):**
+      1. `tests/fb077-terrain-wiring.test.ts` (outside this lane's Scope —
+         does not match `tests/terrain*`) has two failures from this flip,
+         both mechanical: (a) "the raw generated map at seed 4426 really does
+         strand the hardcoded Core" — seed 4426 no longer strands the Core at
+         56x32 with `GATES`/`CORE_X`/`CORE_Y` unmigrated; this lane's own
+         `tests/terrain-grid.test.ts` re-found seed **7120** as a fresh
+         stranding witness (first hit in a 1..50000 scan, 14 stranded in that
+         window) — reuse it. (b) "an enemy walled off by a distant live wall
+         keeps attacking it instead of ghosting through" — the test's Palisade
+         wall spans `ty 1..18` to seal the arena top-to-bottom, which was
+         correct when the border rows were 0/19 (`GRID_H` 20); at `GRID_H` 32
+         the border rows are 0/31, so the wall now leaves rows 19-30 open and
+         `allGatesReachable()` reads `true` instead of the expected `false` —
+         extend the loop to `ty <= 30`.
+      2. `tests/p8d-boss-termination.test.ts` and `tests/b007-tile-bounds.test.ts`
+         (also named in this item's own filing as main-lane's share) are
+         confirmed still red after this flip (4 failures each) — not
+         investigated further here, out of Scope.
+      3. fb156 (next in this Queue) was explicitly filed "do not tune [bands]
+         against 36x20 in the meantime" pending this item; it can now proceed
+         against the shipped 56x32 grid.
+      **Also confirmed out of scope, other lanes:** `npm run test:fast`'s full
+      run shows 40 failures across 13 files after this change, all outside
+      `tests/terrain*` — UI lane: `ui-input`, `class-board`,
+      `class-board-windows`, `ui-fb082-overlay-geometry`, `ui-fb106-extreme-
+      aspect-geometry`, `ui-fb102-bossbar-rail-overlap`, `t2-selection`,
+      `grid.test.ts`, `content-complete`, `p1a-sealing`; main lane:
+      `p8d-boss-termination`, `b007-tile-bounds`, `fb077-terrain-wiring` (per
+      above). None of these is `tests/terrain*`, so fb166's own acceptance
+      ("`npm run test:fast` shows no `tests/terrain*` failure") holds; fixing
+      them is each lane's own item at the merge.
 
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 

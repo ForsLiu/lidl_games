@@ -46,6 +46,10 @@ export function classLiveContext(w: World, cls: ClassDef): ClassLiveContext {
     active2CdrFactor: active2CdrFactor(w),
     dashRangeMul: baseMoveSpeed > 0 ? moveSpeed / baseMoveSpeed : 1,
     swordsmanShoes: hasEquipment(w, 'swordsman_shoes'),
+    // fb115/fb173: `w.derived.areaMul` is public sim state (`src/sim/stats.ts`),
+    // the exact factor `classArea(w, radius)` (classes.ts, module-private)
+    // applies to every AoE-radius/width Active field — no recomposition needed.
+    areaMul: w.derived.areaMul,
   };
 }
 

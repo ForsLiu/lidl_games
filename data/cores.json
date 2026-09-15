@@ -10,7 +10,7 @@
       "upgrade": {
         "count": 3,
         "stepCost": 50,
-        "desc": "+100 Core HP per step",
+        "desc": "+10 Core HP per step",
         "steps": [{ "coreHpBonus": 100 }, { "coreHpBonus": 100 }, { "coreHpBonus": 100 }]
       }
     },
@@ -60,7 +60,7 @@
       "upgrade": {
         "count": 3,
         "stepCost": 80,
-        "desc": "step 1: tower overheal also converts 20:1; step 2: both conversions become 10:1; step 3: tower lifesteal 0.3%",
+        "desc": "step 1: tower overheal also converts 2:1; step 2: both conversions become 1:1; step 3: tower lifesteal 0.3%",
         "steps": [
           { "towerOverhealConverts": 1 },
           { "overhealGoldRatio": 10 },
@@ -73,7 +73,7 @@
       "name": "Corpse",
       "baseHp": 500,
       "unlockedByDefault": false,
-      "unlockCondition": "Deal 100,000 lifetime damage",
+      "unlockCondition": "Deal 10,000 lifetime damage",
       "unlockQuest": "hundred_grand",
       "effects": {
         "corpseStoreRatio": 0.01,
@@ -107,7 +107,7 @@
       "upgrade": {
         "count": 5,
         "stepCost": 150,
-        "desc": "step 1: +3 gold/s; step 2: +1 HP regen/s and +20% healing received; step 3: decay aura r5 (1x1.2^(5-ring)/s); step 4: decay aura starts r10; step 5: decay multiplier 1.2 -> 1.5",
+        "desc": "step 1: +3 gold/s; step 2: +0.1 HP regen/s and +20% healing received; step 3: decay aura r5 (0.1x1.2^(5-ring)/s); step 4: decay aura starts r10; step 5: decay multiplier 1.2 -> 1.5",
         "steps": [
           { "goldPerSecond": 3 },
           { "hpRegenPerSecond": 1, "healingReceivedPct": 0.2 },

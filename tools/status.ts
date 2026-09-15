@@ -42,6 +42,7 @@ import '../src/bots';
 export const HANDOFF_PATH = resolve(REPO_ROOT, 'HANDOFF.md');
 export const QUESTIONS_PATH = resolve(REPO_ROOT, 'QUESTIONS.md');
 export const BACKLOG_PATH = resolve(REPO_ROOT, 'BACKLOG.md');
+export const BACKLOG_DONE_PATH = resolve(REPO_ROOT, 'docs', 'BACKLOG-DONE.md');
 export const FEEDBACK_PROCESSED_DIR = resolve(REPO_ROOT, 'feedback', 'processed');
 export const STATUS_PATH = resolve(REPO_ROOT, 'STATUS.md');
 
@@ -147,8 +148,28 @@ function reportsFor(overrides: Partial<RunConfig>, policy: string, seeds: number
   return seeds.map((seed) => runOne(cfgFor(overrides, seed, content), policy, MAX_TICKS));
 }
 
-function winRate(reports: RunReport[]): number {
-  return reports.filter((r) => r.outcome === 'victory').length / reports.length;
+/**
+ * p12i: a run that hits `MAX_TICKS` without resolving (`outcome === 'running'`,
+ * a "censored" run in survival-analysis terms) used to be folded into the win
+ * rate's denominator as an uncounted loss — a class/Core cell where every
+ * seed happens to hit the wave-11-to-17 pacing wall (p10i) under this
+ * snapshot's stock `hybrid` policy then read as a flat 0%, indistinguishable
+ * from a genuine defeat, even though a scripted kit clears the same seed in
+ * an ~80s boss fight (p12e). `winRate` now excludes censored runs from both
+ * halves of the ratio; `censoredCount` reports how many were dropped so the
+ * render layer can say so next to the number instead of silently omitting it.
+ */
+export function decided(reports: RunReport[]): RunReport[] {
+  return reports.filter((r) => r.outcome !== 'running');
+}
+
+export function winRate(reports: RunReport[]): number {
+  const d = decided(reports);
+  return d.length === 0 ? 0 : d.filter((r) => r.outcome === 'victory').length / d.length;
+}
+
+export function censoredCount(reports: RunReport[]): number {
+  return reports.length - decided(reports).length;
 }
 
 function mean(xs: number[]): number {
@@ -161,9 +182,9 @@ function round(v: number, dp = 3): number {
 }
 
 export interface BalanceSnapshot {
-  policyComparison: { policy: string; winRate: number; meanMinutes: number }[];
-  perClass: { classKey: string; t1: number; t3: number }[];
-  perCore: { coreKey: string; t1: number; t3: number }[];
+  policyComparison: { policy: string; winRate: number; meanMinutes: number; censored?: number }[];
+  perClass: { classKey: string; t1: number; t3: number; t1Censored?: number; t3Censored?: number }[];
+  perCore: { coreKey: string; t1: number; t3: number; t1Censored?: number; t3Censored?: number }[];
   damageShare: { key: string; share: number }[];
   boonPicks: { key: string; totalRanks: number }[];
   meanRunMinutes: number;
@@ -181,21 +202,38 @@ async function measureBalance(): Promise<BalanceSnapshot> {
     .map((policy) => {
       const reports = reportsFor({ tier: 1 }, policy, BALANCE_SEEDS, content);
       pool.push(...reports);
-      return { policy, winRate: round(winRate(reports)), meanMinutes: round(mean(reports.map((r) => r.totalSeconds / 60)), 1) };
+      return {
+        policy,
+        winRate: round(winRate(reports)),
+        meanMinutes: round(mean(reports.map((r) => r.totalSeconds / 60)), 1),
+        censored: censoredCount(reports),
+      };
     });
 
   const perClass = content.classes.classes.map((c) => {
     const t1 = reportsFor({ classKey: c.key, tier: 1 }, 'hybrid', BALANCE_SEEDS, content);
     const t3 = reportsFor({ classKey: c.key, tier: 3 }, 'hybrid', BALANCE_SEEDS, content);
     pool.push(...t1, ...t3);
-    return { classKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
+    return {
+      classKey: c.key,
+      t1: round(winRate(t1)),
+      t3: round(winRate(t3)),
+      t1Censored: censoredCount(t1),
+      t3Censored: censoredCount(t3),
+    };
   });
 
   const perCore = content.cores.cores.map((c) => {
     const t1 = reportsFor({ core: c.key, tier: 1 }, 'hybrid', BALANCE_SEEDS, content);
     const t3 = reportsFor({ core: c.key, tier: 3 }, 'hybrid', BALANCE_SEEDS, content);
     pool.push(...t1, ...t3);
-    return { coreKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
+    return {
+      coreKey: c.key,
+      t1: round(winRate(t1)),
+      t3: round(winRate(t3)),
+      t1Censored: censoredCount(t1),
+      t3Censored: censoredCount(t3),
+    };
   });
 
   const damage = new Map<string, number>();
@@ -257,7 +295,18 @@ export function backlogPaths(root: string = REPO_ROOT): string[] {
   // A plain codepoint sort: `localeCompare` would trade a filesystem
   // dependency for an ICU/locale one, which is the same problem.
   names.sort((a, b) => (a === 'BACKLOG.md' ? -1 : b === 'BACKLOG.md' ? 1 : a < b ? -1 : a > b ? 1 : 0));
-  return names.map((n) => resolve(root, n));
+  const paths = names.map((n) => resolve(root, n));
+  // fb178: done items moved to docs/BACKLOG-DONE.md so the live files stay
+  // short. Appended last, never first — a live file's own citation of an id
+  // must win over the archive's copy of the same (now-historical) bullet.
+  const donePath = resolve(root, 'docs', 'BACKLOG-DONE.md');
+  try {
+    readFileSync(donePath, 'utf8');
+    paths.push(donePath);
+  } catch {
+    // No archive yet (e.g. a scratch test root) — nothing to append.
+  }
+  return paths;
 }
 
 export function feedbackLedger(
@@ -360,8 +409,11 @@ export function feedbackLedger(
         continue;
       }
       // The lane is named for a cited item that is not in the main queue, so a
-      // reader can find it without grepping five files.
-      const where = doc.name === 'BACKLOG.md' ? '' : ` (${doc.name})`;
+      // reader can find it without grepping five files. The archive is not a
+      // lane — fb178 moves a done item there from whichever file originally
+      // owned it, and a done item needs no routing information — so it gets
+      // the same silent treatment as BACKLOG.md itself.
+      const where = doc.name === 'BACKLOG.md' || doc.name === 'BACKLOG-DONE.md' ? '' : ` (${doc.name})`;
       return { file, status: `${bullet.id}${where} — ${bullet.done ? 'done' : 'queued'}` };
     }
     return { file, status: looseHit ?? 'no BACKLOG citation found' };
@@ -474,26 +526,40 @@ export function renderStatus(
   lines.push(
     `Measured this run: ${balance.totalRuns} sim runs (${BALANCE_SEEDS.length} seed${BALANCE_SEEDS.length === 1 ? '' : 's'}/cell), \`hybrid\` bot for ` +
       `per-class/per-Core cells. Mean run length ${balance.meanRunMinutes} min; ${balance.timeoutCount} of ` +
-      `${balance.totalRuns} runs hit the 45-min cap without resolving (timeouts).`,
+      `${balance.totalRuns} runs hit the 45-min cap without resolving (timeouts). A win rate below is measured ` +
+      `only over runs that reached a terminal outcome inside the cap; a "(N censored)" suffix names how many of ` +
+      `that cell's seeds hit the cap instead and were excluded rather than counted as losses (p12i) — a cell with ` +
+      `every seed censored reads 0 by convention, not as a measured defeat (see p10i's wave-11-to-17 pacing wall).`,
   );
   lines.push('');
   lines.push('### Policy comparison (T1, engineer, default core)');
   lines.push('');
   lines.push('| Policy | Win rate | Mean minutes |');
   lines.push('|---|---|---|');
-  for (const p of balance.policyComparison) lines.push(`| ${p.policy} | ${p.winRate} | ${p.meanMinutes} |`);
+  for (const p of balance.policyComparison) {
+    const note = p.censored ? ` (${p.censored} censored)` : '';
+    lines.push(`| ${p.policy} | ${p.winRate}${note} | ${p.meanMinutes} |`);
+  }
   lines.push('');
   lines.push('### Per-class win rate (`hybrid` bot, default core)');
   lines.push('');
   lines.push('| Class | T1 | T3 |');
   lines.push('|---|---|---|');
-  for (const c of balance.perClass) lines.push(`| ${c.classKey} | ${c.t1} | ${c.t3} |`);
+  for (const c of balance.perClass) {
+    const t1Note = c.t1Censored ? ` (${c.t1Censored} censored)` : '';
+    const t3Note = c.t3Censored ? ` (${c.t3Censored} censored)` : '';
+    lines.push(`| ${c.classKey} | ${c.t1}${t1Note} | ${c.t3}${t3Note} |`);
+  }
   lines.push('');
   lines.push('### Per-Core win rate (`hybrid` bot, engineer)');
   lines.push('');
   lines.push('| Core | T1 | T3 |');
   lines.push('|---|---|---|');
-  for (const c of balance.perCore) lines.push(`| ${c.coreKey} | ${c.t1} | ${c.t3} |`);
+  for (const c of balance.perCore) {
+    const t1Note = c.t1Censored ? ` (${c.t1Censored} censored)` : '';
+    const t3Note = c.t3Censored ? ` (${c.t3Censored} censored)` : '';
+    lines.push(`| ${c.coreKey} | ${c.t1}${t1Note} | ${c.t3}${t3Note} |`);
+  }
   lines.push('');
   lines.push('### Wielded-type damage share (whole pool, `damageByWeapon`)');
   lines.push('');

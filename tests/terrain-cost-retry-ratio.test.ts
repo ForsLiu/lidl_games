@@ -8,19 +8,25 @@
  *
  * The reason was written into `MEASURED.retryOverPlain` in
  * `tests/terrain-cost-ledger.ts` before this ever ran on CI: idle, this is the
- * tightest number in the ledger (1.93-2.09 over 28 observations) and the only
- * one calibration-free on both sides — but **under load it is not a band at
- * all**, because a population of two retry seeds has no averaging while the
- * 1498-seed plain population it is divided by does. QA had already measured it
- * at 9.1, 12.7 and 16.6 under 12- and 24-way contention. The inference drawn
- * then was that contention can only inflate a raw timing, so a one-sided
- * `> 1.5` floor is a claim noise cannot manufacture a failure for. The runner
- * disproved that half: contention inflates the *denominator* too, and there it
- * has 1498 seeds to work on rather than two, so the ratio can fall as readily
- * as rise. Same rule as the a10/p10e/q13 family — a ratio of two independent
- * timing measurements does not survive contention, whichever side is noisier —
- * and the same remedy, since lowering a floor of 1.5 against a measured 2.0
- * would leave the assertion nothing left to say.
+ * tightest number in the ledger and the only one calibration-free on both
+ * sides — but **under load it is not a band at all**, because a population of
+ * retry seeds this small has no averaging while the plain population it is
+ * divided by does. QA had already measured it at 9.1, 12.7 and 16.6 under 12-
+ * and 24-way contention (36x20 grid, when the retry population was two). The
+ * inference drawn then was that contention can only inflate a raw timing, so a
+ * one-sided `> 1.5` floor is a claim noise cannot manufacture a failure for.
+ * The runner disproved that half: contention inflates the *denominator* too,
+ * and there it has the whole plain population to work on rather than a
+ * handful of retry seeds, so the ratio can fall as readily as rise. Same rule
+ * as the a10/p10e/q13 family — a ratio of two independent timing measurements
+ * does not survive contention, whichever side is noisier — and the same
+ * remedy, since lowering a floor of 1.5 against a measured 2.0 would leave the
+ * assertion nothing left to say.
+ *
+ * **fb166 (56x32): the retry population is now one seed, not two** — see
+ * `MEASURED.retryCount`/`retrySeeds`. The "no averaging" argument above only
+ * sharpens with a smaller population; nothing about the assertion's shape
+ * changes.
  *
  * The claim is unchanged and worth keeping: the cost tail is not a property of
  * any map's shape, it is the retry ledger showing through. It stays live —
@@ -53,11 +59,12 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     // sides are wall clock in the same process, so the host cancels exactly and
     // no calibration enters — which matters because a normalised ratio has
     // contention in its *denominator* too, and the plain population averages
-    // that away over 1498 seeds while a population of two cannot. With
+    // that away over its ~1499 seeds (fb166: 1498 at the 36x20 grid's
+    // two-retry sample) while a population this small cannot. With
     // normalisation in, this assertion failed 5 times in 10 contended runs
-    // (0.83x, 1.11x). Calibration-free against the median: 1.994 / 2.011 idle,
-    // 1.95-2.03 at 6-way, 1.978-2.044 at 12-way — 20 observations in
-    // 1.95-2.04. The median rather than the mean for the same reason: a
+    // (0.83x, 1.11x) at 36x20. Calibration-free against the median at 56x32:
+    // 1.991-2.021 idle over three runs (see `MEASURED.retryOverPlain`). The
+    // median rather than the mean for the same reason: a
     // contended mean is dominated by scheduler outliers.
     const { rawMin, seeds, retries, costs } = runLedger();
     const retrySet = new Set(retries.map(([s]) => s));

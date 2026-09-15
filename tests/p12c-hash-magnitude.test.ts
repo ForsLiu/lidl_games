@@ -8,15 +8,27 @@
  *
  * Latent until p12c: the largest hashed number in the sim was the final
  * boss's HP at 365,000 (quantized 3.7e8, comfortably inside range). p12c's
- * roster-wide `baseHpMul: 20` puts it at 7,300,000 — quantized 7.5e9, past
- * 2^32 — so **at T1, for the first time, the boss at full HP and the boss at
- * 42.5% HP hash the same**. Determinism was never at risk (the wrap is
- * deterministic); what was at risk is exactly what G2 exists to catch, a
- * replay divergence the hash cannot see.
+ * roster-wide `baseHpMul: 20` put it at 7,300,000 at the time — quantized
+ * 7.5e9, past 2^32 — so **at T1, for the first time, the boss at full HP and
+ * the boss at 42.5% HP hashed the same**. Determinism was never at risk (the
+ * wrap is deterministic); what was at risk is exactly what G2 exists to
+ * catch, a replay divergence the hash cannot see.
+ *
+ * p12e (2026-09-07) exempted the final boss (`TRAIT.finalBoss`) from
+ * `baseHpMul` entirely, so the roster no longer reaches this magnitude at T1
+ * today — the case below still pins the fix at the magnitude that exposed
+ * it, not at whatever the boss's HP happens to be this week.
  *
  * The fix folds the high half only when it carries information, so every
  * value inside int32 range hashes bit-identically to before — which is what
  * keeps terrain's pinned map hashes and every recorded end-state hash valid.
+ *
+ * p12e note: the final boss no longer takes `baseHpMul` (it was double-
+ * counting an already-fitted HP, QUESTIONS Q177/Q184), so 7,300,000 is no
+ * longer a number the sim actually produces for it. The literal stays as a
+ * representative past-int32 magnitude fixture — this file tests `Hasher.num`
+ * in isolation, not the boss's current HP — rather than being re-derived from
+ * content that could again drift under it.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -35,9 +47,10 @@ describe('p12c — Hasher.num distinguishes magnitudes past int32', () => {
     expect(hashOf(7_300_000)).not.toBe(hashOf(3_105_696)); // ...the hash no longer does
   });
 
-  it("the final boss's own HP range is injective under the hash", () => {
-    // p12c's shipped boss HP (365,000 x baseHpMul 20) and the fractions of it
-    // a real fight passes through.
+  it('a representative past-int32 HP range is injective under the hash', () => {
+    // p12c's pre-p12e shipped boss HP (365,000 x baseHpMul 20, no longer what
+    // the boss actually spawns at — see file header) and the fractions of it
+    // a real fight passes through. Kept as the magnitude fixture regardless.
     const full = 7_300_000;
     const seen = new Map<string, number>();
     for (const frac of [1, 0.9, 0.75, 0.5, 0.425, 0.25, 0.1, 0.01]) {
