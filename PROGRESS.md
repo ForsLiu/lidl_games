@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb185 done — full fresh re-run of
+  `tests/p6e-class-diversity.test.ts` finds the roster-wide Night-1 wipe
+  (fb196) is far broader than fb185's own animist/T5 framing assumed, and
+  falsifies fb196's "prime suspect: PR #55" theory.** fb185 was filed
+  narrowly, expecting only animist and the T5 companion band to have
+  drifted. The item's own acceptance (re-run the file fresh, worktree
+  control run) found six more previously in-band/live classes also freshly
+  red — cryomancer, plaguebringer, pyromancer, archer, stormcaller — all
+  the same `defeat_warden`@w3 first-VS-block wipe fb196 already flagged
+  top-priority; only `time_lord` still clears its band; fingerprint-distance
+  moved 16->27. Two git-worktree control runs: (a) animist at the commit
+  immediately before c004 (`7c3dc18`) measures 6/12 (was already stale from
+  8/12 before c004 landed) — c004 is a real but partial contributor, not
+  the sole cause; (b) `pyromancer` at the commit immediately before PR #55
+  (`1a5912c`) measures 0/12 with the identical wipe signature — **the wipe
+  predates that merge**, falsifying fb196's own suspect. Every newly-red
+  assertion re-pinned honestly with its fresh number (fb185's own
+  acceptance, nothing more); fb196 updated with the falsifying result and a
+  narrowed next-bisection suggestion. Root cause of the roster-wide wipe is
+  still open — fb196's own acceptance (root-cause + regression test),
+  unresolved. `npx tsc --noEmit` clean; `npm run test:fast` green (this
+  file is fast-tier-excluded). Logged as **QUESTIONS Q207** — refs: BACKLOG
+  fb185/fb196/fb193/c004, SPEC-FINAL §14 G8.
+
 - **2026-09-14 — lane/terrain: BACKLOG-TERRAIN fb166 done, the 36x20 -> 56x32
   grid flip, no `/data` change needed.** `src/sim/grid.ts` `GRID_W`/`GRID_H`
   36/20 -> 56/32 (the two lines the lane's Scope allows); `GATES`,
