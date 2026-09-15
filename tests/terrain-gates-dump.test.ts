@@ -61,7 +61,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('prints the gates it was given, not the base four', () => {
     const map = generateTerrain(40, cfg, FOUR);
     const line = describeTerrain(map, cfg, FOUR).split('\n')[2];
-    expect(line).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31 south2=45,31');
+    expect(line).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31 south2=3,31');
     // Unchanged when no list is given: the default is still `GATES`, so every
     // existing dump in every existing golden is byte-identical.
     expect(describeTerrain(map, cfg).split('\n')[2]).toBe(
@@ -72,7 +72,13 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   it('measures its bands against that list, which is the defect', () => {
     // The half that actually misleads a reader. The gate line being short is
     // visible; the bands being measured against a different arena is not.
-    const map = generateTerrain(1, cfg, FOUR);
+    // Seed 40, not 1: re-measured at the merge with master's own
+    // `MODIFIER_GATES` reposition (`south2` moved to `(3, GRID_H - 1)`, out of
+    // `jitterGates`' own jitter band — `grid.ts`'s doc comment). Seed 1's
+    // `maxGateDetour` happens to read identically with and without the
+    // modifier gate at the new position, so it no longer demonstrates the
+    // defect this test exists to show; seed 40 still does.
+    const map = generateTerrain(40, cfg, FOUR);
     const truth = measureTerrain(map, cfg, FOUR);
     const bands = (dump: string): string => dump.split('\n')[3];
 
@@ -90,7 +96,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
   });
 
   // Re-enabled at fb156: `MODIFIER_GATES`'s gate (now keyed `south2`) sits at
-  // (45,31), on the resized 56x32 border, so `parseTerrainDump`'s border check
+  // (3,31), on the resized 56x32 border, so `parseTerrainDump`'s border check
   // no longer refuses this file's own `FOUR` list. (Was skipped at fb166,
   // when `MODIFIER_GATES`'s literal `south` coordinate had drifted off the
   // border along with the resize; see BACKLOG-TERRAIN.md's 2026-09-06
@@ -214,14 +220,14 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const dump = describeTerrain(map, cfg, FOUR);
     // fb156: the modifier key is `south2` now, not `south` — the base list
     // grew a real `south` of its own, at (33,31), and the modifier gate
-    // sits at (45,31).
-    const swap = (to: string): string => dump.replace('south2=45,31', to);
+    // sits at (3,31).
+    const swap = (to: string): string => dump.replace('south2=3,31', to);
 
     expect(() => parseTerrainDump(swap('south2=12'))).toThrow(/gate "south2" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap('south2=1.5,19'))).toThrow(/gate "south2" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap(`south2=${GRID_W},19`))).toThrow(/off the .* arena/);
     expect(() => parseTerrainDump(swap(`south2=12,${GRID_H}`))).toThrow(/off the .* arena/);
-    expect(() => parseTerrainDump(swap('south2=45,31 south2=45,31'))).toThrow(/duplicate "south2"/);
+    expect(() => parseTerrainDump(swap('south2=3,31 south2=3,31'))).toThrow(/duplicate "south2"/);
     // One spelling per value. The base gates survive a padded or `-0` spelling
     // only because their parsed value is discarded — a modifier gate's is what
     // the dump carries, so `045,031` would round-trip to different text and
@@ -248,11 +254,11 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     // A modifier gate ahead of the base gates is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.
     expect(() =>
-      parseTerrainDump(dump.replace('gates west=0,12', 'gates south2=45,31 west=0,12')),
+      parseTerrainDump(dump.replace('gates west=0,12', 'gates south2=3,31 west=0,12')),
     ).toThrow(/fields are in a fixed order/);
     // And a name the format does not declare is still an unknown key, with
     // fb064w's own message rather than a confusing complaint about coordinates.
-    expect(() => parseTerrainDump(swap('south2=45,31 bogus=1,1'))).toThrow(
+    expect(() => parseTerrainDump(swap('south2=3,31 bogus=1,1'))).toThrow(
       /unknown "bogus" on the "gates" line/,
     );
   });

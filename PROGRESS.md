@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb193 done — closed on already-measured
+  numbers, no new data/src change.** fb193's schema/data/derive half (the
+  `maxHpMul`/`defenseBonus` bands) had already shipped under **p13a**, and
+  its gate-re-measurement half (G8 for swordsman/necromancer/engineer,
+  before/after recorded) had already been run three independent times —
+  p13a's own shipping measurement, fb196's fresh full sweep, and fb185's
+  re-pin — all agreeing: swordsman 2/12->0/12, necromancer 4/12->0/12 (both
+  worse, swamped by fb196's roster-wide Night-1 `baseHpMul` mechanism, same
+  as p12j's damage levers before them), engineer byte-identical 4/12 across
+  all three sessions (inert by construction, confirmed control). Engineer's
+  "may be re-tuned within the G14 floor" clause was not exercised again:
+  p12j already spent two materially different rounds on its one lever (Pop
+  Turret `summonStatMul`/cooldown) against that exact floor, and a third
+  blind round without first addressing the shared `baseHpMul` mechanism
+  isn't expected to move it (CLAUDE.md working rule 6). Root-cause fix for
+  the Night-1 mechanism stays fb196's own open acceptance. Touches no
+  `/data` or `/src` file — BACKLOG.md text only, same precedent fb185 set.
+  **Also found while verifying:** `npm run test:fast` currently fails 40
+  tests across 13 files, entirely inside `tests/ui-input.test.ts` and
+  sibling UI-lane suites, all of them the known, already-tracked
+  consequence of `fb166`'s grid resize (36x20 -> 56x32, merged) landing
+  without its paired `fb167` camera/canvas-mapping fix — `fb167` is
+  BACKLOG-UI.md's own item (`tests/ui*` is lane/ui's exclusive Scope, not
+  main lane's), already unblocked now that `fb166` merged, and a fix for it
+  already exists on an unmerged, PR-less branch (`claude/brave-cray-wj593v`,
+  commits titled `fb167`/`fb168`) — not something this session introduced
+  or is scoped to fix. Confirmed by inspection (`pointerToTile`'s failing
+  assertions hard-code the old 1152x640 logical canvas size in their own
+  comments) and by `git diff --stat` showing zero non-`BACKLOG.md` changes
+  this item made. Flagged to the owner rather than silently worked around
+  or merged in from the main lane — refs: BACKLOG fb193, p13a, fb196,
+  fb185, BACKLOG-UI.md fb167/fb166.
+
 - **2026-09-15 — main lane: BACKLOG fb196 done — bisected the "roster is
   nearly all red" alarm; PR #55 exonerated, not a new regression.**
   fb196 found only 3 of `tests/p6e-class-diversity.test.ts`'s non-`.skip`
@@ -232,6 +265,63 @@
   under contention heavier than this repo's CI actually produces is logged
   as QUESTIONS Q200 rather than chased further. `npm run test:fast` green in
   full throughout (4296 passed / 34 skipped, unchanged skip count).
+
+- **2026-09-07 — lane/terrain: the owner's bigger-map order shipped (fb166,
+  fb156), a terrain dump now fingerprints its config (fb065i), and Grid's
+  constructor accepts a custom gate list (fb177).** Four items, each full- or
+  light-tier reviewed per CLAUDE.md's subagent protocol before commit.
+
+  **fb166** flips the default grid 36x20 -> 56x32 (`src/sim/grid.ts`'s
+  `GRID_W`/`GRID_H`, the lane's only two-line edit there for this item).
+  `data/terrain.json` needed zero retuning — every owner band, density, blob
+  and radius value fitted for 36x20 still holds at 56x32, verified over
+  1000+-seed sweeps rather than assumed. All 12 lane-owned `tests/terrain*`
+  suites re-fit with honestly regenerated goldens (band ledger, cost ledger
+  included). Found and logged for main-lane, not patched here: `GATES.east`
+  and `world.ts`'s Fourth Gate literal are absolute coordinates that landed on
+  interior tiles instead of the border at the new size (a live gameplay bug —
+  roughly a third of Act I spawns now enter closer to the Core on one lane,
+  not just a cosmetic dump mismatch as first filed); `data/towers.json`'s
+  breach cost no longer outprices the longest possible walkable detour at the
+  new grid area (a SPEC-FINAL §10/G7 invariant, not a coordinate issue).
+
+  **fb156** ships `src/sim/terrain/gates.ts`'s `jitterGates(seed)`: one gate
+  per edge (W/N/E/S), seed-jittered along the edge from a dedicated
+  `${TERRAIN_STREAM}:gates` RNG substream, per the owner's "4 spawn gates...
+  jittered along the edge instead of 3" order. Ships as a callable tool rather
+  than flipping `generateTerrain`'s own default gate list (every call site
+  already accepts an explicit list; nothing in `src/` calls it without one) —
+  the live-wiring gap (`world.ts:588`'s `GATES.slice(0,3)`) is logged for
+  main-lane's `fb154`. `MODIFIER_GATES` renamed `'south'` -> `'south2'` and
+  repositioned off fb166's dead interior tile, since the new base gate now
+  legitimately owns the `'south'` key.
+
+  **fb065i**: a terrain dump carries a `cfgFingerprint` (8-hex fold of every
+  `TerrainConfig` field via the existing `Hasher`) on its `bands` line;
+  `parseTerrainDump` reports a mismatch against the config it's read next to
+  (`TerrainDump.configStale`) rather than throwing, so a stale dump stays
+  readable — closing the gap `describe.ts`'s own header named since fb064k.
+
+  **fb177** (generated this session — the Queue's remaining items, fb064c/d,
+  all need only out-of-scope files, so CLAUDE.md's generation rule fired):
+  `Grid`'s constructor takes an optional `gates` parameter so a caller can
+  bake a custom list (`jitterGates` output included) instead of only the
+  static default, closing the one piece of fb156's wiring gap that was
+  squarely this lane's hook file. Does not wire `jitterGates` into `World`
+  (still `fb154`'s job). Caught and fixed before commit: this session's own
+  5-item generation batch collided its ids (fb167-fb171) with unrelated live
+  items in `BACKLOG-UI.md`/`BACKLOG.md` — the generation step checked only
+  this file's own last id instead of the global id space, the same failure
+  `BACKLOG-UI.md`'s history already records once. Renumbered fb177-fb181
+  before anything referencing the old numbers was committed.
+
+  Five new items queued for the next terrain-lane pass: fb178 (jitter the
+  5th tier-modifier gate too, for consistency), fb179/fb180 (re-verify two
+  measurements fb166 disclosed as not-reverified), fb181 (a regression test
+  for the `GATES.east`/border bug fb166 and fb156 both found live). Also
+  logged, out of every lane's Scope to execute: `SPEC-FINAL.md` §10's own
+  text ("36×20 tiles, 3 gates") is now stale relative to fb166/fb156, both
+  owner-ordered amendments to that same section.
 
 - **2026-09-07 — main lane: BACKLOG p12j third follow-up — a second
   independent code-reviewer agent, dispatched on the doc-correction commit
@@ -710,6 +800,88 @@
 > entries below, plus the pre-SPEC-FINAL v0.2/M0-M8 history, now lives in
 > `docs/PROGRESS-ARCHIVE.md` (append-only). Read it only when an item
 > references old history.
+
+- **2026-09-07 — lane/terrain: BACKLOG-TERRAIN fb166 done (terrain half of
+  the owner's bigger-map order).** `src/sim/grid.ts`'s `GRID_W`/`GRID_H`
+  flip to 56x32 (from 36x20), with `GATES`/`MODIFIER_GATES` rescaled to
+  stay on the new border — left un-rescaled, `east` and the Fourth Gate's
+  `south` would land on interior tiles, since the border check is exact
+  (`tx===GRID_W-1` etc.), not proportional. Every geometry-dependent
+  assertion `tests/terrain*` owns (25 files: golden hashes, exact
+  tile-count fixtures, witness seeds, the band/cost/headroom ledgers) is
+  re-measured against the new size; `data/terrain.json` needed no retune
+  (density/blob/constraint values already clear every band, confirmed by
+  QA over both a 5000-seed sample and a 100,000-seed full-domain comb —
+  the domain-wide margins are real but thinner than the sample first
+  suggested, corrected in BACKLOG-TERRAIN.md's Log rather than left
+  overstated). `npx vitest run tests/terrain*.test.ts`: 411 passed + 1
+  pre-existing skip, 25/25 files green, independently reproduced by both
+  code-reviewer (APPROVE, 2 Minors folded in — a retry-count bound
+  loosened more than the geometry required, a stale sample-size comment)
+  and qa-playtester. QA also found one new out-of-scope regression:
+  `tests/fb027-selection-panels.test.ts` is now ~43% flaky (a helper picks
+  walkable-but-not-buildable tiles, which silently no-ops `buildTower` on
+  an unlucky real seed) — one-word fix, logged rather than made since the
+  file is outside this lane's Scope.
+
+  **Confirmed, deliberately not fixed here (outside this lane's Scope,
+  logged in BACKLOG-TERRAIN.md for the merge):** `src/sim/world.ts:591`
+  still hardcodes the Fourth Gate's south tile at the old grid's border
+  (12,19) instead of (19,31) — a real, currently-shipping bug for any run
+  with the Fourth Gate modifier on, with a `.skip`ped regression test
+  ready to un-skip once fixed. `tests/grid.test.ts` (3/11 fail) and
+  `tests/fb077-terrain-wiring.test.ts` (3/19 fail) hardcode old-grid
+  geometry/witness seeds. 20 further non-terrain fast-tier files
+  (act1/act2, four class-board* files, content-complete, p1a-sealing,
+  p6d-nine-classes, p8d-boss-termination, q15/q45 fuzz suites,
+  t2-selection, five ui-fb*/ui-input files) fail for grid-size reasons of
+  their own — full list and root causes in BACKLOG-TERRAIN.md's Log. A
+  stale "1498" sample-size comment in `vitest.fast.config.ts`/
+  `vitest.perf.config.ts` is now 1502. None of this is mysterious — every
+  failure has a named, understood cause — but fixing it means editing
+  files outside `src/sim/terrain/**`, `data/terrain.json`, `tests/
+  terrain*`, and `src/sim/grid.ts`, which this lane's Scope forbids; it is
+  main-lane (and other-lanes') work at the next merge.
+
+- **2026-09-07 — BACKLOG fb081 done.** `src/sim/combat.ts`'s `lineHit`
+  broadphase used a constant `range * 0.5 + 2` margin around the swept
+  line's midpoint, which only bounds the rectangle's true reach
+  (`sqrt((range/2)^2 + halfWidth^2)`) while `halfWidth` stays small; once
+  an Area-scaled `halfWidth` (`dash_line`/`boon:reach`, uncapped) pushed the
+  rectangle's far corners past it, those enemies were never even
+  perp-tested. Margin is now `range * 0.5 + halfWidth + 2`, matching the
+  fix `fireCrimsonRush` (`classes.ts`) already shipped for its own
+  hand-rolled copy. Also closed the sibling inconsistency the item named:
+  `towers.ts`'s `single`/`pierce` tower kinds passed a bare `LINE_HALF_WIDTH`
+  to `lineHit`/`bestLineDirection` — the one attack shape in that function
+  Area didn't scale, unlike aura range/lob/poison aoe/cone half-angle/blast
+  aoe in the same file and `vswield.ts`'s identical beam calls. Aligned
+  rather than pinned, per SPEC-FINAL §2's "Area... applies to every attack,
+  active, and effect." `tests/fb081-linehit-broadphase.test.ts` pins the
+  `dash_line` areaMul-4 corner-miss regression (written first, confirmed
+  red at HEAD, CLAUDE.md rule 3). code-reviewer's one Major finding — the
+  new tower-beam footprint had no row in `tests/class-wide-grove-reach.
+  test.ts`'s c013 ledger, the exact "a new caller, not a new read" guard
+  built for this failure mode by c001 — was closed with a new Arrow Spire
+  CONSUMERS row (at its §5.2 pierce milestone, using the file's own
+  "primary must be the most path-advanced candidate, `targetFirst` doesn't
+  pick by raw distance" convention) and a Ballista DEVIATIONS row for the
+  aim-only `bestLineDirection` call, mirroring the existing wielded-side
+  entry. qa-playtester independently reproduced the pre-fix miss via
+  `git stash` on `towers.ts` alone (proving that half of the fix is
+  load-bearing on its own, not just the `combat.ts` margin), confirmed
+  `ballista`'s `pierce` kind benefits too, checked `halfWidth===0` and an
+  extreme synthetic `areaMul===1000` for NaN/perf issues (clean), and
+  found no bugs. Targeted suites (`fb081-linehit-broadphase`,
+  `class-area-stat`, `class-wide-grove-reach`, `p5d-projectile-damage-
+  credit`, `a2-towers-mandatory`, and the `ui-fb1*`/dash-width files) all
+  green. `npm run test:fast` full run: only pre-existing, unrelated
+  failures remain — the documented `q15-command-domain-fuzz`/`q45` host-
+  load module-resolution flake (reproduced independently on a clean stash
+  of this diff, logged repeatedly in this file since early sessions) and
+  `q47`'s CLI-crash-coverage census tripping on another concurrent
+  session's own in-progress scratch files under `tools/` (not part of this
+  item's diff). Committed `692b8fc`.
 
 - **2026-09-07 — main lane: BACKLOG fb084 done.** Unblocked BACKLOG-CONTENT
   c004 (Animist's §4.2 "summon cap +1"): added `summonCap` to `STAT_KEYS`

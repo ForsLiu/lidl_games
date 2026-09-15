@@ -333,12 +333,15 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // in BACKLOG-TERRAIN.md (77/300 = 25.7% sealed when opened late, 0/300
     // under world's ordering). Re-measured at fb166 on a stand-in border tile
     // (since `world.ts`'s own (12, 19) is no longer border at 56x32): that
-    // window read 10/40 = 25%. Re-measured again at fb156 on `SOUTH`, now the
-    // real `MODIFIER_GATES` position (45, 31): 9/40 = 22.5%, in the same range
-    // as both earlier readings and not a disagreement — it is pinned as the
-    // window's own exact count, because a golden that moves is the point. The
-    // claim the case exists to hold is the *contrast*: late opening seals
-    // gates, world's ordering never does.
+    // window read 10/40 = 25%. Re-measured again at fb156 on `SOUTH`, then the
+    // real `MODIFIER_GATES` position (45, 31): 9/40 = 22.5%. Re-measured once
+    // more at the merge with master's own `MODIFIER_GATES` reposition (moved
+    // to `(3, GRID_H - 1)`, out of `jitterGates`' own jitter band — `grid.ts`'s
+    // doc comment): 11/40 = 27.5%, still in the same range as every earlier
+    // reading and not a disagreement — it is pinned as the window's own exact
+    // count, because a golden that moves is the point. The claim the case
+    // exists to hold is the *contrast*: late opening seals gates, world's
+    // ordering never does.
     let sealedLate = 0;
     let sealedReal = 0;
     const warn = console.warn;
@@ -362,7 +365,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     } finally {
       console.warn = warn;
     }
-    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 9, sealedReal: 0 });
+    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 11, sealedReal: 0 });
   });
 
   it('refuses what it cannot honestly open', () => {

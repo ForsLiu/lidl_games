@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  *
  * fb065: `Renderer.resize()` now sizes the canvas off its parent's (`.sw-stage`)
- * own laid-out box instead of a fixed 1152x640 constant, so "the canvas fills
+ * own laid-out box instead of a fixed-size constant, so "the canvas fills
  * the window" is real backing-store pixels — owner feedback
  * `feature-ui-inside-playfield`. jsdom never runs real layout (`clientWidth`/
  * `clientHeight` read 0 by default), so these tests stub them via
@@ -27,7 +27,7 @@ function stubbedCanvas(parentW: number, parentH: number): HTMLCanvasElement {
 }
 
 describe('fb065: canvas fills its stage parent, letterboxed to the grid aspect', () => {
-  it('is width-bound when the parent is squarer than the 36:20 grid', () => {
+  it('is width-bound when the parent is squarer than the grid', () => {
     const canvas = stubbedCanvas(1000, 1000);
     const r = new Renderer(canvas);
     r.resize(1);
@@ -37,7 +37,7 @@ describe('fb065: canvas fills its stage parent, letterboxed to the grid aspect',
     expect(canvas.height).toBe(Math.round(1000 * (GRID_H / GRID_W)));
   });
 
-  it('is height-bound when the parent is wider than the 36:20 grid', () => {
+  it('is height-bound when the parent is wider than the grid', () => {
     const canvas = stubbedCanvas(4000, 300);
     const r = new Renderer(canvas);
     r.resize(1);

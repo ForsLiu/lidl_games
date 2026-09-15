@@ -28,9 +28,13 @@
  *     ways in, so stranding the Core at its fixed `CORE_X/CORE_Y` becomes rare
  *     enough that 12,000 seeds no longer finds an example. So this layer's
  *     witnesses come from a wider domain comb instead, over both gate lists:
- *     `2910647699`, `3204297108` (base 4-gate) and `2465936159` (base+modifier
- *     5-gate) each strand their own seed's map. This is still a genuine bound
- *     and not an estimate for the seeds it names, and the argument is narrower
+ *     `2910647699`, `3204297108` (base 4-gate) and `3202873299` (base+modifier
+ *     5-gate, re-derived at the merge with master's own `MODIFIER_GATES`
+ *     reposition — `south2` moved to `(3, GRID_H - 1)`, which rescues the
+ *     item's original 5-gate witness, `2465936159`, so a fresh domain comb
+ *     found this one instead) each strand their own seed's map. This is still
+ *     a genuine bound and not an estimate for the seeds it names, and the
+ *     argument is narrower
  *     than "the clearing only opens tiles": `allGatesReachable` dijkstras
  *     `blocked`, which comes from `staticBlocked`, which reads `terrainBlock`
  *     and hence `overlay.walkable` and **nothing else** — and
@@ -199,7 +203,7 @@ describe('fb065h — a run plays its own seed’s map', () => {
     // population.
     expect(strandedIn(BASE_STRANDED, FOUR).stranded).toEqual([]);
 
-    const FIVE_GATE_STRANDED = [2465936159];
+    const FIVE_GATE_STRANDED = [3202873299];
     expect(strandedIn(FIVE_GATE_STRANDED, FOUR).stranded).toEqual(FIVE_GATE_STRANDED);
     expect(strandedIn(FIVE_GATE_STRANDED, GATES).stranded).toEqual([]);
   });
@@ -220,7 +224,7 @@ describe('fb065h — a run plays its own seed’s map', () => {
     try {
       for (const [gates, seeds] of [
         [GATES, [2910647699, 3204297108]],
-        [FOUR, [2465936159]],
+        [FOUR, [3202873299]],
       ] as ReadonlyArray<readonly [readonly GateDef[], readonly number[]]>) {
         for (const seed of seeds) {
           const raw = rawGrid(seed, gates);

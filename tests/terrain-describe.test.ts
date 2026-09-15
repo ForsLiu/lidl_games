@@ -855,7 +855,7 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     // ...and it really is refused out of order, not merely declared last.
     const four = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
     expect(() =>
-      parseTerrainDump(four.replace('gates west=0,12', 'gates south2=45,31 west=0,12')),
+      parseTerrainDump(four.replace('gates west=0,12', 'gates south2=3,31 west=0,12')),
     ).toThrow(/fields are in a fixed order/);
   });
 

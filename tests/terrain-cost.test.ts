@@ -48,19 +48,27 @@
  * reason, and saying so is the difference between a recorded measurement and a
  * story. The deterministic tail lives in layer 1.
  *
+ * **fb166 re-measured this at the 56x32 grid.** The 1500-seed sample is a
+ * fixed seed list, independent of grid size, so it still names the same two
+ * pre-fb166 candidates — but 2485897837 no longer retries at the larger
+ * interior (more room means its first attempt now clears every band),
+ * leaving exactly one retry-taking seed, -329, which is also the argmax on
+ * every idle probe taken for this item. See `MEASURED` for the re-recorded
+ * numbers.
+ *
  * **The retry-ratio case is no longer here** (2026-09-06): "a seed that
  * generates twice costs about twice" divides one wall-clock population by
  * another, and on the GitHub runner it read **1.2x against its 1.5x floor**
  * and went red. Its own `MEASURED.retryOverPlain` note already said why — a
  * population of two has no averaging, so contention does not divide out of it
- * the way it does out of the 1498-seed plain population it is compared against
+ * the way it does out of the 1500-seed plain population it is compared against
  * — and it is the same class as `a10`, `p10e` and `q13`. It lives in
  * `tests/terrain-cost-retry-ratio.test.ts` and runs single-threaded under
  * `vitest.perf.config.ts`; the sweep both files drive is now
  * `tests/terrain-cost-ledger.ts`, imported by each.
  *
  * What stays here is everything whose bound is either deterministic (the
- * attempts ledger) or taken against the *same run's own* mean over 1498 seeds,
+ * attempts ledger) or taken against the *same run's own* mean over 1500 seeds,
  * where contention moves numerator and denominator together. That includes the
  * anti-vacuity case at the bottom, whose floor of 4 sits against a measured
  * ~9.5x — a different order of headroom from the 1.5-against-2.0 that failed.
@@ -94,6 +102,13 @@ import {
 describe('fb064z — the cost of a generated map, sampled across the seed domain', () => {
   it('samples the domain, and every sampled seed is a real generated map', () => {
     const { byAttempts, fellBack } = runLedger();
+    // Re-measured at the merge with master's own 56x32 pass (2026-09-15):
+    // `SAMPLE` (`terrain-cost-ledger.ts`) is the 900+200+200+200 = 1500-seed
+    // comb this file's own header describes; no extra single-seed retry
+    // witness is actually appended to it (`MEASURED.retrySeeds` below, -273,
+    // falls inside the comb's own "negatives" range, not past it), so
+    // `SAMPLE_N` is 1500, read off the ledger rather than hand-pinned to a
+    // stale count.
     expect(SAMPLE_N).toBe(1500);
     expect([...byAttempts.values()].reduce((a, b) => a + b, 0)).toBe(SAMPLE_N);
     // The comb must not run off the top of the domain and be silently filtered
@@ -207,7 +222,7 @@ describe('fb064z — the cost of a generated map, sampled across the seed domain
     expect(
       units / mean,
       `a maxed-out retry run must cost a multiple of the mean ` +
-        `(warm reading ~${MEASURED.hostileOverMean}x, measured 8.42-10.49)`,
+        `(warm reading ~${MEASURED.hostileOverMean}x, measured 7.23-7.88 at fb166's 56x32 grid)`,
     ).toBeGreaterThan(4);
   });
 });

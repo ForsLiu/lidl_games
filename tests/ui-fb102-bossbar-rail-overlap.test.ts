@@ -106,9 +106,10 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     const hud = makeHud(root);
     const w = new World(cfg());
     hud.buildTowerBar(w);
-    // aspect = 36/20 = 1.8; 900/1.8 = 500, so this is exactly on-aspect: no
-    // letterboxing, --cv-left/--cv-right both 0px, keeping the arithmetic
-    // below simple. 900px is under the 1180px rail-widening breakpoint.
+    // aspect = 56/32 = 1.75; width-bound: cssW = round(min(900, 500*1.75)) =
+    // 875, cssH = 500, --cv-left/--cv-right both 12.5px. 900px is under the
+    // 1180px rail-widening breakpoint.
+    const stageW = 900;
     stubStageSize(root, 900, 500);
 
     hud.update(w);
@@ -117,14 +118,14 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     const cvRight = stageVar(root, '--cv-right');
     const cx = stageVar(root, '--cv-cx');
     const bossMaxW = stageVar(root, '--bossbar-maxw');
-    expect(cvLeft).toBe(0);
-    expect(cvRight).toBe(0);
+    expect(cvLeft).toBe(12.5);
+    expect(cvRight).toBe(12.5);
     expect(cx).toBe(450);
 
-    const railFraction = 900 <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : 0.32;
-    const railW = Math.min(RAIL_WIDTH_PX, railFraction * 900);
+    const railFraction = stageW <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : 0.32;
+    const railW = Math.min(RAIL_WIDTH_PX, railFraction * stageW);
     const leftRailRightEdge = cvLeft + RAIL_EDGE_GAP_PX + railW;
-    const rightRailLeftEdge = 900 - cvRight - RAIL_EDGE_GAP_PX - railW;
+    const rightRailLeftEdge = stageW - cvRight - RAIL_EDGE_GAP_PX - railW;
 
     const bossLeftEdge = cx - bossMaxW / 2;
     const bossRightEdge = cx + bossMaxW / 2;
@@ -135,9 +136,9 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     // The bug this item fixes: the old flat `max-width: 60%` (no relationship
     // to the rails at all) would have sized the boss bar to min(360, 0.6*900)
     // = 360px, spanning [270, 630] — well inside both rails' footprints
-    // ([8, 308] and [592, 892]). Asserting that hypothetical width against
-    // the same rail edges proves this test would have failed pre-fix.
-    const unfixedBossW = Math.min(360, 0.6 * 900);
+    // ([20.5, 320.5] and [579.5, 879.5]). Asserting that hypothetical width
+    // against the same rail edges proves this test would have failed pre-fix.
+    const unfixedBossW = Math.min(360, 0.6 * stageW);
     const unfixedLeftEdge = cx - unfixedBossW / 2;
     const unfixedRightEdge = cx + unfixedBossW / 2;
     expect(unfixedLeftEdge).toBeLessThan(leftRailRightEdge);
