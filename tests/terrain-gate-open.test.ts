@@ -4,9 +4,9 @@
  * `Grid.syncTerrain` is private and neither `markDirty` nor `refresh` calls it,
  * so a raw `tile[]` write that lands *after* the last `applyTerrain`/
  * `placeCore` updates `blocked` (through `staticBlocked`) and leaves every
- * terrain array untouched. Measured at fb065c: after writing a Gate at
- * (12, 19) the tile reads `tile=Gate`, `blocked=0` — the sim walks through it —
- * while `terrainKind` still says `Rock`, so a repro taken with
+ * terrain array untouched. Measured at fb065c: after writing a Gate at a
+ * border tile the tile reads `tile=Gate`, `blocked=0` — the sim walks through
+ * it — while `terrainKind` still says `Rock`, so a repro taken with
  * `gridTerrain` draws a mountain on a walkable gate.
  *
  * The border row is where this bites, and it is not an edge case: gates live on
@@ -31,8 +31,20 @@ import { applyRunTerrain } from '../src/sim/world';
 
 const cfg = loadTerrain();
 
-/** The south wall tile `world.ts` opens as the Fourth Gate. */
-const SOUTH = { tx: 12, ty: 19 };
+/**
+ * A south-wall tile, standing in for the one `world.ts` opens as the Fourth
+ * Gate (`MODIFIER_GATES[0]`, `(12, 19)`).
+ *
+ * fb166 note: the real Fourth Gate position is fixed against the old 36x20
+ * grid and stays there until main-lane `fb153b` repositions `GATES`/
+ * `CORE_X`/`CORE_Y` for 56x32 — not this item. At 56x32, (12, 19) is an
+ * ordinary interior tile, not a border one, so `Grid.openGate` (which
+ * requires a `Border` tile) refuses it outright. `(12, GRID_H - 1)` — same
+ * column, the grid's actual bottom border row — keeps every case in this file
+ * exercising the same mechanism (a border tile opened into a gate) without
+ * depending on the unmigrated coordinate.
+ */
+const SOUTH = { tx: 12, ty: GRID_H - 1 };
 
 /** Every border tile that is not already a gate, in a fixed order. */
 function borderTiles(): Array<readonly [number, number]> {
@@ -80,15 +92,18 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // all of that is true, but none of it is what causes the staleness. Any
     // structural `tile[]` write after the last sync leaves the terrain arrays
     // holding the old answer, wherever it lands. Measured on an *interior*
-    // tile: (6,1) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
+    // tile: (49,1) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
     // there gives `Gate`/`Rock`/`blocked=0` — identical to the border case.
     //
     // No shipped API can produce this (`openGate` refuses a non-border tile and
     // `placeCore` refuses non-normal terrain), so it is a defect in the
     // *record* rather than a new hole; recorded here so the accepted case is
     // stated as wide as it is.
+    //
+    // fb166: re-measured at 56x32, where seed 7's own (6,1) is no longer Rock
+    // — (49,1) is.
     const g = applied(7);
-    const i = g.idx(6, 1);
+    const i = g.idx(49, 1);
     expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
       TileType.Open,
       TerrainKind.Rock,
@@ -192,7 +207,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         if (!g.allGatesReachable()) stranded++;
       }
     }
-    expect({ opened, stranded }).toEqual({ opened: 505, stranded: 131 });
+    expect({ opened, stranded }).toEqual({ opened: 830, stranded: 203 });
   });
 
   it('openGate writes the tile and re-derives the terrain in one step', () => {
@@ -309,7 +324,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     } finally {
       console.warn = warn;
     }
-    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 7, sealedReal: 0 });
+    expect({ sealedLate, sealedReal }).toEqual({ sealedLate: 10, sealedReal: 0 });
   });
 
   it('refuses what it cannot honestly open', () => {

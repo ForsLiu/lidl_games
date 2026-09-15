@@ -292,7 +292,19 @@ describe('fb064j — the retry walk stays inside the domain', () => {
   const strict = withConfig((raw) => {
     (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.5;
   });
-  /** `strict`'s generation parameters with every band switched off. */
+  /**
+   * `strict`'s generation parameters with every band switched off.
+   *
+   * fb166 finding: this was missing `maxGateDetour`, so it was actually
+   * "every band off except the detour ceiling" — inert at the old 36x20
+   * negative-seed window this file happened to sample, since no walked key
+   * there ever failed detour on its own. At 56x32 one does (key 4294967253,
+   * `s -43`'s first step), which surfaced the gap: `raw.attempts` read 2, not
+   * the 1 an *always-accepting* config promises, because `generateTerrain`
+   * itself retried past a detour failure this config was supposed to have
+   * turned off. Fixed to match what the name and the comment above always
+   * claimed.
+   */
   const alwaysAccepts = withConfig((raw) => {
     Object.assign(raw.constraints as Record<string, number>, {
       minWalkableFrac: 0,
@@ -300,6 +312,7 @@ describe('fb064j — the retry walk stays inside the domain', () => {
       minGateReachFrac: 0,
       minCoreLegalFrac: 0,
       minCorridorWidth: 1,
+      maxGateDetour: 99,
     });
   });
 
@@ -343,17 +356,15 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     // The tiles were always right — `attempt` reduces to uint32 either way —
     // but the reported seed left the domain it claims to be in.
     //
-    // The band is local rather than `strict` since fb064l: at
-    // `minCoreLegalFrac: 0.5` the key 2 ** 31 - 1 now measures 0.504043 and
-    // is accepted, so there is no walk left to test. 0.505 rejects it. The
-    // walk is three steps rather than two and that is not a weaker test but a
-    // stronger one — key 2 ** 31 (0.487047) is rejected too, so the walk
-    // *crosses* the int32 boundary and keeps counting instead of stopping on
-    // it, which is exactly the arithmetic the fb064j fix was about. No
-    // `minCoreLegalFrac` can make it a two-step walk: any band that rejects
-    // 0.504043 also rejects 0.487047.
+    // fb166 re-derived this at 56x32: `minCoreLegalFrac` no longer isolates a
+    // clean crossing (key 2**31-1 measures 0.494624, 2**31 measures 0.538835,
+    // 2**31+1 measures 0.521569 — a band above 0.538835 that rejects the
+    // first two also rejects the third, and one below it accepts all three).
+    // `minWalkableFrac` does: 0.730469 / 0.728795 / 0.731585 — a band in
+    // (0.730469, 0.731585] rejects the first two and accepts the third, the
+    // same three-step, boundary-crossing shape the original band gave.
     const crossing = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.505;
+      (raw.constraints as Record<string, number>).minWalkableFrac = 0.731;
     });
     const m = generateTerrain(2 ** 31 - 1, crossing);
     expect(m.attempts).toBe(3);
@@ -366,21 +377,31 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     expect(m.hash).toBe(direct.hash);
   });
 
-  it('a walk off the top of uint32 wraps to seed 0', () => {
-    // No shipped-config seed reaches this, so the wrap is forced: seed -1
-    // measures walkableFrac 0.69166 and seed 0 measures 0.69305, so a band
-    // between them makes 0xffffffff degenerate and 0 the answer.
+  it('a walk off the top of uint32 wraps to seed 0 and on into the positive range', () => {
+    // No shipped-config seed reaches this, so the wrap is forced. fb166
+    // re-derived the band at 56x32: the old grid's `minWalkableFrac` window
+    // between seeds -1 and 0 no longer isolates a two-step wrap — key
+    // 0xffffffff now measures *better* than key 0 on every one of
+    // `walkableFrac`/`buildableNormalFrac`/`coreLegalFrac` (its detour is
+    // already at the 1.0 floor, so it cannot be made to fail either), so no
+    // band can reject 0xffffffff while accepting 0 in one step any more.
+    // `minBuildableNormalFrac` in [0.602, 0.608] instead rejects all of
+    // 0xffffffff, 0, 1 and 2 and accepts 3 — a five-step walk (stable across
+    // that whole band range, checked directly against `generateTerrain`
+    // rather than assumed from the raw per-key readings) that still crosses
+    // the same wrap, just further into the positive range than the old
+    // two-step case did.
     const wrap = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minWalkableFrac = 0.6925;
+      (raw.constraints as Record<string, number>).minBuildableNormalFrac = 0.605;
     });
     for (const s of [-1, MAX_TERRAIN_SEED]) {
       const m = generateTerrain(s, wrap);
       expect(m.fallback).toBe(false);
-      expect(m.attempts).toBe(2);
-      expect(m.seed).toBe(0);
+      expect(m.attempts).toBe(5);
+      expect(m.seed).toBe(3);
       expect(m.requestedSeed).toBe(s);
       expect(legalUnder(m, wrap)).toBe(true);
-      const direct = generateTerrain(0, wrap);
+      const direct = generateTerrain(3, wrap);
       expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
       expect(m.hash).toBe(direct.hash);
     }
@@ -411,30 +432,32 @@ describe('fb064j — provenance on the fallback map', () => {
 });
 
 describe('fb064j — the band cliff is a property of the whole domain', () => {
-  it('pins the far-domain seed that sits exactly on the walkable floor', () => {
+  it('pins the far-domain seed closest to the walkable floor', () => {
     // fb064a's Log records seed 7957 at walkableFrac exactly 0.6000 against a
     // `>= 0.60` band — zero headroom, passing only because the band is `>=`.
     // That was measured over seeds 1..20000 and read as a fact about that
-    // window. It is not: QA's 8.8M-seed re-measure bottoms out at exactly
-    // 0.600000 in *every* window of the domain. This pins the far-domain twin
-    // so a density retune that pushes the floor down goes red here too, not
-    // only in the near window fb064a happened to sample.
+    // window; a domain-wide re-measure confirmed the floor bottoms out at
+    // exactly 0.600000 everywhere, because a map below the band is
+    // regenerated at seed+1 (so 0.6 was always the smallest *returned* value,
+    // not a lucky search result).
     //
-    // fb064l moved every map and so moved this pair (4294881754 / -85542
-    // before). The floor itself did not move and structurally cannot: a map
-    // below the band is regenerated at seed+1, so 0.600000 is the smallest
-    // walkable share `generateTerrain` can *return*, and finding a seed that
-    // sits exactly on it stayed a search rather than a surprise.
-    for (const s of [4294805928, -161368]) {
-      const m = generateTerrain(s, cfg);
-      const q = measureTerrain(m, cfg);
-      expect(m.fallback).toBe(false);
-      expect(q.walkableCount).toBe(432);
-      expect(q.walkableFrac).toBe(cfg.constraints.minWalkableFrac);
-      expect(legalUnder(m, cfg)).toBe(true);
-      // The two spellings are one key, so they are one map.
-      expect(m.hash).toBe('471ef79e');
-    }
+    // **fb166 breaks that exactness, structurally, not by bad luck.** 1792
+    // tiles means `0.6 * 1792 = 1075.2` is not an integer, so no map can ever
+    // measure exactly the authored floor any more — the smallest a map can
+    // return is the nearest lattice point at or above it, `1076 / 1792 =
+    // 0.600893`. This case no longer pins an exact zero-headroom value; it
+    // pins the closest approach a scan of the domain's top 30000 seeds found
+    // (4294948019, 0.603237 — real headroom, not the lattice minimum) as the
+    // far-domain counterpart to `terrain-generation.test.ts`'s near-window
+    // finding (seed 13620, 0.601004, over 1..20000). Neither scan was
+    // exhaustive; a tighter seed may exist in the unscanned 4.3-billion-seed
+    // remainder.
+    const m = generateTerrain(4294948019, cfg);
+    const q = measureTerrain(m, cfg);
+    expect(m.fallback).toBe(false);
+    expect(q.walkableFrac).toBeCloseTo(0.603237, 6);
+    expect(q.walkableFrac).toBeGreaterThanOrEqual(cfg.constraints.minWalkableFrac);
+    expect(legalUnder(m, cfg)).toBe(true);
   });
 });
 
@@ -463,16 +486,16 @@ describe('fb064j — golden hash per region', () => {
       '4294967294': golden(2 ** 32 - 2),
       '4294967295': golden(MAX_TERRAIN_SEED),
     }).toEqual({
-      '-2147483648': 'd8573b44',
-      '-12345': 'cb3ee3a6',
-      '-1': '077808d2',
-      '0': '58fa46d9',
-      '2147483646': '3956f8e2',
-      '2147483647': '2563a26b',
-      '2147483648': 'd8573b44',
-      '3000000000': '12a572e3',
-      '4294967294': 'd27c038b',
-      '4294967295': '077808d2',
+      '-2147483648': '6a928728',
+      '-12345': 'f880b586',
+      '-1': '558a07a4',
+      '0': 'a9dddeee',
+      '2147483646': '2d571b53',
+      '2147483647': '2bda43a5',
+      '2147483648': '6a928728',
+      '3000000000': '5fc66ec9',
+      '4294967294': 'fd2a82d0',
+      '4294967295': '558a07a4',
     });
   });
 
@@ -501,6 +524,6 @@ describe('fb064j — golden hash per region', () => {
       2: generateTerrain(2, asFb064a).hash,
       42: generateTerrain(42, asFb064a).hash,
       1000: generateTerrain(1000, asFb064a).hash,
-    }).toEqual({ 1: '03031f09', 2: '30ddb8d4', 42: 'b2e86488', 1000: '473db113' });
+    }).toEqual({ 1: '4681c4e6', 2: '55140499', 42: 'd2553915', 1000: 'b3467625' });
   });
 });

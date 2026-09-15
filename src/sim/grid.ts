@@ -13,8 +13,8 @@
  * Costs are integers (10 orthogonal / 14 diagonal) so the field is bit-exact.
  */
 
-export const GRID_W = 36;
-export const GRID_H = 20;
+export const GRID_W = 56;
+export const GRID_H = 32;
 export const TILE = 32;
 
 export const enum TileType {

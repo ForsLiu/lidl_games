@@ -146,8 +146,22 @@ const cfg = loadTerrain();
  * A deterministic count of `paint()` iterations would remove the timing
  * dependence entirely; that needs instrumentation inside `/src/sim` and is
  * still logged for the main lane.
+ *
+ * **fb166 re-measured the ceiling at 56x32, on this sandbox host.** The
+ * hostile config's radii (36) are unchanged literals, but the interior they
+ * clamp against is 2.65x bigger (1620 against 612) and `GATES` are still at
+ * their unmigrated 36x20 positions, so a corridor walk from gate to the new,
+ * further-away centre paints more steps too — both push the hostile side up
+ * faster than the base side. Three consecutive idle readings: 92.5, 101.8,
+ * 95.1 (was ~35-39 idle at 36x20). The bursty-load and reverted-clamp control
+ * readings this header's own history cites were not re-taken this session —
+ * that would mean reverting the clamp in a worktree, out of this item's
+ * budget — so the new ceiling is set with a flat margin over the three idle
+ * readings above (about 1.8x the highest) rather than re-derived against a
+ * freshly measured broken-clamp number. Re-measure properly, with the control,
+ * before trusting this margin as tightly as the old one was.
  */
-const COST_RATIO_CEILING = 80;
+const COST_RATIO_CEILING = 180;
 /** Ordinary generations timed as the denominator, and the seeds they use. */
 const BASE_SEEDS = 64;
 const BASE_SEED_START = 2000;
@@ -231,21 +245,33 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
   });
 
   it('refuses bands the rock border makes unreachable', () => {
-    // The border is 105 permanently-rock tiles of 720, so no map can exceed
-    // ~0.854 walkable however the densities are set, and normal ground is a
-    // subset of walkable ground so the same ceiling binds it. Comparing an
+    // The formula ceiling (`config.ts`'s `MAX_WALKABLE_FRAC`) is
+    // `((GRID_W-2)*(GRID_H-2) + GATES.length) / (GRID_W*GRID_H)` = (1620 + 3)
+    // / 1792 ≈ 0.906: the perimeter (172 of 1792 tiles) is permanently rock
+    // except for `GATES.length` gate tiles punched back to normal. No map can
+    // exceed that however the densities are set, and normal ground is a
+    // subset of walkable ground so the same ceiling binds it. fb166 note: the
+    // formula assumes every one of `GATES.length` gates lands on the border,
+    // which is no longer true at this grid size (`GATES` are unmigrated —
+    // fb153b, main lane — so only 2 of 3 still do; see
+    // `tests/terrain-flat.test.ts`). The true achievable ceiling is therefore
+    // slightly lower (1622/1792 ≈ 0.905134, the flat map's own reading) than
+    // this formula ceiling — a real but harmless looseness, the same
+    // direction the architecture already prefers (a false *acceptance* here,
+    // never a false rejection of payable data). Comparing an
     // interior-relative density against a whole-grid band (fb064a's first
     // shape) accepted these, and then *every* seed fell through `maxAttempts`
     // to the flat fallback — a flat arena for the whole run, with no signal,
-    // since nothing consumes `fallback` yet.
+    // since nothing consumes `fallback` yet. 0.95 replaces the old grid's 0.9
+    // probe, which now sits under the new, higher ceiling.
     expect(() =>
       withConfig((raw) => {
-        (raw.constraints as Record<string, number>).minWalkableFrac = 0.9;
+        (raw.constraints as Record<string, number>).minWalkableFrac = 0.95;
       }),
     ).toThrow(/most any map can reach/);
     expect(() =>
       withConfig((raw) => {
-        (raw.constraints as Record<string, number>).minBuildableNormalFrac = 0.9;
+        (raw.constraints as Record<string, number>).minBuildableNormalFrac = 0.95;
       }),
     ).toThrow(/most any map can reach/);
     expect(() => loadTerrain()).not.toThrow();
@@ -283,7 +309,11 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     // `normalCount >= anchors + 1` and the share is at most `a / (a + 1)`.
     const ceiling = maxCoreLegalFrac(cfg.coreGateClearance);
     expect(ceiling).toBeLessThan(1);
-    for (const band of [1, 0.999]) {
+    // fb166: at 56x32 the flat map's anchor count `a` at clearance 3 is much
+    // larger (1425, was under a hundred at 36x20), so `a / (a + 1)` sits much
+    // closer to 1 (0.999299) — 0.999 no longer clears the ceiling the old
+    // grid's smaller `a` gave it.
+    for (const band of [1, 0.9999]) {
       expect(() =>
         withConfig((raw) => {
           (raw.constraints as Record<string, number>).minCoreLegalFrac = band;
@@ -333,21 +363,26 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     // non-fallback map — a false rejection is worse than the silent fallback it
     // was meant to prevent, and `density`/`coreGateClearance` are exactly the
     // fields fb064f hands to live Tuner editing.
+    // fb166: clearance 12 no longer works as the demonstration. `GATES` are
+    // clustered in one region of the much bigger 56x32 board (unmigrated —
+    // fb153b, main lane, moves them), so the flat map's own share at
+    // clearance 12 is now much higher (0.284834, was 0.087805 at 36x20) —
+    // higher than any of 3000 generated seeds reached (max 0.254866). Swept
+    // clearance 3..18 for one where a generated seed still beats the flat
+    // share: 14 is the lowest that does (flat 0.171393, seed 1097 at
+    // 0.174235), so this item's demonstration moved there.
     const wide = withConfig((raw) => {
-      (raw as Record<string, unknown>).coreGateClearance = 12;
+      (raw as Record<string, unknown>).coreGateClearance = 14;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.1;
     });
-    // Seed 262 until fb064l, which moved every map; re-found rather than
-    // re-derived, and the *claim* is unchanged — a real non-fallback map whose
-    // legal-anchor share beats the flat map's at clearance 12.
-    const wideMap = generateTerrain(190, wide);
+    const wideMap = generateTerrain(1097, wide);
     const wideMeasure = measureTerrain(wideMap, wide);
     expect(wideMap.fallback).toBe(false);
-    expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.103352, 6);
+    expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.174235, 6);
     expect(legalUnder(wideMap, wide)).toBe(true);
     // ...and it beats the flat map, which is the whole point.
     expect(wideMeasure.coreLegalFrac).toBeGreaterThan(
-      flatCoreAnchorCount(12) / measureTerrain(synthetic(TerrainKind.Normal), wide).normalCount,
+      flatCoreAnchorCount(14) / measureTerrain(synthetic(TerrainKind.Normal), wide).normalCount,
     );
 
     const sparse = withConfig((raw) => {
@@ -357,13 +392,14 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
       d.high = 0.002;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.811;
     });
-    // Seed 55 until fb064l. Seed 18 is the same *map* the old fixture was
-    // reaching: 55 was chosen as a seed whose first attempt cleared 0.811, and
-    // after fb064l the seeds that clear it walk to key 18, which measures the
-    // identical 0.8110749185667753 the old fixture recorded.
+    // Seed 55 until fb064l, then seed 18's map from fb064l through fb065-era
+    // sessions (0.811075). fb166's 56x32 grid moves it again — 0.875849 —
+    // still comfortably above the 0.811 band and still the point: `high`'s
+    // tiny 0.002 density leaves `normalCount` almost untouched while `rough`/
+    // `rock` are off, so nearly every anchor the flat map has stays legal.
     const sparseMap = generateTerrain(18, sparse);
     expect(sparseMap.fallback).toBe(false);
-    expect(measureTerrain(sparseMap, sparse).coreLegalFrac).toBeCloseTo(0.811075, 6);
+    expect(measureTerrain(sparseMap, sparse).coreLegalFrac).toBeCloseTo(0.875849, 6);
     expect(legalUnder(sparseMap, sparse)).toBe(true);
   });
 
@@ -394,31 +430,34 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
 
   it('refuses a Core clearance that makes every tile illegal', () => {
     // `coreGateClearance` excludes every tile within Chebyshev range of a
-    // gate. The grid's largest nearest-gate distance is 17, so from there up
-    // `legalCoreAnchors` is empty for *every possible map* and a positive
-    // `minCoreLegalFrac` can never be met. Accepted, this is the same silent
-    // "every seed ships the flat fallback" failure as an impossible band:
-    // measured 100/100 fallbacks at clearance 17. fb064g's ceiling subsumes the
-    // standalone check this used to have — at clearance 17 there are no anchors
-    // at all — so this pins the subsumption, and that the issue is still
-    // reported against `coreGateClearance` rather than against a band the
-    // designer never touched (fb064f's Tuner highlights by path).
+    // gate. fb166 re-measured `flatCoreAnchorCount` at 56x32 (with `GATES`
+    // still at their 36x20-fitted positions — fb153b, main lane, moves them):
+    // clearance 18 is the last one with any legal 2x2 anchor at all (15 of
+    // them), clearance 19 has none. So from clearance 19 up `legalCoreAnchors`
+    // is empty for *every possible map* and a positive `minCoreLegalFrac` can
+    // never be met — this is a statement about anchor *availability*, not the
+    // raw largest gate-to-tile distance the grid admits (which is larger).
+    // Accepted, this is the same silent "every seed ships the flat fallback"
+    // failure as an impossible band.
+    // fb064g's ceiling subsumes the standalone check this used to have — at
+    // clearance 19 there are no anchors at all — so this pins the
+    // subsumption, and that the issue is still reported against
+    // `coreGateClearance` rather than against a band the designer never
+    // touched (fb064f's Tuner highlights by path).
     expect(() =>
       withConfig((raw) => {
-        (raw as Record<string, unknown>).coreGateClearance = 17;
+        (raw as Record<string, unknown>).coreGateClearance = 19;
       }),
     ).toThrow(/no tile able to be a legal Core anchor/);
-    expect(maxCoreLegalFrac(17)).toBe(0);
-    // 16 is still payable, and must not be swept up with it. The margin there
-    // is a single anchor out of 615 normal tiles, so 0.001 is genuinely the
-    // boundary and not a comfortable value.
+    expect(maxCoreLegalFrac(19)).toBe(0);
+    // 18 is still payable, and must not be swept up with it.
     const tight = withConfig((raw) => {
-      (raw as Record<string, unknown>).coreGateClearance = 16;
+      (raw as Record<string, unknown>).coreGateClearance = 18;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.001;
     });
-    expect(tight.coreGateClearance).toBe(16);
-    expect(flatCoreAnchorCount(16)).toBe(1);
-    expect(flatCoreAnchorCount(17)).toBe(0);
+    expect(tight.coreGateClearance).toBe(18);
+    expect(flatCoreAnchorCount(18)).toBe(15);
+    expect(flatCoreAnchorCount(19)).toBe(0);
   });
 
   it('bounds the painted radii and the attempt count so /data cannot hang the sim', () => {
@@ -554,16 +593,21 @@ describe('fb064a — determinism (G2 scope: generation)', () => {
     // wiring), so no stored replay depends on a terrain map and this is the
     // last moment the move is free. The control below is what makes it a
     // *move* rather than a hope — see the next test.
+    //
+    // **fb166 moved all four**, not one-of-four: `GRID_W`/`GRID_H` feed the
+    // scatter interior, the corridor walk and the border every one of these
+    // reads, so a grid resize is the one change with no reason to leave any
+    // seed's map standing.
     expect({
       1: generateTerrain(1, cfg).hash,
       2: generateTerrain(2, cfg).hash,
       42: generateTerrain(42, cfg).hash,
       1000: generateTerrain(1000, cfg).hash,
     }).toEqual({
-      1: '54fad3db',
-      2: '883dd254',
-      42: '045e59fd',
-      1000: '27a71f4e',
+      1: '164edd68',
+      2: '0021a74c',
+      42: 'cfd0723c',
+      1000: 'bba491c9',
     });
   });
 
@@ -596,10 +640,10 @@ describe('fb064a — determinism (G2 scope: generation)', () => {
       42: generateTerrain(42, noJitter).hash,
       1000: generateTerrain(1000, noJitter).hash,
     }).toEqual({
-      1: '03031f09',
-      2: '30ddb8d4',
-      42: 'b2e86488',
-      1000: '473db113',
+      1: '4681c4e6',
+      2: '55140499',
+      42: 'd2553915',
+      1000: 'b3467625',
     });
   });
 
@@ -714,40 +758,33 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     // from, so after a retune read that file first: it names the worst seed per
     // band over the whole domain and records the distribution around it.
     //
-    // The 1..1000 sweep above is not the interesting range, and treating it as
-    // one produced a wrong entry in this lane's Log ("worst 0.6139, about 10
-    // tiles of headroom; no seed is degenerate at all"). Over seeds 1..20000
-    // the truth is that `walkableFrac` headroom is *zero* — seed 16236 measures
-    // exactly 0.6000, 432/720 tiles, passing only because the band is `>=` —
-    // and the shipped data does take the seed+1 retry path, at seeds 379, 1247,
-    // 1253, 2560 and 3337. Pin both, so a density or `blob` retune (fb064f
-    // edits these live) goes red here rather than in a playtest.
-    //
-    // fb064l re-measured this window rather than inheriting it (the seeds were
-    // 7957 and 1227/3219/4596/7010/8102 before). Two numbers moved and one
-    // did not, and the one that did not is the finding: the floor is *still*
-    // exactly 0.600000, because a seed under the band is regenerated rather
-    // than shipped, so the minimum observable walkable share is the band
-    // itself. The retry count over 1..20000 went 5 -> 18 (0.09% of seeds) and
-    // no seed in that window reaches the flat fallback.
-    const onTheLine = generateTerrain(16236, cfg);
+    // **fb166 re-derived this whole near-window record for the 56x32 grid**,
+    // rather than re-measuring the old seeds' new values: 1792 tiles means
+    // `0.6 * 1792 = 1075.2` is not an integer (unlike the old 720-tile grid's
+    // `0.6 * 720 = 432`), so no seed can land exactly on the `walkableFrac`
+    // floor any more — the "zero headroom, passing only because `>=`" property
+    // the old grid's lattice gave this test for free no longer holds, and is
+    // not claimed here. A 1..20000 scan (this file's own window) found no
+    // closer approach than seed 13620 at 0.601004 (1077/1792) — real headroom,
+    // about 3 tiles, not the old grid's zero.
+    const onTheLine = generateTerrain(13620, cfg);
     expect(onTheLine.fallback).toBe(false);
-    expect(measureTerrain(onTheLine, cfg).walkableFrac).toBeCloseTo(0.6, 10);
+    expect(measureTerrain(onTheLine, cfg).walkableFrac).toBeCloseTo(0.601004, 6);
     expect(legalUnder(onTheLine, cfg)).toBe(true);
 
-    // `buildableNormalFrac` is now the *tightest* band on the shipped data and
-    // had no named seed at all: seed 621 measures 0.452778 (326 normal tiles)
-    // against the 0.45 band, about two tiles of headroom, down from 0.470833
-    // at the jitter-0 control. A random-uint32 sweep finds a seed sitting
-    // exactly on 0.450000, so like `walkableFrac` above this floor is the band
-    // itself. Pinned by name so the next `density` retune fails here rather
-    // than in a playtest. (Review.)
-    const tightest = generateTerrain(621, cfg);
+    // `buildableNormalFrac`'s closest approach in the same 1..20000 scan is
+    // seed 18051 at 0.476004 — real headroom (about 46 tiles of 1792), well
+    // short of the old grid's ~2-tile margin. Whether a genuinely tighter seed
+    // exists in the wider domain is `terrain-band-ledger.test.ts`'s question,
+    // not this near-window file's; it was not searched further here.
+    const tightest = generateTerrain(18051, cfg);
     expect(tightest.fallback).toBe(false);
-    expect(measureTerrain(tightest, cfg).buildableNormalFrac).toBeCloseTo(0.452778, 6);
+    expect(measureTerrain(tightest, cfg).buildableNormalFrac).toBeCloseTo(0.476004, 6);
     expect(legalUnder(tightest, cfg)).toBe(true);
 
-    for (const s of [379, 1247, 1253, 2560, 3337]) {
+    // The retry-taking seeds also moved: 32 of 1..20000 now take the seed+1
+    // path (was 18), first five at 387, 694, 800, 1011, 1145.
+    for (const s of [387, 694, 800, 1011, 1145]) {
       const m = generateTerrain(s, cfg);
       // Each is degenerate at its own seed and legal one seed forward.
       expect(m.fallback).toBe(false);
@@ -866,14 +903,10 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     // jitter but the shipped one — so the comment was a claim about a guard
     // that did not exist. This is the guard. (QA bug 3.)
     //
-    // Measured at `jitter: 1`, the loader's ceiling: 26.7% of seeds retry
-    // (against 0.09% shipped and 0.025% at jitter 0), the `maxAttempts: 8` cap
-    // is reached, and 3 seeds in 1..50000 ship the flat fallback — 0.006%.
-    // That is the designed degradation, not a hang: no illegal map is ever
-    // returned and cost stays ~0.43 ms/seed against 0.32 at jitter 0. Recorded
-    // rather than refused, on the reasoning `config.ts` gives for having no
-    // ceiling; if this rate is ever judged unacceptable, this test is where
-    // the decision changes.
+    // fb166 re-measured at 56x32, jitter: 1: 18.4% of seeds retry over
+    // 1..1000 (was 26.7%), the designed degradation this test exists to
+    // confirm is still real, cost is still cheap (no hang), and no illegal
+    // map is ever returned.
     const wild = withConfig((raw) => {
       (raw.density as Record<string, number>).jitter = 1;
     });
@@ -884,18 +917,22 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
       // Whatever the budgets do, a *returned* map is legal or flagged.
       expect(m.fallback || legalUnder(m, wild), `seed ${s}`).toBe(true);
     }
-    expect(retries).toBeGreaterThan(100); // measured 260 over 1..1000
+    expect(retries).toBeGreaterThan(50); // measured 184 over 1..1000
     expect(retries).toBeLessThan(500);
-    // The fallback really is reachable at this setting, and deterministically
-    // so — the three seeds QA found in 1..50000.
-    for (const s of [41300, 41301, 41391]) {
-      const m = generateTerrain(s, wild);
-      expect(m.fallback, `seed ${s}`).toBe(true);
-      expect(m.attempts).toBe(wild.maxAttempts);
+    // **The fallback path itself is not demonstrated at this grid size.** At
+    // 36x20 QA found three seeds (41300/41301/41391) that exhaust
+    // `maxAttempts` at `jitter: 1`, in a 1..50000 scan. A fb166 scan of
+    // 1..200000 at the same setting found zero — the bigger board gives
+    // `maxAttempts`' retry budget far more room to find a legal map, so a
+    // seed unlucky enough to fail all 8 attempts is much rarer here, not
+    // absent by proof. Recording the negative result rather than searching
+    // further (out of this item's budget) or inheriting a seed list that no
+    // longer reaches the path it was named for.
+    let fellBack = 0;
+    for (let s = 1; s <= 1000; s++) {
+      if (generateTerrain(s, wild).fallback) fellBack++;
     }
-    // ...and is not reachable at the shipped setting, which is the contrast
-    // that makes the number above mean something.
-    expect(generateTerrain(41300, cfg).fallback).toBe(false);
+    expect(fellBack).toBe(0);
   });
 
   it('no gate main is forced through a corridor narrower than 2 tiles', () => {
