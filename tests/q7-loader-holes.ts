@@ -336,6 +336,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.tauntDurationSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.titheDamageMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.titheHpFraction': ['negative', 'zero', 'fractional'],
+  // fb086: same shape/hole as its two blood_tithe siblings above.
+  'classes.classes[].active1.titheLifestealPct': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.auraAtkSpdMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.cooldownSeconds': ['fractional'],
   'classes.classes[].active2.damage': ['zero', 'fractional'],

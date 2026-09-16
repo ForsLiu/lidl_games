@@ -3897,16 +3897,65 @@ was not fabricated.
       `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
       Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
       SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
-- [ ] (fb086) [bug] SPEC-FINAL §4.2 Bloodlord *Blood Tithe* is missing a
-      clause: "tower pays 30% current HP once -> permanently +25% dmg; **its
-      share of VS attacks lifesteals +1%**". Only the first half exists —
-      `s.tithed` feeds `classTowerDamageMul` (`towers.ts`) and nothing else
-      reads it; `leech` is one run-wide Warden stat and there is no
-      per-structure VS-share lifesteal anywhere (BACKLOG-CONTENT.md session-2
-      Log). Acceptance: failing test first (a tithed tower's VS-share hits
-      heal the Warden 1%; an untithed one does not); numbers in
-      `data/classes.json`; `tests/class-kit-liveness.test.ts`'s Bloodlord row
-      gains the second product — refs: SPEC-FINAL §4.2.
+- [x] (fb086) [bug] **DONE 2026-09-16 —** SPEC-FINAL §4.2 Bloodlord *Blood
+      Tithe* was missing a clause: "tower pays 30% current HP once ->
+      permanently +25% dmg; **its share of VS attacks lifesteals +1%**". Only
+      the first half existed — `s.tithed` fed `classTowerDamageMul`
+      (`towers.ts`) and nothing else read it; `leech` is one run-wide Warden
+      stat and there was no per-structure VS-share lifesteal anywhere
+      (BACKLOG-CONTENT.md session-2 Log). Shipped as a new crossing-constant
+      field, `active1.titheLifestealPct` (`data/classes.json`, authored
+      0.01 = "+1%") — the same Lifesteal crossing constant as
+      `leech`/`towerLifestealPct` (fb163/fb194: damage dealt to an enemy,
+      economy A, converted to HP healed on the Warden, economy B), so it is
+      inverse-scaled at load (`isInverseScaledClassPath`/`applyNumberScale`,
+      content.ts) and required (not just optional) via
+      `REQUIRED_EFFECT_FIELDS.blood_tithe`. Read at `applyTowerLifesteal`'s
+      existing three-site choke point (`cores.ts`, already called from
+      `towers.ts`'s synchronous kinds and `combat.ts`'s `pierce`/`lob` async
+      landing for Vampire Heart's own structure-heal lifesteal), gated on
+      `w.huntsWarden && s.tithed`, healing the Warden rather than the tower —
+      independent of whichever Core is selected. New
+      `tests/fb086-blood-tithe-lifesteal.test.ts` (6 cases, confirmed
+      red-first via a `git stash` of the `cores.ts` fix alone): VS-phase
+      tithed tower heals the Warden by `titheLifestealPct` of the damage
+      dealt; an untithed tower does not; a TD-phase tithed tower does not
+      (the clause is VS-only); a tithed tower under a different selected
+      class does not (pins the defensive kind-check `classTowerDamageMul`
+      already uses for the same flag, otherwise unreachable since `s.tithed`
+      can only ever be set true while playing Bloodlord); a pierce-kind tower
+      (Ballista) still heals once its bolt lands asynchronously, the same
+      p5d two-site split Vampire Heart's own lifesteal already has to
+      handle. `tests/class-kit-liveness.test.ts`'s Bloodlord row comment
+      updated to name the second product and point at the new file (the
+      liveness row itself only proves the cast, not a later hit landing, so
+      its assertion is unchanged). `tests/class-spec-numbers.test.ts`'s c008
+      ledger row flipped `unimplemented` -> `match` (census 61/1 ->
+      62/0 unimplemented); `tests/fb153a-number-scale.test.ts`'s census
+      extended with the new inverse-scaled path. `src/ui/class-info.ts`'s
+      auto-generated Blood Tithe sentence gained the lifesteal clause
+      (displayed at the *loaded* value, same fb194 precedent as Blood
+      Frenzy's "3%" -> "30%": the mechanic operates on already-scaled
+      on-screen damage numbers, so the on-screen percentage is the loaded
+      one, not the authored one). `npx tsc --noEmit` clean; targeted suite
+      (fb086's own file, `p-core-b-effects`, `class-kit-liveness`,
+      `fb153a-number-scale`, `class-spec-numbers`, `class-descriptions`,
+      `equip-spec-numbers`, `equip-effect-behaviour`) green; `fb015-
+      equipment.test.ts`'s two pre-existing `buildTower(..., 10, 10).ok`
+      failures confirmed unrelated via `git stash` control (the gate-
+      reposition board drift BACKLOG.md's fb153b/PROGRESS.md fb184 entries
+      already log). qa-playtester **PASS** — independently re-derived the
+      crossing-constant arithmetic (confirmed the runtime heal is 10% of
+      on-screen damage, the same already-approved Q180/Q191 convention
+      `vsLifestealPct` itself carries), verified multiple simultaneous
+      tithed towers, sell/rebuild, Vampire Heart overheal interaction, all
+      7 attack kinds, the TD-phase gate, determinism and `hashWorld`
+      coverage. Two findings logged in PROGRESS.md rather than filed as new
+      BACKLOG items this run (standing instruction): DoT-rider damage
+      bypasses both this clause and Vampire Heart's own tower lifesteal
+      (pre-existing, not introduced here); the acceptance text's "~1%"
+      phrasing undersells the actual, correct 10% loaded value — refs:
+      SPEC-FINAL §4.2.
 - [ ] (fb087) [polish] the standing Windows flake family every lane
       re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
       `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports
