@@ -36,9 +36,10 @@ export const PALETTE = {
 
 /**
  * fb036: one distinct dashed-line color per spawn gate, indexed against
- * `World.gates` order (world.ts: `GATES.slice(0, 3)` — west, north, east —
- * plus a 4th `south` entry when the Fourth Gate modifier is active), so each
- * gate's path indicator reads apart from the others on screen. A run with
+ * `World.gates` order (world.ts: all four base `GATES` — west, north, east,
+ * south — plus a 5th `MODIFIER_GATES[0]` (`south2`) entry when the tier
+ * modifier is active), so each gate's path indicator reads apart from the
+ * others on screen. A run with
  * more gates than colors wraps via `% GATE_PATH_COLORS.length` rather than
  * going undefined.
  */

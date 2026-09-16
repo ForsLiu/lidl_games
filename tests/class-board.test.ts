@@ -281,12 +281,17 @@ describe('c014: the shared board is probed, not pinned', () => {
     // every window in the six files was calibrated from this spot. If a future
     // change to `/data` or the grid moves it, this is the row that says so, and
     // the six files' margins get re-read rather than silently inherited.
+    // fb153: `World` now generates terrain against all four base `GATES`
+    // instead of a stale 3-gate slice, which redraws the fixed-seed map and
+    // moves this baseline. Re-measured live (not hand-derived) and confirmed
+    // every importer still passes on the new board (class-board-windows,
+    // class-kit-whiff, class-line-bonus, class-wide-grove-reach among them).
     expect(
       { WX, WY, BUILD_TX, BUILD_TY },
       'the probed board moved off the spot the importers were calibrated from. This is a deliberate ' +
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
-    ).toEqual({ WX: 8, WY: 12, BUILD_TX: 9, BUILD_TY: 12 });
+    ).toEqual({ WX: 4, WY: 11, BUILD_TX: 5, BUILD_TY: 11 });
     expect(BOARD).toEqual({
       WX,
       WY,
@@ -300,8 +305,8 @@ describe('c014: the shared board is probed, not pinned', () => {
     // c025's column, as a baseline of its own: the aim point `class-kit-whiff`
     // fires the Ice Wall at, and the three rows that wall occupies.
     expect({ WALL_TX, WALL_TYS: [...WALL_TYS] }, 'the shared Ice Wall column moved').toEqual({
-      WALL_TX: 10,
-      WALL_TYS: [11, 12, 13],
+      WALL_TX: 6,
+      WALL_TYS: [10, 11, 12],
     });
     expect(HAS_WALL, 'the shipped board cannot host the Ice Wall column — class-kit-whiff will say so too').toBe(true);
   });
@@ -337,7 +342,12 @@ describe('c014: the shared board is probed, not pinned', () => {
     // enough for a `full` board, or stingy enough that even `reduced` fails,
     // this row is where that shows up.
     expect(['full', 'reduced']).toContain(BOARD.tier);
-    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('full');
+    // fb153: moved 'full' -> 'reduced' along with the baseline above — the
+    // fixed-seed map redrawn against all four base gates leaves zero
+    // contiguous full-reach footprint here, same shape c014's own header
+    // already documents for the terrain epic in general. Every importer
+    // still passes (`servesImporters` below, plus the eight importer files).
+    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('reduced');
   });
 
   it('a class with no buildRange bonus can actually build on it', () => {
@@ -441,26 +451,24 @@ describe('c014: a shifted probe origin moves the whole board', () => {
   }
 
   it('the far corner lands on its own nearby legal board, not the shipped one', () => {
-    // Re-measured at fb153b's 56x32 grid resize: `1,1` used to converge on the
-    // shipped board (11 legal boards total, `10,5` the corner's nearest before
-    // c025's Ice Wall column cost it that spot). At the bigger map the corner's
-    // walk lands on a *different* nearby legal board instead — the shipped
-    // board moved further from the corner than the map grew, so this file no
-    // longer has the special coincidence `c025` recorded; `1,1` is folded back
-    // into an ordinary shifted-origin case, asserted directly rather than via
-    // the `SHIFTED` loop above (the number of legal boards on the whole map is
-    // worth keeping on the record here too).
+    // Re-measured at fb153 (`World` generates against all four base `GATES`
+    // instead of a stale 3-gate slice, redrawing the fixed-seed map again):
+    // `1,1` lands on a different nearby legal board than the shipped one, so
+    // this file still folds `1,1` back into an ordinary shifted-origin case,
+    // asserted directly rather than via the `SHIFTED` loop above (the number
+    // of legal boards on the whole map is worth keeping on the record here
+    // too).
     expect(probeBoard({ tx: 1, ty: 1 })).toEqual({
-      WX: 7,
-      WY: 12,
-      BUILD_TX: 8,
-      BUILD_TY: 12,
-      WALL_TX: 9,
-      WALL_TYS: [11, 12, 13],
+      WX: 2,
+      WY: 11,
+      BUILD_TX: 3,
+      BUILD_TY: 11,
+      WALL_TX: 4,
+      WALL_TYS: [10, 11, 12],
       hasWall: true,
-      tier: 'full',
+      tier: 'reduced',
     });
-    // The claim underneath it: legal boards are scarce even on the bigger map.
+    // The claim underneath it: how many legal boards the shipped map has.
     let legal = 0;
     for (let ty = 1; ty < GRID_H - 1; ty++) {
       for (let tx = 1; tx < GRID_W - 1; tx++) {
@@ -468,7 +476,7 @@ describe('c014: a shifted probe origin moves the whole board', () => {
         if (b.WX === tx && b.WY === ty) legal++;
       }
     }
-    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(7);
+    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(66);
   });
 
   it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {

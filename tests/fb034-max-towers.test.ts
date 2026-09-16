@@ -46,12 +46,13 @@ describe('fb034 practice tool: max all towers', () => {
     expect(s.hp).toBeCloseTo(s.maxHp, 6);
     expect(w.gold).toBe(goldBefore);
 
-    // fb153b (56x32 grid): (5,5) is real generated terrain here (this run is
+    // fb153 (World now generates against all four base `GATES`, not a stale
+    // 3-gate slice): (5,5) is real generated terrain here (this run is
     // deliberately non-practice, to prove the tool is a no-op outside
-    // practice) and is no longer open ground at seed 1 — (6,5) is.
+    // practice) and is no longer open ground at seed 1 — (4,7) is.
     const off = new Run({ ...cfg(), policy: 'none' });
-    buildAt(off.world, 6, 5);
-    const sOff = off.world.structureAt(6, 5)!;
+    buildAt(off.world, 4, 7);
+    const sOff = off.world.structureAt(4, 7)!;
     applyDevCommand(off.world, 'max_towers', 0);
     expect(sOff.tier).toBe(1);
     expect(off.world.practiceUsed).toBe(false);

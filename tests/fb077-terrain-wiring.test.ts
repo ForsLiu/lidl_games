@@ -7,8 +7,8 @@
  * Covers the item's own acceptance list:
  *   (1) `World` generates and applies terrain from `RunConfig.seed` before
  *       any structure exists;
- *   (2) the run's real gate list (base 3, plus the Fourth Gate modifier's
- *       south gate at (12,GRID_H-1)) is threaded into generation, closing the
+ *   (2) the run's real gate list (base 4, plus the tier modifier's `south2`
+ *       gate at (3,GRID_H-1)) is threaded into generation, closing the
  *       measured 138/500-seed burial bug;
  *   (3) a reachable Core is a hard precondition — the four seeds that strand
  *       the hardcoded Core (4426/4515/5516 post-merge; 97/2055/2845/3098 pre-merge) resolve via `applyRunTerrain`'s
@@ -61,7 +61,9 @@ function coreTileIndices(w: number): number[] {
 describe('fb077 — World generates and applies real terrain', () => {
   it('applies the deterministic generated map before build, gate/Core tiles forced open', () => {
     const w = new World(runCfg({ seed: 1 }));
-    const gates = GATES.slice(0, 3);
+    // fb153: `World` now generates against all four base `GATES`, not a
+    // stale `GATES.slice(0, 3)` copy.
+    const gates = GATES;
     const expected = generateTerrain(1, terrainCfg, gates);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
     // applyRunTerrain also force-clears a 3x3 block around the Warden's own
@@ -153,8 +155,11 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     const SEEDS = 60;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
-      expect(w.gates).toHaveLength(4);
-      expect(w.gates.some((g) => g.key === 'south' && g.tx === 12 && g.ty === GRID_H - 1)).toBe(true);
+      // fb153: the modifier's gate is `MODIFIER_GATES[0]` (key `south2`) now,
+      // pushed by reference beside all four base `GATES` rather than a
+      // hand-typed, colliding `south` literal.
+      expect(w.gates).toHaveLength(5);
+      expect(w.gates.some((g) => g.key === 'south2' && g.tx === 3 && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
     }
   });

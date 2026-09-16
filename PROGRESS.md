@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb153 done — `world.ts`'s stale
+  `GATES.slice(0, 3)` and hand-typed modifier-gate literal fixed, closing
+  the item's own last open thread.** `src/sim/world.ts` now builds
+  `this.gates` from all four base `GATES` (not a 3-gate slice stale since
+  fb156 grew the base list) and pushes the tier modifier's gate as
+  `MODIFIER_GATES[0]` by reference instead of a hand-typed `{ key: 'south',
+  tx: 12, ty: GRID_H - 1 }` literal that collided with the base list's own
+  `south` key. Re-enabled `tests/terrain-gates-dump.test.ts`'s long-skipped
+  `it.skip('describes a live Fourth Gate run correctly...')`. Redrew the
+  fixed-seed generated map (terrain generation is fed the gate list), so
+  every downstream golden value was re-measured live against real sim
+  output (not hand-derived): `tests/fb077-terrain-wiring.test.ts`, `tests/
+  fb036-path-indicators.test.ts`, `tests/fb034-max-towers.test.ts`, `tests/
+  class-board.test.ts` (probed-board baseline moved to `tier: 'reduced'`;
+  all 14 importer test files re-run and confirmed still passing), `tests/
+  act1.test.ts` (wave-1 spawn 24->32 for 4 gates), `tests/grid.test.ts`
+  (`GATES.length` 3->4, a separate pre-existing staleness from fb156, fixed
+  as a one-line follow-up per code-reviewer). `npm run test:fast`: baseline
+  (via `git stash` control) was 20 failing tests/9 files; now 2 remain, both
+  pre-existing `wouldBlockPath` gate-sealing failures unrelated to this
+  change (confirmed identical before/after). `npx tsc --noEmit` clean.
+  code-reviewer APPROVE (no Critical/Major — two Minor doc-drift findings
+  fixed before commit, a third left as pre-existing lane-adjacent
+  documentation drift outside this item's file list); qa-playtester PASS —
+  independently re-ran the full fast tier, live-simmed the `gate` modifier
+  (seed 40: confirmed all 5 gates actually spawn enemies, not merely present
+  in the array) and a `['gate','hard']` combo, and confirmed determinism
+  (same seed run twice -> identical end-state hash and tick count).
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought

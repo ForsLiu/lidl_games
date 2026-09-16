@@ -252,9 +252,10 @@ describe('economy and wave flow', () => {
     const w = run.world;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
     for (let i = 0; i < 60 * 30 && w.spawnQueue.length > 0; i++) run.step(emptyInput());
-    // 8 Husks per gate x 3 gates.
-    expect(w.kills + w.leaks + w.enemies.length).toBe(24);
-    expect(GATES.length).toBe(3);
+    // fb153: `World` now plays all four base `GATES`, not a stale
+    // `GATES.slice(0, 3)` copy — 8 Husks per gate x 4 gates.
+    expect(w.kills + w.leaks + w.enemies.length).toBe(32);
+    expect(GATES.length).toBe(4);
   });
 });
 

@@ -9,7 +9,8 @@ describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
     expect(GRID_W).toBe(56);
     expect(GRID_H).toBe(32);
-    expect(GATES.length).toBe(3);
+    // fb156 grew GATES to 4 (west/north/east/south), one per edge.
+    expect(GATES.length).toBe(4);
     const g = new Grid();
     for (const gate of GATES) expect(g.tile[g.idx(gate.tx, gate.ty)]).toBe(TileType.Gate);
     expect(g.tile[g.idx(CORE_X, CORE_Y)]).toBe(TileType.Core);

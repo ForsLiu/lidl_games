@@ -405,9 +405,41 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
-      high to read. Two coordinated changes, split into sub-items because each
-      is independently verifiable:
+- [x] (fb153) [balance] **DONE 2026-09-16 — both sub-items closed; the one
+      open thread fb153b's own text left behind (world.ts:588's stale
+      `GATES.slice(0, 3)` and the extraGates modifier's hand-typed, colliding
+      `south` literal) is now fixed too.** `src/sim/world.ts`: `this.gates`
+      is now `[...GATES]` (all four base gates, not a 3-gate slice) and the
+      tier modifier pushes `MODIFIER_GATES[0]` (`south2`) by reference
+      instead of a hand-typed literal that collided with the base list's own
+      `south` key. Re-enabled `tests/terrain-gates-dump.test.ts`'s
+      `it.skip('describes a live Fourth Gate run correctly...')` with live
+      re-measured values (not hand-derived). This redraws the fixed-seed
+      generated map (terrain generation is fed the gate list), so every
+      downstream golden value was re-measured live, confirmed against real
+      sim output, not hand-picked: `tests/fb077-terrain-wiring.test.ts`,
+      `tests/fb036-path-indicators.test.ts` (gate-color indexing now matches
+      the render code's own `% GATE_PATH_COLORS.length`), `tests/
+      fb034-max-towers.test.ts` (swapped a no-longer-buildable probe tile),
+      `tests/class-board.test.ts` (the shared probed-board baseline moved to
+      `tier: 'reduced'`; confirmed all 14 importer test files still pass),
+      `tests/act1.test.ts` (wave-1 spawn count 24->32 for 8 Husks x 4 gates,
+      `GATES.length` 3->4), `tests/grid.test.ts` (`GATES.length` 3->4, a
+      separate pre-existing staleness from fb156 fixed as a one-line
+      follow-up since code-reviewer flagged it as the same stale-gate-count
+      class of bug). `src/render/theme.ts`'s `GATE_PATH_COLORS` doc comment
+      updated to match (no logic change there — `canvas.ts` was already
+      generic). `npm run test:fast`: baseline (confirmed via `git stash`
+      control) was 20 failing tests across 9 files; now 2 remain, both
+      pre-existing and unrelated (`act1.test.ts`/`grid.test.ts`'s
+      `wouldBlockPath` gate-sealing defect, confirmed identical before and
+      after this diff). `npx tsc --noEmit` clean. code-reviewer APPROVE (no
+      Critical/Major); qa-playtester PASS — independently re-ran the full
+      fast tier, live-simmed the `gate` modifier (seed 40, confirmed all 5
+      gates actually spawn enemies, not just present in the array),
+      `['gate','hard']` combo, and determinism (same seed twice -> identical
+      end-state hash and tick count). Two coordinated changes, split into
+      sub-items because each was independently verifiable:
   - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
         `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
         census test over every numeric `/data` leaf and a three-seed control

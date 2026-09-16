@@ -5,7 +5,17 @@
 
 import { contentHash, defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { computeCoreState, coreHpBonus, type CoreState } from './cores';
-import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef, type TerrainOverlay } from './grid';
+import {
+  GRID_H,
+  GRID_W,
+  Grid,
+  GATES,
+  MODIFIER_GATES,
+  coreCenter,
+  type Field,
+  type GateDef,
+  type TerrainOverlay,
+} from './grid';
 import { RngSet } from './rng';
 import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
@@ -585,10 +595,10 @@ export class World {
       if (e.coreHp) this.mods.coreHp += e.coreHp;
     }
 
-    this.gates = GATES.slice(0, 3);
+    this.gates = [...GATES];
     if (this.mods.extraGates > 0) {
-      // Fourth Gate opens the south wall.
-      this.gates.push({ key: 'south', tx: 12, ty: GRID_H - 1 });
+      // Fifth Gate: the tier modifier's own gate, beside the four base ones.
+      this.gates.push(MODIFIER_GATES[0]);
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
       }

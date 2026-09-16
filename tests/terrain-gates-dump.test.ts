@@ -138,40 +138,32 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     );
   });
 
-  // Still skipped at fb156, for a NEW reason (the fb166-era border cause
-  // above is fixed): `World`'s constructor (`src/sim/world.ts`, out of this
-  // lane's Scope) does not read `GATES`/`MODIFIER_GATES` at all here — it
-  // hardcodes `this.gates = GATES.slice(0, 3)` (dropping `GATES`'s own,
-  // real `south` at (33,31) entirely, gate modifier or not) and, when the
-  // `gate` modifier is active, pushes its own literal `{ key: 'south', tx:
-  // 12, ty: 19 }` — a position fb156 never touched and that is not on the
-  // resized border. So `w.gates` is `[west, north, east, south]` by key, as
-  // this test still expects, but `south` is at the wrong place and the real
-  // fourth base gate is never opened at all, with or without the modifier.
-  // That is a real bug and out of this lane's Scope (grid.ts/terrain data
-  // only) to fix — filed in BACKLOG-TERRAIN.md's Log for main-lane, which
-  // owns `world.ts`. Re-enable once `World` builds its gate list from
-  // `GATES`/`MODIFIER_GATES` instead of its own copy.
-  it.skip('describes a live Fourth Gate run correctly — the case that motivated it', () => {
+  // fb153: `World`'s constructor (`src/sim/world.ts`) now builds `this.gates`
+  // from `GATES`/`MODIFIER_GATES` themselves rather than its own stale
+  // `GATES.slice(0, 3)` copy and hand-typed literal. A `gate`-modifier run now
+  // plays all five gates — the four base ones plus `MODIFIER_GATES`'s
+  // `south2` — instead of silently dropping the real base `south` and
+  // opening a colliding, off-border `south` duplicate.
+  it('describes a live Fourth Gate run correctly — the case that motivated it', () => {
     // The defect end to end, on the artefact fb065c built. A run under the
-    // `gate` modifier plays four gates; before fb065f its repro printed three
-    // and measured every gate-derived band against three, so a reader was told
-    // about an arena the run was not played in.
+    // `gate` modifier plays five gates; before this fix its repro printed
+    // four (three base gates plus a wrongly-keyed, wrongly-placed `south`)
+    // and measured every gate-derived band against the wrong arena.
     const w = new World(runCfg({ seed: 40, modifiers: ['gate'] }));
-    expect(w.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south']);
+    expect(w.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south', 'south2']);
 
     const view = gridTerrain(w.grid);
     const truth = measureTerrain(view, cfg, w.gates);
     const dump = describeTerrain(view, cfg, w.gates);
 
-    expect(dump.split('\n')[2]).toContain('south=12,19');
+    expect(dump.split('\n')[2]).toContain('south2=3,31');
     expect(dump.split('\n')[3]).toContain(`gateDetour=${truth.maxGateDetour.toFixed(6)}`);
     expect(dump.split('\n')[4]).toContain(`coreAnchors=${truth.legalCoreCount}`);
     // Still a repro: it reads back, and it still says `source=-` because a
     // Grid's tiles are no seed's output (fb065c).
     const parsed = parseTerrainDump(dump);
     expect(Array.from(parsed.kind)).toEqual(Array.from(view.kind));
-    expect(parsed.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south']);
+    expect(parsed.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south', 'south2']);
     expect(parsed.provenance).toBeNull();
 
     // And the default-gate-list reading really was different on this run, so
