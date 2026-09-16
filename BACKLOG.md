@@ -405,9 +405,10 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
-      high to read. Two coordinated changes, split into sub-items because each
-      is independently verifiable:
+- [x] (fb153) [balance] **DONE 2026-09-16 — both sub-items closed.** OWNER
+      ORDER, top priority — damage numbers are too high to read. Two
+      coordinated changes, split into sub-items because each is independently
+      verifiable:
   - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
         `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
         census test over every numeric `/data` leaf and a three-seed control
@@ -507,6 +508,46 @@ therefore measure *after* `fb153`, not before.
            i.e. the repositioned gates happen to also fix it.
 
         **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
+
+        **DONE 2026-09-16 (main lane, this session): point 1 closed, both
+        pieces.** `world.ts`'s `World` constructor now reads
+        `this.gates = GATES.slice()` (all 4 base gates, not `slice(0, 3)`) and,
+        under the `gate` modifier, pushes `MODIFIER_GATES[0]` (`south2`,
+        `(3, GRID_H - 1)`) by reference instead of the stale hand-typed
+        `south` literal. `tests/terrain-gates-dump.test.ts`'s
+        `it.skip('describes a live Fourth Gate run correctly...')` is
+        un-skipped and re-pinned to the real `[west, north, east, south,
+        south2]` 5-gate shape. Point 2's golden-value re-measurement (this
+        item's own named list) is also closed as part of the same fix, since
+        the corrected 4-base-gate list changes what every seed generates,
+        not just modifier runs: `tests/act1.test.ts` (2, the west-gate box
+        position and the wave-1 spawn-per-gate count, 3 gates -> 4),
+        `tests/grid.test.ts` (2, `GATES.length` 3 -> 4 and the west-gate box
+        position), `tests/fb034-max-towers.test.ts` (1, a non-practice build
+        tile that stopped being open ground at the newly-regenerated seed 1),
+        `tests/fb036-path-indicators.test.ts` (1, 4 gates -> 5 under the
+        modifier, `GATE_PATH_COLORS` read with its own documented `%` wrap),
+        `tests/fb077-terrain-wiring.test.ts` (2, the base gate list fed to
+        `generateTerrain` and the modifier gate count/position) and
+        `tests/class-board.test.ts`'s self-probing shared board (3: the
+        baseline moved to `WX:4, WY:11`, `tier` `full` -> `reduced`, and the
+        far-corner/legal-board-count measurement), each re-measured live
+        against the corrected code rather than hand-derived (CLAUDE.md
+        measurement rules). `b007-tile-bounds.test.ts` and the rest of point
+        2's "already red at the merge, pre-existing" list were unaffected —
+        confirmed still green/still-tracked-elsewhere, not touched by this
+        fix. `npm run test:fast` (303 files, 4371 tests) and `npx tsc
+        --noEmit` both clean. code-reviewer: APPROVE, no Critical/Major (two
+        Nits fixed inline: `theme.ts` and `canvas.ts`'s `drawPathIndicators`
+        doc comments still described the old 3/4-gate shape). qa-playtester:
+        PASS against all five acceptance criteria, independently sweeping
+        seeds 1-80 with and without the modifier, stacked modifiers,
+        determinism, real spawn round-robin and practice-mode isolation; one
+        non-blocking observation logged, not filed as a bug — under the
+        `gate` modifier, gate index 4 (`south2`) wraps to
+        `GATE_PATH_COLORS[0]`, the same color as `west` (documented,
+        intentional wraparound, not a new problem this item introduced) —
+        refs: SPEC-FINAL §10, `src/sim/grid.ts`'s `GATES`/`MODIFIER_GATES`.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 

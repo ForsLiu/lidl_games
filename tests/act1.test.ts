@@ -51,12 +51,13 @@ describe('placement rules (SPEC 3.1)', () => {
     // Seal the west gate's only exit with three walls. Under the retired path
     // guarantee the third was 'blocks_path'; §10 makes it a legal seal that
     // enemies answer by breaching (tests/p1a-sealing.test.ts).
-    warp(w, 1, 10);
-    expect(buildTower(w, 1, 1, 9).ok).toBe(true);
+    // fb156: the west gate is (0,12), not the old 36x20 (0,10).
+    warp(w, 1, 12);
     expect(buildTower(w, 1, 1, 11).ok).toBe(true);
-    expect(w.grid.wouldBlockPath([[1, 10]])).toBe(true); // it is a seal…
-    expect(checkBuild(w, 1, 1, 10)).toBeNull(); // …and it is legal
-    expect(buildTower(w, 1, 1, 10).ok).toBe(true);
+    expect(buildTower(w, 1, 1, 13).ok).toBe(true);
+    expect(w.grid.wouldBlockPath([[1, 12]])).toBe(true); // it is a seal…
+    expect(checkBuild(w, 1, 1, 12)).toBeNull(); // …and it is legal
+    expect(buildTower(w, 1, 1, 12).ok).toBe(true);
     expect(w.grid.allGatesReachable()).toBe(false);
   });
 
@@ -252,9 +253,9 @@ describe('economy and wave flow', () => {
     const w = run.world;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
     for (let i = 0; i < 60 * 30 && w.spawnQueue.length > 0; i++) run.step(emptyInput());
-    // 8 Husks per gate x 3 gates.
-    expect(w.kills + w.leaks + w.enemies.length).toBe(24);
-    expect(GATES.length).toBe(3);
+    // 8 Husks per gate x 4 gates (fb156: the base gate list is 4, not 3).
+    expect(w.kills + w.leaks + w.enemies.length).toBe(32);
+    expect(GATES.length).toBe(4);
   });
 });
 

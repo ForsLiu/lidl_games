@@ -5,7 +5,17 @@
 
 import { contentHash, defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { computeCoreState, coreHpBonus, type CoreState } from './cores';
-import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef, type TerrainOverlay } from './grid';
+import {
+  GRID_H,
+  GRID_W,
+  Grid,
+  GATES,
+  MODIFIER_GATES,
+  coreCenter,
+  type Field,
+  type GateDef,
+  type TerrainOverlay,
+} from './grid';
 import { RngSet } from './rng';
 import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
@@ -585,10 +595,12 @@ export class World {
       if (e.coreHp) this.mods.coreHp += e.coreHp;
     }
 
-    this.gates = GATES.slice(0, 3);
+    this.gates = GATES.slice();
     if (this.mods.extraGates > 0) {
-      // Fourth Gate opens the south wall.
-      this.gates.push({ key: 'south', tx: 12, ty: GRID_H - 1 });
+      // fb156 made the base list 4 gates; the `gate` modifier now opens a
+      // fifth, keyed `south2` (MODIFIER_GATES[0]) to avoid colliding with
+      // the base list's own `south`.
+      this.gates.push(MODIFIER_GATES[0]);
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
       }

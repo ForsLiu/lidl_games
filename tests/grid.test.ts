@@ -9,7 +9,7 @@ describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
     expect(GRID_W).toBe(56);
     expect(GRID_H).toBe(32);
-    expect(GATES.length).toBe(3);
+    expect(GATES.length).toBe(4);
     const g = new Grid();
     for (const gate of GATES) expect(g.tile[g.idx(gate.tx, gate.ty)]).toBe(TileType.Gate);
     expect(g.tile[g.idx(CORE_X, CORE_Y)]).toBe(TileType.Core);
@@ -41,11 +41,12 @@ describe('grid', () => {
 
   it('rejects a placement that walls a gate off', () => {
     const g = new Grid();
-    // Box the west gate in completely.
+    // Box the west gate (fb156: now at (0,12), not the old 36x20 (0,10)) in
+    // completely.
     const box: [number, number][] = [
-      [1, 9],
-      [1, 10],
       [1, 11],
+      [1, 12],
+      [1, 13],
     ];
     expect(g.wouldBlockPath(box)).toBe(true);
     expect(g.allGatesReachable()).toBe(true); // state restored

@@ -61,7 +61,7 @@ function coreTileIndices(w: number): number[] {
 describe('fb077 — World generates and applies real terrain', () => {
   it('applies the deterministic generated map before build, gate/Core tiles forced open', () => {
     const w = new World(runCfg({ seed: 1 }));
-    const gates = GATES.slice(0, 3);
+    const gates = GATES.slice();
     const expected = generateTerrain(1, terrainCfg, gates);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
     // applyRunTerrain also force-clears a 3x3 block around the Warden's own
@@ -153,8 +153,8 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     const SEEDS = 60;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
-      expect(w.gates).toHaveLength(4);
-      expect(w.gates.some((g) => g.key === 'south' && g.tx === 12 && g.ty === GRID_H - 1)).toBe(true);
+      expect(w.gates).toHaveLength(5);
+      expect(w.gates.some((g) => g.key === 'south2' && g.tx === 3 && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
     }
   });

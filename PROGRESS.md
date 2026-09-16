@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb153 done — closed, both sub-items.**
+  The item's last open piece (point 1 of fb153b's own text): `World`'s
+  constructor built `this.gates` as `GATES.slice(0, 3)`, a stale 3-entry copy
+  from before fb156 grew the real `GATES` constant to 4 (west/north/east/
+  south), and — under the `gate` modifier — pushed a hand-typed
+  `{ key: 'south', tx: 12, ty: GRID_H - 1 }` literal instead of the real
+  `MODIFIER_GATES[0]` (`south2`, `(3, GRID_H - 1)`). Every run, not just
+  modifier ones, silently dropped the real base `south` gate from
+  `World.gates` (the tile itself stayed open, since `new Grid()` already
+  defaults to the real `GATES`, but nothing spawned from it or drew its
+  path). Fixed: `this.gates = GATES.slice()` (all 4 base gates) plus
+  `this.gates.push(MODIFIER_GATES[0])` under the modifier (5 total).
+  `tests/terrain-gates-dump.test.ts`'s long-skipped
+  `it.skip('describes a live Fourth Gate run correctly...')` — the test that
+  named this exact defect — is un-skipped and re-pinned to the real 5-gate
+  shape. Since the corrected base gate list changes what every seed's
+  terrain generation produces (not just modifier runs), seven test files'
+  golden values needed re-measuring live against the fixed code rather than
+  hand-derived (CLAUDE.md measurement rules): `act1.test.ts`,
+  `grid.test.ts`, `fb034-max-towers.test.ts`, `fb036-path-indicators.test.ts`,
+  `fb077-terrain-wiring.test.ts`, and `class-board.test.ts`'s self-probing
+  shared board (baseline moved to `WX:4, WY:11`, tier `full` -> `reduced`).
+  `npm run test:fast` (303 files, 4371 tests, 37 intentionally skipped) and
+  `npx tsc --noEmit` both clean. code-reviewer: APPROVE, no Critical/Major
+  (two Nits — stale "3 or 4 gates" doc comments in `theme.ts` and
+  `canvas.ts`'s `drawPathIndicators` — fixed inline). qa-playtester: PASS
+  against all five acceptance criteria via independent live re-execution
+  (seed sweeps 1-80 with/without the modifier, stacked modifiers,
+  determinism, real spawn round-robin, practice-mode isolation); one
+  non-blocking observation, not filed as a bug — under the `gate` modifier,
+  `south2` (gate index 4) wraps to the same `GATE_PATH_COLORS` entry as
+  `west` (documented, intentional wraparound in `theme.ts`, pre-existing
+  tradeoff, not introduced here).
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
