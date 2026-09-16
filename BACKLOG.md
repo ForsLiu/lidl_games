@@ -405,9 +405,10 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
-      high to read. Two coordinated changes, split into sub-items because each
-      is independently verifiable:
+- [x] (fb153) [balance] **DONE 2026-09-16 — both sub-items closed.** OWNER
+      ORDER, top priority — damage numbers are too high to read. Two
+      coordinated changes, split into sub-items because each is independently
+      verifiable:
   - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
         `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
         census test over every numeric `/data` leaf and a three-seed control

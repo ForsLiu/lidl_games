@@ -313,12 +313,16 @@ describe('c014: the shared board is probed, not pinned', () => {
   });
 
   /**
-   * **The baseline above moved once, on purpose, and this is the record.**
+   * **The baseline above has moved twice now, on purpose, and this is the
+   * record.**
    *
    * It read `10,10` / `11,10` until master's terrain epic (`fb077`) landed and
-   * `cfg()`'s seed started generating a real map. The scan then walked to
-   * `10,6` — which is the entire point of c014, and the seven importers went
-   * green on the new board without a line changing in any of them. The row
+   * `cfg()`'s seed started generating a real map, at which point the scan
+   * walked to `10,6` — the entire point of c014, and the seven importers went
+   * green on the new board without a line changing in any of them. `fb153`
+   * (main lane: `World` now builds its gate list from the real `GATES`/
+   * `MODIFIER_GATES` instead of a stale `GATES.slice(0, 3)` copy) changed what
+   * seed 1 generates yet again, moving the board to `4,11`. Both times the row
    * above fired exactly once, loudly, saying the board had moved; it did not
    * degenerate into seven files each reporting "harness could not build".
    */
