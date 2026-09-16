@@ -871,11 +871,21 @@ honor.**
       dependent the same way, and is logged `.skip`-ed with an explicit
       note that its own pin is now stale too, rather than silently
       assumed still accurate; left as unqueued follow-up.
-      Verified full-tier (a `/data`-adjacent balance re-measurement
-      touching `/src/sim`-facing test assertions): code-reviewer and
-      qa-playtester both run per CLAUDE.md's Subagent protocol.
-      `npm run test:fast` shows no new failures beyond the pre-existing
-      baseline (confirmed via `git stash` control). Original text follows.
+      Verified full-tier: code-reviewer's first pass returned
+      REQUEST-CHANGES (2 Major/Minor transcription errors against the raw
+      probe data — cryomancer's winning seed and w8-bucket count,
+      plaguebringer's "7/9" loss-range count — plus a causal
+      misattribution crediting `world.ts:591`'s Fourth Gate literal for
+      the win-rate flip when the live mechanism for every `modifiers: []`
+      sweep config here is actually `GATES.east`, `src/sim/grid.ts`; all
+      fixed in commit `dd5cf20`). qa-playtester independently re-ran both
+      full test files plus targeted per-class spot-check probes (thrown
+      away after use) and confirmed every number against a fresh live
+      run — **PASS, no bugs found**, including confirming the
+      code-reviewer's corrections were accurate. `npm run test:fast`
+      shows no new failures beyond the pre-existing 20-failure/9-file
+      baseline (none of the 9 files touched by this item's diff).
+      Original text follows.
       **found ahead of queue order 2026-09-15 while
       shipping fb153b (working rule 3: a confirmed bug outranks the
       queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
