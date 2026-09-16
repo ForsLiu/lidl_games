@@ -110,8 +110,21 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
   // already named). Re-pinned to swordsman seed 6 / pyromancer seed 11 and
   // un-skipped rather than left `.skip`-ed, since the mechanism is
   // demonstrable again with a fresh seed.
-  it('swordsman seed 6 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 6, classKey: 'swordsman', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  //
+  // Integrator (2026-09-16, merging this branch onto a master that had
+  // since landed a second, real fb153b fix beyond what this branch's own
+  // seed sweep above was measured against): re-swept swordsman seeds 1-20
+  // fresh against the actual merged state — none flip any more, swordsman
+  // now clears Night-1 at every one of them regardless of `baseHpMul`
+  // (`git log`-bisected to the terrain fix, not a kit change). Swapped this
+  // case from swordsman to pyromancer seed 2 (re-measured live, a
+  // `tools/`-probe deleted after use, same precedent as above): shipped
+  // content still loses to the first VS block at wave 3, and clears it at
+  // `baseHpMul: 1`. The swordsman-side "still under-floor" mechanism this
+  // case demonstrated is no longer reproducible with a Night-1 seed and is
+  // logged as a known issue rather than hand-waved — see PROGRESS.md.
+  it('pyromancer seed 2 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 2, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');
