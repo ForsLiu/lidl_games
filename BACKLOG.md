@@ -3933,8 +3933,15 @@ was not fabricated.
       not a new gap). `npx tsc --noEmit` clean; targeted tests plus
       `npm run test:fast` show the same 2 pre-existing `wouldBlockPath`
       failures as baseline, nothing new. code-reviewer APPROVE (no Critical/
-      Major; two Minor notes, non-blocking); qa-playtester review requested
-      in parallel, not yet returned at commit time — refs: SPEC-FINAL §4.2.
+      Major; two Minor notes, non-blocking). qa-playtester PASS: confirmed
+      both `Structure.damageDealt` call sites now lifesteal, overheal routes
+      through the same `applyHealing`/Vampire Heart path as every other
+      Warden heal, the effect is fully deterministic, multi-tower stacking
+      has no shared-accumulator bug, and 1% is a balance-sane sweetener next
+      to Blood Frenzy's 3% run-wide leech — no bugs filed; independently
+      agreed skipping `class-kit-liveness.test.ts` was correct (that harness
+      cannot observe an effect that only fires on a later tower attack) —
+      refs: SPEC-FINAL §4.2.
 - [ ] (fb087) [polish] the standing Windows flake family every lane
       re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
       `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports
