@@ -543,9 +543,25 @@ therefore measure *after* `fb153`, not before.
         a `git stash` control run to be pre-existing on the clean tree too,
         unrelated to this change and out of this item's scope. `npx tsc
         --noEmit` clean. code-reviewer APPROVE (one Minor, the stale grid.ts
-        comments, fixed before commit); qa-playtester review requested,
-        pending at commit time — will be logged as a follow-up here if it
-        finds anything.
+        comments, fixed before commit).
+
+        **qa-playtester PASS (2026-09-16).** Independently re-ran
+        `npm run test:fast` (same 301 passed/2 failed/9 skipped split),
+        grepped every non-touched test reading `w.gates`/`GATES`
+        (`fb154-vs-gate-spawns`, `b073-act1-alive-cap`, `a10-performance`) to
+        confirm none hardcode a 3-gate assumption, and ran a `git worktree`
+        control at `HEAD~1` proving both `wouldBlockPath` failures
+        (`act1.test.ts:57`, `grid.test.ts:51`) reproduce identically before
+        this commit and that its own diff never touches those lines —
+        pre-existing and unrelated, confirmed rather than assumed. One
+        observation raised (`data/modifiers.json`'s `gate` modifier is still
+        named "Fourth Gate" though it now opens a genuine fifth gate on top
+        of the base four): not filed as a follow-up — `world.ts:600`'s own
+        comment and the `Fourth Gate` name used throughout
+        `terrain-gates-dump.test.ts` and elsewhere already establish "Fourth
+        Gate" as this feature's proper-noun name from when base was 3 gates,
+        kept as-is by design rather than a live gate-count claim; the
+        modifier's desc ("+1 gate active") remains accurate.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
