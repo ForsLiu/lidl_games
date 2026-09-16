@@ -528,13 +528,24 @@ therefore measure *after* `fb153`, not before.
         `fb015-equipment.test.ts`, `fb196-night1-basehpmul.test.ts`, `p6b-
         swordsman.test.ts`, `p6c-plaguebringer.test.ts`, `p6d-nine-
         classes.test.ts` all pass in the post-fix `npm run test:fast`.
-        **`act1.test.ts` (2) and `grid.test.ts` (2) remain red**, confirmed via
-        `git stash` to be pre-existing and unrelated to this fix (same
-        failures on unmodified code — both assert `GATES.length === 3`/a
-        3-gate wave count, stale since fb156 grew `GATES` to 4, independent of
-        `world.ts`'s own gate-list bug); left open as their own follow-up, not
-        this item's scope. `npm run test:fast`: 301 passed, 9 skipped, 2
-        failed (both the confirmed-pre-existing `grid.test.ts` pair).
+        **`act1.test.ts` (2) and `grid.test.ts` (2) fixed too (2026-09-16,
+        same day, on coordinator direction).** First confirmed via `git
+        stash` and via master's own CI on this branch's parent commit
+        (`b4d4dc0`, `fast tier + build` already red there on these same 4
+        assertions among 9 total) to be pre-existing rather than introduced
+        by the point-1 fix above — but they are the exact same defect this
+        item targets (`GATES.length === 3`/a 3-gate wave-spawn count/a
+        pre-resize `ty: 10` west-gate seal box, all stale since fb156 grew
+        `GATES` to 4), so finishing their regression coverage belongs to this
+        item, not a separate one. `act1.test.ts`'s gate-sealing box and
+        `grid.test.ts`'s matching one both hardcoded the west gate at
+        `(1, 9)/(1, 10)/(1, 11)` — the *pre-resize* west gate's neighbourhood;
+        the real `GATES.west` is `{ tx: 0, ty: 12 }`, so its only interior
+        exit is `(1, 12)`, flanked by `(1, 11)`/`(1, 13)` — re-measured
+        against the real board and updated in both files, alongside the
+        `GATES.length`/wave-spawn-count literals (3 -> 4, 24 -> 32 enemies).
+        `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+        green.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 

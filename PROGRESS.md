@@ -25,14 +25,22 @@
   `tests/fb034-max-towers.test.ts` (a stale non-practice build tile),
   `tests/fb036-path-indicators.test.ts` (gate modifier now draws 5 paths, not
   4; comment/title de-staled), `tests/fb077-terrain-wiring.test.ts` (control
-  map generation and the gate-modifier gate-count/position assertions).
-  `npx tsc --noEmit` clean. Confirmed via `git stash` that `tests/act1.test.ts`
-  (2) and `tests/grid.test.ts` (2) are pre-existing red, unrelated to this
-  change (same failures on unmodified code — a pre-existing "GATES already
-  has 4 entries" class of staleness this item did not introduce and did not
-  scope into fixing). `npm run test:fast`: 301 passed, 9 skipped, 2 failed
-  (both `grid.test.ts`, the confirmed-pre-existing pair) — no new failures.
-  No dedicated Task-launch tool was available in this session, so the
+  map generation and the gate-modifier gate-count/position assertions),
+  `tests/act1.test.ts` (the gate-sealing box and the wave-spawn gate count —
+  both hardcoded the pre-resize west gate at `ty: 10`/three gates; the real
+  `GATES.west` is `{ tx: 0, ty: 12 }` and there are four base gates) and
+  `tests/grid.test.ts` (`GATES.length` and its own gate-sealing box, same
+  class of staleness). The `act1.test.ts`/`grid.test.ts` pair were first
+  confirmed via `git stash` (and via master's own CI on this branch's parent
+  commit, `b4d4dc0` — `fast tier + build` already red there on the identical
+  4 assertions, among 9 total) to be pre-existing, not introduced by this
+  fix — but on the coordinator's direction they are squarely this item's own
+  regression coverage to finish (the exact same "`GATES` has had 4 entries
+  since fb156, the code/tests didn't" defect this item targets), not a
+  separate item, so they are fixed here too, re-measured against the real
+  4-gate board rather than hand-derived. `npx tsc --noEmit` clean.
+  `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+  green. No dedicated Task-launch tool was available in this session, so the
   code-reviewer/qa-playtester passes were performed directly against their
   `.claude/agents/*.md` checklists (architecture rules, determinism, tests,
   hostile edge cases) rather than as separate subagent invocations; no
