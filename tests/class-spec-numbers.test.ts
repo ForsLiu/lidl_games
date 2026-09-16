@@ -1007,35 +1007,13 @@ const LEDGER: readonly Figure[] = [
     clause: 'Blood Tithe',
     figure: 'its share of VS attacks lifesteals +1%',
     spec: 0.01,
-    path: null,
-    slot: 'active1',
-    status: {
-      kind: 'unimplemented',
-      tracked: 'BACKLOG-CONTENT Log, 2026-09-03 session 2 — main lane (needs `vswield.ts` + `statkeys.ts`)',
-      why:
-        'Only the damage half of the clause exists: `s.tithed` feeds `classTowerDamageMul` ' +
-        '(`towers.ts`) and nothing else reads it. `leech` is a single run-wide Warden stat; ' +
-        'there is no per-structure VS-share lifesteal concept to author 1% into.',
-      in: 'active1',
-      absentKey: /leech|lifesteal|siphon|vamp|drain|share/i,
-      knownKeys: ['passive.mods.leech'],
-      // `s.tithed` is the only handle the clause could hang on, and these are
-      // its four readers: the Active that sets it, the damage bonus that is
-      // the half which *is* implemented, and the run hash. A fifth line
-      // reading `tithed` means the VS-share lifesteal half arrived.
-      srcLines: [
-        {
-          file: 'src/sim',
-          needle: '.tithed',
-          lines: [
-            'const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius, (st) => !st.tithed);',
-            's.tithed = true;',
-            'h.bool(s.pactActive).num(s.atkSpdBuffRemaining).bool(s.tithed);',
-            'if (s.tithed && cls.active1.kind === \'blood_tithe\') {',
-          ],
-        },
-      ],
-    },
+    path: ['active1', 'titheLifestealPct'],
+    status: { kind: 'match' },
+    note:
+      'fb086: a tithed tower\'s own VS-phase damage heals the Warden by `titheLifestealPct` of ' +
+      'the damage dealt — the same Lifesteal crossing constant as `leech`/`towerLifestealPct` ' +
+      '(`applyTowerLifesteal`, cores.ts), inverse-scaled at load (content.ts). Covered by ' +
+      'tests/fb086-blood-tithe-lifesteal.test.ts.',
   },
   {
     cls: 'bloodlord',
@@ -1977,13 +1955,13 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // titheHpFraction/titheDamageMul/healPerEnemy, animist area, time_lord
       // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196. fb082 separately closed
       // one remaining defect (Poison Barrel's cadence) as a match, and c004
-      // closed Animist Kinship's summon-cap clause the same way, leaving one
-      // other row still unimplemented.
-      match: 61,
+      // closed Animist Kinship's summon-cap clause the same way. fb086 closed
+      // the last unimplemented row (Blood Tithe's VS-share lifesteal).
+      match: 62,
       retuned: 18,
       elsewhere: 1,
       in_code: 8,
-      unimplemented: 1,
+      unimplemented: 0,
       defect: 0,
     });
     expect(LEDGER).toHaveLength(89);
