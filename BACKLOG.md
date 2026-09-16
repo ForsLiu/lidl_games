@@ -1537,7 +1537,32 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07, bookkeeping gap closed 2026-09-16 —
+      shipped in PR #41 (`53f58ab`) squashed together with fb079/fb080/fb082/
+      fb083, never checked off here.** F8 opens a note box mid-run (dev and
+      prod alike, gated on the box being open so typing never leaks into live
+      gameplay hotkeys — a code-reviewer Critical fix during the original
+      session), pausing for its duration; Submit builds a bundle (class/Core/
+      tier/wave/phase/tick/seed/content hash/end-state hash/full input log/
+      canvas screenshot) and POSTs it to `/__bugreport/save`
+      (`src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`, mirrors the
+      Tuner's save plumbing, including the qa-playtester-found literal-`null`-
+      body 400 fix), which writes the replay + screenshot under `/replays`
+      and a `bug-<timestamp>.md` into the configured inbox dir naming both
+      paths. A production build downloads the same bundle as a file instead
+      (`src/ui/bugreport.ts`/`main.ts`). Replay-to-recorded-tick with a
+      matching hash is covered by `tests/fb139-bug-report-replay.test.ts`;
+      the endpoint by `tests/fb139-bug-report-plugin.test.ts` (9 cases,
+      including the production-build-has-no-endpoint case); the hotkey/UI
+      flow end-to-end by `tests/ui-fb139-bug-report-hotkey.test.ts` (5
+      cases). CLAUDE.md's Subagent protocol already documents replay bundles
+      as a first-class repro (fb139 references throughout). Re-ran all three
+      targeted files fresh this session: 15/15 green. No code change needed
+      — this item's own diff is BACKLOG.md only — refs: SPEC-FINAL §11/§12
+      (determinism, dev tooling), owner feedback
+      `feature-bug-report-hotkey`.
+      Original text follows.
+      in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into
@@ -3895,19 +3920,47 @@ was not fabricated.
       comment naming why; five consecutive `npm run test:fast` runs on the
       reference host report zero failures from this set — refs: CLAUDE.md
       "Stack & commands" (fast tier contract), QUALITY.md.
-- [ ] (fb088) [polish] `tests/terrain-generation.test.ts`'s "stays bounded"
-      case is the only thing standing between `/data` and an unclamped
-      `paint()` loop in `/src/sim`, and on this host it can only be a coarse
-      5000 ms wall-clock guard (three sharper designs measured worse — the
-      Log's fb064g entry records each). Acceptance: a deterministic
-      iteration counter behind a test-only hook (shape decided here, since
-      the counter lives inside `/src/sim`) makes the bound exact and
-      load-independent; mutation re-run confirms the reverted clamp still
-      fails. Same change may revisit the loose `a/(a+1)` Core-band ceiling
-      against the tighter `|A| / |cover(A)|` bound — **only** with the
-      generated-map sweep that caught the last false rejection — refs:
-      SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
-      fb064g Log. **Also (fb064j Log):** the same file's skipped-seed loop (`:678-687`) re-reads the generator's own report instead of measuring degeneracy — `tests/terrain-seed-domain.test.ts` has the stronger shape to copy.
+- [x] (fb088) [polish] **DONE 2026-09-16 — the counter/mutation clause only;
+      the two adjacent follow-ups in this same bullet are explicitly NOT
+      done, see below.** Shipped `paintIterationCount`
+      (`src/sim/terrain/generate.ts`): a module-level counter incremented
+      inside `paint()`'s inner nested loop, summed across every attempt one
+      `generateTerrain` call makes, behind test-only
+      `resetPaintIterationCount()`/`getPaintIterationCount()` hooks
+      (re-exported from `src/sim/terrain/index.ts`). New test in
+      `tests/terrain-generation.test.ts` pins the exact count (46,372,590)
+      for the same hostile fixture the pre-existing wall-clock ratio test
+      above it already builds; the ratio test itself stays (still catches
+      real wall-clock regressions the exact counter cannot, e.g. a slowdown
+      elsewhere in `attempt()`). Mutation-verified before pinning: a
+      temporary source patch removing `paint()`'s `Math.max`/`Math.min`
+      clamp, reverted immediately after measuring (never shipped), read
+      152,899,668 — a ~3.3x jump matching the ratio test's own documented
+      ratio for this grid size. code-reviewer **APPROVE** (no
+      Critical/Major; two Nits, one fixed — a test-only marker comment on
+      the `index.ts` re-export — one left as a documented non-issue, a
+      single bounded call site per run). qa-playtester **PASS** —
+      independently reproduced the pinned count three times, independently
+      redid the mutation edit-and-revert itself (byte-for-byte matching
+      152,899,668, confirmed `git diff` clean afterward), ran the file
+      twice back to back plus alongside `tests/terrain-grid.test.ts`/
+      `tests/terrain-high-contest.test.ts` for cross-file state-leak
+      (`vitest`'s default per-file thread isolation holds, no leak), and
+      stress-checked the hooks (uncalled-reset default 0, 5000-call loop
+      with no overflow risk given `Number.MAX_SAFE_INTEGER` headroom).
+      `npx tsc --noEmit` clean; targeted suite (`tests/terrain-
+      generation.test.ts`, 42/42) green both standalone and under the QA
+      agent's cross-file run. **Not done, left open on purpose:** the
+      optional "same change may revisit the loose `a/(a+1)` Core-band
+      ceiling" clause (its own text gates it on "only with the
+      generated-map sweep that caught the last false rejection," not
+      attempted this session) and the separate "Also (fb064j Log)"
+      tail-note about the skipped-seed loop at `tests/terrain-
+      generation.test.ts:678-687` re-reading the generator's report instead
+      of measuring degeneracy (unrelated to this bullet's own counter
+      acceptance, not touched) — both still open, filed here rather than
+      silently folded into this DONE — refs: SPEC-FINAL §12 rule 4 (loader
+      refuses unpayable data), BACKLOG-TERRAIN fb064g Log.
 - [x] (fb092) [bug] **DONE 2026-09-15 — "enough builds" floor restored;
       cap clause re-pinned red, honestly, not closed.** Re-measured at the
       start of this session (not inherited): only **1 of 10** `BUILDS`
