@@ -862,7 +862,7 @@ const ClassEffectSchema = z.object({
   overclockSeconds: num.optional(),
   /** `dash_volley`: how many arrows the dash fires (§4.2's "3 arrows"). */
   volleyShots: num.optional(),
-  /** `blood_tithe`: the share of current HP the tower pays once, and the permanent damage bonus it buys. */
+  /** `blood_tithe`: the share of current HP the tower pays once, the permanent damage bonus it buys, and the tower's own VS-share lifesteal (SPEC-FINAL §4.2's "its share of VS attacks lifesteals +1%"). */
   titheHpFraction: num.optional(),
   titheDamageMul: num.optional(),
   /** `blood_tithe`, fb086 (§4.2): the tithed tower's own VS-share damage heals the Warden by this fraction. */
