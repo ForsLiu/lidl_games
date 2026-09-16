@@ -83,6 +83,28 @@ function flatKinds(gates: readonly GateDef[] = GATES): Uint8Array {
   return kind;
 }
 
+/**
+ * fb088: a test-only cost counter for `paint()`'s inner loop, exact and
+ * load-independent — `tests/terrain-generation.test.ts`'s "stays bounded"
+ * guard used to be a wall-clock reading alone (coarse and host/load-
+ * sensitive by nature, BACKLOG-TERRAIN fb064g Log). One shared module-level
+ * counter rather than a per-`attempt()` return value: `generateTerrain` may
+ * run several attempts per call (`cfg.maxAttempts`), and the guard's own
+ * fixture cares about the summed cost across all of them, the same total the
+ * wall-clock reading already measured. A plain integer increment costs
+ * nothing live code needs to avoid; no env gating, since reading it in
+ * production is simply never done.
+ */
+let paintIterationCount = 0;
+/** fb088 test hook: zero the counter before a measured `generateTerrain` call. */
+export function resetPaintIterationCount(): void {
+  paintIterationCount = 0;
+}
+/** fb088 test hook: total `paint()` inner-loop iterations since the last reset. */
+export function getPaintIterationCount(): number {
+  return paintIterationCount;
+}
+
 /** One generation attempt at an exact seed. Never fails; may be degenerate. */
 function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): Uint8Array {
   const rng = new Rng(fnv1a(TERRAIN_STREAM, seed >>> 0));
@@ -95,7 +117,8 @@ function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): U
   // the caller asked for. The radii come from `/data` — which fb064f exposes to
   // live Tuner edits — so an unclamped loop would let one authored number spin
   // `/src/sim` for ~1e8 iterations per call. The schema caps the radii too;
-  // this is the second line of defence, and the cheap one.
+  // this is the second line of defence, and the cheap one — `paintIterationCount`
+  // above (fb088) is what makes that defence assertable exactly, not just timed.
   const paint = (cx: number, cy: number, radius: number): void => {
     const x0 = Math.max(1, cx - radius);
     const x1 = Math.min(GRID_W - 2, cx + radius);
@@ -106,6 +129,7 @@ function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): U
         const i = y * GRID_W + x;
         kind[i] = TerrainKind.Normal;
         protectedTile[i] = 1;
+        paintIterationCount++;
       }
     }
   };
