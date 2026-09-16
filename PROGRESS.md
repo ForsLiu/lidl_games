@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb197 done — fresh full 12-seed G8
+  roster sweep against the corrected gate position (fb153b); still red,
+  failure shape flipped from under-floor to a floor/ceiling split.**
+  fb153b's `GATES.east` fix (`src/sim/grid.ts` — stale 36x20-era
+  coordinate, an interior tile at the shipped 56x32 grid, was landing a
+  third of Act I spawns far closer to the Core than the other two base
+  gates) changes real spawn-to-Core distance at every seed, so every number the
+  fb196/fb193/fb185/p13a Night-1 bisection chain produced was stale.
+  Re-measured `tests/p6e-class-diversity.test.ts`'s full roster: swordsman,
+  pyromancer, archer and bloodlord jumped from near-total Night-1 wipes
+  (0-3/12) straight past the ceiling (9-10/12) — confirming the gate bug,
+  not kit damage, was their real problem — while plaguebringer, engineer,
+  necromancer, cryomancer, stormcaller, animist and paladin stayed under
+  the floor (mostly unchanged or slightly worse). time_lord remains the
+  sole in-band class (8/12, unaffected). Fingerprint-distance failing-pair
+  count moved 27->28 (still red, independent of the win-rate mechanism).
+  `tests/fb196-night1-basehpmul.test.ts`'s control pair no longer
+  discriminates at seed 1 (both classes now win regardless of
+  `baseHpMul`) — re-pinned to swordsman seed 6 / pyromancer seed 11 (found
+  via a throwaway, deleted `tools/` probe) and un-`.skip`-ed, since the
+  underlying mechanism (`makeEnemy`'s uniform `baseHpMul`) is unchanged
+  and still demonstrable with those seeds. `tests/p13a-survivability-
+  bands.test.ts` confirmed unaffected by inspection (pure `derive()` math,
+  no RNG/terrain). The T1/T5 companion band clauses in the same file were
+  left un-re-measured and flagged stale, logged as unqueued follow-up
+  rather than silently assumed accurate. The remaining under-floor seven
+  classes' wall is also unqueued follow-up (a fresh balance-analyst pass,
+  outside this item's measurement-only scope). code-reviewer and
+  qa-playtester both run per the Subagent protocol; `npm run test:fast`
+  shows no new failures beyond the pre-existing baseline (`git stash`
+  control).
+
 - **2026-09-16 — main lane: BACKLOG fb086 done — Bloodlord Blood Tithe's
   missing VS-share lifesteal clause shipped.** SPEC-FINAL §4.2: "tower pays
   30% current HP once -> permanently +25% dmg; its share of VS attacks
