@@ -5,6 +5,219 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb153b's own remaining "point 1" closed —
+  `World` now reads the real four-gate `GATES`, not the stale `slice(0, 3)`.**
+  `src/sim/world.ts`'s gate-list build silently dropped `GATES`'s own real
+  `south` gate from *every* run's terrain generation (base list was
+  `GATES.slice(0, 3)` = west/north/east only); the `gate` modifier's fifth
+  gate is now `MODIFIER_GATES[0]` (`south2`) pushed by reference instead of a
+  hand-typed `{ key: 'south', tx: 12, ty: GRID_H - 1 }` literal that could
+  drift off `grid.ts`'s maintained position. `tests/terrain-gates-dump.
+  test.ts`'s long-skipped "describes a live Fourth Gate run correctly" test
+  is un-skipped and re-measured against the fixed behaviour (5 gates:
+  west/north/east/south/south2), per BACKLOG fb153b's own text describing
+  exactly this fix. Reading the real fourth gate opens the whole south arm of
+  the map back up in terrain generation, which moved several golden values
+  that were measuring the buggy 3-gate map — re-measured against the fixed
+  generator, not hand-derived, per CLAUDE.md's measurement rules:
+  `tests/class-board.test.ts` (shipped-board WX/WY/tier and the "far corner"
+  legal-board count, 7->66 legal boards once the south arm is real ground),
+  `tests/fb034-max-towers.test.ts` (a stale non-practice build tile),
+  `tests/fb036-path-indicators.test.ts` (gate modifier now draws 5 paths, not
+  4; comment/title de-staled), `tests/fb077-terrain-wiring.test.ts` (control
+  map generation and the gate-modifier gate-count/position assertions),
+  `tests/act1.test.ts` (the gate-sealing box and the wave-spawn gate count —
+  both hardcoded the pre-resize west gate at `ty: 10`/three gates; the real
+  `GATES.west` is `{ tx: 0, ty: 12 }` and there are four base gates) and
+  `tests/grid.test.ts` (`GATES.length` and its own gate-sealing box, same
+  class of staleness). The `act1.test.ts`/`grid.test.ts` pair were first
+  confirmed via `git stash` (and via master's own CI on this branch's parent
+  commit, `b4d4dc0` — `fast tier + build` already red there on the identical
+  4 assertions, among 9 total) to be pre-existing, not introduced by this
+  fix — but on the coordinator's direction they are squarely this item's own
+  regression coverage to finish (the exact same "`GATES` has had 4 entries
+  since fb156, the code/tests didn't" defect this item targets), not a
+  separate item, so they are fixed here too, re-measured against the real
+  4-gate board rather than hand-derived. `npx tsc --noEmit` clean.
+  `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+  green. No dedicated Task-launch tool was available in this session, so the
+  code-reviewer/qa-playtester passes were performed directly against their
+  `.claude/agents/*.md` checklists (architecture rules, determinism, tests,
+  hostile edge cases) rather than as separate subagent invocations; no
+  Critical/Major findings, no bugs filed.
+
+- **2026-09-16 — main lane: BACKLOG fb088 done — `paint()`'s cost guard is
+  now an exact, load-independent counter, not a wall-clock reading.**
+  `tests/terrain-generation.test.ts`'s "stays bounded" case (the only thing
+  standing between `/data` and an unclamped `paint()` loop in `/src/sim`)
+  used to be a coarse wall-clock ratio, host/load-sensitive by construction
+  (BACKLOG-TERRAIN fb064g Log: three sharper timing designs all measured
+  worse before landing there). Shipped `paintIterationCount`
+  (`src/sim/terrain/generate.ts`): a module-level counter incremented
+  inside `paint()`'s inner nested loop, summed across every attempt one
+  `generateTerrain` call makes, behind test-only
+  `resetPaintIterationCount()`/`getPaintIterationCount()` hooks
+  (`src/sim/terrain/index.ts`). New test pins the exact count (46,372,590)
+  for the same hostile fixture the pre-existing ratio test uses, which
+  stays in place for what it alone still covers (real wall-clock cost,
+  warm-up effects, contention tolerance). Mutation-verified before pinning
+  — a temporary, reverted-before-commit source patch removing the
+  `Math.max`/`Math.min` clamp measured 152,899,668, a ~3.3x jump matching
+  the ratio test's own documented ratio for this grid size — independently
+  redone by both code-reviewer (APPROVE, one Nit fixed) and qa-playtester
+  (PASS: reproduced the pinned count three times, independently redid the
+  mutation edit-and-revert itself byte-for-byte, checked for cross-file
+  counter leakage under vitest's per-file thread isolation, stress-checked
+  the hooks for overflow/uninitialized-read surprises — none found).
+  `npx tsc --noEmit` clean; targeted suite (`tests/terrain-
+  generation.test.ts`, 42/42) green. **Left open on purpose, not folded
+  into this DONE:** the same bullet's *optional* "revisit the loose
+  `a/(a+1)` Core-band ceiling" clause (gated on a generated-map sweep not
+  attempted this session) and its separate "Also (fb064j Log)" tail-note
+  about the skipped-seed loop at `tests/terrain-generation.test.ts:678-687`
+  — both still open in BACKLOG.md's fb088 entry. `npm run test:fast` full
+  run was attempted twice this session; the first was killed mid-run by
+  host memory contention from concurrent subagent test invocations
+  (confirmed not a code issue — qa-playtester independently traced and
+  cleared the stale process tree), and this item's own targeted-tier
+  evidence (42/42, tsc clean, two independent full-tier subagent passes)
+  stands on its own per CLAUDE.md's tiered verification — refs: SPEC-FINAL
+  §12 rule 4, BACKLOG-TERRAIN fb064g Log.
+
+- **2026-09-16 — main lane: BACKLOG fb139 closed — bookkeeping gap, not new
+  work.** The item (in-game F8 bug-report hotkey, replay-attached) was
+  actually shipped 2026-09-07 in PR #41 (`53f58ab`), squashed together with
+  fb079/fb080/fb082/fb083 under one merge, and its BACKLOG.md checkbox was
+  never flipped. Verified the shipped implementation still meets every
+  acceptance clause rather than trusting the stale checkbox state: F8 opens
+  a note box mid-run (dev and prod), pauses for its duration, POSTs a bundle
+  (class/Core/tier/wave/phase/tick/seed/content hash/end-state hash/input
+  log/screenshot) to `/__bugreport/save` (`src/devserver/bugReportPlugin.ts`/
+  `bugReportSave.ts`), writes the replay + screenshot under `/replays` and a
+  `bug-<timestamp>.md` into the inbox, and a production build downloads the
+  same bundle as a file instead of POSTing it. Re-ran the three targeted
+  files fresh: `tests/fb139-bug-report-plugin.test.ts` (9),
+  `tests/fb139-bug-report-replay.test.ts` (1, replay-to-recorded-tick with a
+  matching hash), `tests/ui-fb139-bug-report-hotkey.test.ts` (5) — 15/15
+  green. No source change; this item's own diff is BACKLOG.md/PROGRESS.md
+  only — refs: SPEC-FINAL §11/§12, owner feedback
+  `feature-bug-report-hotkey`.
+
+- **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
+  restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
+  The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
+  the game's own design — the character wields every built tower in VS, so
+  wielded damage dominating is intended, not a gap to close. Restated to
+  **own-kit VS share >=15% from TD wave 12**, a `BALANCE.md` target (not a
+  G8 clause), scoped to the nine classes with a damaging VS Active;
+  bloodlord/engineer/animist exempt (record only). `BALANCE.md`'s "Kit
+  relevance target" §3 rewritten with a fresh live re-measurement
+  (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, all 12 classes): **1 of 9
+  in-scope classes clears 15%** (plaguebringer, 30.48%); next-best
+  stormcaller 5.58%. `tests/class-kit-damage-share.test.ts`'s
+  `KIT_SHARE_TARGET` 0.35->0.15 plus a new `KIT_SHARE_EXEMPT` split.
+  `tests/p6e-class-diversity.test.ts`'s G8 describe block had a duplicate
+  copy of this same metric under G8's name (`clause (i)`, `.skip`-ed at
+  35%) — removed along with its pin, `Row.vsShare`, and the now-unused
+  `isKitSource` import, confirming G8 is T3 win-rate band + pairwise
+  fingerprint distance only, per the owner's own text. `npx tsc --noEmit`
+  clean; code-reviewer approved (no Critical/Major, two Minor comment nits
+  fixed before commit); qa-playtester confirmed both items' acceptance
+  criteria with independent reduced-scope live re-runs, found no bugs.
+  `npm run test:fast` shows the same 20 pre-existing terrain/grid/
+  class-board failures as baseline (confirmed via `git stash` control),
+  none introduced by this change — commit `5af87a9`.
+
+- **2026-09-15 — main lane: BACKLOG fb092 done — G13's "enough builds"
+  floor restored; the 35% share-cap clause re-pinned red, honestly, not
+  closed.** `fb054`'s density pass had left `tests/p10c-weapon-share.
+  test.ts`'s live "enough builds banking all 18 TD waves" assertion
+  failing — re-measured at just **1 of 10** `BUILDS` reaching the pool
+  (worse than the item's own stale "3 of 10" note), against the `>=4`
+  floor. Reused `fb076`'s own lever (`data/towers.json` `attack.damage` on
+  the same six towers, ~10-29% each: arrow_spire 210->270, ballista
+  216->278, ember_brazier 150->193, frost_obelisk 248->320, mortar
+  4200->5400, venom_spore 588->650; `tesla_coil` untouched, `fb076`'s own
+  T1/T3 coupling-wall pin) — `top.length` now measures 4, floor assertion
+  itself byte-unchanged (checked against `git show HEAD:...`, not assumed).
+  **The 35% cap clause could not close as a side effect**: banking the
+  fourth build leaned on `mortar`, whose own VS share rose to **55.3%**
+  (from the prior `b080` pin of 36.5%) — recorded honestly in the
+  `.skip`-ed clause and the test file's header, not hidden or forced green.
+  A partial-revert attempt (mortar 5400->4550) made both numbers worse
+  (pool back to 2, mortar share to 64.2%) and was reverted; logged in the
+  test file rather than silently dropped. Left open for a dedicated
+  `[balance]` item. Verified full-tier (a `/data` balance value): code-
+  reviewer APPROVE (no Critical/Major — spot-checked the data change
+  against the test's own narrative, confirmed the floor's bytes are
+  unchanged, ran `tests/a4-single-type.test.ts`'s live solo-T3 clause
+  directly and confirmed all seven towers, six of them raised here, still
+  measure 0/5). qa-playtester PASS — independently re-ran the probe rather
+  than trusting the diff, confirmed `npm run test:fast` shows the identical
+  20-failure set before/after via its own `git stash` control, and spot-
+  checked `tests/boss.test.ts`'s live scripted-win case (63.5s, clear of
+  the 20s floor `fb099` once broke on these same towers).
+  **QA also found one pre-existing, unrelated bug — not filed as a new
+  BACKLOG item this session (standing instruction for this run: never
+  generate new backlog items), flagging it here for a future session to
+  file instead.** `tests/a4-single-type.test.ts`'s live `p12h` case (T1
+  solo-tower viability with `baseHpMul` reverted to identity) now measures
+  `ember_brazier`/`frost_obelisk` at 0/5 and `venom_spore` at 2/5 against
+  its own docstring's claimed `{5,5,5,5,4,4,5}` table — confirmed
+  byte-identical with and without this session's diff via `git stash`
+  bisection, so some other `/data` change landed after p12h broke it,
+  undetected because the file sits outside the fast tier (~615s
+  standalone). `tests/p11d-g13-t3-margin.test.ts`'s "measured 17/18"
+  comment is also stale at HEAD (actual 2/18) — same pre-existing-drift
+  shape, also unrelated to this diff. Neither chased further here — refs:
+  SPEC-FINAL §14 G13, BACKLOG fb054/fb076/b080.
+
+- **2026-09-15 — main lane: BACKLOG fb184 done — loader closes the
+  `numberScal3`-typo class of silent mis-scale (QUESTIONS Q181).**
+  `ModifiersFileSchema` (`src/sim/content.ts`) now carries `.strict()`, the
+  same convention already used elsewhere in that file, so an unrecognized
+  top-level key in `data/modifiers.json` is a load error naming the field
+  instead of a silent drop that leaves `numberScale` at its `default(1)`.
+  New `tests/fb184-modifiers-unknown-key.test.ts` pins the typo repro
+  (confirmed red-first) and confirms every legitimate key still loads.
+  `tests/q7-loader-holes.ts` updated to drop the now-closed `'rename-key'`
+  hole for `modifiers.numberScale`. code-reviewer approved (no Critical/
+  Major); qa-playtester confirmed acceptance and traced every writer of
+  `modifiers.json` (the Tuner's save path validates through the same
+  now-strict schema) for a false-rejection risk — found none. `npm run
+  test:fast` baseline unchanged (22 pre-existing terrain/grid/class-board
+  failures from fb166's grid resize, none new). A separate commit on this
+  same push (`721a0ba`) removed an unused `GRID_W`/`GRID_H` import in
+  `tests/ui-fb102-bossbar-rail-overlap.test.ts` that was failing
+  `tsc --noEmit` and blocking `npm run build`/CI's "Typecheck and build"
+  step outright — pre-existing on the branch before this session, not
+  touched by the fb184 commit, needing no behavior change or regression
+  test (tsc is its own guard). **CI confirmed still red after both fixes,
+  for reasons neither touches**: GitHub Actions run `34961182758`'s
+  "fast tier + build" job fails with the exact same 22 tests across 8
+  files (`class-board*`, `content-complete`, `fb077-terrain-wiring`,
+  `grid`, `p1a-sealing`, `terrain-cost`, `b007-tile-bounds`) as the local
+  baseline — and master's own most recent CI run (`34953890149`, the
+  commit this branch started from) is independently `conclusion: failure`
+  for the identical reason, already self-documented in that commit's own
+  message ("npm run test:fast currently fails 40 tests, all inside
+  tests/ui*... known consequence of fb166's grid resize landing without
+  its paired fb167 fix — not introduced by or in scope for this item").
+  Not chased further inside this item: it is a large, already-tracked,
+  cross-lane gap (fb166 done; fb167/fb153b's sim half still open) outside
+  fb184's scope and this main-lane session's remit.
+  **Skipped this cycle, logged reason:** the priority-directive item after
+  fb193 is **fb194** (and the file's separately-reopened **fb163** asks for
+  the identical fix under Q180/Q191 — split `numberScale` into two
+  independently-scaled economies, five crossing-constant inverse factors,
+  and a ~50-sentence fb164 prose reversion). That is a multi-hour balance
+  rewrite spanning the whole content loader plus a full census/control-run
+  verification pass — too large to land safely inside this run's bounded
+  window (stop after 6 items or 45 minutes). Left open at the top of the
+  queue for a dedicated session; fb184 (small, contained, still
+  owner-directed via the same Q181 order) was taken instead per "skip only
+  with a logged reason."
+
 - **2026-09-15 — main lane: BACKLOG fb153b done — the grid resize's last
   lane share (GATES.east/world.ts Fourth Gate coordinate fix), found and
   shipped as a confirmed-bug detour while starting fb194.** `npm run

@@ -49,7 +49,10 @@ export {
 export {
   flatTerrain,
   generateTerrain,
+  // fb088: test-only paint() cost hooks — see generate.ts's own doc comment.
+  getPaintIterationCount,
   isDegradedMap,
+  resetPaintIterationCount,
   terrainHash,
   verifyTerrainMap,
   MAX_TERRAIN_SEED,

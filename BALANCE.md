@@ -632,7 +632,68 @@ One distinction this pass had to draw explicitly, and the reason
 Collapsing the two cost a measured x3.16 amplification of tower damage before
 qa-playtester caught it; both now have regression tests.
 
-### 3. The target: own-kit share of the character's VS damage >= 35% ⚖
+### 3. The target: own-kit share of the character's VS damage >= 15% ⚖ from wave 12 (fb183/fb195, restated)
+
+**RESTATED (2026-09-15, QUESTIONS Q175/Q193, owner verdict — DECISION amending
+BALANCE DIRECTION v2 §A).** The original >=35% own-kit-share target (measured
+history below, kept for the record) fought the owner's own VS design: the
+character wields every built tower in VS, so wielded-weapon damage is
+*supposed* to dominate the character's total output — a kit that matched it
+would mean the tower build stopped mattering. Restated target: **own-kit VS
+share >=15% ⚖ from TD wave 12**, a `BALANCE.md` target, **not a G8 clause**,
+measured for the **nine classes whose kit has a damaging VS Active**
+(swordsman, plaguebringer, pyromancer, archer, necromancer, cryomancer,
+stormcaller, paladin, time_lord). **bloodlord, engineer and animist are
+exempt** — their kit identity runs through lifesteal (bloodlord's Blood
+Tithe), summons (engineer's turrets, animist's spirits) rather than a
+directly-attributable damage Active — and are measured for the record only,
+never against the 15% floor. `kitPowerMul` and `kitBuildMul` (§6 below) stay
+exactly as shipped; route (b) (cutting VS-wielded weapon scaling to close the
+gap from the denominator side) is explicitly **not pursued**, per the owner's
+own text. G8 itself is confirmed unaffected: its definition stays T3
+win-rate band + pairwise fingerprint distance (§D of BALANCE DIRECTION v2)
+only — `tests/p6e-class-diversity.test.ts` never carried a kit-share gate
+clause under this name (the file's own `KIT_SHARE_TARGET`/clause-(i) sweep
+was a duplicate measurement of this same BALANCE.md target, not a G8 gate;
+retired in favor of the one home in `tests/class-kit-damage-share.test.ts`,
+this section's own harness, so the target has a single source of truth).
+
+**Fresh live re-measurement (2026-09-15, `KIT_SHARE_MEASURE=1
+KIT_SHARE_SEEDS=2`, all 12 classes, T1, `cycles: 6`, full tree) — not carried
+forward from the 2026-09-07 p12f numbers above, which predate fb153a/fb153b/
+fb194/p13a/fb156's gate repositioning:**
+
+| class | vsShare (2-seed, wins/2) | scope |
+|---|---|---|
+| plaguebringer | **30.48%** | in scope — clears 15% |
+| stormcaller | 5.58% | in scope |
+| swordsman | 0.64% | in scope |
+| necromancer | 0.56% | in scope |
+| pyromancer | 0.58% | in scope |
+| archer | 0.38% | in scope |
+| cryomancer | 0.00% (0/2 wins) | in scope |
+| paladin | 0.00% (0/2 wins) | in scope |
+| time_lord | 0.00% (0/2 wins) | in scope |
+| engineer | 0.83% | **exempt, record only** |
+| bloodlord | 0.00% | **exempt, record only** |
+| animist | 0.11% | **exempt, record only** |
+
+**1 of 9 in-scope classes clears the 15% target** (`plaguebringer`, 30.48%);
+the next-best is `stormcaller` at 5.58%. Three of the nine (`cryomancer`,
+`paladin`, `time_lord`) lost both seeds at this `n=2` sample, which is a
+seed-count artifact of the quick control pair, not a claim about those
+classes' win rate (see G8's own 12-seed T3 sweep for the real win-rate
+picture) — a class that loses before its VS window develops contributes no
+`vsShare` sample, the same non-participation rule `QUALIFYING_WAVE`
+documents. The target is still far from met for most of the roster; the
+gap this section's own §5/§6 history already diagnosed (VS-wielded weapon
+damage inherits the full upgrade/Constellation stack, the kit does not) is
+unchanged by the restatement — only the bar it's measured against moved
+from 35% to 15%, and one class (plaguebringer, already the standout in
+every prior measurement in this section) now clears it.
+
+**Historical target and its own measurement history follow, kept for the
+record — superseded by the 15%-from-wave-12 restatement above.**
 
 Measured from TD wave 12, at T1, with the G8 harness (scripted kit bot,
 `cycles: 6`, full Constellation tree) — the opt-in sweep in
