@@ -508,6 +508,34 @@ therefore measure *after* `fb153`, not before.
 
         **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
 
+        **Point 1 DONE (2026-09-16, main lane).** `world.ts` now does
+        `this.gates = GATES.slice()` (all four base gates, not the pre-resize
+        `slice(0, 3)`) and pushes `MODIFIER_GATES[0]` by reference when the
+        `gate` modifier is active, instead of the stale hand-typed literal.
+        `tests/terrain-gates-dump.test.ts`'s `it.skip('describes a live Fourth
+        Gate run correctly...')` is un-skipped and re-measured (5 gates:
+        west/north/east/south/south2). Reading the real fourth gate opens the
+        map's south arm back up in terrain generation, which turned out to
+        move several golden values beyond the ones point 2 already named —
+        re-measured, not hand-derived: `class-board.test.ts` (shipped-board
+        WX/WY/tier, the far-corner legal-board count 7->66),
+        `fb034-max-towers.test.ts` (stale non-practice build tile),
+        `fb036-path-indicators.test.ts` (gate modifier draws 5 paths now, not
+        4), `fb077-terrain-wiring.test.ts` (control-map generation and the
+        gate-modifier gate-count/position assertions). **Point 2's own list is
+        now confirmed green as a side effect**, not separately attempted:
+        `class-board-windows.test.ts`, `class-passive-liveness.test.ts`,
+        `fb015-equipment.test.ts`, `fb196-night1-basehpmul.test.ts`, `p6b-
+        swordsman.test.ts`, `p6c-plaguebringer.test.ts`, `p6d-nine-
+        classes.test.ts` all pass in the post-fix `npm run test:fast`.
+        **`act1.test.ts` (2) and `grid.test.ts` (2) remain red**, confirmed via
+        `git stash` to be pre-existing and unrelated to this fix (same
+        failures on unmodified code — both assert `GATES.length === 3`/a
+        3-gate wave count, stale since fb156 grew `GATES` to 4, independent of
+        `world.ts`'s own gate-list bug); left open as their own follow-up, not
+        this item's scope. `npm run test:fast`: 301 passed, 9 skipped, 2
+        failed (both the confirmed-pre-existing `grid.test.ts` pair).
+
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
 **PRIORITY DIRECTIVE:** fb193, fb194, fb195 in that order, then the content-lane
