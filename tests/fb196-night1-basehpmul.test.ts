@@ -35,99 +35,51 @@
  * regardless of its basic-attack strength — the 20x-tougher mob simply
  * doesn't thin fast enough, and a short-range class gets swarmed.
  *
- * This test pins that mechanism directly with a control pair: the same
- * seed, same class, same everything except `baseHpMul`, so the outcome
- * flip is attributable to the one lever named above rather than inferred
- * from correlation across commits.
+ * This file used to pin that mechanism directly with a control pair (same
+ * seed, same class, same everything except `baseHpMul`) for swordsman and
+ * pyromancer seed 1. **fb197 (2026-09-16) retired that pair**: fb153b's
+ * gate-position fix alone flips both classes to a full `victory` at seed 1
+ * regardless of `baseHpMul`, so the pair no longer demonstrates anything —
+ * see the comment above `describe`'s remaining test for the fresh numbers
+ * and the retirement rationale.
  */
 import { describe, expect, it } from 'vitest';
 
-import '../src/bots';
-import { makePolicy } from '../src/bots';
-import { loadContent, type Content } from '../src/sim/content';
-import { allTreeNodeIds } from '../src/meta/meta';
-import { Run } from '../src/sim/run';
-import type { RunConfig, RunReport } from '../src/sim/types';
-import { GATE_TIER, buyCoreUpgrades, scriptClassKit } from './helpers';
-
-/**
- * `helpers.ts`'s own `runScripted` always loads the real `/data` content
- * (`Run`'s own default parameter), so it cannot run a control pair against
- * an overridden `baseHpMul`. Same loop, `content` threaded through instead.
- */
-function runScriptedWithContent(config: RunConfig, content: Content, maxTicks = 60 * 60 * 120): RunReport {
-  const runCfg = { ...config, policy: 'hybrid' };
-  const run = new Run(runCfg, content);
-  // Deliberately does NOT stamp `config.contentHash` back (unlike
-  // `runScripted`, tests/helpers.ts): this function runs the same `config`
-  // object against two different `content` values in the test below, and
-  // stamping the first run's hash onto the shared config would fail the
-  // second run's own hash check (src/sim/world.ts) for an unrelated reason.
-  // `runCfg` (this function's own copy) still carries whatever hash the
-  // caller set, exactly like `runScripted` passes through.
-  const policy = makePolicy('hybrid');
-  const w = run.world;
-  while (!run.done && w.tick < maxTicks) {
-    const input = policy.act(w);
-    if (w.phase === 'act1_build' || w.phase === 'act1_wave' || w.phase === 'act2') {
-      scriptClassKit(w, input);
-    }
-    buyCoreUpgrades(w, input);
-    run.step(input);
-  }
-  return run.report();
-}
+import { loadContent } from '../src/sim/content';
 
 describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collapse', () => {
   const shipped = loadContent();
-  const FULL_TREE = allTreeNodeIds(shipped);
-  const rawEnemies = shipped.raw.enemies as Record<string, unknown>;
-  // The identity value: every other enemy-facing scalar (`hpOverlay`,
-  // `actIICarry`, the tier ladder) stays exactly as shipped — only the one
-  // lever fb177 named changes.
-  const neutral = loadContent({ enemies: { ...rawEnemies, baseHpMul: 1 } });
 
   it('is authored at the value this control pair depends on', () => {
     expect(shipped.enemies.baseHpMul).toBe(20);
   });
 
-  // fb153b Known-issue (2026-09-15): correcting `GATES.east` (`src/sim/
-  // grid.ts` — stale 36x20-era `{tx:35,ty:17}`, an interior tile at the
-  // shipped 56x32 grid, landing roughly a third of Act I spawns far closer
-  // to the Core than intended) changes real spawn-to-Core travel distance at
-  // Night-1 for every seed — including seed 1 here. Measured post-fix:
-  // swordsman now `victory` (was `defeat_warden`), pyromancer now
-  // `defeat_core` (was also `defeat_warden`, but via a different failure
-  // mode). This is not a rescale-noise wobble; it is the *intended* effect
-  // of fixing a live gameplay bug the fb196/fb193/fb185/p13a bisection chain
-  // was never measuring against. Their numbers — and by extension G8's
-  // recorded state in BACKLOG.md's "Owner priority queue (2026-09-14
-  // directive)" section — need a fresh full re-measurement against the
-  // corrected gate position, not a quick re-pin here (this file's whole
-  // point is a controlled two-run control pair, and re-deriving the right
-  // `baseHpMul` story from a single edited run would repeat the mistake
-  // fb196 itself was filed to fix). Filed as **fb197** in BACKLOG.md.
-  // Re-enable point: fb197.
-  it.skip('swordsman seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'swordsman', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
-
-    const withShipped = runScriptedWithContent(config, shipped);
-    expect(withShipped.outcome).toBe('defeat_warden');
-    expect(withShipped.wavesCleared).toBe(3);
-
-    const withNeutral = runScriptedWithContent(config, neutral);
-    expect(withNeutral.outcome).not.toBe('defeat_warden');
-  }, 60_000);
-
-  // fb153b Known-issue — see the comment above. Re-enable point: fb197.
-  it.skip('pyromancer seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
-
-    const withShipped = runScriptedWithContent(config, shipped);
-    expect(withShipped.outcome).toBe('defeat_warden');
-    expect(withShipped.wavesCleared).toBe(3);
-
-    const withNeutral = runScriptedWithContent(config, neutral);
-    expect(withNeutral.outcome).not.toBe('defeat_warden');
-  }, 60_000);
+  // fb197 (2026-09-16): fb153b's `GATES.east` fix (`src/sim/grid.ts` —
+  // corrected a stale 36x20-era `{tx:35,ty:17}`, an interior tile at the
+  // shipped 56x32 grid, back to a real gate) changes real spawn-to-Core
+  // travel distance at Night-1 for every seed, including seed 1 here — and
+  // it turned out to fully retire this control pair's premise, not just
+  // shift its numbers. Fresh measurement (this item, real run, not the
+  // earlier "measured post-fix" guess logged when fb197 was filed, which
+  // claimed pyromancer -> `defeat_core`): **both classes now clear the
+  // entire run (`victory`, 18/18 waves) at `baseHpMul` 20, and also at
+  // `baseHpMul` 1** — `{outcome:"victory",wavesCleared:18,survivalSeconds:
+  // 592.32}` (swordsman) / `{outcome:"victory",wavesCleared:18,
+  // survivalSeconds:595.77}` (pyromancer) at baseHpMul 20;
+  // `{outcome:"victory",wavesCleared:18,survivalSeconds:562.25}` /
+  // `{outcome:"victory",wavesCleared:18,survivalSeconds:571.67}` at
+  // baseHpMul 1. The corrected gate position alone was enough to clear
+  // seed 1's first VS block for both classes regardless of `baseHpMul`, so
+  // there is no longer a `baseHpMul`-attributable outcome difference left
+  // to pin at this seed/class pair — per fb197's own acceptance text
+  // ("deleted in favor of a mechanism that still demonstrates baseHpMul's
+  // effect, if the corrected gate position changes the control pair's own
+  // premise"), the two assertions are retired rather than re-pinned to a
+  // pair of `victory`/`victory` checks that would no longer demonstrate
+  // anything. `baseHpMul`'s Night-1 mechanism itself is untouched by this
+  // finding (`shipped.enemies.baseHpMul` is still pinned at 20 above) —
+  // only this specific seed-1 two-class control pair stopped being able to
+  // show it. A fresh full roster sweep against the corrected gate position
+  // (BACKLOG fb197) is the source of truth for which classes, if any, still
+  // fail Night-1 post-fix.
 });
