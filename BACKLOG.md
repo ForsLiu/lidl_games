@@ -853,10 +853,22 @@ honor.**
       per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q175/Q193, BACKLOG p12f/fb183.
 
-- [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
-      shipping fb153b (working rule 3: a confirmed bug outranks the
-      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
-      `south` literal — both stale 36x20-era coordinates that had drifted
+- [ ] (fb197) [balance] **SKIPPED this loop-mode pass, 2026-09-16 — logged
+      reason: acceptance requires a fresh full 12-seed roster sweep of
+      `tests/p6e-class-diversity.test.ts`, which the file's own history
+      records at ~1h wall-clock (line ~404 above), plus re-pinning
+      `fb196-night1-basehpmul.test.ts`'s two assertions and a
+      `p13a-survivability-bands`/`fb193` spot-check — more than this
+      scheduled routine's 45-minute total item budget can fit as one item.
+      Now unblocked (fb153's gate fix landed and was independently
+      qa-playtester-verified this same session, so fb197's premise — the
+      corrected gate position — is real and ready to measure). Top of the
+      queue for the next session with room for a long-running item; do not
+      re-skip without doing the sweep next time.** Original text follows —
+      found ahead of queue order 2026-09-15 while shipping fb153b (working
+      rule 3: a confirmed bug outranks the queue). fb153b corrected
+      `GATES.east`/`world.ts:591`'s Fourth Gate `south` literal — both stale
+      36x20-era coordinates that had drifted
       onto ordinary interior tiles at the shipped 56x32 grid, a live
       gameplay bug (roughly a third of Act I spawns entering far closer to
       the Core than the other two gates). Because `generateTerrain` takes
@@ -1552,22 +1564,19 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
-      straight into the inbox. F8 at any moment in a run (dev mode) opens a
-      small box for a one-line note; on confirm the game writes, via a
-      dev-server endpoint (same pattern as the Tuner's save), a bug file into
-      `D:\lidl_inbox` named `bug-<timestamp>.md` containing: the note; class,
-      Core, tier, wave/phase, sim tick; the run seed and the full input log
-      (or a path to a saved replay file under `/replays`); the content hash;
-      and a screenshot PNG path captured from the canvas at that moment. The
-      loop treats it as a normal `[bug]` file and the qa/dev agent reproduces
-      it by replaying to that tick. Prod builds: F8 downloads the same bundle
-      as a file instead. Acceptance: F8 produces the file + screenshot +
-      replay; a test replays a saved bundle to the recorded tick with
-      matching hash (reuse architecture rule 2's content-hash/replay
-      machinery, `src/sim/run.ts`); CLAUDE.md's feedback rule updated to
-      mention replay bundles as first-class repros — refs: SPEC-FINAL §11/§12
-      (determinism, dev tooling), owner feedback `feature-bug-report-hotkey`.
+- [x] (fb139) — **duplicate entry, deleted 2026-09-16.** This was a second,
+      stale copy of an item already completed and archived on 2026-09-07
+      (see "Recently completed" above and `docs/BACKLOG-DONE.md:762-784` for
+      the real record); its checkbox here was left unflipped when the
+      original was archived under this same id. Re-verified live this
+      session that the archived completion still holds: F8 handler
+      (`src/ui/main.ts:630`), `src/ui/bugreport.ts`,
+      `src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`, and
+      `replayRecorded`/`hashWorld` (`src/sim/run.ts`) all present;
+      `tests/ui-fb139-bug-report-hotkey.test.ts`,
+      `tests/fb139-bug-report-plugin.test.ts` (9 tests), and
+      `tests/fb139-bug-report-replay.test.ts` all green
+      (15/15 total). No new work needed.
 - [x] (fb140) [feat] **DONE 2026-09-05** — `.github/workflows/ci.yml` (fast tier
       + build on every push/PR, full suite + STATUS regeneration nightly),
       `docs/CI.md`, and `tests/fb140-ci-workflow.test.ts`, whose assertions are

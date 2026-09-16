@@ -36,8 +36,30 @@
   control run to be pre-existing on the clean tree and unrelated to this
   change — out of this item's scope, not filed as a new item per this
   routine's own no-new-items rule. `npx tsc --noEmit` clean. code-reviewer
-  APPROVE (one Minor, fixed before commit); qa-playtester review requested
-  in parallel, not yet returned at commit time.
+  APPROVE (one Minor, fixed before commit). **qa-playtester PASS (2026-09-16,
+  logged by the next session to pick this item up):** independently
+  re-ran `npm run test:fast` (same 301/2/9 split), grepped every untouched
+  test reading `w.gates`/`GATES` for a hidden 3-gate assumption (none found),
+  and used a `git worktree` control at the parent commit to confirm both
+  `wouldBlockPath` failures reproduce identically pre-fix and are untouched
+  by this commit's diff. One naming observation (`data/modifiers.json`'s
+  `gate` modifier is still called "Fourth Gate" though it now opens a real
+  fifth gate) was assessed and left as-is — an established proper-noun name
+  elsewhere in the codebase (`world.ts:600`'s own comment), not a live count
+  claim.
+
+- **2026-09-16 — main lane: BACKLOG.md housekeeping — deleted a stale
+  duplicate `(fb139)` entry.** Working the owner-priority queue in order,
+  found a second, never-flipped `[ ] (fb139)` line under "Feedback —
+  owner-filed items (2026-09-04)"; the real fb139 (in-run F8 bug-report
+  hotkey) was already completed and archived on 2026-09-07 (BACKLOG.md's
+  "Recently completed" list, full text in `docs/BACKLOG-DONE.md:762-784`).
+  Re-verified live that the archived completion still holds — F8 handler,
+  dev-server save endpoint, replay bundle + screenshot, content-hash replay
+  all present, and all three fb139 test files green (15/15) — then removed
+  the stale duplicate rather than writing a second, contradictory "done"
+  record for the same id (code-reviewer caught the near-miss: my first pass
+  had described it as "never flipped," ignoring the 2026-09-07 archive).
 
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
