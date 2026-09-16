@@ -306,31 +306,25 @@ export function applyHealingToStructure(w: World, s: Structure, amount: number):
  * lifesteals exactly once.
  */
 export function applyTowerLifesteal(w: World, s: Structure, dealt: number): void {
-  if (dealt <= 0 || w.core.towerLifestealPct <= 0) return;
-  applyHealingToStructure(w, s, dealt * w.core.towerLifestealPct);
-  // fb016: lifesteal motes flowing from the healed structure to the Core.
-  w.emit('core_lifesteal', s.tx + 0.5, s.ty + 0.5, 0, 0);
-}
-
-/**
- * SPEC-FINAL §4.2 Bloodlord *Blood Tithe*: "its share of VS attacks
- * lifesteals +1%" — the clause `classTowerDamageMul` (towers.ts) does not
- * cover (that one is the tithe's permanent damage bonus). VS only
- * (`w.huntsWarden`), gated on `s.tithed`, which only `fireBloodTithe`
- * (classes.ts) ever sets — so no separate class-key check is needed here.
- * Heals the Warden, not the structure: this is the character's own VS-phase
- * lifesteal, unlike `applyTowerLifesteal` above (a Core effect that heals
- * the tower itself). Called from the same three sites that credit
- * `Structure.damageDealt` and call `applyTowerLifesteal`, so a tithed
- * tower's damage lifesteals exactly once per hit, same as that one.
- */
-export function applyTitheLifesteal(w: World, s: Structure, dealt: number): void {
-  if (dealt <= 0 || !s.tithed || !w.huntsWarden) return;
-  const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.active1.kind !== 'blood_tithe') return;
-  const pct = cls.active1.titheLifestealPct ?? 0;
-  if (pct <= 0) return;
-  applyHealingToWarden(w, dealt * pct);
+  if (dealt <= 0) return;
+  if (w.core.towerLifestealPct > 0) {
+    applyHealingToStructure(w, s, dealt * w.core.towerLifestealPct);
+    // fb016: lifesteal motes flowing from the healed structure to the Core.
+    w.emit('core_lifesteal', s.tx + 0.5, s.ty + 0.5, 0, 0);
+  }
+  // fb086 (§4.2 Blood Tithe): "its share of VS attacks lifesteals +1%" — a
+  // tithed tower's own VS-phase damage heals the Warden, independent of
+  // Vampire Heart's structure-healing lifesteal above. `s.tithed` can only be
+  // true while playing Bloodlord (only `fireBloodTithe` ever sets it), but
+  // the kind check is checked anyway, the same defensive style
+  // `classTowerDamageMul` (towers.ts) already uses for the same flag.
+  if (w.huntsWarden && s.tithed) {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (cls && cls.active1.kind === 'blood_tithe') {
+      const pct = cls.active1.titheLifestealPct ?? 0;
+      if (pct > 0) applyHealingToWarden(w, dealt * pct);
+    }
+  }
 }
 
 /** Fractional-gold accumulator so a sub-1-gold/tick trickle (Time step 1, overheal conversion) never rounds to nothing. */

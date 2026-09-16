@@ -281,6 +281,12 @@ describe('c014: the shared board is probed, not pinned', () => {
     // every window in the six files was calibrated from this spot. If a future
     // change to `/data` or the grid moves it, this is the row that says so, and
     // the six files' margins get re-read rather than silently inherited.
+    // Re-measured at fb153b's gate-list fix (BACKLOG.md, main-lane): `World`
+    // used to build its base gate list as `GATES.slice(0, 3)`, dropping
+    // `GATES`'s own real `south` gate from every run's terrain generation.
+    // Reading the full four-gate list opens the map's south arm back up,
+    // which moved the shipped board again — a real, re-measured move, not a
+    // hand-derived one.
     expect(
       { WX, WY, BUILD_TX, BUILD_TY },
       'the probed board moved off the spot the importers were calibrated from. This is a deliberate ' +
@@ -299,12 +305,6 @@ describe('c014: the shared board is probed, not pinned', () => {
     });
     // c025's column, as a baseline of its own: the aim point `class-kit-whiff`
     // fires the Ice Wall at, and the three rows that wall occupies.
-    //
-    // Re-measured at fb153 (world.ts now plays all 4 of GATES, not a stale
-    // first-3 slice, which redraws the generated terrain and moved the probed
-    // board from 8,12 to 4,11): re-verified against `servesImporters` and the
-    // footprint-tile row below, both of which pass unchanged, so the six
-    // importers still have what they need at the new spot.
     expect({ WALL_TX, WALL_TYS: [...WALL_TYS] }, 'the shared Ice Wall column moved').toEqual({
       WALL_TX: 6,
       WALL_TYS: [10, 11, 12],
@@ -313,12 +313,16 @@ describe('c014: the shared board is probed, not pinned', () => {
   });
 
   /**
-   * **The baseline above moved once, on purpose, and this is the record.**
+   * **The baseline above has moved twice now, on purpose, and this is the
+   * record.**
    *
    * It read `10,10` / `11,10` until master's terrain epic (`fb077`) landed and
-   * `cfg()`'s seed started generating a real map. The scan then walked to
-   * `10,6` — which is the entire point of c014, and the seven importers went
-   * green on the new board without a line changing in any of them. The row
+   * `cfg()`'s seed started generating a real map, at which point the scan
+   * walked to `10,6` — the entire point of c014, and the seven importers went
+   * green on the new board without a line changing in any of them. `fb153`
+   * (main lane: `World` now builds its gate list from the real `GATES`/
+   * `MODIFIER_GATES` instead of a stale `GATES.slice(0, 3)` copy) changed what
+   * seed 1 generates yet again, moving the board to `4,11`. Both times the row
    * above fired exactly once, loudly, saying the board had moved; it did not
    * degenerate into seven files each reporting "harness could not build".
    */
@@ -341,7 +345,8 @@ describe('c014: the shared board is probed, not pinned', () => {
   it('the tier the shipped board landed on is recorded, so a change in it is visible', () => {
     // Reported rather than required. If terrain generation ever gets generous
     // enough for a `full` board, or stingy enough that even `reduced` fails,
-    // this row is where that shows up.
+    // this row is where that shows up. Moved `full` -> `reduced` at fb153b's
+    // gate-list fix, same re-measurement as the row above.
     expect(['full', 'reduced']).toContain(BOARD.tier);
     expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('reduced');
   });
@@ -447,10 +452,16 @@ describe('c014: a shifted probe origin moves the whole board', () => {
   }
 
   it('the far corner lands on its own nearby legal board, not the shipped one', () => {
-    // Re-measured at fb153: `world.ts` now plays all 4 of `GATES` (was a stale
-    // first-3 slice that dropped the real south gate and opened a wrong-place
-    // literal under the Fourth Gate modifier), which redraws the generated
-    // terrain and moves both this answer and the legal-board count below.
+    // Re-measured at fb153b's gate-list fix (BACKLOG.md, main-lane): `World`
+    // used to build its base gate list as `GATES.slice(0, 3)`, silently
+    // dropping `GATES`'s own real `south` gate from every run's terrain
+    // generation — the south half of the map generated as if it never needed
+    // a clear path to a gate at all, closing off most of it. Reading the full
+    // four-gate `GATES` list (this item) opens that whole south arm of the
+    // map back up, which is what actually moved this measurement — not a
+    // rescale or a jitter change. `1,1`'s nearest legal board and the total
+    // legal-board count were both re-measured against the fixed generator,
+    // not hand-derived.
     expect(probeBoard({ tx: 1, ty: 1 })).toEqual({
       WX: 2,
       WY: 11,
@@ -461,9 +472,8 @@ describe('c014: a shifted probe origin moves the whole board', () => {
       hasWall: true,
       tier: 'reduced',
     });
-    // The claim underneath it: how many legal boards the shipped map has.
-    // Playing all 4 real gates (rather than dropping `south`) opens far more
-    // of the map than the stale 3-gate terrain did — 66 vs. the prior 7.
+    // The claim underneath it: legal boards are far more plentiful once the
+    // south arm is actually open ground rather than accidentally sealed off.
     let legal = 0;
     for (let ty = 1; ty < GRID_H - 1; ty++) {
       for (let tx = 1; tx < GRID_W - 1; tx++) {
@@ -471,7 +481,7 @@ describe('c014: a shifted probe origin moves the whole board', () => {
         if (b.WX === tx && b.WY === ty) legal++;
       }
     }
-    expect(legal, 'the number of legal boards on the shipped map moved — re-read the c025 measurement').toBe(66);
+    expect(legal, 'the number of legal boards on the shipped map moved — re-read the fb153b measurement').toBe(66);
   });
 
   it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {

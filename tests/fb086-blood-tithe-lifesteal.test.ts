@@ -1,107 +1,177 @@
 /**
- * fb086 regression: SPEC-FINAL §4.2 Bloodlord *Blood Tithe* reads "tower pays
- * 30% current HP once -> permanently +25% dmg; **its share of VS attacks
- * lifesteals +1%**". Only the first half was ever wired — `s.tithed` fed
- * `classTowerDamageMul` (towers.ts) and nothing read it for the lifesteal
- * clause. `leech` (a run-wide Warden stat, Blood Frenzy) is a different
- * mechanism entirely and cannot stand in for a per-structure VS-share heal.
+ * BACKLOG fb086 — SPEC-FINAL §4.2 Bloodlord *Blood Tithe*: "tower pays 30%
+ * current HP once -> permanently +25% dmg; **its share of VS attacks
+ * lifesteals +1%**". Only the first half existed: `s.tithed` fed
+ * `classTowerDamageMul` (`towers.ts`) and nothing else read it — `leech` is a
+ * single run-wide Warden stat, with no per-structure VS-share lifesteal
+ * concept authored anywhere (`tests/class-spec-numbers.test.ts`'s own
+ * `unimplemented` row for this clause).
  *
- * This pins the missing half directly against the real attack path
- * (`updateTowers` -> `fireTower` -> `applyTitheLifesteal`, cores.ts): a
- * tithed tower's VS damage heals the Warden by `titheLifestealPct` of what it
- * deals, an untithed tower heals nothing, and the same tithed tower heals
- * nothing outside VS (TD, where `classTowerDamageMul`'s own bonus still
- * applies but the Warden is not even the thing being defended).
+ * Shipped as a new crossing-constant field, `active1.titheLifestealPct`
+ * (`data/classes.json`, authored 0.01 = "+1%", same Lifesteal crossing-
+ * constant shape as `leech`/`towerLifestealPct` — inverse-scaled by
+ * `isInverseScaledClassPath`/`applyNumberScale`, content.ts), read at
+ * `applyTowerLifesteal`'s existing choke point (`cores.ts`) — the same three
+ * call sites (`towers.ts`'s synchronous kinds, `combat.ts`'s `pierce`/`lob`
+ * async landing) that already credit Vampire Heart's structure-heal lifesteal
+ * off the same `dealt` amount, so a tithed tower heals the Warden exactly
+ * once per hit regardless of attack kind, independent of whether Vampire
+ * Heart is even the selected Core.
  */
+
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, type Content } from '../src/sim/content';
+import { updateProjectiles } from '../src/sim/combat';
+import { loadContent } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import { buildTower, updateTowers } from '../src/sim/towers';
-import type { Enemy, Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 import { cfg } from './helpers';
 
-const content: Content = loadContent();
 const DT = 1 / 60;
-const SPIRE = 'arrow_spire';
+const content = loadContent();
+const ARROW = content.towerByKey.get('arrow_spire')!;
+const BALLISTA = content.towerByKey.get('ballista')!;
+const BLOODLORD = content.classByKey.get('bloodlord')!;
+const TITHE_PCT = BLOODLORD.active1.titheLifestealPct!;
 
-/** Built in the default (buildable) phase, so `buildTower`'s own phase rules never enter this test. */
-function bloodlordWorld(): World {
-  const w = new World(cfg({ classKey: 'bloodlord' }), content);
+function nearTile(w: World): { tx: number; ty: number } {
+  for (let ty = 4; ty < 20; ty++) {
+    for (let tx = 4; tx < 20; tx++) {
+      if (w.grid.buildable(tx, ty) && !w.grid.wouldBlockPath([[tx, ty]])) return { tx, ty };
+    }
+  }
+  throw new Error('no buildable tile');
+}
+
+function buildAt(w: World, tx: number, ty: number, towerId: number) {
+  w.warden.x = tx + 0.5;
+  w.warden.y = ty + 0.5;
   w.gold = 1e6;
-  w.warden.attackCooldown = 1e9;
-  w.warden.x = WX;
-  w.warden.y = WY;
-  return w;
+  expect(buildTower(w, towerId, tx, ty).ok).toBe(true);
+  return w.structureAt(tx, ty)!;
 }
 
-function place(w: World): Structure {
-  const def = w.content.towerByKey.get(SPIRE)!;
-  const r = buildTower(w, def.id, BUILD_TX, BUILD_TY);
-  expect(r.ok, 'harness could not build the tower under test').toBe(true);
-  return (r as { ok: true; structure: Structure }).structure;
-}
+describe('fb086: Blood Tithe VS-share lifesteal — data lands at the authored figure', () => {
+  it('is authored at the value the control below depends on', () => {
+    expect(TITHE_PCT).toBeCloseTo(0.01 * (1 / content.modifiers.numberScale), 9);
+  });
+});
 
-/** A stationary, unarmoured punching bag deep enough that no volley here can kill it. */
-function dummy(w: World): Enemy {
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, WX + 2, WY)!;
-  e.hp = 1e7;
-  e.maxHp = e.hp;
-  e.speed = 0;
-  e.armor = 0;
-  w.rebuildBuckets();
-  return e;
-}
-
-/** Fires exactly one forced volley from `s` and returns the raw damage it dealt. */
-function fireOnce(w: World, s: Structure): number {
-  const e = dummy(w);
-  const before = e.hp;
-  s.cooldown = 0;
-  updateTowers(w, DT);
-  return before - e.hp;
-}
-
-describe('fb086: Blood Tithe VS-share lifesteal', () => {
-  it("heals the Warden by titheLifestealPct of a tithed tower's VS damage", () => {
-    const w = bloodlordWorld();
-    const s = place(w);
-    w.phase = 'act2'; // huntsWarden
+describe('fb086: a tithed tower heals the Warden for its own VS-phase damage', () => {
+  it('VS phase, tithed tower: the Warden heals by titheLifestealPct of the damage dealt', () => {
+    const w = new World(cfg({ classKey: 'bloodlord' }), content);
+    const { tx, ty } = nearTile(w);
+    const s = buildAt(w, tx, ty, ARROW.id);
     s.tithed = true;
-    w.warden.hp = 1; // headroom — otherwise the heal overheal-converts to gold instead of landing on hp
-    const before = w.warden.hp;
-    const dealt = fireOnce(w, s);
-    expect(dealt).toBeGreaterThan(0);
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5)!;
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    e.speed = 0;
+    w.rebuildBuckets();
+    s.cooldown = 0;
+    w.phase = 'act2'; // VS: huntsWarden
+    w.warden.hp = 1;
 
-    const cls = w.content.classByKey.get('bloodlord')!;
-    const pct = cls.active1.titheLifestealPct ?? 0;
-    expect(pct).toBeGreaterThan(0);
-    expect(w.warden.hp - before).toBeCloseTo(dealt * pct, 6);
+    updateTowers(w, DT);
+
+    const dealt = w.damageByWeapon['arrow_spire'];
+    expect(dealt).toBeGreaterThan(0);
+    expect(w.warden.hp).toBeCloseTo(1 + dealt * TITHE_PCT, 9);
   });
 
-  it('an untithed tower heals nothing, same VS attack', () => {
-    const w = bloodlordWorld();
-    const s = place(w);
+  it('VS phase, untithed tower: no Warden heal', () => {
+    const w = new World(cfg({ classKey: 'bloodlord' }), content);
+    const { tx, ty } = nearTile(w);
+    const s = buildAt(w, tx, ty, ARROW.id);
+    expect(s.tithed).toBe(false);
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5)!;
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    e.speed = 0;
+    w.rebuildBuckets();
+    s.cooldown = 0;
     w.phase = 'act2';
     w.warden.hp = 1;
-    expect(s.tithed).toBe(false);
-    const before = w.warden.hp;
-    const dealt = fireOnce(w, s);
-    expect(dealt).toBeGreaterThan(0);
-    expect(w.warden.hp).toBe(before);
+
+    updateTowers(w, DT);
+
+    expect(w.damageByWeapon['arrow_spire']).toBeGreaterThan(0);
+    expect(w.warden.hp).toBe(1);
   });
 
-  it('a tithed tower outside VS (TD) heals nothing', () => {
-    const w = bloodlordWorld();
-    const s = place(w);
+  it('TD phase, tithed tower: no Warden heal (the clause is VS-only)', () => {
+    const w = new World(cfg({ classKey: 'bloodlord' }), content);
+    const { tx, ty } = nearTile(w);
+    const s = buildAt(w, tx, ty, ARROW.id);
     s.tithed = true;
-    expect(w.huntsWarden).toBe(false);
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5)!;
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    e.speed = 0;
+    w.rebuildBuckets();
+    s.cooldown = 0;
+    // w.phase stays 'act1_build' (huntsWarden === false)
     w.warden.hp = 1;
-    const before = w.warden.hp;
-    const dealt = fireOnce(w, s);
-    expect(dealt).toBeGreaterThan(0);
-    expect(w.warden.hp).toBe(before);
+
+    updateTowers(w, DT);
+
+    expect(w.damageByWeapon['arrow_spire']).toBeGreaterThan(0);
+    expect(w.warden.hp).toBe(1);
+  });
+
+  it('VS phase, tithed tower, a different class selected: no Warden heal', () => {
+    // `s.tithed` can in practice only ever be set true while playing
+    // Bloodlord (only `fireBloodTithe` ever writes it) — this forces the
+    // otherwise-unreachable case directly, pinning the defensive
+    // `cls.active1.kind === 'blood_tithe'` check `classTowerDamageMul`
+    // (towers.ts) already uses for the same flag.
+    const w = new World(cfg({ classKey: 'swordsman' }), content);
+    const { tx, ty } = nearTile(w);
+    const s = buildAt(w, tx, ty, ARROW.id);
+    s.tithed = true;
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5)!;
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    e.speed = 0;
+    w.rebuildBuckets();
+    s.cooldown = 0;
+    w.phase = 'act2';
+    w.warden.hp = 1;
+
+    updateTowers(w, DT);
+
+    expect(w.damageByWeapon['arrow_spire']).toBeGreaterThan(0);
+    expect(w.warden.hp).toBe(1);
+  });
+
+  // Regression: `pierce`/`lob`-kind towers credit `Structure.damageDealt`
+  // asynchronously once their shot actually lands (`combat.ts`'s
+  // `updateProjectiles`), not synchronously inside `fireTower` — the same
+  // p5d split Vampire Heart's own lifesteal already has to handle
+  // (`tests/p-core-b-effects.test.ts`'s "still lifesteals once its bolt
+  // actually lands"). `applyTowerLifesteal` is called from both sites, so
+  // this pins that the Warden-heal branch inherits it too.
+  it('VS phase, tithed pierce-kind tower (Ballista): still heals the Warden once the bolt lands', () => {
+    const w = new World(cfg({ classKey: 'bloodlord' }), content);
+    const { tx, ty } = nearTile(w);
+    const s = buildAt(w, tx, ty, BALLISTA.id);
+    s.tithed = true;
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5)!;
+    e.hp = 1e9;
+    e.maxHp = 1e9;
+    e.armor = 0;
+    e.speed = 0;
+    w.phase = 'act2';
+    w.warden.hp = 1;
+
+    for (let i = 0; i < 400 && s.damageDealt === 0; i++) {
+      w.rebuildBuckets();
+      updateTowers(w, DT);
+      updateProjectiles(w, DT);
+    }
+
+    expect(s.damageDealt).toBeGreaterThan(0);
+    expect(w.warden.hp).toBeCloseTo(1 + s.damageDealt * TITHE_PCT, 6);
   });
 });
