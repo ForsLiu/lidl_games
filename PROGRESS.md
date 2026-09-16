@@ -5,6 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
+  restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
+  The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
+  the game's own design — the character wields every built tower in VS, so
+  wielded damage dominating is intended, not a gap to close. Restated to
+  **own-kit VS share >=15% from TD wave 12**, a `BALANCE.md` target (not a
+  G8 clause), scoped to the nine classes with a damaging VS Active;
+  bloodlord/engineer/animist exempt (record only). `BALANCE.md`'s "Kit
+  relevance target" §3 rewritten with a fresh live re-measurement
+  (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, all 12 classes): **1 of 9
+  in-scope classes clears 15%** (plaguebringer, 30.48%); next-best
+  stormcaller 5.58%. `tests/class-kit-damage-share.test.ts`'s
+  `KIT_SHARE_TARGET` 0.35->0.15 plus a new `KIT_SHARE_EXEMPT` split.
+  `tests/p6e-class-diversity.test.ts`'s G8 describe block had a duplicate
+  copy of this same metric under G8's name (`clause (i)`, `.skip`-ed at
+  35%) — removed along with its pin, `Row.vsShare`, and the now-unused
+  `isKitSource` import, confirming G8 is T3 win-rate band + pairwise
+  fingerprint distance only, per the owner's own text. `npx tsc --noEmit`
+  clean; code-reviewer approved (no Critical/Major, two Minor comment nits
+  fixed before commit); qa-playtester confirmed both items' acceptance
+  criteria with independent reduced-scope live re-runs, found no bugs.
+  `npm run test:fast` shows the same 20 pre-existing terrain/grid/
+  class-board failures as baseline (confirmed via `git stash` control),
+  none introduced by this change — commit `5af87a9`.
+
 - **2026-09-15 — main lane: BACKLOG fb092 done — G13's "enough builds"
   floor restored; the 35% share-cap clause re-pinned red, honestly, not
   closed.** `fb054`'s density pass had left `tests/p10c-weapon-share.

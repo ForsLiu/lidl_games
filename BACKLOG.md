@@ -349,20 +349,29 @@ not here.
       original census proved — refs: SPEC-FINAL §2/§3, QUESTIONS Q180/Q191,
       BACKLOG fb153a/fb164.
 
-- [ ] (fb183) [balance] **priority 3** — restate the kit-relevance target in
-      BALANCE.md and its tests per QUESTIONS Q175's amendment to BALANCE
-      DIRECTION v2 §A: own-kit VS-damage-share target = **15% ⚖ from TD
-      wave 12** (not 35%, not a G8 clause), measured for the nine classes
-      whose kit has a damaging VS Active; bloodlord, engineer and animist
-      are exempt (identity via lifesteal/tithe/summons respectively) and
-      measured for the record only, not against the target. `kitPowerMul`
-      and `kitBuildMul` stay exactly as shipped (p12a/p12f) — no further
-      route-(b) wielded-scaling cut. Acceptance: BALANCE.md's "Kit relevance
-      target" section rewritten to the 15%-from-wave-12 wording and the
-      nine/three split; `tests/class-kit-damage-share.test.ts`'s assertion
-      re-pointed at the new target and wave cutoff, re-measured live (not
-      carried from the old 35% run) — refs: QUESTIONS Q175/Q193, BALANCE
-      DIRECTION v2 §A, BACKLOG p12a/p12f.
+- [x] (fb183) [balance] **DONE 2026-09-15 — closed together with fb195 below,
+      same restatement, same acceptance.** `BALANCE.md`'s "Kit relevance
+      target" §3 rewritten to **own-kit VS share >=15% ⚖ from TD wave 12**
+      (was >=35%), explicitly a BALANCE.md target and not a G8 clause,
+      scoped to the nine classes whose kit has a damaging VS Active
+      (swordsman, plaguebringer, pyromancer, archer, necromancer, cryomancer,
+      stormcaller, paladin, time_lord); bloodlord/engineer/animist recorded
+      exempt, for the record only. `kitPowerMul`/`kitBuildMul` untouched, no
+      route-(b) cut. `tests/class-kit-damage-share.test.ts`'s
+      `KIT_SHARE_TARGET` 0.35 -> 0.15, new `KIT_SHARE_EXEMPT` set splits the
+      `meeting`/log output into in-scope vs. exempt-record-only. Fresh live
+      re-measurement (`KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`, all 12
+      classes, T1, `cycles: 6`, full tree, 2026-09-15 — not carried from the
+      2026-09-07 p12f numbers, which predate fb153a/fb153b/fb194/p13a/
+      fb156's gate reposition) recorded in BALANCE.md §3's new table: **1 of
+      9 in-scope classes clears 15%** (`plaguebringer`, 30.48%); next-best
+      `stormcaller` 5.58%; the other seven read 0.00%-0.64%. Old-target
+      history (the 0/12-at-35% measurements) kept in BALANCE.md/the test
+      file's header as superseded record, not deleted. `npx tsc --noEmit`
+      clean; `tests/class-kit-damage-share.test.ts`'s two fast-tier
+      invariant cases still green (the sweep's own third `it()` is
+      `MEASURE`-gated and correctly skipped by default) — refs: QUESTIONS
+      Q175/Q193, BALANCE DIRECTION v2 §A, BACKLOG p12a/p12f/fb195.
 
 - [x] (fb184) [bug] **DONE 2026-09-15 — cheap closer** (QUESTIONS Q181 ORDER) —
       the loader refuses an unknown top-level key in `data/modifiers.json`,
@@ -763,23 +772,31 @@ honor.**
       sim -- --seed N --policy hybrid`) shows economy-A-only scaling is
       still proportional and gate-neutral — refs: SPEC-FINAL §2/§3,
       QUESTIONS Q180/Q191, BACKLOG fb153a/fb163/fb164.
-- [ ] (fb195) [balance] **DECISION (Q175/Q193)** — restate the own-kit VS
-      share target. Amends BALANCE DIRECTION v2 §A: the shipped >=35%
-      own-kit-share target fought the owner's own VS design (the character
-      wields every tower, so wielded damage is supposed to dominate).
-      Restated target: own-kit VS share **>=15% ⚖ from TD wave 12**, a
-      BALANCE.md target (not a G8 clause), measured for the nine classes
-      whose kit has a damaging VS Active; bloodlord, engineer and animist
-      are exempt (identity via lifesteal/tithe and summons respectively)
-      and are measured for the record only. `kitPowerMul` and
-      `kitBuildMul` stay as shipped; route (b) (cutting wielded-weapon VS
-      scaling) is not pursued. Acceptance: BALANCE.md's "Kit relevance
-      target" section and `tests/class-kit-damage-share.test.ts` re-point
-      to the 15%-from-wave-12 target for the nine in-scope classes and
-      record bloodlord/engineer/animist as exempt/informational; G8's own
-      definition in BALANCE.md/tests is confirmed as T3 win-rate band +
-      pairwise fingerprint distance (§D) only, with no kit-share clause —
-      refs: SPEC-FINAL §14 G8, QUESTIONS Q175/Q193, BACKLOG p12f.
+- [x] (fb195) [balance] **DONE 2026-09-15 — closed together with fb183
+      above; same restatement (see fb183 for the full measurement table and
+      numbers), this item's own text below is what fb183 executed.** The
+      one clause fb183's own acceptance did not name explicitly — **"G8's
+      own definition ... confirmed as T3 win-rate band + pairwise
+      fingerprint distance (§D) only, with no kit-share clause"** — is
+      closed by removing `tests/p6e-class-diversity.test.ts`'s former G8
+      describe-block clause (i) (`it.skip('every class\'s own-kit VS damage
+      share is >=35% from wave 12 (clause i)')` and its red-count pin): that
+      test duplicated the exact same own-kit-VS-share metric
+      `class-kit-damage-share.test.ts` already owns as a BALANCE.md target
+      under a name G8 never actually carried. Removed with it: `Row.vsShare`
+      (that file's own copy of the metric), the `KIT_SHARE_TARGET`/
+      `QUALIFYING_WAVE` constants and the `ownVs`/`allVs` accumulation in
+      `beforeAll` that fed it, and the now-unused `isKitSource` import — the
+      metric's single home is now `class-kit-damage-share.test.ts`. G8's
+      remaining describe block is confirmed to hold exactly clause (ii)
+      (pairwise fingerprint distance) plus its own per-class win-rate `it`s
+      — no kit-share assertion anywhere in the file. `npx tsc --noEmit`
+      clean (no stray references, `noUnusedLocals` satisfied); the file's
+      own ~1h full sweep was not re-run per CLAUDE.md rule 8 (this item's
+      acceptance is the removal/confirmation, not a fresh G1/G8/G14/G23
+      re-measurement, and the edit does not touch clause (ii) or any
+      per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
+      Q175/Q193, BACKLOG p12f/fb183.
 
 - [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
       shipping fb153b (working rule 3: a confirmed bug outranks the
