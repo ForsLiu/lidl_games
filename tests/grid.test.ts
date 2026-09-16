@@ -9,6 +9,9 @@ describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
     expect(GRID_W).toBe(56);
     expect(GRID_H).toBe(32);
+    // fb156 grew the base gate list to four (west/north/east/south), one per
+    // edge; fb153b (BACKLOG.md, main-lane) is what made `World` actually read
+    // all four instead of silently slicing to the pre-resize three.
     expect(GATES.length).toBe(4);
     const g = new Grid();
     for (const gate of GATES) expect(g.tile[g.idx(gate.tx, gate.ty)]).toBe(TileType.Gate);
@@ -41,8 +44,11 @@ describe('grid', () => {
 
   it('rejects a placement that walls a gate off', () => {
     const g = new Grid();
-    // Box the west gate (fb156: now at (0,12), not the old 36x20 (0,10)) in
-    // completely.
+    // Box the west gate in completely. `GATES.west` is `{ tx: 0, ty: 12 }` on
+    // the shipped 56x32 layout (fb153b, BACKLOG.md, main-lane — re-measured
+    // against the real board, not the pre-resize `ty: 10` this box used to
+    // hardcode), so its only interior exit is `(1, 12)`, flanked by
+    // `(1, 11)`/`(1, 13)`.
     const box: [number, number][] = [
       [1, 11],
       [1, 12],

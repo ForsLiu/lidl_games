@@ -5,39 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-16 — main lane: BACKLOG fb153 done — closed, both sub-items.**
-  The item's last open piece (point 1 of fb153b's own text): `World`'s
-  constructor built `this.gates` as `GATES.slice(0, 3)`, a stale 3-entry copy
-  from before fb156 grew the real `GATES` constant to 4 (west/north/east/
-  south), and — under the `gate` modifier — pushed a hand-typed
-  `{ key: 'south', tx: 12, ty: GRID_H - 1 }` literal instead of the real
-  `MODIFIER_GATES[0]` (`south2`, `(3, GRID_H - 1)`). Every run, not just
-  modifier ones, silently dropped the real base `south` gate from
-  `World.gates` (the tile itself stayed open, since `new Grid()` already
-  defaults to the real `GATES`, but nothing spawned from it or drew its
-  path). Fixed: `this.gates = GATES.slice()` (all 4 base gates) plus
-  `this.gates.push(MODIFIER_GATES[0])` under the modifier (5 total).
-  `tests/terrain-gates-dump.test.ts`'s long-skipped
-  `it.skip('describes a live Fourth Gate run correctly...')` — the test that
-  named this exact defect — is un-skipped and re-pinned to the real 5-gate
-  shape. Since the corrected base gate list changes what every seed's
-  terrain generation produces (not just modifier runs), seven test files'
-  golden values needed re-measuring live against the fixed code rather than
-  hand-derived (CLAUDE.md measurement rules): `act1.test.ts`,
-  `grid.test.ts`, `fb034-max-towers.test.ts`, `fb036-path-indicators.test.ts`,
-  `fb077-terrain-wiring.test.ts`, and `class-board.test.ts`'s self-probing
-  shared board (baseline moved to `WX:4, WY:11`, tier `full` -> `reduced`).
-  `npm run test:fast` (303 files, 4371 tests, 37 intentionally skipped) and
-  `npx tsc --noEmit` both clean. code-reviewer: APPROVE, no Critical/Major
-  (two Nits — stale "3 or 4 gates" doc comments in `theme.ts` and
-  `canvas.ts`'s `drawPathIndicators` — fixed inline). qa-playtester: PASS
-  against all five acceptance criteria via independent live re-execution
-  (seed sweeps 1-80 with/without the modifier, stacked modifiers,
-  determinism, real spawn round-robin, practice-mode isolation); one
-  non-blocking observation, not filed as a bug — under the `gate` modifier,
-  `south2` (gate index 4) wraps to the same `GATE_PATH_COLORS` entry as
-  `west` (documented, intentional wraparound in `theme.ts`, pre-existing
-  tradeoff, not introduced here).
+- **2026-09-16 — main lane: BACKLOG fb153b's own remaining "point 1" closed —
+  `World` now reads the real four-gate `GATES`, not the stale `slice(0, 3)`.**
+  `src/sim/world.ts`'s gate-list build silently dropped `GATES`'s own real
+  `south` gate from *every* run's terrain generation (base list was
+  `GATES.slice(0, 3)` = west/north/east only); the `gate` modifier's fifth
+  gate is now `MODIFIER_GATES[0]` (`south2`) pushed by reference instead of a
+  hand-typed `{ key: 'south', tx: 12, ty: GRID_H - 1 }` literal that could
+  drift off `grid.ts`'s maintained position. `tests/terrain-gates-dump.
+  test.ts`'s long-skipped "describes a live Fourth Gate run correctly" test
+  is un-skipped and re-measured against the fixed behaviour (5 gates:
+  west/north/east/south/south2), per BACKLOG fb153b's own text describing
+  exactly this fix. Reading the real fourth gate opens the whole south arm of
+  the map back up in terrain generation, which moved several golden values
+  that were measuring the buggy 3-gate map — re-measured against the fixed
+  generator, not hand-derived, per CLAUDE.md's measurement rules:
+  `tests/class-board.test.ts` (shipped-board WX/WY/tier and the "far corner"
+  legal-board count, 7->66 legal boards once the south arm is real ground),
+  `tests/fb034-max-towers.test.ts` (a stale non-practice build tile),
+  `tests/fb036-path-indicators.test.ts` (gate modifier now draws 5 paths, not
+  4; comment/title de-staled), `tests/fb077-terrain-wiring.test.ts` (control
+  map generation and the gate-modifier gate-count/position assertions),
+  `tests/act1.test.ts` (the gate-sealing box and the wave-spawn gate count —
+  both hardcoded the pre-resize west gate at `ty: 10`/three gates; the real
+  `GATES.west` is `{ tx: 0, ty: 12 }` and there are four base gates) and
+  `tests/grid.test.ts` (`GATES.length` and its own gate-sealing box, same
+  class of staleness). The `act1.test.ts`/`grid.test.ts` pair were first
+  confirmed via `git stash` (and via master's own CI on this branch's parent
+  commit, `b4d4dc0` — `fast tier + build` already red there on the identical
+  4 assertions, among 9 total) to be pre-existing, not introduced by this
+  fix — but on the coordinator's direction they are squarely this item's own
+  regression coverage to finish (the exact same "`GATES` has had 4 entries
+  since fb156, the code/tests didn't" defect this item targets), not a
+  separate item, so they are fixed here too, re-measured against the real
+  4-gate board rather than hand-derived. `npx tsc --noEmit` clean.
+  `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+  green. No dedicated Task-launch tool was available in this session, so the
+  code-reviewer/qa-playtester passes were performed directly against their
+  `.claude/agents/*.md` checklists (architecture rules, determinism, tests,
+  hostile edge cases) rather than as separate subagent invocations; no
+  Critical/Major findings, no bugs filed.
 
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**

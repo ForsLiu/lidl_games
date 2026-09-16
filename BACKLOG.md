@@ -509,45 +509,44 @@ therefore measure *after* `fb153`, not before.
 
         **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
 
-        **DONE 2026-09-16 (main lane, this session): point 1 closed, both
-        pieces.** `world.ts`'s `World` constructor now reads
-        `this.gates = GATES.slice()` (all 4 base gates, not `slice(0, 3)`) and,
-        under the `gate` modifier, pushes `MODIFIER_GATES[0]` (`south2`,
-        `(3, GRID_H - 1)`) by reference instead of the stale hand-typed
-        `south` literal. `tests/terrain-gates-dump.test.ts`'s
-        `it.skip('describes a live Fourth Gate run correctly...')` is
-        un-skipped and re-pinned to the real `[west, north, east, south,
-        south2]` 5-gate shape. Point 2's golden-value re-measurement (this
-        item's own named list) is also closed as part of the same fix, since
-        the corrected 4-base-gate list changes what every seed generates,
-        not just modifier runs: `tests/act1.test.ts` (2, the west-gate box
-        position and the wave-1 spawn-per-gate count, 3 gates -> 4),
-        `tests/grid.test.ts` (2, `GATES.length` 3 -> 4 and the west-gate box
-        position), `tests/fb034-max-towers.test.ts` (1, a non-practice build
-        tile that stopped being open ground at the newly-regenerated seed 1),
-        `tests/fb036-path-indicators.test.ts` (1, 4 gates -> 5 under the
-        modifier, `GATE_PATH_COLORS` read with its own documented `%` wrap),
-        `tests/fb077-terrain-wiring.test.ts` (2, the base gate list fed to
-        `generateTerrain` and the modifier gate count/position) and
-        `tests/class-board.test.ts`'s self-probing shared board (3: the
-        baseline moved to `WX:4, WY:11`, `tier` `full` -> `reduced`, and the
-        far-corner/legal-board-count measurement), each re-measured live
-        against the corrected code rather than hand-derived (CLAUDE.md
-        measurement rules). `b007-tile-bounds.test.ts` and the rest of point
-        2's "already red at the merge, pre-existing" list were unaffected —
-        confirmed still green/still-tracked-elsewhere, not touched by this
-        fix. `npm run test:fast` (303 files, 4371 tests) and `npx tsc
-        --noEmit` both clean. code-reviewer: APPROVE, no Critical/Major (two
-        Nits fixed inline: `theme.ts` and `canvas.ts`'s `drawPathIndicators`
-        doc comments still described the old 3/4-gate shape). qa-playtester:
-        PASS against all five acceptance criteria, independently sweeping
-        seeds 1-80 with and without the modifier, stacked modifiers,
-        determinism, real spawn round-robin and practice-mode isolation; one
-        non-blocking observation logged, not filed as a bug — under the
-        `gate` modifier, gate index 4 (`south2`) wraps to
-        `GATE_PATH_COLORS[0]`, the same color as `west` (documented,
-        intentional wraparound, not a new problem this item introduced) —
-        refs: SPEC-FINAL §10, `src/sim/grid.ts`'s `GATES`/`MODIFIER_GATES`.
+        **Point 1 DONE (2026-09-16, main lane).** `world.ts` now does
+        `this.gates = GATES.slice()` (all four base gates, not the pre-resize
+        `slice(0, 3)`) and pushes `MODIFIER_GATES[0]` by reference when the
+        `gate` modifier is active, instead of the stale hand-typed literal.
+        `tests/terrain-gates-dump.test.ts`'s `it.skip('describes a live Fourth
+        Gate run correctly...')` is un-skipped and re-measured (5 gates:
+        west/north/east/south/south2). Reading the real fourth gate opens the
+        map's south arm back up in terrain generation, which turned out to
+        move several golden values beyond the ones point 2 already named —
+        re-measured, not hand-derived: `class-board.test.ts` (shipped-board
+        WX/WY/tier, the far-corner legal-board count 7->66),
+        `fb034-max-towers.test.ts` (stale non-practice build tile),
+        `fb036-path-indicators.test.ts` (gate modifier draws 5 paths now, not
+        4), `fb077-terrain-wiring.test.ts` (control-map generation and the
+        gate-modifier gate-count/position assertions). **Point 2's own list is
+        now confirmed green as a side effect**, not separately attempted:
+        `class-board-windows.test.ts`, `class-passive-liveness.test.ts`,
+        `fb015-equipment.test.ts`, `fb196-night1-basehpmul.test.ts`, `p6b-
+        swordsman.test.ts`, `p6c-plaguebringer.test.ts`, `p6d-nine-
+        classes.test.ts` all pass in the post-fix `npm run test:fast`.
+        **`act1.test.ts` (2) and `grid.test.ts` (2) fixed too (2026-09-16,
+        same day, on coordinator direction).** First confirmed via `git
+        stash` and via master's own CI on this branch's parent commit
+        (`b4d4dc0`, `fast tier + build` already red there on these same 4
+        assertions among 9 total) to be pre-existing rather than introduced
+        by the point-1 fix above — but they are the exact same defect this
+        item targets (`GATES.length === 3`/a 3-gate wave-spawn count/a
+        pre-resize `ty: 10` west-gate seal box, all stale since fb156 grew
+        `GATES` to 4), so finishing their regression coverage belongs to this
+        item, not a separate one. `act1.test.ts`'s gate-sealing box and
+        `grid.test.ts`'s matching one both hardcoded the west gate at
+        `(1, 9)/(1, 10)/(1, 11)` — the *pre-resize* west gate's neighbourhood;
+        the real `GATES.west` is `{ tx: 0, ty: 12 }`, so its only interior
+        exit is `(1, 12)`, flanked by `(1, 11)`/`(1, 13)` — re-measured
+        against the real board and updated in both files, alongside the
+        `GATES.length`/wave-spawn-count literals (3 -> 4, 24 -> 32 enemies).
+        `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+        green.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 

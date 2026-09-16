@@ -119,16 +119,16 @@ describe('fb036: TD path indicators', () => {
     expect(segs.some((s) => GATE_PATH_COLORS.includes(s.strokeStyle))).toBe(false);
   });
 
-  it('gate modifier: draws a 5th path (south2), not just the base 4 in grid.ts\'s GATES', () => {
+  it('gate modifier: draws a 5th path (south2), not just the static 4 in grid.ts\'s GATES', () => {
     const w = new World(cfg({ modifiers: ['gate'] }));
     expect(w.gates.length).toBe(5);
     const segs = draw(w, view({ settings: { ...defaultSettings(), showPathIndicators: true } }));
     // Every gate, including the 5th (south2), gets its own color's segment —
     // drawPathIndicators must iterate w.gates, not the static 4-entry GATES.
+    // Five gates, four colors: the 5th wraps (`% GATE_PATH_COLORS.length`,
+    // `canvas.ts`'s own rule), same as the renderer.
     for (let gi = 0; gi < w.gates.length; gi++) {
-      expect(segs.some((s) => s.strokeStyle === GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length])).toBe(
-        true,
-      );
+      expect(segs.some((s) => s.strokeStyle === GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length])).toBe(true);
     }
   });
 });
