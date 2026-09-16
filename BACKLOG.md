@@ -3880,19 +3880,47 @@ was not fabricated.
       comment naming why; five consecutive `npm run test:fast` runs on the
       reference host report zero failures from this set — refs: CLAUDE.md
       "Stack & commands" (fast tier contract), QUALITY.md.
-- [ ] (fb088) [polish] `tests/terrain-generation.test.ts`'s "stays bounded"
-      case is the only thing standing between `/data` and an unclamped
-      `paint()` loop in `/src/sim`, and on this host it can only be a coarse
-      5000 ms wall-clock guard (three sharper designs measured worse — the
-      Log's fb064g entry records each). Acceptance: a deterministic
-      iteration counter behind a test-only hook (shape decided here, since
-      the counter lives inside `/src/sim`) makes the bound exact and
-      load-independent; mutation re-run confirms the reverted clamp still
-      fails. Same change may revisit the loose `a/(a+1)` Core-band ceiling
-      against the tighter `|A| / |cover(A)|` bound — **only** with the
-      generated-map sweep that caught the last false rejection — refs:
-      SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
-      fb064g Log. **Also (fb064j Log):** the same file's skipped-seed loop (`:678-687`) re-reads the generator's own report instead of measuring degeneracy — `tests/terrain-seed-domain.test.ts` has the stronger shape to copy.
+- [x] (fb088) [polish] **DONE 2026-09-16 — the counter/mutation clause only;
+      the two adjacent follow-ups in this same bullet are explicitly NOT
+      done, see below.** Shipped `paintIterationCount`
+      (`src/sim/terrain/generate.ts`): a module-level counter incremented
+      inside `paint()`'s inner nested loop, summed across every attempt one
+      `generateTerrain` call makes, behind test-only
+      `resetPaintIterationCount()`/`getPaintIterationCount()` hooks
+      (re-exported from `src/sim/terrain/index.ts`). New test in
+      `tests/terrain-generation.test.ts` pins the exact count (46,372,590)
+      for the same hostile fixture the pre-existing wall-clock ratio test
+      above it already builds; the ratio test itself stays (still catches
+      real wall-clock regressions the exact counter cannot, e.g. a slowdown
+      elsewhere in `attempt()`). Mutation-verified before pinning: a
+      temporary source patch removing `paint()`'s `Math.max`/`Math.min`
+      clamp, reverted immediately after measuring (never shipped), read
+      152,899,668 — a ~3.3x jump matching the ratio test's own documented
+      ratio for this grid size. code-reviewer **APPROVE** (no
+      Critical/Major; two Nits, one fixed — a test-only marker comment on
+      the `index.ts` re-export — one left as a documented non-issue, a
+      single bounded call site per run). qa-playtester **PASS** —
+      independently reproduced the pinned count three times, independently
+      redid the mutation edit-and-revert itself (byte-for-byte matching
+      152,899,668, confirmed `git diff` clean afterward), ran the file
+      twice back to back plus alongside `tests/terrain-grid.test.ts`/
+      `tests/terrain-high-contest.test.ts` for cross-file state-leak
+      (`vitest`'s default per-file thread isolation holds, no leak), and
+      stress-checked the hooks (uncalled-reset default 0, 5000-call loop
+      with no overflow risk given `Number.MAX_SAFE_INTEGER` headroom).
+      `npx tsc --noEmit` clean; targeted suite (`tests/terrain-
+      generation.test.ts`, 42/42) green both standalone and under the QA
+      agent's cross-file run. **Not done, left open on purpose:** the
+      optional "same change may revisit the loose `a/(a+1)` Core-band
+      ceiling" clause (its own text gates it on "only with the
+      generated-map sweep that caught the last false rejection," not
+      attempted this session) and the separate "Also (fb064j Log)"
+      tail-note about the skipped-seed loop at `tests/terrain-
+      generation.test.ts:678-687` re-reading the generator's report instead
+      of measuring degeneracy (unrelated to this bullet's own counter
+      acceptance, not touched) — both still open, filed here rather than
+      silently folded into this DONE — refs: SPEC-FINAL §12 rule 4 (loader
+      refuses unpayable data), BACKLOG-TERRAIN fb064g Log.
 - [x] (fb092) [bug] **DONE 2026-09-15 — "enough builds" floor restored;
       cap clause re-pinned red, honestly, not closed.** Re-measured at the
       start of this session (not inherited): only **1 of 10** `BUILDS`
