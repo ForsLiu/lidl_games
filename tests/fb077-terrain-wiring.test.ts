@@ -61,8 +61,8 @@ function coreTileIndices(w: number): number[] {
 describe('fb077 — World generates and applies real terrain', () => {
   it('applies the deterministic generated map before build, gate/Core tiles forced open', () => {
     const w = new World(runCfg({ seed: 1 }));
-    const gates = GATES.slice(0, 3);
-    const expected = generateTerrain(1, terrainCfg, gates);
+    // fb153: World plays all of GATES (4), not a stale first-3 slice.
+    const expected = generateTerrain(1, terrainCfg, GATES);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
     // applyRunTerrain also force-clears a 3x3 block around the Warden's own
     // spawn tile (clearOverlayBlock, world.ts) — a structural position that
@@ -149,12 +149,13 @@ describe('fb077 — stranded-Core seeds resolve via seed+1 retry (item 3)', () =
 });
 
 describe('fb077 — Fourth Gate modifier threads its real gate list into generation (item 2)', () => {
-  it('every gate (including the south Fourth Gate) reaches the Core across a seed sweep', () => {
+  it('every gate (including the south2 Fourth Gate) reaches the Core across a seed sweep', () => {
     const SEEDS = 60;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
-      expect(w.gates).toHaveLength(4);
-      expect(w.gates.some((g) => g.key === 'south' && g.tx === 12 && g.ty === GRID_H - 1)).toBe(true);
+      // fb153: World plays all 4 of GATES plus the modifier's own south2 gate.
+      expect(w.gates).toHaveLength(5);
+      expect(w.gates.some((g) => g.key === 'south2' && g.tx === 3 && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
     }
   });

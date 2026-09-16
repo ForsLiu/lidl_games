@@ -53,8 +53,8 @@ export const GATES: readonly GateDef[] = [
  * header table has to declare every gate key a dump may carry, and the tests
  * that exercise a four-gate arena need the position — and three hand-copies of
  * a coordinate is the drift shape this lane has already consolidated twice.
- * `world.ts` still writes its own literal; folding that in touches a file
- * outside the terrain lane and is logged for the merge.
+ * `world.ts` pushes this export by reference under the modifier (fb153), so
+ * there is exactly one place this coordinate is written.
  *
  * **fb156 renamed this from `'south'` to `'south2'` and moved it off a dead
  * tile.** The seed-jittered 4-gate default `src/sim/terrain/gates.ts` ships
@@ -83,10 +83,10 @@ export const GATES: readonly GateDef[] = [
  * run (`[...jitterGates(seed), ...MODIFIER_GATES]`) confirms no two of the 5
  * gates ever share a tile end to end.
  *
- * `world.ts` still writes its own independent `{ key: 'south', tx: 12, ty: 19
- * }` literal (not this export) and needs the same two fixes — logged in
- * BACKLOG-TERRAIN.md's fb156 Log entry for the main lane, since `world.ts` is
- * outside this lane's Scope.
+ * `world.ts` used to write its own independent, stale `{ key: 'south', tx: 12,
+ * ty: 19 }` literal instead of importing this export; fb153 fixed that (main
+ * lane, since `world.ts` was outside this lane's Scope) — it now pushes
+ * `MODIFIER_GATES[0]` by reference.
  */
 export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 3, ty: GRID_H - 1 }];
 
@@ -404,9 +404,9 @@ export class Grid {
    * buried Core cannot be attacked at all. That is decided *here*, off the live
    * `tile` array, rather than by patching `terrainBlock` once in `applyTerrain`
    * — because the run rewrites `tile` afterwards. `world.ts`'s Fourth Gate
-   * modifier opens a south gate at (12,19) at run construction, and fb064c
-   * moves the Core off `CORE_X/CORE_Y`; a constants-keyed override misses both,
-   * silently, on a map that still measures perfectly legal.
+   * modifier opens a south2 gate at (3,GRID_H-1) at run construction, and
+   * fb064c moves the Core off `CORE_X/CORE_Y`; a constants-keyed override
+   * misses both, silently, on a map that still measures perfectly legal.
    */
   private staticBlocked(i: number): number {
     if (this.tile[i] === TileType.Border) return 1;

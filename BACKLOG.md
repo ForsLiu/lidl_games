@@ -405,7 +405,7 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
+- [x] (fb153) [balance] **DONE 2026-09-16 — OWNER ORDER, top priority** — damage numbers are too
       high to read. Two coordinated changes, split into sub-items because each
       is independently verifiable:
   - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
@@ -507,6 +507,45 @@ therefore measure *after* `fb153`, not before.
            i.e. the repositioned gates happen to also fix it.
 
         **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
+
+        **Closed 2026-09-16 — both remaining points now done.** `world.ts`'s
+        constructor now reads `this.gates = [...GATES]` (all 4 base gates,
+        `south` included) and pushes `MODIFIER_GATES[0]` (the real `south2`
+        export) by reference under the `gate` modifier, instead of the stale
+        `GATES.slice(0, 3)` plus a hand-typed, name-colliding literal. This
+        redraws the fixed-seed generated terrain (generation reads the run's
+        gate list), so every downstream golden value was re-measured live
+        rather than hand-derived: `tests/terrain-gates-dump.test.ts`
+        (un-skipped its long-blocked live test, widened to the real 5-gate
+        shape under the modifier), `tests/act1.test.ts` (wave-1 spawn count
+        24->32, 8 Husks x 4 real gates), `tests/grid.test.ts` (a separate
+        pre-existing `GATES.length` staleness from fb156, fixed as a one-line
+        follow-up), `tests/fb036-path-indicators.test.ts` (gate count 4->5,
+        path colors now wrap via `% GATE_PATH_COLORS.length` matching
+        `canvas.ts`), `tests/fb077-terrain-wiring.test.ts` (byte-identical
+        terrain check now generates against full `GATES` not a slice; the
+        Fourth Gate sweep expects 5 gates and checks for `south2` at
+        `(3, GRID_H-1)`), `tests/class-board.test.ts` (the shared probed
+        board moved WX:8,WY:12->WX:4,WY:11, tier full->reduced, Ice Wall
+        column and the whole-map legal-board count 7->66 — all re-verified
+        live via `servesImporters` and the footprint-tile checks, which
+        needed no changes), `tests/fb034-max-towers.test.ts` (a non-practice
+        real-terrain build tile moved from (6,5), no longer open ground, to
+        (5,7)). Two stale doc comments (`src/render/theme.ts`,
+        `src/render/canvas.ts`) describing the old 3-or-4-gate behavior were
+        also corrected, plus two narrative comments in `src/sim/grid.ts`
+        (code-reviewer Minor finding) that still described `world.ts`'s old
+        literal as unfixed.
+
+        `npm run test:fast`: the pre-fix baseline (20 failing/9 files) drops
+        to 2 remaining after this fix — both `wouldBlockPath` gate-sealing
+        assertions (`tests/act1.test.ts`, `tests/grid.test.ts`), confirmed via
+        a `git stash` control run to be pre-existing on the clean tree too,
+        unrelated to this change and out of this item's scope. `npx tsc
+        --noEmit` clean. code-reviewer APPROVE (one Minor, the stale grid.ts
+        comments, fixed before commit); qa-playtester review requested,
+        pending at commit time — will be logged as a follow-up here if it
+        finds anything.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 

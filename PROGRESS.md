@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb153 closed in full — `world.ts`'s gate
+  list now plays all 4 real `GATES`, not a stale 3-gate slice.** The last two
+  open points of fb153b's own text (BACKLOG.md, "Closed 2026-09-16" note):
+  `World`'s constructor hardcoded `this.gates = GATES.slice(0, 3)`, dropping
+  `GATES`'s real 4th (`south`) gate entirely, and under the `gate` tier
+  modifier pushed a hand-typed `{ key: 'south', tx: 12, ty: GRID_H - 1 }`
+  literal that collided in key name with the base list's own `south`. Fixed
+  to `this.gates = [...GATES]` plus `MODIFIER_GATES[0]` (the real `south2`
+  export) pushed by reference. This redraws the fixed-seed generated terrain
+  (generation reads the run's gate list), so every downstream golden value
+  was re-measured live: `tests/terrain-gates-dump.test.ts` (un-skipped its
+  long-blocked live test), `tests/act1.test.ts` (wave-1 spawn count 24->32,
+  8 Husks x 4 real gates), `tests/grid.test.ts` (a separate pre-existing
+  `GATES.length` staleness from fb156, fixed as a one-line follow-up),
+  `tests/fb036-path-indicators.test.ts` (gate count 4->5, colors now wrap via
+  `% GATE_PATH_COLORS.length`), `tests/fb077-terrain-wiring.test.ts` (full
+  `GATES` not a slice; the Fourth Gate sweep now expects 5 gates and checks
+  for `south2` at `(3, GRID_H-1)`), `tests/class-board.test.ts` (the shared
+  probed board moved WX:8,WY:12 -> WX:4,WY:11, tier full->reduced, and the
+  whole-map legal-board count 7->66 — re-verified live, not hand-derived,
+  via `servesImporters` and the footprint-tile checks, which needed no
+  changes of their own), `tests/fb034-max-towers.test.ts` (a non-practice
+  real-terrain build tile moved from (6,5) to (5,7)). Two stale render-layer
+  doc comments and two stale `grid.ts` narrative comments (code-reviewer
+  Minor finding) describing the old, now-fixed `world.ts` behavior were also
+  corrected. `npm run test:fast`: pre-fix baseline 20 failing/9 files drops
+  to 2 remaining, both the `wouldBlockPath` gate-sealing defect
+  (`tests/act1.test.ts`, `tests/grid.test.ts`), confirmed via a `git stash`
+  control run to be pre-existing on the clean tree and unrelated to this
+  change — out of this item's scope, not filed as a new item per this
+  routine's own no-new-items rule. `npx tsc --noEmit` clean. code-reviewer
+  APPROVE (one Minor, fixed before commit); qa-playtester review requested
+  in parallel, not yet returned at commit time.
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
