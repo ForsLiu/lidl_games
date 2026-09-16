@@ -71,6 +71,104 @@
   contained, still owner-directed) was taken instead per "skip only with a
   logged reason."
 
+- **2026-09-16 — main lane: BACKLOG fb153b's own remaining "point 1" closed —
+  `World` now reads the real four-gate `GATES`, not the stale `slice(0, 3)`.**
+  `src/sim/world.ts`'s gate-list build silently dropped `GATES`'s own real
+  `south` gate from *every* run's terrain generation (base list was
+  `GATES.slice(0, 3)` = west/north/east only); the `gate` modifier's fifth
+  gate is now `MODIFIER_GATES[0]` (`south2`) pushed by reference instead of a
+  hand-typed `{ key: 'south', tx: 12, ty: GRID_H - 1 }` literal that could
+  drift off `grid.ts`'s maintained position. `tests/terrain-gates-dump.
+  test.ts`'s long-skipped "describes a live Fourth Gate run correctly" test
+  is un-skipped and re-measured against the fixed behaviour (5 gates:
+  west/north/east/south/south2), per BACKLOG fb153b's own text describing
+  exactly this fix. Reading the real fourth gate opens the whole south arm of
+  the map back up in terrain generation, which moved several golden values
+  that were measuring the buggy 3-gate map — re-measured against the fixed
+  generator, not hand-derived, per CLAUDE.md's measurement rules:
+  `tests/class-board.test.ts` (shipped-board WX/WY/tier and the "far corner"
+  legal-board count, 7->66 legal boards once the south arm is real ground),
+  `tests/fb034-max-towers.test.ts` (a stale non-practice build tile),
+  `tests/fb036-path-indicators.test.ts` (gate modifier now draws 5 paths, not
+  4; comment/title de-staled), `tests/fb077-terrain-wiring.test.ts` (control
+  map generation and the gate-modifier gate-count/position assertions),
+  `tests/act1.test.ts` (the gate-sealing box and the wave-spawn gate count —
+  both hardcoded the pre-resize west gate at `ty: 10`/three gates; the real
+  `GATES.west` is `{ tx: 0, ty: 12 }` and there are four base gates) and
+  `tests/grid.test.ts` (`GATES.length` and its own gate-sealing box, same
+  class of staleness). The `act1.test.ts`/`grid.test.ts` pair were first
+  confirmed via `git stash` (and via master's own CI on this branch's parent
+  commit, `b4d4dc0` — `fast tier + build` already red there on the identical
+  4 assertions, among 9 total) to be pre-existing, not introduced by this
+  fix — but on the coordinator's direction they are squarely this item's own
+  regression coverage to finish (the exact same "`GATES` has had 4 entries
+  since fb156, the code/tests didn't" defect this item targets), not a
+  separate item, so they are fixed here too, re-measured against the real
+  4-gate board rather than hand-derived. `npx tsc --noEmit` clean.
+  `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+  green. No dedicated Task-launch tool was available in this session, so the
+  code-reviewer/qa-playtester passes were performed directly against their
+  `.claude/agents/*.md` checklists (architecture rules, determinism, tests,
+  hostile edge cases) rather than as separate subagent invocations; no
+  Critical/Major findings, no bugs filed.
+
+- **2026-09-16 — main lane: BACKLOG fb088 done — `paint()`'s cost guard is
+  now an exact, load-independent counter, not a wall-clock reading.**
+  `tests/terrain-generation.test.ts`'s "stays bounded" case (the only thing
+  standing between `/data` and an unclamped `paint()` loop in `/src/sim`)
+  used to be a coarse wall-clock ratio, host/load-sensitive by construction
+  (BACKLOG-TERRAIN fb064g Log: three sharper timing designs all measured
+  worse before landing there). Shipped `paintIterationCount`
+  (`src/sim/terrain/generate.ts`): a module-level counter incremented
+  inside `paint()`'s inner nested loop, summed across every attempt one
+  `generateTerrain` call makes, behind test-only
+  `resetPaintIterationCount()`/`getPaintIterationCount()` hooks
+  (`src/sim/terrain/index.ts`). New test pins the exact count (46,372,590)
+  for the same hostile fixture the pre-existing ratio test uses, which
+  stays in place for what it alone still covers (real wall-clock cost,
+  warm-up effects, contention tolerance). Mutation-verified before pinning
+  — a temporary, reverted-before-commit source patch removing the
+  `Math.max`/`Math.min` clamp measured 152,899,668, a ~3.3x jump matching
+  the ratio test's own documented ratio for this grid size — independently
+  redone by both code-reviewer (APPROVE, one Nit fixed) and qa-playtester
+  (PASS: reproduced the pinned count three times, independently redid the
+  mutation edit-and-revert itself byte-for-byte, checked for cross-file
+  counter leakage under vitest's per-file thread isolation, stress-checked
+  the hooks for overflow/uninitialized-read surprises — none found).
+  `npx tsc --noEmit` clean; targeted suite (`tests/terrain-
+  generation.test.ts`, 42/42) green. **Left open on purpose, not folded
+  into this DONE:** the same bullet's *optional* "revisit the loose
+  `a/(a+1)` Core-band ceiling" clause (gated on a generated-map sweep not
+  attempted this session) and its separate "Also (fb064j Log)" tail-note
+  about the skipped-seed loop at `tests/terrain-generation.test.ts:678-687`
+  — both still open in BACKLOG.md's fb088 entry. `npm run test:fast` full
+  run was attempted twice this session; the first was killed mid-run by
+  host memory contention from concurrent subagent test invocations
+  (confirmed not a code issue — qa-playtester independently traced and
+  cleared the stale process tree), and this item's own targeted-tier
+  evidence (42/42, tsc clean, two independent full-tier subagent passes)
+  stands on its own per CLAUDE.md's tiered verification — refs: SPEC-FINAL
+  §12 rule 4, BACKLOG-TERRAIN fb064g Log.
+
+- **2026-09-16 — main lane: BACKLOG fb139 closed — bookkeeping gap, not new
+  work.** The item (in-game F8 bug-report hotkey, replay-attached) was
+  actually shipped 2026-09-07 in PR #41 (`53f58ab`), squashed together with
+  fb079/fb080/fb082/fb083 under one merge, and its BACKLOG.md checkbox was
+  never flipped. Verified the shipped implementation still meets every
+  acceptance clause rather than trusting the stale checkbox state: F8 opens
+  a note box mid-run (dev and prod), pauses for its duration, POSTs a bundle
+  (class/Core/tier/wave/phase/tick/seed/content hash/end-state hash/input
+  log/screenshot) to `/__bugreport/save` (`src/devserver/bugReportPlugin.ts`/
+  `bugReportSave.ts`), writes the replay + screenshot under `/replays` and a
+  `bug-<timestamp>.md` into the inbox, and a production build downloads the
+  same bundle as a file instead of POSTing it. Re-ran the three targeted
+  files fresh: `tests/fb139-bug-report-plugin.test.ts` (9),
+  `tests/fb139-bug-report-replay.test.ts` (1, replay-to-recorded-tick with a
+  matching hash), `tests/ui-fb139-bug-report-hotkey.test.ts` (5) — 15/15
+  green. No source change; this item's own diff is BACKLOG.md/PROGRESS.md
+  only — refs: SPEC-FINAL §11/§12, owner feedback
+  `feature-bug-report-hotkey`.
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought

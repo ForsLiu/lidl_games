@@ -23,11 +23,13 @@ import {
   gatesOpen,
   generateTerrain,
   flatCoreAnchorCount,
+  getPaintIterationCount,
   legalCoreAnchors,
   loadTerrain,
   maxCoreLegalFrac,
   measureTerrain,
   parseTerrain,
+  resetPaintIterationCount,
   terrainHash,
   terrainLegal,
   TerrainKind,
@@ -152,12 +154,25 @@ const cfg = loadTerrain();
 // ~35-39 to ~85-97 idle (five back-to-back runs on this host: 88.1, 89.3,
 // 84.5, 84.9, 97.3) — the scatter-blob growth cost, not `paint()`, now
 // dominates the numerator. 160 keeps roughly the same ~1.6-1.9x headroom over
-// the worst observed reading that the old 80/38.7 pair had (~2.1x), without
-// re-measuring the reverted-clamp arm, which needs a temporary source patch
-// this pass did not make — see the header above for how that arm was
-// originally measured, and re-run it here before trusting this ceiling's
-// detection floor for a real `paint()` regression rather than for the
-// blob-growth cost this fixture now mostly measures.
+// the worst observed reading that the old 80/38.7 pair had (~2.1x).
+//
+// fb180 (2026-09-15): the reverted-clamp arm above was re-derived at this grid
+// size, via a temporary source patch to `paint()` in `src/sim/terrain/
+// generate.ts` (reverted immediately after measuring, per this lane's
+// test-only Scope — not shipped). Same harness as the test below (`measure()`,
+// 5 interleaved rounds, minimum of each half, under vitest — the calibration
+// caveat above about tsx-vs-vitest applies). On this host: healthy (shipped,
+// clamped `paint()`) read **119.5-119.7** idle across three repeated readings
+// (a different host than the 88-97 range recorded just above, consistent with
+// this file's own "calibrated for the vitest runner... a larger effect than
+// the headroom" caveat); clamp reverted read **293.2-301.7** across three
+// readings — a clean **~2.45x gap with zero overlap** against the worst
+// healthy reading, comfortably above `COST_RATIO_CEILING = 160`. The paired
+// comparison is proven load-bearing again at 56x32: a real `paint()`
+// regression of this shape is still caught, not merely a claim carried
+// forward from the 36x20-era measurement. Bursty-load contention was not
+// re-derived (QA's own bespoke busy-loop repro, not reproduced here); the
+// idle-only re-derivation is what this item's acceptance asks for.
 const COST_RATIO_CEILING = 160;
 /** Ordinary generations timed as the denominator, and the seeds they use. */
 const BASE_SEEDS = 64;
@@ -894,9 +909,63 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     expect(
       reading.ratio,
       'one maxed-radius attempt against one ordinary generation ' +
-        '(healthy ~85-97 idle on the 56x32 grid, fb166 — see the ceiling comment above; ' +
-        'bursty-load and reverted-clamp readings were not re-taken at this grid size)',
+        '(healthy ~85-120 idle on the 56x32 grid, fb166/fb180 — see the ceiling comment above; ' +
+        'reverted-clamp re-measured at 56x32 by fb180, ~293-302, ~2.45x clear; ' +
+        'bursty-load was not re-taken at this grid size)',
     ).toBeLessThan(COST_RATIO_CEILING);
+  });
+
+  // fb088 (BACKLOG-TERRAIN Log, 2026-09-03): the ratio test above is a wall-
+  // clock reading, coarse and host/load-sensitive by construction (its own
+  // header explains why three sharper timing designs all measured worse).
+  // `paintIterationCount` (src/sim/terrain/generate.ts) is the exact,
+  // load-independent alternative the Log entry asked for: a plain counter of
+  // `paint()`'s inner-loop iterations, summed across every attempt a call to
+  // `generateTerrain` makes. This test is the authoritative bound on an
+  // unclamped `paint()` loop; the ratio test above stays for what it alone
+  // still covers (real wall-clock cost, warm-up effects, contention
+  // tolerance), not as a second copy of this one.
+  it('fb088 — paint() iteration count is pinned exactly, not by a clock', () => {
+    const ATTEMPTS = 4;
+    const hostile = withConfig((raw) => {
+      const r = raw as Record<string, unknown>;
+      r.corridorRadius = 36;
+      r.gateClearRadius = 36;
+      r.plazaRadius = 36;
+      r.corridorJitter = 1;
+      r.maxAttempts = ATTEMPTS;
+      (raw.blob as Record<string, number>).minSize = 1620;
+      (raw.blob as Record<string, number>).maxSize = 1620;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.9;
+    });
+
+    // Warm, same reason the ratio test above warms: not measuring cost here,
+    // but keeping this test's own fixture identical to the one the ratio
+    // test already validated (same seed, same ATTEMPTS, same fallback shape).
+    generateTerrain(7, hostile);
+
+    resetPaintIterationCount();
+    const map = generateTerrain(7, hostile);
+    expect(map.attempts).toBe(ATTEMPTS);
+    expect(map.fallback).toBe(true);
+
+    // Measured live on this exact fixture (`npx tsx`, outside vitest, a
+    // temporary source patch removing the `Math.max`/`Math.min` clamp in
+    // `paint()` and reverting immediately after — same pattern fb180 used for
+    // its own reverted-clamp control): clamped 46,372,590, reverted
+    // 152,899,668 — a ~3.3x jump, matching the ratio test's own header
+    // comment ("fb166 resized this from 612, which shrinks the theoretical
+    // regression from ~8.7x to ~3.3x"). Confirmed deterministic (two live
+    // reads of the clamped count, byte-identical) before pinning.
+    expect(getPaintIterationCount()).toBe(46_372_590);
+
+    // A second, independent read of the same call must agree with itself —
+    // the counter is a plain module-level integer, not per-call state, so a
+    // regression here would mean something else in this file's `beforeAll`-
+    // free structure is leaking iterations across tests.
+    resetPaintIterationCount();
+    generateTerrain(7, hostile);
+    expect(getPaintIterationCount()).toBe(46_372_590);
   });
 
   it('fb064l — the loader accepts jitter up to 1, and this is what that costs', () => {
