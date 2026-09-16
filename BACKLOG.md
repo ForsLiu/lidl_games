@@ -822,8 +822,17 @@ honor.**
       Night-1 wipe straight past the ceiling to a near-total win rate,
       confirming p12j's own bisection-era diagnosis that these classes'
       G8 problem was never a `classes.json` kit lever, it was the buggy
-      gate position inflating Night-1 exposure (`world.ts:591`'s stale
-      `{tx:12,ty:19}`, fixed by fb153b). The other seven did not benefit,
+      gate position inflating Night-1 exposure. **Correction (code-reviewer
+      finding on this item's own first draft):** every G8-sweep config here
+      passes `modifiers: []`, so `world.ts:591`'s Fourth Gate `south`
+      literal (only pushed when the "gate" tier modifier sets
+      `extraGates > 0`) is dead code for these runs — the gate actually in
+      play for all three base gates (`GATES.slice(0,3)`, west/north/east)
+      is `GATES.east` (`src/sim/grid.ts`), whose own pre-fix literal
+      `{tx:35,ty:17}` was the stale 36x20-era interior tile fb153b
+      corrected. `world.ts:591`'s own fix only matters for a run carrying
+      the Fourth Gate modifier, out of scope for this sweep. The other
+      seven did not benefit,
       or measured slightly worse — the roster-wide regression fb196 first
       flagged is not fully explained by the gate bug alone; the remaining
       wall for plaguebringer/engineer/necromancer/cryomancer/stormcaller/

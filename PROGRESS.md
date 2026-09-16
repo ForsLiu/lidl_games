@@ -8,9 +8,10 @@
 - **2026-09-16 — main lane: BACKLOG fb197 done — fresh full 12-seed G8
   roster sweep against the corrected gate position (fb153b); still red,
   failure shape flipped from under-floor to a floor/ceiling split.**
-  fb153b's `world.ts:591` fix (Fourth Gate literal, stale 36x20-era
-  coordinate, was landing a third of Act I spawns far closer to the Core)
-  changes real spawn-to-Core distance at every seed, so every number the
+  fb153b's `GATES.east` fix (`src/sim/grid.ts` — stale 36x20-era
+  coordinate, an interior tile at the shipped 56x32 grid, was landing a
+  third of Act I spawns far closer to the Core than the other two base
+  gates) changes real spawn-to-Core distance at every seed, so every number the
   fb196/fb193/fb185/p13a Night-1 bisection chain produced was stale.
   Re-measured `tests/p6e-class-diversity.test.ts`'s full roster: swordsman,
   pyromancer, archer and bloodlord jumped from near-total Night-1 wipes

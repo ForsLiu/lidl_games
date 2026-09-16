@@ -733,7 +733,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // part of the same roster-wide regression fb196 already flagged as
   // top-priority. Re-pinned honestly rather than re-tuned inside this item
   // (fb196 owns the root-cause/fix). Re-enable point: fb196.
-  it.skip('cryomancer', () => assertBand('cryomancer')); // p12j re-tune (2026-09-07): Glaciate (active1) damage 60->40, single lever. 9/12 -> 5/12, in band. QUESTIONS Q196. fb185/fb196 (2026-09-15): re-measured **4/12**, under floor by one — see comment above, QUESTIONS Q207. fb197 (2026-09-16, corrected gate position, fb153b): re-measured **1/12** — 1:victory/w18 the rest `defeat_core` (w8 x7, w11/w15/w16 contested-loss x3) — worse, not better; the gate fix did not rescue this class the way it did swordsman/pyromancer/archer/bloodlord. Still under floor. Re-pinned honestly, not re-tuned (fb197's own scope is measurement, per its BACKLOG text). See BACKLOG fb197.
+  it.skip('cryomancer', () => assertBand('cryomancer')); // p12j re-tune (2026-09-07): Glaciate (active1) damage 60->40, single lever. 9/12 -> 5/12, in band. QUESTIONS Q196. fb185/fb196 (2026-09-15): re-measured **4/12**, under floor by one — see comment above, QUESTIONS Q207. fb197 (2026-09-16, corrected gate position, fb153b): re-measured **1/12** — 7:victory/w18 the rest `defeat_core` (w8 x8, w11/w15/w16 contested-loss x3) — worse, not better; the gate fix did not rescue this class the way it did swordsman/pyromancer/archer/bloodlord. Still under floor. Re-pinned honestly, not re-tuned (fb197's own scope is measurement, per its BACKLOG text). See BACKLOG fb197.
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
@@ -794,7 +794,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // the roster-wide Night-1 wipe fb196 already flagged top-priority).
   // Re-pinned honestly, not re-tuned inside this item (fb196 owns the
   // root-cause/fix). Re-enable point: fb196.
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): CORRECTED post-container-restart (independent code-reviewer finding, re-verified by the lead session directly): the shipped lever is not radius alone. Poison Barrel (active1) damage 24->40 + radius 3->5, *and* Poison Boost (active2) cooldownSeconds 14->8, land together — damage+radius alone (cooldown left at 14) independently re-measured at 4/12, still under floor; only with the cooldown cut added does it clear to 6/12, in band. Earlier drafts of this comment and of BACKLOG/PROGRESS/QUESTIONS described cooldown as a rejected lever — that was wrong; it is load-bearing. 3/12 -> 6/12, in band. QUESTIONS Q196. fb185/fb196 (2026-09-15): re-measured **0/12** — see comment above, QUESTIONS Q207. fb197 (2026-09-16, corrected gate position, fb153b): re-measured **3/12** (seeds 3/4/8 victory) — recovers from 0/12 but still under floor by 2. Loss mode is now the roster's w6-17 `defeat_core` wall (7/9 losses at wave 7-17), not a Night-1 wipe — this class's own kit-damage levers were never the bottleneck for that wall (p10i). Re-pinned honestly. See BACKLOG fb197.
+  it.skip('plaguebringer', () => assertBand('plaguebringer')); // p12j re-tune (2026-09-07): CORRECTED post-container-restart (independent code-reviewer finding, re-verified by the lead session directly): the shipped lever is not radius alone. Poison Barrel (active1) damage 24->40 + radius 3->5, *and* Poison Boost (active2) cooldownSeconds 14->8, land together — damage+radius alone (cooldown left at 14) independently re-measured at 4/12, still under floor; only with the cooldown cut added does it clear to 6/12, in band. Earlier drafts of this comment and of BACKLOG/PROGRESS/QUESTIONS described cooldown as a rejected lever — that was wrong; it is load-bearing. 3/12 -> 6/12, in band. QUESTIONS Q196. fb185/fb196 (2026-09-15): re-measured **0/12** — see comment above, QUESTIONS Q207. fb197 (2026-09-16, corrected gate position, fb153b): re-measured **3/12** (seeds 3/4/8 victory) — recovers from 0/12 but still under floor by 2. Loss mode is now the roster's w6-17 `defeat_core` wall (all 9 losses fall in wave 7-17), not a Night-1 wipe — this class's own kit-damage levers were never the bottleneck for that wall (p10i). Re-pinned honestly. See BACKLOG fb197.
   // p12j re-tune (2026-09-07): a `towerHp` passive bump (10->18%) was tried
   // first and made it *worse* (3/12 -> 2/12) — reverted. Real lever: Pop
   // Turret (active2, a structure that keeps firing in VS unlike
@@ -1086,7 +1086,8 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   // as the win-rate table underneath it changes completely — the wall this
   // clause measures (kit share, not win rate) is a different mechanism than
   // the one fb153b's gate fix moved. See BACKLOG fb197 for the full new
-  // pair list.
+  // pair list — not reproduced in BACKLOG.md (the probe that generated it
+  // was a throwaway, deleted after use).
   it('the current (red) fingerprint-distance failure count is pinned, not silently drifting', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     let failing = 0;
