@@ -1497,7 +1497,32 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+- [x] (fb139) [feat] **DONE 2026-09-07, bookkeeping gap closed 2026-09-16 —
+      shipped in PR #41 (`53f58ab`) squashed together with fb079/fb080/fb082/
+      fb083, never checked off here.** F8 opens a note box mid-run (dev and
+      prod alike, gated on the box being open so typing never leaks into live
+      gameplay hotkeys — a code-reviewer Critical fix during the original
+      session), pausing for its duration; Submit builds a bundle (class/Core/
+      tier/wave/phase/tick/seed/content hash/end-state hash/full input log/
+      canvas screenshot) and POSTs it to `/__bugreport/save`
+      (`src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`, mirrors the
+      Tuner's save plumbing, including the qa-playtester-found literal-`null`-
+      body 400 fix), which writes the replay + screenshot under `/replays`
+      and a `bug-<timestamp>.md` into the configured inbox dir naming both
+      paths. A production build downloads the same bundle as a file instead
+      (`src/ui/bugreport.ts`/`main.ts`). Replay-to-recorded-tick with a
+      matching hash is covered by `tests/fb139-bug-report-replay.test.ts`;
+      the endpoint by `tests/fb139-bug-report-plugin.test.ts` (9 cases,
+      including the production-build-has-no-endpoint case); the hotkey/UI
+      flow end-to-end by `tests/ui-fb139-bug-report-hotkey.test.ts` (5
+      cases). CLAUDE.md's Subagent protocol already documents replay bundles
+      as a first-class repro (fb139 references throughout). Re-ran all three
+      targeted files fresh this session: 15/15 green. No code change needed
+      — this item's own diff is BACKLOG.md only — refs: SPEC-FINAL §11/§12
+      (determinism, dev tooling), owner feedback
+      `feature-bug-report-hotkey`.
+      Original text follows.
+      in-game bug-report hotkey, replay-attached,
       straight into the inbox. F8 at any moment in a run (dev mode) opens a
       small box for a one-line note; on confirm the game writes, via a
       dev-server endpoint (same pattern as the Tuner's save), a bug file into

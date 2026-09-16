@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb139 closed — bookkeeping gap, not new
+  work.** The item (in-game F8 bug-report hotkey, replay-attached) was
+  actually shipped 2026-09-07 in PR #41 (`53f58ab`), squashed together with
+  fb079/fb080/fb082/fb083 under one merge, and its BACKLOG.md checkbox was
+  never flipped. Verified the shipped implementation still meets every
+  acceptance clause rather than trusting the stale checkbox state: F8 opens
+  a note box mid-run (dev and prod), pauses for its duration, POSTs a bundle
+  (class/Core/tier/wave/phase/tick/seed/content hash/end-state hash/input
+  log/screenshot) to `/__bugreport/save` (`src/devserver/bugReportPlugin.ts`/
+  `bugReportSave.ts`), writes the replay + screenshot under `/replays` and a
+  `bug-<timestamp>.md` into the inbox, and a production build downloads the
+  same bundle as a file instead of POSTing it. Re-ran the three targeted
+  files fresh: `tests/fb139-bug-report-plugin.test.ts` (9),
+  `tests/fb139-bug-report-replay.test.ts` (1, replay-to-recorded-tick with a
+  matching hash), `tests/ui-fb139-bug-report-hotkey.test.ts` (5) — 15/15
+  green. No source change; this item's own diff is BACKLOG.md/PROGRESS.md
+  only — refs: SPEC-FINAL §11/§12, owner feedback
+  `feature-bug-report-hotkey`.
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
