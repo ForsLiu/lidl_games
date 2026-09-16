@@ -138,17 +138,20 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     );
   });
 
-  // fb153: `World`'s constructor (`src/sim/world.ts`) now builds `this.gates`
-  // from `GATES`/`MODIFIER_GATES` themselves rather than its own stale
-  // `GATES.slice(0, 3)` copy and hand-typed literal. A `gate`-modifier run now
-  // plays all five gates — the four base ones plus `MODIFIER_GATES`'s
-  // `south2` — instead of silently dropping the real base `south` and
-  // opening a colliding, off-border `south` duplicate.
+  // Re-enabled at fb153b (BACKLOG.md, main-lane): `World`'s constructor
+  // (`src/sim/world.ts`) now builds `this.gates` from `GATES`/`MODIFIER_GATES`
+  // themselves — `GATES.slice()` (all four base gates, not the pre-resize
+  // `slice(0, 3)` that silently dropped the real `south`) plus, when the
+  // `gate` modifier is active, `MODIFIER_GATES[0]` pushed by reference rather
+  // than a hand-typed literal. So a `gate`-modifier run now genuinely plays
+  // five gates — west/north/east/south (the base four) plus south2 (the
+  // modifier's) — at exactly `grid.ts`'s maintained positions, not the stale
+  // `(12, 19)` literal that was never on the resized 56x32 border.
   it('describes a live Fourth Gate run correctly — the case that motivated it', () => {
     // The defect end to end, on the artefact fb065c built. A run under the
-    // `gate` modifier plays five gates; before this fix its repro printed
-    // four (three base gates plus a wrongly-keyed, wrongly-placed `south`)
-    // and measured every gate-derived band against the wrong arena.
+    // `gate` modifier plays five gates; before fb065f its repro printed the
+    // wrong count and measured every gate-derived band against the wrong set,
+    // so a reader was told about an arena the run was not played in.
     const w = new World(runCfg({ seed: 40, modifiers: ['gate'] }));
     expect(w.gates.map((g) => g.key)).toEqual(['west', 'north', 'east', 'south', 'south2']);
 
@@ -156,7 +159,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const truth = measureTerrain(view, cfg, w.gates);
     const dump = describeTerrain(view, cfg, w.gates);
 
-    expect(dump.split('\n')[2]).toContain('south2=3,31');
+    expect(dump.split('\n')[2]).toContain('south=33,31 south2=3,31');
     expect(dump.split('\n')[3]).toContain(`gateDetour=${truth.maxGateDetour.toFixed(6)}`);
     expect(dump.split('\n')[4]).toContain(`coreAnchors=${truth.legalCoreCount}`);
     // Still a repro: it reads back, and it still says `source=-` because a

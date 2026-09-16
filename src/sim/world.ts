@@ -595,9 +595,14 @@ export class World {
       if (e.coreHp) this.mods.coreHp += e.coreHp;
     }
 
-    this.gates = [...GATES];
+    // fb153b (BACKLOG.md, main-lane follow-up to fb156): the base arena always
+    // carries all four `GATES` (west/north/east/south) now, not the pre-resize
+    // three — `slice(0, 3)` silently dropped the real `south` gate on every
+    // run. The `gate` modifier ("Fourth Gate", `data/modifiers.json`) adds a
+    // fifth: `MODIFIER_GATES[0]` (`south2`) by reference, not a hand-typed
+    // literal, so it can never drift off `grid.ts`'s own maintained position.
+    this.gates = GATES.slice();
     if (this.mods.extraGates > 0) {
-      // Fifth Gate: the tier modifier's own gate, beside the four base ones.
       this.gates.push(MODIFIER_GATES[0]);
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;

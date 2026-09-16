@@ -115,3 +115,35 @@ export function jitterGates(seed: number): GateDef[] {
     { key: 'south', tx: rng.intRange(hLo, hHi), ty: GRID_H - 1 },
   ];
 }
+
+/**
+ * fb178 (BACKLOG-TERRAIN.md; owner feedback `terrain-four-gates`: "tier
+ * modifiers that add a gate now go to 5"): a seed-jittered position for the
+ * tier-modifier's fifth gate, `'south2'` — `grid.ts`'s `MODIFIER_GATES` ships
+ * it as a single fixed tile, the only one of the five that never varies by
+ * seed, which is the owner order's own "now go to 5" restated without a
+ * carved-out exception. This is its sibling: same key, same edge, jittered.
+ *
+ * **Range.** `[1, GATE_JITTER_MARGIN - 1]` = `[1, 7]` on the south edge
+ * (`ty: GRID_H - 1`) — the same side of the same edge `MODIFIER_GATES`'
+ * static `tx: 3` already sits on. Structurally clear of two things, both
+ * checked by a 1000+-seed sweep of the live 5-gate list in
+ * `tests/terrain-modifier-gate-jitter.test.ts` rather than trusted from the
+ * arithmetic alone: `jitterGates`' own south gate, whose `tx` is drawn from
+ * `[GATE_JITTER_MARGIN, GRID_W - 1 - GATE_JITTER_MARGIN]` = `[8, 47]`, so the
+ * two ranges never overlap on any seed; and the south-west corner (`tx: 0`),
+ * excluded by starting the range at `1` rather than `0`.
+ *
+ * **RNG stream.** `` `${TERRAIN_STREAM}:gates:south2` `` — a sub-key distinct
+ * from `jitterGates`' own `` `${TERRAIN_STREAM}:gates` ``, so the two draws
+ * never share a cursor: calling one does not perturb the other, and a run
+ * that only ever carries the base four (no tier modifier active) still gets
+ * `jitterGates`' exact byte-identical output.
+ *
+ * **Determinism**: same `seed` always produces the same position, independent
+ * of whether `jitterGates` was also called for that seed.
+ */
+export function jitterModifierGate(seed: number): GateDef {
+  const rng = new Rng(fnv1a(`${TERRAIN_STREAM}:gates:south2`, seed >>> 0));
+  return { key: 'south2', tx: rng.intRange(1, GATE_JITTER_MARGIN - 1), ty: GRID_H - 1 };
+}

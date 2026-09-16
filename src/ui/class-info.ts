@@ -358,7 +358,7 @@ function overloadSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
 
 function bloodTitheSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Pays ${formatPct(eff.titheHpFraction ?? 0)} of the nearest untithed tower's current HP (within ${trimNum(eff.radius)} tiles) for a permanent ${formatPct(eff.titheDamageMul ?? 0)} damage bonus. Cooldown ${trimNum(cd)}s.`;
+  return `Pays ${formatPct(eff.titheHpFraction ?? 0)} of the nearest untithed tower's current HP (within ${trimNum(eff.radius)} tiles) for a permanent ${formatPct(eff.titheDamageMul ?? 0)} damage bonus and ${formatPct(eff.titheLifestealPct ?? 0)} VS-share lifesteal to the Warden. Cooldown ${trimNum(cd)}s.`;
 }
 
 /**

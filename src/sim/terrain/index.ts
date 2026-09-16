@@ -33,7 +33,13 @@ export {
   walkableFlood,
 } from './analyze';
 export { describeTerrain, parseTerrainDump, type TerrainDump } from './describe';
-export { BASE_GATE_KEYS, GATE_JITTER_MARGIN, jitterGates, type BaseGateKey } from './gates';
+export {
+  BASE_GATE_KEYS,
+  GATE_JITTER_MARGIN,
+  jitterGates,
+  jitterModifierGate,
+  type BaseGateKey,
+} from './gates';
 export {
   suggestCoreAnchor,
   validateCorePlacement,
@@ -43,7 +49,10 @@ export {
 export {
   flatTerrain,
   generateTerrain,
+  // fb088: test-only paint() cost hooks — see generate.ts's own doc comment.
+  getPaintIterationCount,
   isDegradedMap,
+  resetPaintIterationCount,
   terrainHash,
   verifyTerrainMap,
   MAX_TERRAIN_SEED,

@@ -865,6 +865,8 @@ const ClassEffectSchema = z.object({
   /** `blood_tithe`: the share of current HP the tower pays once, and the permanent damage bonus it buys. */
   titheHpFraction: num.optional(),
   titheDamageMul: num.optional(),
+  /** `blood_tithe`, fb086 (§4.2): the tithed tower's own VS-share damage heals the Warden by this fraction. */
+  titheLifestealPct: num.optional(),
   /** `dash_heal` (Crimson Rush): HP restored per enemy the dash passes through. */
   healPerEnemy: num.optional(),
   /**
@@ -1422,7 +1424,7 @@ const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
   overload: ['overloadSeconds', 'overloadExtraChains'],
   dash_trail: ['dashRange', 'dashWidth', 'groundDurationSeconds', 'trailSegments'],
   dash_heal: ['dashRange', 'dashWidth', 'healPerEnemy'],
-  blood_tithe: ['titheHpFraction', 'titheDamageMul'],
+  blood_tithe: ['titheHpFraction', 'titheDamageMul', 'titheLifestealPct'],
   death_pact: ['pactDamageMul', 'pactAtkSpdMul', 'pactDrainPerSecond', 'pylonDps', 'pylonRange', 'pylonInterval'],
   recall_totem: ['auraAtkSpdMul', 'totemDurationSeconds'],
   clarion_taunt: ['tauntDurationSeconds'],
@@ -2154,6 +2156,11 @@ function applyNumberScale(c: {
     // side. Verified against `fireJudgement`/`storeWrath` directly, not
     // assumed from the "crossing constants take the inverse" shorthand.
     scaleFields(cls.active2, k, ['wrathDamageMul']);
+    // fb086 (§4.2 Blood Tithe): "its share of VS attacks lifesteals +1%" —
+    // the same Lifesteal crossing constant as `leech`/`towerLifestealPct`
+    // (damage dealt to an enemy, economy A, converted to HP healed on the
+    // Warden, economy B), so it takes the same inverse factor.
+    scaleFieldsInverse(cls.active1, k, ['titheLifestealPct']);
   }
 
   // Cores. `devourEliteDamage`/`poisonBulletDamage` deal damage to enemies
@@ -2222,7 +2229,11 @@ function applyNumberScale(c: {
   // the fraction is self-referential and scale-invariant on its own —
   // no correction needed regardless of which economy `s.hp` sits in.
   // `titheDamageMul` (the resulting buff) is a plain multiplier, never
-  // scaled. Neither is listed here because neither is touched.
+  // scaled. Neither is listed here because neither is touched. `titheLifestealPct`
+  // (fb086, the clause's other half — a tithed tower's own VS-share damage
+  // healing the Warden) *is* a lifesteal crossing constant, same shape as
+  // `leech`/`towerLifestealPct` — it is scaled above, alongside the rest of
+  // the `classes` loop.
   //
   // The Corpse Core's `corpseStoreRatio` banks a fraction of `dmgBooked`
   // (damage dealt to an enemy, economy A — `enemies.ts`'s damage-taken hook)
@@ -2344,6 +2355,12 @@ export function isInverseScaledClassPath(path: readonly string[]): boolean {
   const leaf = path[path.length - 1];
   const parent = path[path.length - 2];
   const grandparent = path[path.length - 3];
+  // fb086: `active1.titheLifestealPct` (Blood Tithe) is the same lifesteal
+  // crossing constant as `leech` above — damage dealt to an enemy (economy A)
+  // converted to HP healed on the Warden (economy B) — but lives on the
+  // Active row rather than in a `mods` record, so it needs the same named
+  // exception `wrathDamageMul` gets in `isScaledClassPath`.
+  if (leaf === 'titheLifestealPct' && parent === 'active1') return true;
   if (parent === 'mods' && (grandparent === 'passive' || grandparent === 'towerPassive')) {
     return !!STAT_INVERSE_SCALED[leaf as StatKey];
   }

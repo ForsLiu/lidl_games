@@ -7,9 +7,11 @@
  * Covers the item's own acceptance list:
  *   (1) `World` generates and applies terrain from `RunConfig.seed` before
  *       any structure exists;
- *   (2) the run's real gate list (base 4, plus the tier modifier's `south2`
- *       gate at (3,GRID_H-1)) is threaded into generation, closing the
- *       measured 138/500-seed burial bug;
+ *   (2) the run's real gate list (base 4 — `GATES` itself, not the old
+ *       `slice(0, 3)` that silently dropped the real `south` gate — plus the
+ *       `gate` modifier's fifth gate, `MODIFIER_GATES[0]`/`south2`) is
+ *       threaded into generation, closing the measured 138/500-seed burial
+ *       bug;
  *   (3) a reachable Core is a hard precondition — the four seeds that strand
  *       the hardcoded Core (4426/4515/5516 post-merge; 97/2055/2845/3098 pre-merge) resolve via `applyRunTerrain`'s
  *       seed+1 retry;
@@ -61,9 +63,11 @@ function coreTileIndices(w: number): number[] {
 describe('fb077 — World generates and applies real terrain', () => {
   it('applies the deterministic generated map before build, gate/Core tiles forced open', () => {
     const w = new World(runCfg({ seed: 1 }));
-    // fb153: `World` now generates against all four base `GATES`, not a
-    // stale `GATES.slice(0, 3)` copy.
-    const gates = GATES;
+    // fb153b (BACKLOG.md, main-lane): `World` reads the real base four gates
+    // (`GATES.slice()`, not the stale `slice(0, 3)`), so this control map
+    // must be generated against the same four to match `w.grid` byte for
+    // byte below.
+    const gates = GATES.slice();
     const expected = generateTerrain(1, terrainCfg, gates);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
     // applyRunTerrain also force-clears a 3x3 block around the Warden's own
@@ -151,13 +155,14 @@ describe('fb077 — stranded-Core seeds resolve via seed+1 retry (item 3)', () =
 });
 
 describe('fb077 — Fourth Gate modifier threads its real gate list into generation (item 2)', () => {
-  it('every gate (including the south Fourth Gate) reaches the Core across a seed sweep', () => {
+  it('every gate (including south2, the gate modifier\'s fifth gate) reaches the Core across a seed sweep', () => {
     const SEEDS = 60;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
-      // fb153: the modifier's gate is `MODIFIER_GATES[0]` (key `south2`) now,
-      // pushed by reference beside all four base `GATES` rather than a
-      // hand-typed, colliding `south` literal.
+      // fb153b: the base list is the real four `GATES` (west/north/east/south)
+      // and the `gate` modifier adds a fifth, `MODIFIER_GATES[0]` (`south2`)
+      // by reference — not the stale `{ key: 'south', tx: 12, ty: GRID_H - 1 }`
+      // literal `World` used to hand-type.
       expect(w.gates).toHaveLength(5);
       expect(w.gates.some((g) => g.key === 'south2' && g.tx === 3 && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
