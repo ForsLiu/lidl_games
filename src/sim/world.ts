@@ -5,7 +5,17 @@
 
 import { contentHash, defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { computeCoreState, coreHpBonus, type CoreState } from './cores';
-import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef, type TerrainOverlay } from './grid';
+import {
+  GRID_H,
+  GRID_W,
+  Grid,
+  GATES,
+  MODIFIER_GATES,
+  coreCenter,
+  type Field,
+  type GateDef,
+  type TerrainOverlay,
+} from './grid';
 import { RngSet } from './rng';
 import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
@@ -585,10 +595,15 @@ export class World {
       if (e.coreHp) this.mods.coreHp += e.coreHp;
     }
 
-    this.gates = GATES.slice(0, 3);
+    // fb153b (BACKLOG.md, main-lane follow-up to fb156): the base arena always
+    // carries all four `GATES` (west/north/east/south) now, not the pre-resize
+    // three — `slice(0, 3)` silently dropped the real `south` gate on every
+    // run. The `gate` modifier ("Fourth Gate", `data/modifiers.json`) adds a
+    // fifth: `MODIFIER_GATES[0]` (`south2`) by reference, not a hand-typed
+    // literal, so it can never drift off `grid.ts`'s own maintained position.
+    this.gates = GATES.slice();
     if (this.mods.extraGates > 0) {
-      // Fourth Gate opens the south wall.
-      this.gates.push({ key: 'south', tx: 12, ty: GRID_H - 1 });
+      this.gates.push(MODIFIER_GATES[0]);
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
       }
