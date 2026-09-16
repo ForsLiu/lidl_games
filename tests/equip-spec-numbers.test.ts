@@ -1104,7 +1104,11 @@ const RULES: readonly Rule[] = [
     // the same shape c008's Plaguebringer rows use.
     clause: 'Class-conditional lines are inert\nelsewhere unless a fallback is written',
     coveredBy: 'tests/fb015-equipment.test.ts',
-    anchor: /each of the 3 classFallback items withholds its fallback mods for the excluded class itself/,
+    // fb085: fb015's exact-set classFallback census ("each of the 3...")
+    // became an invariant over every authored row when `effectKey` opened
+    // (the registry is expected to grow past the original 3 as fb056 lands)
+    // — same rule, still asserted, on a title that no longer pins "3".
+    anchor: /every classFallback item \(not just the original 3\) withholds its fallback mods for the excluded class itself/,
     why:
       'The rule the three `classFallback` rows implement. Its *other* half — that the excluded ' +
       'class gets nothing extra — is asserted by the third rider below, because the fallback rows ' +

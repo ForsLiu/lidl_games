@@ -27,3 +27,19 @@ import type { World } from './world';
 export function hasEquipment(w: World, key: string): boolean {
   return Object.values(w.equippedEquipment).includes(key);
 }
+
+/**
+ * fb085 (unblocking BACKLOG-CONTENT.md fb056's Ring of Contagion/Chronomail/
+ * Bracer of Overlap, none of which reduce to a plain `Stats` mod): the
+ * equipped item named `itemKey`'s own `effectNums[field]`, or `fallback` when
+ * the item is not equipped or authors no such number. Gates by the item's own
+ * `key` (`hasEquipment`'s own convention — `effectKey` is a validated
+ * registry tag, not itself a runtime dispatch key, per its doc comment in
+ * `content.ts`), so a hook reads exactly the row a player actually equipped.
+ */
+export function equipmentEffectNum(w: World, itemKey: string, field: string, fallback: number): number {
+  if (!hasEquipment(w, itemKey)) return fallback;
+  const item = w.content.equipmentByKey.get(itemKey);
+  const v = item?.effectNums[field];
+  return v ?? fallback;
+}

@@ -778,6 +778,18 @@ const ClassEffectSchema = z.object({
     // hold-to-charge-power (`isChargeKind`), see `tickAmmoRecharge` (classes.ts).
     'time_mark',
     'time_lock',
+    // fb085 (unblocking BACKLOG-CONTENT.md fb057/fb059 — Madness King and
+    // Voltbolt, neither authored in `data/classes.json` yet): the four
+    // Active kinds their kits need, schema-only until each class's own row
+    // lands. `mind_manipulation` (Madness King Active1 "Mind Manipulation")
+    // and `spreading_madness` (Active2 "Spreading Madness") both apply the
+    // generic `madness` Enemy status (`types.ts`/`enemies.ts`); `lightning_ball`
+    // (Voltbolt Active1) and `overdrive_voltbolt` (Active2, named to avoid
+    // colliding with Stormcaller's unrelated `overload`) are Voltbolt's own.
+    'mind_manipulation',
+    'spreading_madness',
+    'lightning_ball',
+    'overdrive_voltbolt',
   ]),
   /** b013/E2: a <= 0 cooldown is the unbounded-recast shape a data typo would ship. */
   cooldownSeconds: num.positive(),
@@ -802,6 +814,15 @@ const ClassEffectSchema = z.object({
   groundDurationSeconds: num.optional(),
   /** `ground_poison` only (fb082): seconds between poison applications — §4.1's "applying poison damage every second." Falls back to 1 in `firePoisonBarrel` (classes.ts) if absent, so this is authored explicitly rather than left to the fallback. */
   groundTickSeconds: num.positive().optional(),
+  /**
+   * `ground_poison` only, fb085 (unblocking fb061's Poison Barrel charge
+   * conversion, 8 s -> 14 s max): the zone-lifetime floor at zero charge,
+   * mirroring `minRadius`/`minDamage`'s "floor the charge lerps up from"
+   * shape for `groundDurationSeconds` — absent means the zone has always
+   * lasted its full `groundDurationSeconds` regardless of hold time, the
+   * pre-fb061 behaviour every currently-shipped `ground_poison` row keeps.
+   */
+  minGroundDurationSeconds: num.positive().optional(),
 
   /* -------------------------------------------------- p6d, §4.2 kit fields */
 
@@ -902,6 +923,51 @@ const ClassEffectSchema = z.object({
   markEliteExecuteFraction: num.optional(),
   /** `time_lock`: seconds the "high DoT" a trapped enemy takes on entry is spread over (`groundDurationSeconds` is the zone's own no-exit lifetime, reused rather than a second duration field). */
   zoneDotSeconds: num.optional(),
+
+  /* ------------------------------------------- fb085 enablers (fb057/fb059) */
+
+  /**
+   * `mind_manipulation` (Madness King Active1, fb057): its elite/boss branch
+   * ("3 ticks of (their attack + character basic-attack) damage over 1 s
+   * plus 90% slow instead" of a conversion) — tick count, the window those
+   * ticks are spread over, and the slow fraction. Ordinary (non-elite/boss)
+   * targets use the shared ammo gate above (`maxCharges`/`rechargeSeconds`)
+   * and no other field here.
+   */
+  eliteConvertTicks: num.optional(),
+  eliteConvertTickSeconds: num.optional(),
+  eliteConvertSlowAmount: num.optional(),
+  /**
+   * `spreading_madness` (Madness King Active2, fb057): seconds the AoE's own
+   * madness application lasts (§4.2's "r4 AoE 10s madness") — `radius` above
+   * already carries the AoE's own reach, the same "generic field, kind-scoped
+   * meaning" shape `groundDurationSeconds` sets. The passive `whispers`
+   * (`ClassSlotPassiveSchema` below) authors its own, shorter duration for
+   * its own on-hit application — same status, two independent durations,
+   * exactly like `applySlow`'s callers already share one mechanism with
+   * per-source durations.
+   */
+  madnessDurationSeconds: num.optional(),
+  /**
+   * `lightning_ball` (Voltbolt Active1, fb059): seconds the thrown ball lives
+   * before expiring, and the damage efficiency (0-1) of the character's total
+   * move-speed bonus it converts into bonus damage on every basic attack it
+   * fires.
+   */
+  ballLifetimeSeconds: num.optional(),
+  moveSpeedDamageEfficiency: num.optional(),
+  /**
+   * `overdrive_voltbolt` (Voltbolt Active2, fb059): the window's own
+   * duration, its 3-chain damage multipliers ("25%/12.5%/12.5%"), and the
+   * additive per-basic-attack attack-speed/move-speed stacking during it
+   * ("+2.5%/+2.5%... stacking additively", reset at expiry).
+   */
+  overdriveSeconds: num.optional(),
+  overdriveChain1Mul: num.optional(),
+  overdriveChain2Mul: num.optional(),
+  overdriveChain3Mul: num.optional(),
+  overdriveAtkSpdPerHit: num.optional(),
+  overdriveMoveSpdPerHit: num.optional(),
 });
 
 /**
@@ -958,6 +1024,15 @@ const ClassSlotPassiveSchema = z.object({
       // tower-passive (a free range/AoE level every N TD waves) kinds.
       'time_flow',
       'chronal_surge',
+      // fb085 (unblocking fb057/fb059 — see `ClassEffectSchema`'s matching
+      // comment): Madness King's passive ("Whispers") and tower passive
+      // ("Frenzied Aim"), Voltbolt's passive ("Arc") and tower passive
+      // ("Lightning Accelerate"). Schema-only until each class's own row
+      // lands in `data/classes.json`.
+      'whispers',
+      'frenzied_aim',
+      'arc',
+      'lightning_accelerate',
     ])
     .optional(),
   /** `contagious_flame`: damage per second a Burning enemy deals to everything within `flameRadius`. */
@@ -989,6 +1064,46 @@ const ClassSlotPassiveSchema = z.object({
   waveInterval: num.optional(),
   bonusRangeMul: num.optional(),
   bonusAoeMul: num.optional(),
+
+  /* ------------------------------------------- fb085 enablers (fb057/fb059) */
+
+  /**
+   * `whispers` (Madness King passive, fb057): seconds an on-hit madness
+   * application lasts, the max enemies concurrently mad from *this passive
+   * alone* (§4.2's "cap 5 concurrent from the passive" — Active2's own AoE is
+   * uncapped, a separate source), and the +atk-speed/+move-speed this
+   * class's madness stacks are worth each ("+10%/+10% per madness attack") —
+   * read generically off the active class's passive by `enemies.ts`'s
+   * `madnessPerStackBonus`, the same class-conditional-read shape `run.ts`
+   * already uses for Time Flow's `charDotSpeedMul`.
+   */
+  madnessDurationSeconds: num.optional(),
+  madnessCap: num.optional(),
+  madnessAtkSpdPerStack: num.optional(),
+  madnessMoveSpdPerStack: num.optional(),
+  /**
+   * `frenzied_aim` (Madness King tower passive, fb057): the flat bonus point
+   * added on top of the character's own total attack-speed bonus at
+   * point-blank range (§4.2's "+10%") — the ramp itself is proximity-linear,
+   * computed at read time from live tower/character distance, not authored.
+   */
+  frenziedAimFlatBonus: num.optional(),
+  /**
+   * `arc` (Voltbolt passive, fb059): the chained hit's damage multiplier
+   * ("25% damage"), its search radius ("r3"), and the visual-only delay
+   * before the chain hit lands ("0.1s delayed chain visual").
+   */
+  arcChainDamageMul: num.optional(),
+  arcChainRadius: num.optional(),
+  arcChainDelaySeconds: num.optional(),
+  /**
+   * `lightning_accelerate` (Voltbolt tower passive, fb059): the flat tower
+   * projectile-speed bonus ("+100%"), and the efficiency (0-1) at which a
+   * tower converts the character's total attack-speed/move-speed bonuses
+   * into its own ("50%-efficiency conversions").
+   */
+  projectileSpeedBonus: num.optional(),
+  towerStatConversionEfficiency: num.optional(),
 });
 
 /**
@@ -1136,11 +1251,29 @@ const CoresFileSchema = z.object({ cores: uniqueArray(CoreSchema, ['key']) });
  * here rather than earning bespoke engine code, the same `addAll`-onto-`Stats`
  * precedent a Constellation node's stats and a class's passive already set.
  *
- * `effectKey` is the escape hatch for the three lines that cannot be a stat —
+ * `effectKey` is the escape hatch for the lines that cannot be a stat —
  * Sleeve Sword's instant-max Circle Slash charge, Swordsman Armor's
  * charge-speed/cross-item damage rule, Swordsman Shoes' doubled Dash Slash
- * distance — all three read straight off `cls.active1`/`active2`'s *kind*, not off a name, so
- * they are inert (not merely unauthored) on every class without that kind.
+ * distance — the first three read straight off `cls.active1`/`active2`'s
+ * *kind*, not off a name, so they are inert (not merely unauthored) on every
+ * class without that kind.
+ *
+ * fb085 (unblocking BACKLOG-CONTENT.md's fb056): `effectKey` used to be a
+ * closed 4-member zod enum, which made every new bespoke effect item a
+ * `content.ts` schema edit before the row could even load. It is now a plain
+ * validated string checked against `KNOWN_EQUIPMENT_EFFECT_KEYS` below (rule
+ * 4: the constraint lives in this file's own registry, not the schema
+ * literal) — a typo'd or unregistered key still fails to load
+ * (`validateEquipmentEffectKey`), refusing unpayable data exactly like the
+ * closed enum did, but registering a new key for a real engine hook is now a
+ * one-line addition instead of a schema edit. `effectNums` is the matching
+ * escape hatch for an effect's own magnitudes: `mods` is a fixed-key `Stats`
+ * bag, so before this an effect's number (Swordsman Shoes' "double distance")
+ * had nowhere data-driven to live and ended up a literal in `classes.ts`
+ * (`fireDashSlash`'s `? 2 : 1`) — `effectNums` is instead a free-form
+ * `Record<string, number>` a hook reads by its own field names (documented on
+ * the hook, not on this schema, since different effects need different
+ * fields the same way `ClassEffectSchema`'s many kind-specific optionals do).
  *
  * `classFallback` is the owner table's own "if not <class>: ..." lines, kept
  * data-driven (CLAUDE.md architecture rule 4) rather than a hardcoded class
@@ -1162,13 +1295,76 @@ const EquipmentItemSchema = z
     slot: str,
     name: str,
     mods: statRecord().default({}),
-    effectKey: z.enum(['none', 'sleeve_sword', 'swordsman_armor', 'swordsman_shoes']).default('none'),
+    effectKey: str.default('none'),
+    /**
+     * fb085: an effect's own free-form magnitudes — see the doc comment
+     * above. Keys are read by whichever hook `effectKey` names, not
+     * validated here. `statNum`-bounded (not plain `num`), not because these
+     * are `Stats` contributions, but for the same "refuses unpayable data"
+     * reason `mods` is: `ring_of_contagion`'s `extraTargets` (`enemies.ts`)
+     * feeds a `for` loop bound directly, so an unbounded typo (`1e300`
+     * instead of `1`) would hang the sim rather than merely mistune it —
+     * code-reviewer finding, fb085.
+     */
+    effectNums: z.record(str, statNum).default({}),
     classFallback: z.object({ notClassKey: str, mods: statRecord() }).optional(),
     effectNote: str.optional(),
     effectNoteWith: z.object({ key: str, text: str }).optional(),
     desc: str,
   })
   .strict();
+
+/**
+ * fb085: every `effectKey` a real engine site actually dispatches on —
+ * `sim/equipment.ts`'s `hasEquipment`/`equipmentEffectNum` gate by an item's
+ * own `key`, not by this tag (the note fb056's scoping left for whoever
+ * picked this up: "nothing reads `effectKey` at runtime... so the enum is
+ * documentation"), so this registry is exactly that documentation, made
+ * load-time-checked rather than a comment. `'none'` is always valid; every
+ * other value must be registered here before an item may author it, so a
+ * typo'd or forgotten key fails to load (rule 4) instead of silently doing
+ * nothing. fb056's remaining items that are pure `mods` bags never set
+ * `effectKey` past `'none'` and never touch this list.
+ */
+const KNOWN_EQUIPMENT_EFFECT_KEYS = new Set<string>([
+  'none',
+  'sleeve_sword',
+  'swordsman_armor',
+  'swordsman_shoes',
+  // fb085 enablers (§d): the three fb056 effects with a real engine seam as
+  // of this item — Ring of Contagion (`drainPlagueTransfers`'s fan-out,
+  // enemies.ts), Chronomail (Time Flow's window, run.ts), Bracer of Overlap
+  // (the Time Lock zone cap, world.ts). Each reads its own `effectNums` field
+  // through `equipmentEffectNum(w, <this key>, field, fallback)`.
+  'ring_of_contagion',
+  'chronomail',
+  'bracer_of_overlap',
+]);
+
+/** fb085: the load-time half of the registry above — see its doc comment. */
+export function validateEquipmentEffectKey(item: { key: string; effectKey: string }, where: string): void {
+  if (!KNOWN_EQUIPMENT_EFFECT_KEYS.has(item.effectKey)) {
+    throw new Error(`${where}: ${item.key} has unknown effectKey "${item.effectKey}"`);
+  }
+  // qa-playtester finding, fb085: every real dispatch site (`hasEquipment`,
+  // `equipmentEffectNum`) gates by the item's own `key`, not by `effectKey`
+  // — `effectKey` is documentation/a validated tag, per this function's own
+  // doc comment. That only actually connects an item to its engine hook when
+  // the two are equal, which every one of today's four non-'none' items
+  // already is (`sleeve_sword`/`swordsman_armor`/`swordsman_shoes`, and this
+  // rule holds vacuously for `bracer_of_overlap`/etc. the moment fb056
+  // authors them). Enforced here rather than left as a convention: an item
+  // authored with a mismatched pair (say, `key: "plague_ring"` with
+  // `effectKey: "ring_of_contagion"`) would otherwise load clean and its
+  // hook would just never fire — a silent no-op, not a load error, the exact
+  // failure mode rule 4 exists to refuse.
+  if (item.effectKey !== 'none' && item.effectKey !== item.key) {
+    throw new Error(
+      `${where}: ${item.key} has effectKey "${item.effectKey}", which does not match its own key — every ` +
+        'engine hook dispatches on the item key, so a mismatched effectKey would silently never fire',
+    );
+  }
+}
 
 const EquipmentFileSchema = z
   .object({
@@ -1395,6 +1591,12 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
     if (eff.groundTickSeconds !== undefined && eff.groundTickSeconds > eff.groundDurationSeconds) {
       throw new Error(`${where}: ground_poison's groundTickSeconds must not exceed groundDurationSeconds`);
     }
+    // fb085: the same "a floor above its own ceiling is unpayable data" shape
+    // as the groundTickSeconds check just above — a min above the (full-charge)
+    // max would make holding longer shrink the zone instead of growing it.
+    if (eff.minGroundDurationSeconds !== undefined && eff.minGroundDurationSeconds > eff.groundDurationSeconds) {
+      throw new Error(`${where}: ground_poison's minGroundDurationSeconds must not exceed groundDurationSeconds`);
+    }
   }
   for (const [kind, fields] of Object.entries(REQUIRED_EFFECT_FIELDS)) {
     if (eff.kind !== kind) continue;
@@ -1442,6 +1644,18 @@ const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
     'markEliteExecuteFraction',
   ],
   time_lock: ['maxCharges', 'rechargeSeconds', 'groundDurationSeconds', 'zoneDotSeconds'],
+  // fb085 enablers (fb057/fb059 — see `ClassEffectSchema`'s own field comments).
+  mind_manipulation: ['maxCharges', 'rechargeSeconds', 'eliteConvertTicks', 'eliteConvertTickSeconds', 'eliteConvertSlowAmount'],
+  spreading_madness: ['madnessDurationSeconds'],
+  lightning_ball: ['ballLifetimeSeconds', 'moveSpeedDamageEfficiency'],
+  overdrive_voltbolt: [
+    'overdriveSeconds',
+    'overdriveChain1Mul',
+    'overdriveChain2Mul',
+    'overdriveChain3Mul',
+    'overdriveAtkSpdPerHit',
+    'overdriveMoveSpdPerHit',
+  ],
 };
 
 /**
@@ -1457,6 +1671,11 @@ const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
   guardian_stance: ['stanceArmor', 'wrathFraction'],
   blood_frenzy: ['frenzyVsMul', 'frenzyTdMul'],
   chronal_surge: ['waveInterval', 'bonusRangeMul', 'bonusAoeMul'],
+  // fb085 enablers (fb057/fb059 — see `ClassSlotPassiveSchema`'s own field comments).
+  whispers: ['madnessDurationSeconds', 'madnessCap', 'madnessAtkSpdPerStack', 'madnessMoveSpdPerStack'],
+  frenzied_aim: ['frenziedAimFlatBonus'],
+  arc: ['arcChainDamageMul', 'arcChainRadius', 'arcChainDelaySeconds'],
+  lightning_accelerate: ['projectileSpeedBonus', 'towerStatConversionEfficiency'],
 };
 
 /** Passive-slot counterpart to `validateClassEffect` — see `REQUIRED_PASSIVE_FIELDS`. */
@@ -2703,6 +2922,9 @@ export function loadContent(overrides?: ContentOverrides): Content {
     if (!equipmentSlots.has(item.slot)) {
       throw new Error(`equipment.json: ${item.key} has unknown slot "${item.slot}"`);
     }
+    // fb085: the opened `effectKey` string is only as safe as the closed enum
+    // it replaces if a typo still fails to load — see `KNOWN_EQUIPMENT_EFFECT_KEYS`.
+    validateEquipmentEffectKey(item, 'equipment.json');
     if (item.classFallback && !classKeys.has(item.classFallback.notClassKey)) {
       throw new Error(
         `equipment.json: ${item.key}.classFallback references unknown class "${item.classFallback.notClassKey}"`,

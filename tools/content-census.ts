@@ -45,6 +45,14 @@ export function census(content: Content): CensusRow[] {
 
   // §4's 11 classes, plus fb013's owner-directed 12th (Time Lord, filed
   // after §13 was written).
+  //
+  // fb085 (checked this reader per its own acceptance text, no change due
+  // yet): BACKLOG-CONTENT.md's fb057 (Madness King) and fb059 (Voltbolt) add
+  // a 13th and 14th class once each authors a real `data/classes.json` row —
+  // `content.ts`'s schema already accepts their `kind`s (fb085 enabler), so
+  // this `target: '12'`/`classCount === 12` pin is the one line each of
+  // those two items needs to bump (12 -> 13 -> 14) when it lands, not a
+  // fresh census read.
   const classCount = content.classes.classes.length;
   rows.push({
     key: 'classes',

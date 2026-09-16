@@ -26,6 +26,16 @@
  * `effectNums` decision is main-lane (`c023`'s Log entry), because it moves
  * `src/sim/content.ts`.
  *
+ * **fb085 update:** the main-lane decision landed — `effectKey` opened from
+ * the closed 4-member enum this file used to scrape into a validated open
+ * registry (`KNOWN_EQUIPMENT_EFFECT_KEYS`, content.ts), and a new
+ * `equipmentEffectNum` helper (`sim/equipment.ts`) gates three more items'
+ * (Ring of Contagion/Chronomail/Bracer of Overlap) engine hooks the same
+ * `hasEquipment`-by-item-key way, just not via a direct `hasEquipment(w,
+ * '<literal>')` call `CALL_SITES` would pick up (see the raw-cross-check
+ * below). The three-item roster this file is actually about — the ones
+ * `classes.ts` gates directly — is unchanged.
+ *
  * refs: SPEC-FINAL §7, c012, c022, c023, fb056.
  */
 
@@ -167,8 +177,11 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
     expect(
       rawCalls,
       'a `hasEquipment(` in /src that the blanked scan did not see — check blankNonCode’s known blind spot',
-    ).toBe(CALL_SITES.length + 2); // +2: the `export function` in sim/equipment.ts, and
-    // fb148's doc comment in class-info.ts quoting the class-live.ts call verbatim.
+    ).toBe(CALL_SITES.length + 3); // +3: the `export function` in sim/equipment.ts,
+    // fb148's doc comment in class-info.ts quoting the class-live.ts call verbatim, and
+    // (fb085) `equipmentEffectNum`'s own internal `hasEquipment(w, itemKey)` call in the
+    // same file — a *parameterized* gate (no string literal), so `CALL_SITES` correctly
+    // does not carry it, but the raw scan still sees the substring.
     // Per key, so a lost call site names the item rather than arriving as a
     // bare arity mismatch.
     const perKey: Record<string, number> = {};
@@ -202,11 +215,12 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
       ).toEqual(expected);
     }
     // **And that second home is the finding, not an exemption.** `content.ts`
-    // repeats all three keys in a closed zod enum for `effectKey` — the field
-    // `c023` proved nothing reads. So the roster is written twice: once where
-    // it is load-bearing (`classes.ts`) and once where it is decoration, and
-    // the decoration is the copy a reader finds first. `fb056`'s three
-    // blockers name this enum as one of them; the fix is main-lane. The two
+    // repeats all three keys in its `effectKey` registry (fb085: opened from
+    // a closed zod enum into `KNOWN_EQUIPMENT_EFFECT_KEYS`, still not itself
+    // a runtime dispatch key — `c023`'s point survives the opening). So the
+    // roster is written twice: once where it is load-bearing (`classes.ts`)
+    // and once where it is decoration, and the decoration is the copy a
+    // reader finds first. The two
     // copies are held to each other in the last row of this file.
   });
 
@@ -254,15 +268,27 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
       "c023's effectKey measurement is gone — c031's premise (the field is dead, the literals are live) is unwatched",
     ).toMatch(/effectKey/);
     // And the one thing c023 does not say: the three keys `classes.ts` gates
-    // on are the same three the enum lists, so the decoration and the binding
-    // have not drifted apart while both were unwatched.
-    const enumLine = readFileSync(CONTENT_TS, 'utf8')
-      .split('\n')
-      .find((l) => /effectKey: z\.enum\(/.test(l));
-    expect(enumLine, 'the effectKey enum moved — c023 and c031 both describe it').toBeDefined();
-    const listed = [...enumLine!.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).filter((k) => k !== 'none');
-    expect(listed.sort(), 'the enum and the gated roster have drifted apart').toEqual(
-      [...new Set(CALL_SITES.map((c) => c.key))].sort(),
+    // on are still all present in the decoration, so the decoration and the
+    // binding have not drifted apart while both were unwatched.
+    //
+    // fb085: the closed 4-member `effectKey: z.enum(...)` this row used to
+    // scrape is gone — `effectKey` opened into a validated *registry*
+    // (`KNOWN_EQUIPMENT_EFFECT_KEYS`, content.ts) so fb056's remaining
+    // bespoke items don't each need a schema edit. That registry is no
+    // longer a plain list of "the three keys classes.ts gates on": it also
+    // carries the three fb085(d) hook keys (Ring of Contagion/Chronomail/
+    // Bracer of Overlap), which `hasEquipment` never gates on directly (they
+    // route through `equipmentEffectNum` instead — see the raw-cross-check
+    // comment above). So this is now a subset check, not an exact-set one —
+    // c023's own point (the registry is decoration, not the binding) still
+    // holds; the binding is still exactly `CALL_SITES`.
+    const registryBlock = readFileSync(CONTENT_TS, 'utf8').match(
+      /const KNOWN_EQUIPMENT_EFFECT_KEYS = new Set<string>\(\[([\s\S]*?)\]\);/,
     );
+    expect(registryBlock, 'the effectKey registry moved — c023 and c031 both describe it').toBeDefined();
+    const listed = [...registryBlock![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).filter((k) => k !== 'none');
+    for (const key of new Set(CALL_SITES.map((c) => c.key))) {
+      expect(listed, `${key} is gated in classes.ts but missing from the effectKey registry`).toContain(key);
+    }
   });
 });

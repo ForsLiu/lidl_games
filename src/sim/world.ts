@@ -20,6 +20,7 @@ import { RngSet } from './rng';
 import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
+import { equipmentEffectNum } from './equipment';
 import { structureArmor, structureMaxHp } from './upgrades';
 import type {
   ClassSummon,
@@ -361,8 +362,26 @@ export class World {
    * expires (`updateTempWalls`, classes.ts).
    */
   tempWalls: { structureIds: number[]; remaining: number }[] = [];
-  /** fb013 Time Lord *Time Lock*: the single live no-exit zone, or null. */
-  timeLockZone: TimeLockZone | null = null;
+  /**
+   * fb013 Time Lord *Time Lock*: the live no-exit zone(s). fb085 (unblocking
+   * BACKLOG-CONTENT.md fb056's Bracer of Overlap, "Time Lock can hold 2
+   * zones"): storage is a small array rather than the single nullable field
+   * this used to be, so a second zone has somewhere to live — `classes.ts`'s
+   * `fireTimeLock`/`updateTimeLockZone` still only ever touch index 0 as of
+   * this item (a second zone is fb056's own cast/tick logic to add, gated on
+   * `timeLockZoneCap` below), so every pre-fb085 call site's behaviour is
+   * unchanged. `timeLockZone` stays as a get/set alias onto index 0 for every
+   * one of those existing sites (and every existing test that reads it), so
+   * this migration changes no call site's code, only what backs it.
+   */
+  timeLockZones: TimeLockZone[] = [];
+  get timeLockZone(): TimeLockZone | null {
+    return this.timeLockZones[0] ?? null;
+  }
+  set timeLockZone(z: TimeLockZone | null) {
+    if (z === null) this.timeLockZones.splice(0, 1);
+    else this.timeLockZones[0] = z;
+  }
 
   /* ---- progression ---- */
   stats: Stats;
@@ -1014,6 +1033,18 @@ export class World {
 export { coreCenter };
 export function makeStats(): Stats {
   return emptyStats();
+}
+
+/**
+ * fb085 (unblocking fb056's Bracer of Overlap): how many `timeLockZones`
+ * entries `fireTimeLock` (classes.ts) may hold at once — 1 normally, +1 per
+ * `effectNums.extraZones` the item named `bracer_of_overlap` authors (0, a
+ * no-op, when it is not equipped), so the "2" itself lives in `/data` rather
+ * than a literal here (rule 4) — same `equipmentEffectNum` seam the Ring of
+ * Contagion/Chronomail hooks use (`enemies.ts`/`run.ts`).
+ */
+export function timeLockZoneCap(w: World): number {
+  return 1 + Math.round(equipmentEffectNum(w, 'bracer_of_overlap', 'extraZones', 0));
 }
 
 /**
