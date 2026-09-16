@@ -563,6 +563,30 @@ therefore measure *after* `fb153`, not before.
         kept as-is by design rather than a live gate-count claim; the
         modifier's desc ("+1 gate active") remains accurate.
 
+- [x] (fb198) [bug] **DONE 2026-09-16 — found by this session's own CI run
+      after pushing fb086, working rule 3 (a confirmed bug outranks the
+      queue).** The two `wouldBlockPath` gate-sealing failures fb153/fb086
+      both logged as "pre-existing and unrelated" were not a defect in
+      `wouldBlockPath`/`checkBuild` at all: `tests/act1.test.ts`'s "allows a
+      placement that cuts a gate off" and `tests/grid.test.ts`'s "rejects a
+      placement that walls a gate off" both hardcoded the **west gate's old
+      36x20-era position**, `(0, 10)` — boxing tiles `(1,9)/(1,10)/(1,11)`,
+      three ordinary interior tiles at the current 56x32 grid, where the real
+      west gate now sits at `(0, 12)` (`GATES[0]`, moved by the earlier
+      fb156/fb153b repositioning). Boxing the wrong row cannot seal
+      anything, so `wouldBlockPath` correctly returned `false` — the
+      function was never wrong; the tests' fixture coordinates were stale
+      exactly the way every *other* gate-position-dependent golden value
+      fb153 already re-measured, this pair just never got caught because
+      neither file's assertion message named a coordinate to grep for.
+      Fixed by reading the row off `GATES[0].ty` instead of a literal, with
+      an added `expect(GATES[0].key).toBe('west')` guard so a future gate
+      reindex fails loudly here too rather than silently boxing the wrong
+      gate again. `npm run test:fast`: 304 passed/0 failed/9 skipped (was
+      302/2/9) — this closes the very last red the fb153/fb139/fb086 chain
+      had been carrying forward as "pre-existing." `npx tsc --noEmit`
+      clean — refs: SPEC-FINAL §10 (sealing), BACKLOG fb153/fb156.
+
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
 **PRIORITY DIRECTIVE:** fb193, fb194, fb195 in that order, then the content-lane

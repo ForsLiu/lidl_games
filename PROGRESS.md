@@ -5,6 +5,18 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb198 closed — the last "pre-existing"
+  `wouldBlockPath` red was a stale test fixture, not a sim defect.** Found
+  by this session's own CI run after pushing fb086: `tests/act1.test.ts` and
+  `tests/grid.test.ts` both hardcoded the west gate's old 36x20-era position
+  `(0, 10)`, boxing three ordinary interior tiles at the current 56x32 grid
+  instead of the real gate, now at `(0, 12)` (`GATES[0]`, moved by the
+  earlier fb156/fb153b repositioning). `wouldBlockPath` was never buggy —
+  boxing the wrong row cannot seal anything, so it correctly returned
+  `false`. Fixed both tests to read the row off `GATES[0].ty` with a
+  `key === 'west'` guard against a future reindex. `npm run test:fast`:
+  304 passed/0 failed/9 skipped (was 302/2/9) — CI is green again.
+
 - **2026-09-16 — main lane: BACKLOG fb086 closed — Bloodlord *Blood Tithe*'s
   missing VS-share lifesteal clause.** SPEC-FINAL §4.2 named two effects for a
   tithed tower; only the permanent damage bonus was ever wired

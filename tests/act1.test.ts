@@ -51,12 +51,19 @@ describe('placement rules (SPEC 3.1)', () => {
     // Seal the west gate's only exit with three walls. Under the retired path
     // guarantee the third was 'blocks_path'; §10 makes it a legal seal that
     // enemies answer by breaching (tests/p1a-sealing.test.ts).
-    warp(w, 1, 10);
-    expect(buildTower(w, 1, 1, 9).ok).toBe(true);
-    expect(buildTower(w, 1, 1, 11).ok).toBe(true);
-    expect(w.grid.wouldBlockPath([[1, 10]])).toBe(true); // it is a seal…
-    expect(checkBuild(w, 1, 1, 10)).toBeNull(); // …and it is legal
-    expect(buildTower(w, 1, 1, 10).ok).toBe(true);
+    //
+    // fb153/fb156 moved the west gate off its old 36x20-era (0, 10) to
+    // (0, 12) at the 56x32 grid (`GATES[0]`) — this test's row stayed pinned
+    // to the old position and so walled off three ordinary interior tiles
+    // instead of the real gate, a defect this session's own CI run caught.
+    const gy = GATES[0].ty;
+    expect(GATES[0].key).toBe('west');
+    warp(w, 1, gy);
+    expect(buildTower(w, 1, 1, gy - 1).ok).toBe(true);
+    expect(buildTower(w, 1, 1, gy + 1).ok).toBe(true);
+    expect(w.grid.wouldBlockPath([[1, gy]])).toBe(true); // it is a seal…
+    expect(checkBuild(w, 1, 1, gy)).toBeNull(); // …and it is legal
+    expect(buildTower(w, 1, 1, gy).ok).toBe(true);
     expect(w.grid.allGatesReachable()).toBe(false);
   });
 
