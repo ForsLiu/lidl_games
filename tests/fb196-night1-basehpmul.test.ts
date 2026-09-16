@@ -91,25 +91,27 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
     expect(shipped.enemies.baseHpMul).toBe(20);
   });
 
-  // fb153b Known-issue (2026-09-15): correcting `GATES.east` (`src/sim/
-  // grid.ts` — stale 36x20-era `{tx:35,ty:17}`, an interior tile at the
-  // shipped 56x32 grid, landing roughly a third of Act I spawns far closer
-  // to the Core than intended) changes real spawn-to-Core travel distance at
-  // Night-1 for every seed — including seed 1 here. Measured post-fix:
-  // swordsman now `victory` (was `defeat_warden`), pyromancer now
-  // `defeat_core` (was also `defeat_warden`, but via a different failure
-  // mode). This is not a rescale-noise wobble; it is the *intended* effect
-  // of fixing a live gameplay bug the fb196/fb193/fb185/p13a bisection chain
-  // was never measuring against. Their numbers — and by extension G8's
-  // recorded state in BACKLOG.md's "Owner priority queue (2026-09-14
-  // directive)" section — need a fresh full re-measurement against the
-  // corrected gate position, not a quick re-pin here (this file's whole
-  // point is a controlled two-run control pair, and re-deriving the right
-  // `baseHpMul` story from a single edited run would repeat the mistake
-  // fb196 itself was filed to fix). Filed as **fb197** in BACKLOG.md.
-  // Re-enable point: fb197.
-  it.skip('swordsman seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'swordsman', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb197 (2026-09-16) — re-measured against the corrected gate position
+  // (fb153b's `GATES.east`/`world.ts:591` fix). seed 1 no longer
+  // discriminates the mechanism at all for either class: both swordsman and
+  // pyromancer now resolve `victory`/w18 at seed 1 regardless of
+  // `baseHpMul` (20 vs. 1) — the corrected spawn distance alone is now
+  // enough for the scripted kit bot to clear Night-1, so this exact
+  // control pair's premise (this seed flips outcome on this one lever) no
+  // longer holds. Rather than delete the mechanism check outright (the
+  // `baseHpMul`-inflates-Night-1-mob-HP mechanism itself is still real and
+  // live in `src/sim/enemies.ts`'s `makeEnemy`, unchanged by fb153b), a
+  // fresh full 12-seed sweep of both classes (`tools/`-probe, deleted after
+  // use, same precedent as fb185/fb196's own probes) found several other
+  // seeds whose shipped-content outcome is still a first-VS-block
+  // `defeat_warden`@w3 and which do flip to `victory` at `baseHpMul: 1`:
+  // swordsman seeds 6/10, pyromancer seeds 11/12 (also bloodlord 1/10/11,
+  // archer 8 — not used here, this file's own scope is the two classes
+  // already named). Re-pinned to swordsman seed 6 / pyromancer seed 11 and
+  // un-skipped rather than left `.skip`-ed, since the mechanism is
+  // demonstrable again with a fresh seed.
+  it('swordsman seed 6 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 6, classKey: 'swordsman', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');
@@ -119,9 +121,9 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
     expect(withNeutral.outcome).not.toBe('defeat_warden');
   }, 60_000);
 
-  // fb153b Known-issue — see the comment above. Re-enable point: fb197.
-  it.skip('pyromancer seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb197 — see the comment above.
+  it('pyromancer seed 11 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 11, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');

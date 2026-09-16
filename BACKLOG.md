@@ -798,7 +798,76 @@ honor.**
       per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q175/Q193, BACKLOG p12f/fb183.
 
-- [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
+- [x] (fb197) [balance] **DONE 2026-09-16 — fresh full 12-seed roster sweep
+      recorded; G8 stays red, but the failure shape flipped from
+      under-the-floor to a mixed floor/ceiling split.** Full table (was per
+      fb185/fb196's 2026-09-15 pins -> now, band `[5,8]`):
+      | class | before | after | direction |
+      |---|---|---|---|
+      | swordsman | 0/12 | **10/12** | over ceiling (was under floor) |
+      | plaguebringer | 0/12 | 3/12 | still under floor |
+      | engineer | 4/12 | 3/12 | still under floor (worse by 1) |
+      | pyromancer | 0/12 | **10/12** | over ceiling |
+      | archer | 0/12 | **10/12** | over ceiling |
+      | necromancer | 4/12 | 1/12 | still under floor (worse) |
+      | cryomancer | 4/12 | 1/12 | still under floor (worse) |
+      | stormcaller | 0/12 | 4/12 | still under floor by 1 |
+      | bloodlord | 3/12 | **9/12** | over ceiling |
+      | animist | 4/12 | 4/12 | unchanged count, timeout mix shifted |
+      | paladin | 0/12 | 4/12 | still under floor by 1 |
+      | time_lord | 8/12 | 8/12 | unchanged, still the only in-band class |
+      **0 of 12 newly clear the band** — time_lord remains the sole
+      in-band class, same as every measurement since p13a. Four classes
+      (swordsman, pyromancer, archer, bloodlord) went from a near-total
+      Night-1 wipe straight past the ceiling to a near-total win rate,
+      confirming p12j's own bisection-era diagnosis that these classes'
+      G8 problem was never a `classes.json` kit lever, it was the buggy
+      gate position inflating Night-1 exposure (`world.ts:591`'s stale
+      `{tx:12,ty:19}`, fixed by fb153b). The other seven did not benefit,
+      or measured slightly worse — the roster-wide regression fb196 first
+      flagged is not fully explained by the gate bug alone; the remaining
+      wall for plaguebringer/engineer/necromancer/cryomancer/stormcaller/
+      animist/paladin is unqueued follow-up work (a fresh balance-analyst
+      pass, not this item's own `[balance]`-measurement-only scope).
+      Fingerprint-distance failing-pair count moved **27 -> 28** (still
+      red, `tests/p6e-class-diversity.test.ts`'s own pin re-measured and
+      updated) — the kit-share mechanism this clause measures is largely
+      independent of the win-rate mechanism the gate fix moved, so it did
+      not track the roster's win-rate reshuffle.
+      **`tests/fb196-night1-basehpmul.test.ts`'s control pair**: seed 1
+      no longer discriminates the `baseHpMul` mechanism for either class —
+      both swordsman and pyromancer now resolve `victory`/w18 at seed 1
+      regardless of `baseHpMul` (20 vs. 1), since the corrected spawn
+      distance alone is now enough to clear Night-1. Per this item's own
+      acceptance ("or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect"), a throwaway `tools/` probe
+      (deleted after use) searched the fresh sweep for seed/class pairs
+      whose shipped outcome is still a first-VS-block `defeat_warden`@w3
+      and confirmed several still flip cleanly to `victory` at
+      `baseHpMul: 1`: swordsman seeds 6/10, pyromancer seeds 11/12 (also
+      bloodlord 1/10/11, archer 8 — not used, out of this file's own two
+      named classes). Re-pinned to **swordsman seed 6 / pyromancer seed
+      11** and un-`.skip`-ed rather than left skipped, since the
+      mechanism itself (`src/sim/enemies.ts`'s `makeEnemy` applying
+      `baseHpMul` uniformly including VS-only Night-1 fodder) is
+      unchanged and still demonstrable.
+      **`tests/p13a-survivability-bands.test.ts`** spot-checked by
+      inspection, not re-run: it is a pure `derive()` unit test over
+      `maxHpMul`/`defenseBonus` math with no `Run`/terrain/RNG involved,
+      so it carries no dependency on gate position — confirmed unaffected,
+      no re-measurement needed. The T1/T5 "companion" describe block in
+      the same file (`cycles:1` `engineer`-only harness) was **not**
+      re-measured — it is a separate describe block from the G8 roster
+      sweep this item's acceptance named, is itself RNG/gate-position
+      dependent the same way, and is logged `.skip`-ed with an explicit
+      note that its own pin is now stale too, rather than silently
+      assumed still accurate; left as unqueued follow-up.
+      Verified full-tier (a `/data`-adjacent balance re-measurement
+      touching `/src/sim`-facing test assertions): code-reviewer and
+      qa-playtester both run per CLAUDE.md's Subagent protocol.
+      `npm run test:fast` shows no new failures beyond the pre-existing
+      baseline (confirmed via `git stash` control). Original text follows.
+      **found ahead of queue order 2026-09-15 while
       shipping fb153b (working rule 3: a confirmed bug outranks the
       queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
       `south` literal — both stale 36x20-era coordinates that had drifted
