@@ -5,6 +5,72 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb086 done — Bloodlord Blood Tithe's
+  missing VS-share lifesteal clause shipped.** SPEC-FINAL §4.2: "tower pays
+  30% current HP once -> permanently +25% dmg; its share of VS attacks
+  lifesteals +1%" — only the damage-bonus half existed (`s.tithed` fed
+  `classTowerDamageMul`, towers.ts); `leech` is a single run-wide Warden stat
+  with no per-structure VS-share lifesteal concept anywhere. Shipped a new
+  crossing-constant field, `active1.titheLifestealPct` (`data/classes.json`,
+  authored 0.01), classified the same as `leech`/`towerLifestealPct` under
+  the fb163/fb194 economy split (inverse-scaled at load, `content.ts`) and
+  required at load (`REQUIRED_EFFECT_FIELDS.blood_tithe`, so a missing value
+  is a load error, not a silent no-op). Wired into `applyTowerLifesteal`'s
+  existing three-call-site choke point (`cores.ts`), gated on
+  `w.huntsWarden && s.tithed`, healing the Warden independently of whether
+  Vampire Heart's own structure-heal lifesteal fires. New
+  `tests/fb086-blood-tithe-lifesteal.test.ts` (6 cases, confirmed red-first
+  via a `git stash` of the `cores.ts` fix): tithed/untithed, VS/TD gating,
+  a defensive off-class case, and both sync (Arrow Spire) and async
+  (Ballista/pierce) damage-landing paths. `tests/class-spec-numbers.test.ts`'s
+  c008 ledger flipped this clause's row `unimplemented` -> `match`;
+  `tests/fb153a-number-scale.test.ts` and `tests/q7-loader-holes.ts`
+  extended with the new field's classification/fuzz-hole entries.
+  `src/ui/class-info.ts`'s auto-generated Blood Tithe sentence gained the
+  lifesteal clause (displayed at the loaded value, same convention fb194
+  set for Blood Frenzy's "3%" -> "30%"). code-reviewer **APPROVE** (no
+  Critical/Major; two Minor/Nit notes on a per-hit Map lookup, not blocking,
+  matches the existing `classTowerDamageMul` idiom). qa-playtester **PASS**
+  — independently re-derived the crossing-constant arithmetic (confirmed the
+  runtime heal is 10% of on-screen damage, matching `vsLifestealPct`'s own
+  identical 10x gap between SPEC's literal 1%/0.3% prose and the loaded
+  value — Q180/Q191's already-approved convention, not a bug), verified
+  correct behaviour under multiple simultaneous tithed towers, tower sell/
+  rebuild (fresh `Structure.tithed = false`, no leak), Vampire Heart
+  overheal-to-gold interaction, all 7 attack kinds (only 2 covered by the
+  committed regression test), the TD-phase gate, determinism (two identical
+  `endHash` runs), and `hashWorld` coverage (no new persistent state).
+  **Two findings logged for a future session, not filed as new BACKLOG items
+  this run (standing instruction: never generate new backlog items in this
+  routine):** (1) DoT-rider damage (e.g. Ember Brazier's Burning tick) does
+  not contribute to Blood Tithe's or Vampire Heart's own tower lifesteal —
+  `tickDot` (enemies.ts) calls `damageEnemy` directly, never touching
+  `Structure.damageDealt`/`applyTowerLifesteal`; pre-existing on the shared
+  choke point, not introduced here, needs an owner call on whether "VS
+  attacks" was meant to include DoT riders. (2) the acceptance text's "~1%"
+  phrasing and BACKLOG's `spec: 0.01` ledger reads as the observed
+  player-facing effect when the actual (correct) number is 10% — worth a
+  one-line QUESTIONS.md clarification so a future pass doesn't "fix" this
+  into a real 1x-off bug. `npx tsc --noEmit` clean; `npm run test:fast`
+  byte-identical 20-failure list before/after (verified via `git stash -u`
+  for a true clean-tree control) — no new failures. **Skipped this session, logged
+  reasons:** **fb197** (top of the owner-priority queue, "found ahead of
+  queue order... a confirmed bug outranks the queue") needs a fresh full
+  12-seed roster-wide sweep of `tests/p6e-class-diversity.test.ts` against
+  the now-corrected Fourth Gate position — that file is excluded from the
+  fast tier at ~1h standalone for exactly this reason, which alone exceeds
+  this run's 45-minute/6-item bound; left at the top of the queue for a
+  dedicated session, per the same "too large to land safely inside this
+  run's bounded window" standard fb184's entry (2026-09-15) already set
+  against fb194. **fb085** (unblocking five content-lane owner items) is a
+  four-part `content.ts`/shared-file enabler spanning a new equipment
+  effectKey registry, two new classes' enums plus a `madness` status,
+  a charge-duration-floor schema field, and three effect hooks across
+  `enemies.ts`/`run.ts`/`world.ts` — a multi-hour, multi-file item bundled
+  under one checkbox, also too large for this run's bound; fb086 (small,
+  contained, still owner-directed) was taken instead per "skip only with a
+  logged reason."
+
 - **2026-09-15 — main lane: BACKLOG fb183/fb195 done — kit-relevance target
   restated 35% -> 15% from wave 12 (QUESTIONS Q175/Q193 owner verdict).**
   The shipped >=35% own-kit-VS-share target (BALANCE DIRECTION v2 §A) fought
