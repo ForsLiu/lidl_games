@@ -125,6 +125,9 @@ const INVERSE_PATHS: readonly string[] = [
   'cores.cores[].effects.towerLifestealPct',
   'cores.cores[].effects.vsLifestealPct',
   'cores.cores[].upgrade.steps[].towerLifestealBonus',
+  // fb086: Blood Tithe's own instance of the same crossing constant — a
+  // tithed tower's VS damage (economy A) healing the Warden (economy B).
+  'classes.classes[].active1.titheLifestealPct',
 ];
 
 /**

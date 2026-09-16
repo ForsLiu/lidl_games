@@ -18,7 +18,7 @@ import {
 // `applyAoE` for Electric's inherent radius) is deliberate and safe: both sides
 // are called from inside functions, neither is read at module evaluation.
 import { applyDamageSplit, applyDamageType } from './damagetypes';
-import { applyTowerLifesteal } from './cores';
+import { applyTitheLifesteal, applyTowerLifesteal } from './cores';
 import { dcos, dist2, normalize } from './math';
 import type { Enemy, Projectile, TowerClassBonus } from './types';
 import { World } from './world';
@@ -522,6 +522,7 @@ export function updateProjectiles(w: World, dt: number): void {
         // p-core-b: `pierce`'s lifesteal lands here, not in `updateTowers`
         // (towers.ts) — see `applyTowerLifesteal`'s doc comment.
         applyTowerLifesteal(w, owner, dealt);
+        applyTitheLifesteal(w, owner, dealt);
       }
       if (!e.dead) applyEffects(w, e, fx);
       if (p.pierceLeft > 0) {
@@ -556,6 +557,7 @@ function detonate(w: World, p: Projectile): void {
     owner.damageDealt += dealt;
     // p-core-b: `lob`'s lifesteal lands here, not in `updateTowers` (towers.ts).
     applyTowerLifesteal(w, owner, dealt);
+    applyTitheLifesteal(w, owner, dealt);
   }
   if (p.groundBurn) spawnBurningPatch(w, p);
 }

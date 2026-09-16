@@ -3896,16 +3896,45 @@ was not fabricated.
       `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
       Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
       SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
-- [ ] (fb086) [bug] SPEC-FINAL §4.2 Bloodlord *Blood Tithe* is missing a
-      clause: "tower pays 30% current HP once -> permanently +25% dmg; **its
-      share of VS attacks lifesteals +1%**". Only the first half exists —
-      `s.tithed` feeds `classTowerDamageMul` (`towers.ts`) and nothing else
-      reads it; `leech` is one run-wide Warden stat and there is no
-      per-structure VS-share lifesteal anywhere (BACKLOG-CONTENT.md session-2
-      Log). Acceptance: failing test first (a tithed tower's VS-share hits
-      heal the Warden 1%; an untithed one does not); numbers in
-      `data/classes.json`; `tests/class-kit-liveness.test.ts`'s Bloodlord row
-      gains the second product — refs: SPEC-FINAL §4.2.
+- [x] (fb086) [bug] **DONE 2026-09-16.** SPEC-FINAL §4.2 Bloodlord *Blood
+      Tithe* was missing a clause: "tower pays 30% current HP once ->
+      permanently +25% dmg; **its share of VS attacks lifesteals +1%**". Only
+      the first half existed — `s.tithed` fed `classTowerDamageMul`
+      (`towers.ts`) and nothing else read it; `leech` is one run-wide Warden
+      stat, a different mechanism, and cannot stand in for a per-structure
+      VS-share heal. Closed with a new `titheLifestealPct` field
+      (`data/classes.json`, 0.01) and `applyTitheLifesteal` (`cores.ts`),
+      called from the same three sites that credit `Structure.damageDealt`
+      and call `applyTowerLifesteal` (`combat.ts` x2, `towers.ts`), gated on
+      `s.tithed && cls.active1.kind === 'blood_tithe' && w.huntsWarden`, and
+      healing the Warden (not the structure) by `titheLifestealPct` of the
+      damage dealt. `titheLifestealPct` is a genuine numberScale crossing
+      constant (VS damage, economy A, into Warden HP, economy B) — inverse-
+      scaled alongside `towerLifestealPct`/`vsLifestealPct` in
+      `applyNumberScale` and `isInverseScaledClassPath` (`content.ts`).
+      Failing test written first (confirmed red via a `git stash` control on
+      just the fix files, green after restoring them):
+      `tests/fb086-blood-tithe-lifesteal.test.ts` (3 tests — tithed+VS heals
+      exactly `titheLifestealPct` of damage dealt, untithed heals nothing,
+      tithed-outside-VS heals nothing). Did **not** touch
+      `tests/class-kit-liveness.test.ts`'s Bloodlord row as this item's own
+      acceptance text suggested: that harness only fires the Active's
+      immediate cast (paying the HP, setting `tithed`), never a follow-up
+      tower attack, so the lifesteal — which only fires when the tithed
+      tower later deals damage — cannot show up there without changing what
+      that file measures; a dedicated test is the more precise fit.
+      Three census/pin tests updated to know about the new field:
+      `tests/class-spec-numbers.test.ts` (this clause's row flipped
+      `unimplemented` -> `match`, census 61->62/1->0 unimplemented),
+      `tests/fb153a-number-scale.test.ts` (`titheLifestealPct` added to
+      `INVERSE_PATHS`), `tests/q7-loader-holes.ts` (recorded the same
+      negative/zero/fractional holes its two siblings `titheHpFraction`/
+      `titheDamageMul` already have — same unguarded `num.optional()` shape,
+      not a new gap). `npx tsc --noEmit` clean; targeted tests plus
+      `npm run test:fast` show the same 2 pre-existing `wouldBlockPath`
+      failures as baseline, nothing new. code-reviewer APPROVE (no Critical/
+      Major; two Minor notes, non-blocking); qa-playtester review requested
+      in parallel, not yet returned at commit time — refs: SPEC-FINAL §4.2.
 - [ ] (fb087) [polish] the standing Windows flake family every lane
       re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
       `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports

@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb086 closed — Bloodlord *Blood Tithe*'s
+  missing VS-share lifesteal clause.** SPEC-FINAL §4.2 named two effects for a
+  tithed tower; only the permanent damage bonus was ever wired
+  (`classTowerDamageMul`, towers.ts). Added `titheLifestealPct` (0.01,
+  `data/classes.json`) and `applyTitheLifesteal` (`cores.ts`), called from
+  the same three sites that already call `applyTowerLifesteal`
+  (`combat.ts` x2 for projectile/lob damage, `towers.ts` for every
+  synchronous attack kind), gated on `s.tithed`, the tower's own class
+  actually being Blood Tithe, and VS (`w.huntsWarden`) — heals the Warden,
+  not the structure. Treated as a genuine numberScale crossing constant
+  (VS damage dealt, economy A, converted to Warden HP healed, economy B) and
+  inverse-scaled the same way as `towerLifestealPct`/`vsLifestealPct`
+  (`content.ts`'s `applyNumberScale`/`isInverseScaledClassPath`). New
+  regression test `tests/fb086-blood-tithe-lifesteal.test.ts` (3 tests),
+  confirmed red before the fix via a scoped `git stash` control. Three
+  census/pin tests updated for the new field (`class-spec-numbers.test.ts`'s
+  ledger row and count, `fb153a-number-scale.test.ts`'s `INVERSE_PATHS`,
+  `q7-loader-holes.ts`'s recorded-holes registry — same unguarded shape as
+  its two siblings, not a new gap). `npx tsc --noEmit` clean;
+  `npm run test:fast` unchanged at the same 2 pre-existing `wouldBlockPath`
+  failures. code-reviewer APPROVE, no Critical/Major.
+
 - **2026-09-16 — main lane: BACKLOG fb153 closed in full — `world.ts`'s gate
   list now plays all 4 real `GATES`, not a stale 3-gate slice.** The last two
   open points of fb153b's own text (BACKLOG.md, "Closed 2026-09-16" note):
