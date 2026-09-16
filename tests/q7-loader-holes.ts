@@ -22,6 +22,12 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-16 (fb086): `data/classes.json`'s new
+ * `active1.titheLifestealPct` (Bloodlord Blood Tithe's VS-share lifesteal,
+ * SPEC-FINAL §4.2) is a bare `num.optional()`, the same unguarded shape as
+ * its two siblings immediately below it, `titheDamageMul`/`titheHpFraction`
+ * — one additive line, no other entry moved.
+ *
  * Regenerated 2026-09-14 (BACKLOG p13a, QUESTIONS Q196 ORDER): `data/
  * classes.json` gained two new required top-level fields, `maxHpMul`
  * (`.positive()`) and `defenseBonus` (bare `num`) — the per-class

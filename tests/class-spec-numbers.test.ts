@@ -1934,7 +1934,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 61 match · 18 retuned · 1 elsewhere · 8 in code · 1 unimplemented · 0 defect', () => {
+  it('census: 62 match · 18 retuned · 1 elsewhere · 8 in code · 0 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
