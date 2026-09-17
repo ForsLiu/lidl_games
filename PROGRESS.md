@@ -5,71 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` (Q172 owner
-  ORDER) now banks the sub-tick cooldown remainder instead of clamping it to
-  0.** `src/sim/types.ts`'s `tickCooldown` used to floor *any* `next =
-  current - dt < COOLDOWN_EPS` to exactly 0, which correctly caught the b018
-  float-noise case but also discarded every real (non-noise) negative
-  overshoot; it now only snaps to 0 within `COOLDOWN_EPS` of 0 in either
-  direction and otherwise returns `next` as-is. The only call site that
-  actually behaves differently as a result is `towers.ts:438`'s `s.cooldown
-  += def.attack.interval` reset (every other `tickCooldown` consumer —
-  Warden active/attack/dash cooldowns, aura tower cooldowns, enemy attack
-  cooldowns — reassigns a fresh value afterward instead of accumulating, so a
-  banked remainder there is simply overwritten, confirmed by grepping every
-  `tickCooldown` caller and every `[Cc]ooldown\s*\+=` site in `/src`).
-  **Control-run sweep (Q172's own condition, recorded here per fb128's
-  acceptance text):** the old clamp-to-0 was equivalent to *always* rounding
-  a tower's cooldown up to the next whole 60 Hz tick on every single shot,
-  which suppressed baseline (0%-bonus) cadence for every tower, not just
-  ones carrying a class attack-speed bonus. Computed directly from
-  `data/towers.json`'s authored intervals, the fix is a small *unconditional*
-  DPS buff per tower: arrow_spire/ballista/frost_obelisk/venom_spore +0.33%,
-  mortar +0.23%, tesla_coil +1.11%, ember_brazier +2.68% (`trueTicksPerShot =
-  interval/DT` vs the old `ceil(interval/DT)`). A 5-seed `npm run sim`
-  before/after sweep (engineer, hybrid policy, seeds 1-5) showed 3 seeds
-  landing on the same outcome (victory/victory or defeat_core at the same
-  wave) and 2 (seeds 2 and 5) diverging by 8 waves (defeat_core@w17 old vs.
-  defeat_core@w9 new) — expected chaos amplification in a long, bot-driven,
-  RNG-adjacent run from a per-shot timing change this pervasive, not a sign
-  of a broken mechanism. Downstream fallout: `tests/fb196-night1-
-  basehpmul.test.ts`'s two pinned control pairs (pyromancer seed 2, seed 11)
-  stopped discriminating `baseHpMul`'s effect post-fix for the same
-  chaos-amplification reason and were re-pinned to freshly-measured seeds
-  (pyromancer seed 3, seed 9) that still demonstrate the mechanism — same
-  class of break the fb197 note earlier in that same file already
-  established a precedent for handling. `tests/class-tower-passive-
-  liveness.test.ts`'s Wind Slash row dropped its now-obsolete tick-boundary
-  exception (verified empirically: even a 1% bonus now separates a 3-shot
-  window, vs. requiring ~2.4% before) and asserts plain "fewer ticks to Nth
-  shot" like every other row in that file; its header prose updated to
-  match. `tests/b018-cooldown-epsilon.test.ts` had one test rewritten (it
-  asserted the *old* "large negative clamps to 0" behavior, which fb128
-  deliberately changes) plus a new test pinning the near-zero epsilon band
-  still floors correctly. code-reviewer **APPROVE** (two Minor nits: a
-  header-comment mention folded into `b018-cooldown-epsilon.test.ts`, and
-  `fb196-night1-basehpmul.test.ts`'s ~140s runtime already exceeding the
-  fast tier's ~60s guideline — pre-existing, not introduced here, logged
-  below as a known issue rather than a new backlog item per the routine's
-  no-new-items rule). qa-playtester independently reproduced the fix's
-  arithmetic, the single-call-site claim, the extreme-attack-speed edge case
-  (no new regression — the pre-existing `if (s.cooldown < 0) s.cooldown = 0`
-  guard already capped multi-interval-per-tick firing before this change,
-  identically after it), reran `tests/fb196-night1-basehpmul.test.ts` twice
-  for flakiness (stable both times), and independently derived the same
-  per-tower baseline-cadence-buff table above — **PASS** once this sweep was
-  recorded (its one filed item was exactly "record the sweep," addressed by
-  this entry). `npx tsc --noEmit` clean; `npm run test:fast` 309 files/4495
-  tests passed, 9 files/35 tests skipped, 0 failed.
+**Integrator (2026-09-17):** fb128 was fixed independently on two parallel
+branches (`claude/dreamy-hopper-6pebu0` and `claude/dreamy-hopper-0poxye`) —
+same root cause, same one-line fix in `tickCooldown`. The first branch's PR
+merged to master; the second conflicted on exactly the files below (`src/sim/
+types.ts`, the three touched test files, this file, BACKLOG.md) and was
+resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
+seeds throughout, discarding the second branch's duplicate rewrite of the same
+change. No functional difference between the two fixes.
 
-**Known issue (not a regression, logged for a future item):**
-`tests/fb196-night1-basehpmul.test.ts` runs ~140s for 3 tests (2 of them
-~30-110s each, chaotic 2000+-tick bot-driven sims), already over the fast
-tier's ~60s-per-suite guideline and not in `vitest.fast.config.ts`'s exclude
-list. Pre-existing (not introduced by fb128), noted by code-reviewer during
-this item's review; a future item should either move it to the slow/perf
-tier or trim its tick budget.
-
+- **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` banks a
+  tower's sub-tick cooldown remainder instead of discarding it (owner
+  verdict, Q172).** `next < COOLDOWN_EPS` in `src/sim/types.ts` floored any
+  negative result to 0, not just true float noise near zero, so
+  `towers.ts`'s `updateTowers` — the one caller that accumulates via
+  `s.cooldown += def.attack.interval` instead of a flat reset — discarded a
+  tower's real fire-timing overshoot every shot. Fire rate was quantised to
+  whole 60 Hz ticks (the Arrow Spire always fired every 43 ticks) and a
+  sub-tick attack-speed bonus like Swordsman's Wind Slash (+2%) changed
+  nothing. Fixed to `Math.abs(next) < COOLDOWN_EPS`. Warden/enemy/summon
+  cooldowns reset by flat assignment and are unaffected — out of this
+  item's scope, noted in the fix's own comment. Control-run sweep (`npx tsx
+  tools/sweep.ts --seeds 6 --policies maxbuild,hybrid`, before/after via a
+  disposable git worktree so the working tree never left the fix's own
+  branch): win rate and every median stat held within noise at this sample
+  size (maxbuild 0.17 win both sides, hybrid 0.67 both sides) — a narrow
+  cadence nudge, not a broad balance swing. It was still sharp enough to
+  flip two already-fragile pinned seeds in
+  `tests/fb196-night1-basehpmul.test.ts` (pyromancer seed 2:
+  `defeat_warden`@w3 -> `defeat_core`@w17; seed 11 -> outright `victory`),
+  confirmed by running that file against the pre-fix code in the same
+  worktree (both passed there, both failed post-fix). Re-swept pyromancer
+  seeds 3-30 (throwaway `tools/` probe, deleted after use, same precedent as
+  that file's own fb196/fb197 probes); seeds 3 and 26 still reproduce the
+  shipped `defeat_warden`@w3 / clears-at-`baseHpMul:1` pattern and the file
+  is re-pinned to them — the same re-pinning this file has needed twice
+  before for unrelated reasons (terrain/gate fixes), not a weakening of the
+  regression. `class-tower-passive-liveness.test.ts`'s declared tick-floor
+  exception for Wind Slash is removed; that row now measures direction the
+  same way as every other row in the file. `b018-cooldown-epsilon.test.ts`
+  updated: its "large negative floors to 0" case named the exact bug this
+  item fixes, now asserts the overshoot is banked, plus a new case pinning
+  that true near-zero negative noise still floors to 0. code-reviewer
+  APPROVE (one Minor — a doc comment overstated which cooldowns benefit,
+  narrowed to name `towers.ts` specifically); qa-playtester PASS (hostile
+  extreme-attack-speed and NaN/Infinity probes, a suite-wide grep for other
+  hard-coded tick-quantisation assumptions, and a clean headless
+  `tools/sim.ts` sanity run at two seed/policy pairs). `npm run test:fast`:
+  309 files / 4495 passed / 35 skipped / 0 failed.
 - **2026-09-17 — main lane: BACKLOG fb127 done — Stormcaller Conduction's
   `chainGrowth`/`chainCap` moved from `active1` to the passive row, unblocking
   BACKLOG-CONTENT c010.** The passive named a rule about electric damage

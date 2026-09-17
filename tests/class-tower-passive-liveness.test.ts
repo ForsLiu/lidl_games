@@ -69,21 +69,21 @@
  *
  * **No row asserts an authored magnitude** — c005/c006's convention, and
  * `c008` now owns the figures themselves in `tests/class-spec-numbers.test.ts`.
- * A retune of `towerHp` from 0.10 to 0.12 must not turn this file red. *Wind
- * Slash*'s cadence half used to be this file's one declared exception:
- * `tickCooldown` discarded the sub-tick remainder every shot instead of
- * carrying it, quantising a tower's rate of fire to whole 60 Hz ticks, so an
- * attack-speed bonus smaller than about one tick's worth (~+2.4% at the
- * Arrow Spire's 0.7143 s interval) changed nothing at all — a liveness row
- * that stayed green through a retune below that boundary would have been
- * lying. fb128 (owner ORDER, Q172) fixed `tickCooldown` to bank the
- * remainder instead, so any nonzero bonus is observable within a handful of
- * shots and the exception is gone: the row now asserts direction and
- * presence like every other row. What is
+ * A retune of `towerHp` from 0.10 to 0.12 must not turn this file red. What is
  * asserted is direction and presence, which is why Bloodlord's row is the
  * interesting one: *Sanguine Pact* is the only tower passive carrying a
  * negative term, so its two clauses are asserted in *opposite* directions and
  * a sign flip on either is red.
+ *
+ * *Wind Slash*'s cadence row used to carry a declared exception here: pre-
+ * fb128, `tickCooldown` discarded a tower's sub-tick remainder every shot
+ * instead of banking it, so a tower's rate of fire was quantised to whole
+ * 60 Hz ticks and a small-enough attack-speed bonus changed no tower's cadence
+ * at all (the Arrow Spire's threshold was ~+2.4%, above Wind Slash's own
+ * +2%). fb128 fixed `tickCooldown` to bank the remainder (owner verdict,
+ * Q172), so cadence differences now compound shot to shot instead of
+ * resetting every time a cooldown crosses zero, and the row is measured the
+ * same directional way as every other one below.
  *
  * **The last `describe` is the honesty half**, as in c006. Every row's evidence
  * is reduced to a *signal*: one nonnegative number, positive if and only if
@@ -456,22 +456,10 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     // The behavioural half: `attackSpeedFor` has exactly one consumer
     // (`towers.ts`' `s.cooldown = tickCooldown(s.cooldown, dt * attackSpeedFor(...))`),
     // so a number that is bigger but never reaches the cooldown is not a faster
-    // tower.
-    //
-    // Measured as **ticks to the Nth shot**, not damage over a fixed window.
-    //
-    // fb128 (owner ORDER, Q172) removed this row's former exception:
-    // `tickCooldown` used to clamp to 0 instead of carrying the sub-tick
-    // remainder, so `updateTowers`'s `s.cooldown += interval` discarded that
-    // remainder every shot and quantised a tower's cadence to whole 60 Hz
-    // ticks — a bonus under about one tick's worth (~+2.4% at the Arrow
-    // Spire's 0.7143s interval) changed no shot's timing at all. Now that
-    // `tickCooldown` banks the remainder, *any* nonzero cadence bonus shows up
-    // within a handful of shots (verified: even a 1% bonus separates a 3-shot
-    // window), so this row no longer needs a boundary computed from `/data` —
-    // it asserts the same plain "fewer ticks to N shots" claim every other row
-    // in this file asserts about its own stat.
-    const interval = content.towerByKey.get(SPIRE)!.attack!.interval;
+    // tower. Measured as **ticks to the Nth shot**, not damage over a fixed
+    // window, same as any other cadence read.
+    const spireDef = content.towerByKey.get(SPIRE)!;
+    const interval = spireDef.attack!.interval;
     const shots = 3;
     const ticksToNthShot = (k: string): number => {
       const wo = towerWorld(k);

@@ -123,21 +123,17 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
   // `baseHpMul: 1`. The swordsman-side "still under-floor" mechanism this
   // case demonstrated is no longer reproducible with a Night-1 seed and is
   // logged as a known issue rather than hand-waved — see PROGRESS.md.
-  //
-  // fb128 (2026-09-17, owner ORDER Q172 — `tickCooldown` now banks its
-  // sub-tick remainder instead of discarding it every shot, `src/sim/
-  // types.ts`): every tower's real fire cadence shifted by up to one tick
-  // per shot, which is enough for a chaotic, bot-driven, 2000+ tick run to
-  // diverge onto a different trajectory long before Night-1. Re-measured
-  // live (a `tools/`-probe deleted after use, same precedent as fb197):
-  // pyromancer seed 2 no longer discriminates post-fix (shipped now resolves
-  // `defeat_core` at wave 9, not `defeat_warden`@w3), so this exact control
-  // pair's premise no longer holds — the same class of break fb197 already
-  // named for this file, not a new one. Re-pinned to pyromancer seed 3, which
-  // still resolves `defeat_warden`@w3 under shipped content and clears at
-  // `baseHpMul: 1`. The `baseHpMul`-inflates-Night-1-mob-HP mechanism itself
-  // is unchanged by fb128 — only which seed happens to sit on the collapse
-  // side of it moved.
+  // fb128 (2026-09-17): re-measured again after `tickCooldown` was fixed to
+  // bank a tower's sub-tick cooldown remainder instead of discarding it
+  // every shot (owner verdict, Q172) — towers built during the TD phase
+  // keep firing into the Night-1 VS block, so the small, systemic cadence
+  // gain from that fix nudged pyromancer seed 2 from `defeat_warden`@w3 to
+  // `defeat_core`@w17 and seed 11 from `defeat_warden`@w3 to outright
+  // `victory`. Neither seed discriminates the mechanism post-fix. A fresh
+  // sweep (pyromancer seeds 3-30, `tools/`-probe deleted after use, same
+  // precedent as fb196/fb197's own probes) found seeds 3 and 26 still
+  // resolve shipped-content `defeat_warden`@w3 and clear at `baseHpMul: 1`
+  // — re-pinned to those.
   it('pyromancer seed 3 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
     const config: RunConfig = { seed: 3, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
@@ -149,13 +145,9 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
     expect(withNeutral.outcome).not.toBe('defeat_warden');
   }, 60_000);
 
-  // fb128 — see the comment above. Pyromancer seed 11 stopped discriminating
-  // post-fix (shipped now resolves `victory`@w18, not `defeat_warden`@w3);
-  // re-pinned to pyromancer seed 9, re-measured live the same way, which
-  // still resolves `defeat_warden`@w3 under shipped content and clears (to
-  // `running`, still mid-Night-1 at the tick budget) at `baseHpMul: 1`.
-  it('pyromancer seed 9 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 9, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb128 — see the comment above.
+  it('pyromancer seed 26 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 26, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');

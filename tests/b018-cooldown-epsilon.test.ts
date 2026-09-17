@@ -6,12 +6,7 @@
  * `2.34e-14`, reproduced below at that exact value) instead of landing on
  * exactly 0 silently ate the next cast one tick later than
  * `cooldownSeconds` promises. `tickCooldown` (`src/sim/types.ts`) now floors
- * anything within `COOLDOWN_EPS` of 0 to exactly 0 at every decrement site.
- * fb128 (owner ORDER, Q172) added the other half: a value that lands
- * genuinely, not-just-float-noise negative is banked as-is rather than also
- * floored, so a caller that resets by `+=` (`towers.ts`'s tower cooldown)
- * carries the real sub-tick overshoot into the next interval instead of
- * discarding it.
+ * anything below `COOLDOWN_EPS` to 0 at every decrement site.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -39,11 +34,15 @@ describe('b018: tickCooldown floors a sub-epsilon residual to exactly 0', () => 
     expect(tickCooldown(1, FIXED_DT)).toBeGreaterThan(0);
   });
 
-  it('fb128: a large negative result (real overshoot, not float noise) is banked, not floored to 0', () => {
+  it('a large negative result (well below 0) is banked as a real overshoot, not floored to 0 (fb128)', () => {
+    // Pre-fb128 this floored to 0, discarding the overshoot every time a
+    // cooldown crossed zero and quantising every ticked cooldown to whole
+    // 60 Hz ticks (Q172). The overshoot has to survive so it can be carried
+    // into the next `cooldown += interval`.
     expect(tickCooldown(0.001, 1)).toBeCloseTo(-0.999, 12);
   });
 
-  it('fb128: a negative result within the epsilon band is still floored to exactly 0', () => {
+  it('a tiny negative residual within COOLDOWN_EPS of 0 still floors to exactly 0', () => {
     expect(tickCooldown(0.0000005, 0.000001)).toBe(0);
   });
 });

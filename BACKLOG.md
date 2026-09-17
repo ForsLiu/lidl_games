@@ -4678,49 +4678,52 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       grepped all of `/src` for stray readers of the old location (none),
       and re-ran the full targeted set plus `npm run test:fast` clean — no
       bugs filed.
-- [x] (fb128) [balance] **DONE 2026-09-17. ORDER (feedback/verdicts-q168-205,
-      Q172, low priority)** — tower attack speed was quantised to whole 60 Hz
-      ticks and small bonuses were inert: `tickCooldown` (`types.ts:17`)
-      clamped *any* negative post-decrement value to 0 instead of only the
-      b018 float-noise band around 0, so `updateTowers`'s `s.cooldown +=
-      def.attack.interval` reset always started from exactly 0, discarding
-      the sub-tick remainder every shot — the Arrow Spire fired every 43
-      ticks at +0% and +2% alike, and +3% was the first step that moved it.
-      Fixed: `tickCooldown` now only snaps to 0 within `COOLDOWN_EPS` of 0 in
-      either direction, otherwise banks `next` (including negative) as-is.
-      Verified the single affected call site is `towers.ts:438` (every other
-      `tickCooldown` consumer resets via `=`, not `+=`, so a banked remainder
-      there is simply overwritten — no behavioral change to Warden/enemy/aura
-      cooldowns). Control-run sweep recorded in PROGRESS.md per acceptance:
-      the old clamp was equivalent to always rounding a tower's cooldown up
-      to the next whole tick even at 0% bonus, so the fix is also a small
-      *unconditional* per-tower DPS buff (+0.23%–+2.68% depending on how
-      close the tower's interval sits to a whole number of ticks) — a 5-seed
-      before/after `npm run sim` sweep showed the expected chaos-amplified
-      divergence in a couple of seeds' exact outcome (defeat_core@w17 →
-      defeat_core@w9), not a broken mechanism. Downstream: `tests/fb196-
-      night1-basehpmul.test.ts`'s two pinned seeds stopped discriminating
-      `baseHpMul`'s effect for the same reason and were re-pinned to freshly
-      measured ones (pyromancer seed 3, seed 9) that still do — same class of
-      break that file's own fb197 note already precedented.
-      `tests/class-tower-passive-liveness.test.ts`'s Wind Slash row dropped
-      its now-obsolete tick-boundary exception (any nonzero bonus is
-      observable within a few shots now) and its header prose updated to
-      match; `tests/b018-cooldown-epsilon.test.ts` updated (one test asserted
-      the old clamp-large-negative-to-0 behavior fb128 deliberately changes;
-      added a new test pinning the near-zero band still floors). code-
-      reviewer APPROVE (two Minor nits, one fixed — a header-comment mention
-      folded in; the other, `fb196`'s ~140s runtime already exceeding the
-      fast tier's ~60s guideline, is pre-existing and logged as a known issue
-      in PROGRESS.md rather than a new backlog item). qa-playtester PASS
-      (independently reproduced the fix's arithmetic, the single-call-site
-      claim, the extreme-attack-speed edge case — no new regression, the
-      pre-existing `if (s.cooldown < 0) s.cooldown = 0` guard already capped
-      that before and after — reran the two re-pinned fb196 cases twice for
-      flakiness with stable results, and independently derived the same
-      per-tower cadence-buff table now recorded in PROGRESS.md). `npx tsc
-      --noEmit` clean; `npm run test:fast` 309 files/4495 tests passed, 9
-      files/35 skipped, 0 failed — refs: SPEC-FINAL §2, §14 G1/G13, Q172.
+- [x] (fb128) [balance] **DONE 2026-09-17 (feedback/verdicts-q168-205,
+      Q172).** `tickCooldown` (`src/sim/types.ts`) floored *any* negative
+      result (`next < COOLDOWN_EPS`) to 0, not just true near-zero float
+      noise, so `towers.ts`'s `updateTowers` (the one caller that
+      accumulates via `s.cooldown += def.attack.interval` rather than
+      resetting by flat assignment) discarded a tower's real overshoot every
+      shot instead of banking it — fire rate was quantised to whole 60 Hz
+      ticks and a sub-tick attack-speed bonus (Swordsman's Wind Slash, +2%
+      at the Arrow Spire) changed nothing. Fixed to `Math.abs(next) <
+      COOLDOWN_EPS`, banking every genuine remainder; Warden/enemy/summon
+      cooldowns reset by flat assignment on the same tick and are
+      unaffected (out of this item's scope; noted in `types.ts`'s comment
+      so a future reader doesn't assume they were also fixed here).
+      Control-run sweep (`npx tsx tools/sweep.ts --seeds 6 --policies
+      maxbuild,hybrid`, before/after via a throwaway git worktree): win rate
+      identical (maxbuild 0.17, hybrid 0.67) and every median stat within
+      noise (medWaves/medLevel/medKills unchanged or +1 wave; msPerRun
+      shifted with machine load, not policy) — the fix is a narrow, correct
+      nudge to tower cadence, not a broad balance swing, at this sample
+      size. It was, however, sharp enough to flip two already-fragile
+      pinned control seeds in `tests/fb196-night1-basehpmul.test.ts`
+      (pyromancer seed 2: `defeat_warden`@w3 -> `defeat_core`@w17; seed 11:
+      `defeat_warden`@w3 -> `victory`) — confirmed by running that file
+      against the pre-fix code in a separate worktree (both passed there).
+      Re-swept pyromancer seeds 3-30 (throwaway `tools/` probe, deleted
+      after use, same precedent as fb196/fb197's own probes); seeds 3 and
+      26 still reproduce the shipped-content `defeat_warden`@w3 /
+      clears-at-`baseHpMul:1` pattern and the test is re-pinned to them,
+      same repinning precedent that file already used twice (fb196->fb197).
+      `tests/class-tower-passive-liveness.test.ts`'s declared tick-floor
+      exception for Wind Slash removed — the row now measures direction via
+      ticks-to-3rd-shot like every other row, no special-cased boundary
+      math. `tests/b018-cooldown-epsilon.test.ts` updated: its "large
+      negative floors to 0" case named the very behavior this item fixes,
+      now asserts the overshoot is banked instead, plus a new case pinning
+      that true near-zero negative noise still floors to 0. code-reviewer
+      APPROVE (one Minor: a doc comment overstated which cooldowns benefit,
+      narrowed to name `towers.ts` specifically — fixed). qa-playtester
+      PASS: targeted tests green, hostile-probed extreme attack-speed
+      multipliers (50x/1000x) and NaN/Infinity inputs standalone with no
+      crash/regression (the pre-existing `towers.ts:439` saturation clamp
+      still caps a tower at one shot/tick, unchanged), grepped the suite for
+      other hard-coded tick-quantisation assumptions (none found beyond the
+      file already updated), and a headless `tools/sim.ts` sanity run at
+      two seed/policy pairs completed clean — refs: SPEC-FINAL §2, §14
+      G1/G13, Q172.
 - [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
       call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
       (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in

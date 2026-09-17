@@ -9,21 +9,28 @@ export const TICKS_PER_SECOND = 60;
  * b018: a cooldown ticked down tick-by-tick can land on a tiny positive
  * float residual (observed: 2.34e-14) instead of exactly 0, so a strict
  * `> 0` gate silently eats a cast issued exactly `cooldownSeconds` after the
- * last one. Snap anything within this band of 0 to exactly 0 — far above
- * float noise, far below one tick (1/60s).
+ * last one. Floor anything below this to 0 — far above float noise, far
+ * below one tick (1/60s).
+ *
+ * fb128 (owner verdict, Q172): the floor must only catch that float noise,
+ * not a real negative overshoot. `next < COOLDOWN_EPS` caught both — every
+ * genuine overshoot (interval not an exact multiple of dt, e.g. any real
+ * firing cooldown) is far more negative than -1e-6, so it was discarded to
+ * exactly 0 every tick instead of carried into the next cooldown. Only one
+ * caller actually banks what this returns into the next cycle —
+ * `towers.ts`'s `updateTowers` does `s.cooldown += def.attack.interval`
+ * after a non-positive read, so a tower's true fire rate was quantised to
+ * whole 60 Hz ticks: a sub-tick attack-speed bonus changed nothing until it
+ * accumulated a full tick's worth on its own. (Every other caller —
+ * Warden/enemy/summon cooldowns — resets by absolute assignment on the same
+ * tick instead of accumulating, so this fix does not change their cadence;
+ * they stay tick-quantised by that separate construction.) Checking
+ * `Math.abs(next)` floors only true near-zero noise on either side of 0 and
+ * banks every real remainder, so a tower's fractional speed changes compound
+ * shot to shot instead of resetting every time its cooldown crosses zero.
  */
 export const COOLDOWN_EPS = 1e-6;
 
-/**
- * fb128 (owner ORDER, Q172): a real negative overshoot past 0 — the amount
- * `dt` ran past the cooldown actually expiring — is banked by returning it
- * as-is rather than floored to 0. A caller that resets by `+=` (towers.ts'
- * `s.cooldown += def.attack.interval`) then carries that remainder into the
- * next interval, so a sub-tick attack-speed bonus accumulates across shots
- * instead of being discarded every tick and quantising fire rate to whole
- * 60 Hz ticks. Only the b018 float-noise band around 0 is still snapped
- * flat, in either direction.
- */
 export function tickCooldown(current: number, dt: number): number {
   const next = current - dt;
   return Math.abs(next) < COOLDOWN_EPS ? 0 : next;
