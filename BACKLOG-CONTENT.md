@@ -235,9 +235,12 @@ assertion, not incidentally:
   behaviourally in `tests/class-kit-whiff.test.ts`'s own `fire()` helper).
 - `fb085-enablers.test.ts` asserts `plaguebringer.active1.
   minGroundDurationSeconds` is `undefined` on "every currently-shipped
-  ground_poison row" — a deliberate placeholder fb085 wrote *because* fb056/
-  fb061 had not landed yet, exactly per that commit's own comment ("fb056
-  itself... is what would move this row").
+  ground_poison row" — a deliberate placeholder fb085 wrote because fb061
+  had not landed yet, per fb085's own commit message part (c): "minGround-
+  DurationSeconds beside groundDurationSeconds for fb061's 8s->14s Poison
+  Barrel charge floor" (correction: an earlier draft of this paragraph
+  misattributed this to fb056 and mis-quoted the commit — code-reviewer
+  caught it; the field and the commit's own comment are fb061-only).
 
 **This is not the SPEC-FINAL.md wall the Finding above names — it is a
 different, equally hard one specific to fb061.** The owner's own spec for
@@ -327,6 +330,14 @@ branch/PR overlap problem. No fix applied here since there was nothing
 stale to close; the actual unblock (widening this lane's Scope, or moving
 the five items to BACKLOG.md as main-lane work) is a main-lane call, not
 this lane's to make unilaterally.
+
+**Superseded in part, 2026-09-17:** fb085 (main lane) fixed the zod-enum/
+`World`-field detail named above — see the two 2026-09-17 Finding sections
+higher in this file. Each of the four items is still blocked, but for a
+different, harder reason: fb056/fb057/fb059 hit the SPEC-FINAL.md hash-ledger
+wall, and fb061 hits two other out-of-Scope test files hardcoding pre-amend
+behaviour. This paragraph's own listed reasons are history, not the current
+blocker.
 
 ### Recently completed
 
