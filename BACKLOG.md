@@ -838,48 +838,129 @@ honor.**
       per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q175/Q193, BACKLOG p12f/fb183.
 
-- [x] (fb197) [balance] **DONE 2026-09-16.** Fresh full 12-seed sweep of
-      `tests/p6e-class-diversity.test.ts` against the corrected gate position
-      (fb153b), roster-wide (wins/12, band `[5,8]`; before -> after):
-      swordsman 0->**11**, plaguebringer 0->**3**, engineer 4->**4**
-      (unchanged count, different seeds), pyromancer 0->**7** (**now in
-      band**, un-skipped), archer 0->**11**, necromancer 0->**2**, cryomancer
-      4->**4** (unchanged count, different seeds), stormcaller 0->**3**,
-      animist 4->**3**, paladin 0->**9**, bloodlord 3->**10**, time_lord
-      8->**8** (re-confirmed, already un-skipped). The roster-wide Night-1
-      `defeat_warden`@w3 collapse fb196 diagnosed is gone for most classes,
-      but the fix overshot the band's ceiling for five of them (swordsman/
-      archer/paladin/bloodlord all 9-11/12) while five others stay under the
-      floor for the wave-11-to-17 `defeat_core` wall already on record
-      (p10i) — only 2 of 12 (pyromancer, time_lord) land in band, up from 1
-      of 12. This is real balance work for a future session, not this
-      item's (measurement only, per its own acceptance). Fingerprint
-      distance (clause ii) moved 27->**37** failing pairs (the ceiling
-      overshoot flattens several classes' damage-share vectors toward the
-      same shared `hybrid`-tower signature). T1 (engineer) companion band
-      flipped from red (6/12, just under the 55% floor) to green (**7/12**,
-      58.3%, 25% close-win share exactly at its own floor) — un-skipped. T5
-      flipped from under-floor (0/12) to over-ceiling (**5/12**, 41.7%) —
-      still red, other side of the band. `tests/fb196-night1-
-      basehpmul.test.ts`'s control pair no longer demonstrates anything at
-      swordsman/pyromancer seed 1 (both now `victory`/w18 at *both*
-      `baseHpMul` 20 and 1) — the swordsman case is **deleted** (no seed in
-      its fresh 12-seed set still shows `defeat_warden`@w3 at baseHpMul 20);
-      the pyromancer case is **re-pinned to seed 2** (confirmed
-      `defeat_warden`@w3 at baseHpMul 20, `victory`/w18 at baseHpMul 1 — the
-      mechanism is still real) and un-skipped. `tests/p13a-
-      survivability-bands.test.ts` and `tests/fb193-survivability-
-      bands.test.ts` spot-checked: both are pure stat-derivation math
-      (`baseRunStats`/`derive()`, no terrain/spawn involvement) with no gate
-      dependency, unaffected, still green. `npm run test:fast`: 303 passed,
-      9 skipped, 0 failed (312) — unchanged baseline. Every number above
-      re-measured directly (full `tests/p6e-class-diversity.test.ts` run,
-      86.9 min; a throwaway `tools/` probe for pyromancer/time_lord/T1's
-      exact counts, deleted after use, same precedent as fb177/p12h/fb196; a
-      live re-run of `fb196-night1-basehpmul.test.ts`'s own harness for the
-      swordsman/pyromancer seed-1 and pyromancer seed-2 control pairs) — not
-      inferred from an older pass. refs: SPEC-FINAL §14 G8, BACKLOG
-      fb153b/fb196/fb193/fb185/p13a, QUESTIONS Q196/Q207.
+- [x] (fb197) [balance] **DONE 2026-09-16 — fresh full 12-seed roster sweep
+      recorded; G8 stays red, but the failure shape flipped from
+      under-the-floor to a mixed floor/ceiling split.** Full table (was per
+      fb185/fb196's 2026-09-15 pins -> now, band `[5,8]`):
+      | class | before | after | direction |
+      |---|---|---|---|
+      | swordsman | 0/12 | **10/12** | over ceiling (was under floor) |
+      | plaguebringer | 0/12 | 3/12 | still under floor |
+      | engineer | 4/12 | 3/12 | still under floor (worse by 1) |
+      | pyromancer | 0/12 | **10/12** | over ceiling |
+      | archer | 0/12 | **10/12** | over ceiling |
+      | necromancer | 4/12 | 1/12 | still under floor (worse) |
+      | cryomancer | 4/12 | 1/12 | still under floor (worse) |
+      | stormcaller | 0/12 | 4/12 | still under floor by 1 |
+      | bloodlord | 3/12 | **9/12** | over ceiling |
+      | animist | 4/12 | 4/12 | unchanged count, timeout mix shifted |
+      | paladin | 0/12 | 4/12 | still under floor by 1 |
+      | time_lord | 8/12 | 8/12 | unchanged, still the only in-band class |
+      **0 of 12 newly clear the band** — time_lord remains the sole
+      in-band class, same as every measurement since p13a. Four classes
+      (swordsman, pyromancer, archer, bloodlord) went from a near-total
+      Night-1 wipe straight past the ceiling to a near-total win rate,
+      confirming p12j's own bisection-era diagnosis that these classes'
+      G8 problem was never a `classes.json` kit lever, it was the buggy
+      gate position inflating Night-1 exposure. **Correction (code-reviewer
+      finding on this item's own first draft):** every G8-sweep config here
+      passes `modifiers: []`, so `world.ts:591`'s Fourth Gate `south`
+      literal (only pushed when the "gate" tier modifier sets
+      `extraGates > 0`) is dead code for these runs — the gate actually in
+      play for all three base gates (`GATES.slice(0,3)`, west/north/east)
+      is `GATES.east` (`src/sim/grid.ts`), whose own pre-fix literal
+      `{tx:35,ty:17}` was the stale 36x20-era interior tile fb153b
+      corrected. `world.ts:591`'s own fix only matters for a run carrying
+      the Fourth Gate modifier, out of scope for this sweep. The other
+      seven did not benefit,
+      or measured slightly worse — the roster-wide regression fb196 first
+      flagged is not fully explained by the gate bug alone; the remaining
+      wall for plaguebringer/engineer/necromancer/cryomancer/stormcaller/
+      animist/paladin is unqueued follow-up work (a fresh balance-analyst
+      pass, not this item's own `[balance]`-measurement-only scope).
+      Fingerprint-distance failing-pair count moved **27 -> 28** (still
+      red, `tests/p6e-class-diversity.test.ts`'s own pin re-measured and
+      updated) — the kit-share mechanism this clause measures is largely
+      independent of the win-rate mechanism the gate fix moved, so it did
+      not track the roster's win-rate reshuffle.
+      **`tests/fb196-night1-basehpmul.test.ts`'s control pair**: seed 1
+      no longer discriminates the `baseHpMul` mechanism for either class —
+      both swordsman and pyromancer now resolve `victory`/w18 at seed 1
+      regardless of `baseHpMul` (20 vs. 1), since the corrected spawn
+      distance alone is now enough to clear Night-1. Per this item's own
+      acceptance ("or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect"), a throwaway `tools/` probe
+      (deleted after use) searched the fresh sweep for seed/class pairs
+      whose shipped outcome is still a first-VS-block `defeat_warden`@w3
+      and confirmed several still flip cleanly to `victory` at
+      `baseHpMul: 1`: swordsman seeds 6/10, pyromancer seeds 11/12 (also
+      bloodlord 1/10/11, archer 8 — not used, out of this file's own two
+      named classes). Re-pinned to **swordsman seed 6 / pyromancer seed
+      11** and un-`.skip`-ed rather than left skipped, since the
+      mechanism itself (`src/sim/enemies.ts`'s `makeEnemy` applying
+      `baseHpMul` uniformly including VS-only Night-1 fodder) is
+      unchanged and still demonstrable.
+      **`tests/p13a-survivability-bands.test.ts`** spot-checked by
+      inspection, not re-run: it is a pure `derive()` unit test over
+      `maxHpMul`/`defenseBonus` math with no `Run`/terrain/RNG involved,
+      so it carries no dependency on gate position — confirmed unaffected,
+      no re-measurement needed. The T1/T5 "companion" describe block in
+      the same file (`cycles:1` `engineer`-only harness) was **not**
+      re-measured — it is a separate describe block from the G8 roster
+      sweep this item's acceptance named, is itself RNG/gate-position
+      dependent the same way, and is logged `.skip`-ed with an explicit
+      note that its own pin is now stale too, rather than silently
+      assumed still accurate; left as unqueued follow-up.
+      Verified full-tier: code-reviewer's first pass returned
+      REQUEST-CHANGES (2 Major/Minor transcription errors against the raw
+      probe data — cryomancer's winning seed and w8-bucket count,
+      plaguebringer's "7/9" loss-range count — plus a causal
+      misattribution crediting `world.ts:591`'s Fourth Gate literal for
+      the win-rate flip when the live mechanism for every `modifiers: []`
+      sweep config here is actually `GATES.east`, `src/sim/grid.ts`; all
+      fixed in commit `dd5cf20`). qa-playtester independently re-ran both
+      full test files plus targeted per-class spot-check probes (thrown
+      away after use) and confirmed every number against a fresh live
+      run — **PASS, no bugs found**, including confirming the
+      code-reviewer's corrections were accurate. `npm run test:fast`
+      shows no new failures beyond the pre-existing 20-failure/9-file
+      baseline (none of the 9 files touched by this item's diff).
+      Original text follows.
+      **found ahead of queue order 2026-09-15 while
+      shipping fb153b (working rule 3: a confirmed bug outranks the
+      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
+      `south` literal — both stale 36x20-era coordinates that had drifted
+      onto ordinary interior tiles at the shipped 56x32 grid, a live
+      gameplay bug (roughly a third of Act I spawns entering far closer to
+      the Core than the other two gates). Because `generateTerrain` takes
+      the gate list as an RNG-relevant input, the fix changes real
+      spawn-to-Core travel distance, and therefore real combat outcomes, at
+      every seed — not just terrain shape. Measured directly:
+      `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
+      (seed 1, T3) flips — swordsman `defeat_warden` -> `victory`, pyromancer
+      `defeat_warden` -> `defeat_core` — at the exact seed/config the
+      fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against
+      (both assertions `.skip`'d in that file with this finding, pending
+      this item). Every number that chain produced — fb196's fresh 12-seed
+      sweep (`tests/p6e-class-diversity.test.ts`'s header table), fb193's
+      before/after swordsman/necromancer/engineer bands, fb185's re-pin,
+      p13a's own shipping measurement — was measured against the *buggy*
+      gate position and is now stale, including this file's own "Owner
+      priority queue (2026-09-14 directive)" section text describing that
+      state. Acceptance: a fresh full 12-seed sweep of
+      `tests/p6e-class-diversity.test.ts` against the corrected gate
+      position, roster-wide (not just swordsman/pyromancer); the two
+      `fb196-night1-basehpmul.test.ts` assertions re-pinned to the newly
+      measured outcomes (or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect, if the corrected gate position
+      changes the control pair's own premise) and un-`.skip`-ed; G8's
+      recorded state in BACKLOG.md's owner-priority section text updated to
+      the fresh numbers with the before/after pair written down per
+      CLAUDE.md's measurement rules ("my change improved X needs the control
+      run, not the plausible story"); `tests/p13a-survivability-bands.test.ts`
+      and `tests/fb193`-adjacent measurements spot-checked for the same
+      dependency — refs: SPEC-FINAL §14 G8, BACKLOG fb153b/fb196/fb193/
+      fb185/p13a, QUESTIONS Q196/Q207.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 
@@ -3904,16 +3985,65 @@ was not fabricated.
       `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
       Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
       SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
-- [ ] (fb086) [bug] SPEC-FINAL §4.2 Bloodlord *Blood Tithe* is missing a
-      clause: "tower pays 30% current HP once -> permanently +25% dmg; **its
-      share of VS attacks lifesteals +1%**". Only the first half exists —
-      `s.tithed` feeds `classTowerDamageMul` (`towers.ts`) and nothing else
-      reads it; `leech` is one run-wide Warden stat and there is no
-      per-structure VS-share lifesteal anywhere (BACKLOG-CONTENT.md session-2
-      Log). Acceptance: failing test first (a tithed tower's VS-share hits
-      heal the Warden 1%; an untithed one does not); numbers in
-      `data/classes.json`; `tests/class-kit-liveness.test.ts`'s Bloodlord row
-      gains the second product — refs: SPEC-FINAL §4.2.
+- [x] (fb086) [bug] **DONE 2026-09-16 —** SPEC-FINAL §4.2 Bloodlord *Blood
+      Tithe* was missing a clause: "tower pays 30% current HP once ->
+      permanently +25% dmg; **its share of VS attacks lifesteals +1%**". Only
+      the first half existed — `s.tithed` fed `classTowerDamageMul`
+      (`towers.ts`) and nothing else read it; `leech` is one run-wide Warden
+      stat and there was no per-structure VS-share lifesteal anywhere
+      (BACKLOG-CONTENT.md session-2 Log). Shipped as a new crossing-constant
+      field, `active1.titheLifestealPct` (`data/classes.json`, authored
+      0.01 = "+1%") — the same Lifesteal crossing constant as
+      `leech`/`towerLifestealPct` (fb163/fb194: damage dealt to an enemy,
+      economy A, converted to HP healed on the Warden, economy B), so it is
+      inverse-scaled at load (`isInverseScaledClassPath`/`applyNumberScale`,
+      content.ts) and required (not just optional) via
+      `REQUIRED_EFFECT_FIELDS.blood_tithe`. Read at `applyTowerLifesteal`'s
+      existing three-site choke point (`cores.ts`, already called from
+      `towers.ts`'s synchronous kinds and `combat.ts`'s `pierce`/`lob` async
+      landing for Vampire Heart's own structure-heal lifesteal), gated on
+      `w.huntsWarden && s.tithed`, healing the Warden rather than the tower —
+      independent of whichever Core is selected. New
+      `tests/fb086-blood-tithe-lifesteal.test.ts` (6 cases, confirmed
+      red-first via a `git stash` of the `cores.ts` fix alone): VS-phase
+      tithed tower heals the Warden by `titheLifestealPct` of the damage
+      dealt; an untithed tower does not; a TD-phase tithed tower does not
+      (the clause is VS-only); a tithed tower under a different selected
+      class does not (pins the defensive kind-check `classTowerDamageMul`
+      already uses for the same flag, otherwise unreachable since `s.tithed`
+      can only ever be set true while playing Bloodlord); a pierce-kind tower
+      (Ballista) still heals once its bolt lands asynchronously, the same
+      p5d two-site split Vampire Heart's own lifesteal already has to
+      handle. `tests/class-kit-liveness.test.ts`'s Bloodlord row comment
+      updated to name the second product and point at the new file (the
+      liveness row itself only proves the cast, not a later hit landing, so
+      its assertion is unchanged). `tests/class-spec-numbers.test.ts`'s c008
+      ledger row flipped `unimplemented` -> `match` (census 61/1 ->
+      62/0 unimplemented); `tests/fb153a-number-scale.test.ts`'s census
+      extended with the new inverse-scaled path. `src/ui/class-info.ts`'s
+      auto-generated Blood Tithe sentence gained the lifesteal clause
+      (displayed at the *loaded* value, same fb194 precedent as Blood
+      Frenzy's "3%" -> "30%": the mechanic operates on already-scaled
+      on-screen damage numbers, so the on-screen percentage is the loaded
+      one, not the authored one). `npx tsc --noEmit` clean; targeted suite
+      (fb086's own file, `p-core-b-effects`, `class-kit-liveness`,
+      `fb153a-number-scale`, `class-spec-numbers`, `class-descriptions`,
+      `equip-spec-numbers`, `equip-effect-behaviour`) green; `fb015-
+      equipment.test.ts`'s two pre-existing `buildTower(..., 10, 10).ok`
+      failures confirmed unrelated via `git stash` control (the gate-
+      reposition board drift BACKLOG.md's fb153b/PROGRESS.md fb184 entries
+      already log). qa-playtester **PASS** — independently re-derived the
+      crossing-constant arithmetic (confirmed the runtime heal is 10% of
+      on-screen damage, the same already-approved Q180/Q191 convention
+      `vsLifestealPct` itself carries), verified multiple simultaneous
+      tithed towers, sell/rebuild, Vampire Heart overheal interaction, all
+      7 attack kinds, the TD-phase gate, determinism and `hashWorld`
+      coverage. Two findings logged in PROGRESS.md rather than filed as new
+      BACKLOG items this run (standing instruction): DoT-rider damage
+      bypasses both this clause and Vampire Heart's own tower lifesteal
+      (pre-existing, not introduced here); the acceptance text's "~1%"
+      phrasing undersells the actual, correct 10% loaded value — refs:
+      SPEC-FINAL §4.2.
 - [ ] (fb087) [polish] the standing Windows flake family every lane
       re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
       `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports

@@ -315,6 +315,12 @@ const CASES: readonly KitCase[] = [
       // at 1 hp cannot move on the cost axis and the row has only `tithed`
       // left to prove itself with. `hp` stays in `observe()` because Field
       // Kit's row genuinely needs it.
+      //
+      // fb086: `s.tithed` now gates a *second* product too (the "share of VS
+      // attacks lifesteals +1%" clause, `applyTowerLifesteal`, cores.ts) —
+      // out of this row's reach since it only fires the cast itself and never
+      // lands a hit, so it stays proven by its own dedicated file,
+      // tests/fb086-blood-tithe-lifesteal.test.ts, not here.
       tower(w, BUILD_TX, BUILD_TY).hp = 1;
     },
     fire: (w) => useClassActive(w, WX + 1, WY),
