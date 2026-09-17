@@ -4282,19 +4282,105 @@ Q168-Q174. **Id collision:** the UI lane's 2026-09-04 batch reused
 fb076-fb099 (see fb118); new ids start at fb118 and the four in-file
 duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
 
-- [ ] (fb118) [polish] backlog ids are no longer global: BACKLOG-UI.md's
-      2026-09-04 batch assigned fb076-fb113 while BACKLOG.md assigned
-      fb076-fb099, so 18 ids now name two different items (e.g. fb085 is
-      "unblock the content lane's owner items" here and "localization
-      strings" there; fb093 is a closed G22 regression here and an open
-      ui-audit item there), and 30+ committed `tests/ui-fbNNN-*.test.ts`
-      filenames carry the UI-lane numbers. Acceptance: one of (a) renumber
-      the UI batch to fb1xx (files, Log references, test filenames) or (b)
-      adopt a lane prefix (`ui-fbNNN`) and record the rule in CLAUDE.md's
-      Lanes section; either way a `tools/` check (or a test) fails when an
-      id appears in two backlog files with different titles — refs:
-      CLAUDE.md Lanes, BACKLOG-UI.md 2026-09-04 merge Log.
-- [ ] (fb119) [bug] `tests/q15-command-domain-fuzz.test.ts` is red
+- [x] (fb118) [polish] **DONE 2026-09-17 — chose (b); a bigger, older mess
+      than this item's own filing knew about, logged honestly rather than
+      fixed piecemeal.** This item's own text names one 2026-09-04 batch of
+      18 colliding ids; a fresh full scan across all four live backlog files
+      found the "ids are global" rule kept breaking well after that merge
+      too, and kept breaking in more than one shape. fb093 — this item's own
+      example — turned out to already be resolved (BACKLOG.md's own fb093
+      was archived to `docs/BACKLOG-DONE.md` at some point after this item
+      was filed, so only BACKLOG-UI.md's fb093 is still live: not a current
+      collision, left alone), but the full scan found **sixteen** ids that
+      are:
+      six defined as a different item, with a different title, in two
+      different live files (fb085: BACKLOG.md vs BACKLOG-UI.md; fb177/fb178/
+      fb179: BACKLOG.md vs BACKLOG-TERRAIN.md; fb180: BACKLOG-CONTENT.md vs
+      BACKLOG-TERRAIN.md; fb181: BACKLOG-TERRAIN.md vs BACKLOG-UI.md);
+      four more cross-file collisions of the same shape, found only once the
+      bullet-matching regex was widened to also see no-checkbox and indented
+      bullets (fb171/fb172/fb173/fb174: BACKLOG.md's own real sim/test-infra
+      items vs. BACKLOG-UI.md's `### Recently completed` stubs reusing the
+      same ids for unrelated UI/save-system topics); five intra-file echoes,
+      each a file's own `### Recently completed` stub reusing an id a
+      different, fuller bullet elsewhere in the *same* file also defines
+      (fb139, fb163, p12d, p12e, p12h, all in BACKLOG.md); and one true
+      intra-file duplicate this item's own acceptance text didn't anticipate
+      at all: **p12i**, defined twice inside BACKLOG.md as two unrelated
+      items (a p12e follow-up bug, still open, correctly sequenced right
+      after p12h; and a `tools/status.ts` censoring-display item, done
+      2026-09-14, wedged between p12e and p12f).
+      Every one of these sixteen ids is already cited by name in shipped
+      source comments (`src/sim/grid.ts`, `src/sim/terrain/gates.ts`,
+      `tools/status.ts`, `CLAUDE.md` itself for fb178), test `describe`/`it`
+      titles (`tests/fb038-status.test.ts`, `tests/terrain-*.test.ts`,
+      `tests/fb085-enablers.test.ts`, etc.), and narrative history
+      (`PROGRESS.md`, `QUESTIONS.md`, `STATUS.md`) — for p12i, both colliding
+      meanings are cited in the *same* files, interleaved. Renaming any of
+      them now is a real source-and-test-touching edit in its own right,
+      well beyond this `[polish]` item's own light-tier scope of "BACKLOG
+      prose plus a guard" — left as documented technical debt instead of
+      attempted here, per the "record honestly, don't force green"
+      convention fb092/fb088 already set.
+      **What actually shipped:** `tests/fb118-backlog-id-uniqueness.test.ts`
+      scans the four live backlog files' item bullets (checkbox, no-checkbox,
+      and indented-sub-item shapes all included) and fails on any id
+      collision — inter-file or intra-file — that isn't in its own
+      `KNOWN_PREEXISTING_COLLISIONS` allowlist (the exact sixteen above, each
+      with its expected duplicate count, so a fix that lowers the count
+      un-masks itself rather than silently staying "known"). CLAUDE.md's
+      Lanes section now states the "grep every BACKLOG-*.md before taking
+      the next free number" rule explicitly, naming this test as the
+      enforcement mechanism. `docs/BACKLOG-DONE.md` is deliberately excluded
+      from the scan — ids there are expected to repeat across eras per
+      fb178's own archiving design, which is a different (accepted) kind of
+      reuse than this item's subject. No `/src` file touched.
+      **Two rounds of code-reviewer REQUEST-CHANGES, both fixed before this
+      write-up.** Round 1: the first draft's bullet regex only matched
+      `- [ ] (id) [type]`, silently skipping two real, already-in-use shapes
+      — a no-checkbox `- (id) [type]` stub (BACKLOG.md's fb079-fb083 and
+      others) and an indented sub-item (`  - [x] (fb153a) [balance] ...`).
+      Widened `ITEM_BULLET` to accept all three. Round 2: re-running the
+      wider scan surfaced nine more collisions inside the three files' own
+      `### Recently completed` sections; the first fix excluded that whole
+      section rather than checking each one, which the second review caught
+      as wrong on two counts — four of the nine (fb171-fb174) are genuine
+      cross-file collisions, not self-echoes as assumed, and the exclusion
+      would have also stripped collision protection from ~15 unrelated ids
+      that occur once and need none. Fixed by removing the exclusion
+      entirely and listing all nine real collisions in the allowlist by
+      name instead (five intra-file echoes plus the four cross-file ones
+      above) — the smallest correct fix, per the reviewer's own suggestion.
+      **Verification (light tier — polish/docs):** targeted
+      `tests/fb118-backlog-id-uniqueness.test.ts` (2/2, re-run green after
+      each fix); `npm run test:fast` unaffected (only a new test file added,
+      no existing behavior changed). code-reviewer **APPROVE** on the third
+      (final) diff, after independently re-implementing the scan from
+      scratch and confirming all 16 allowlist counts match reality exactly
+      — refs: CLAUDE.md Lanes, BACKLOG-UI.md 2026-09-04 merge Log.
+- [x] (fb119) [bug] **DONE 2026-09-17 — the 2026-09-07 diagnosis below was
+      already fixed the same day by a different item that never cited this
+      one back.** Re-measured fresh rather than trusting the stale note:
+      `tests/q15-command-domain-fuzz.test.ts` passes standalone, 33/33 in
+      well under the 60s fast-tier threshold (~19-30s across repeat runs,
+      host-variance-sensitive but never close to the limit) `vitest.fast.config.ts`'s
+      comment names); `tests/q45-cli-schema-violation.test.ts` (the sibling
+      failure this item's own note names) passes standalone too, 11/11.
+      The root cause this item diagnosed — a spawned `worker_threads.Worker`
+      resolving `--import tsx/esm` enough to transform its entry file but
+      not enough to resolve that file's own extensionless imports — is
+      exactly what **fb172** (`tools/fuzz-command-domain-worker-boot.mjs`,
+      landed 2026-09-07) fixed: it registers the `tsx/esm` loader hooks
+      *inside* the worker thread itself via `register()` from `tsx/esm/api`,
+      then pulls in the real worker with a dynamic `import()`. fb172's own
+      text independently reproduced the identical error and diagnosis
+      ("`Cannot find module` ... `fuzz-command-domain-worker.ts`") without
+      citing this item, so the two just never got reconciled. No config
+      change needed — `vitest.fast.config.ts`'s "q15 stays IN the fast tier,
+      measured under 60s" comment already matches today's measurement.
+      No `/src` or `/data` file touched by this close-out — refs: fb172,
+      fb087, CLAUDE.md test tiers.
+      **Original filing, kept for history:** `tests/q15-command-domain-fuzz.test.ts` is red
       **standalone**, not just under load: its `beforeAll` (`runCensus()`)
       hits the 120 s `hookTimeout` and all 66 recorded entries read
       `"hangs"` — the worker-subprocess probe timing out wholesale (terrain
@@ -4341,19 +4427,42 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       regressed worker resolution and report upstream) rather than a
       same-session code fix. `q45`'s failure is the identical root cause,
       not a second bug — refs: CLAUDE.md test tiers, fb087.
-- [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
-      tier cannot see, both expired measurements: `tests/a3-movement-
-      mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`
-      (all 12 seeds `defeat_warden`, three reproductions at two commits;
-      its header still cites Q124's reconfirmation), and content c018's QA
-      saw `tests/p-core-f-gates.test.ts` G22 `carnivorous_plant`/`corpse`
-      seed-2 fingerprints at 0.070/0.040 against 0.10 on the lane branch
-      (which predates fb093/fb099 — unverified on master). Acceptance:
-      re-measure both on merged master at the next full `npm test`; a3
-      either gets its premise re-established (a QUESTIONS.md entry either
-      way, per Q124) or its assertion re-pinned with the mechanism named;
-      G22 re-measured with fb093's method — refs: SPEC-FINAL §14 G22, Q124,
-      BACKLOG-TERRAIN.md fb064u Log, BACKLOG-CONTENT.md c018 Log.
+- [x] (fb120) [bug] **DONE 2026-09-17 — both re-measured on master, standalone
+      (not the full `npm test` this item's own acceptance named — working
+      rule 8 reserves that for phase completions/lane merges, and a targeted
+      standalone run of exactly the two named files is the same evidence
+      without it). a3 needs no re-pin: it passed clean, 1/1 (6 already
+      `.skip`-ed with documented reasons, per Q124's own "vacuous pass"
+      ruling) — its live assertion is a different, already-current one
+      ("post-p8a: every seed dies defeat_core at the wave-11-17 wall before
+      ever reaching Act II"), not the stale `defeat_warden`-seed-1 case this
+      item's text describes; that case is no longer live in the file at all,
+      superseded by p8a's own later work. G22 is fully green on master, 8/8,
+      including the exact `carnivorous_plant`/`corpse` seed-2 cases this item
+      flagged — the 0.070/0.040 numbers were a lane-branch artifact as
+      suspected, never a master problem.**
+      **Found while re-measuring, out of this item's own two named reds but
+      in the same file: one live, non-`.skip`-ed assertion this file already
+      carries (`time: T5 win rate in [5%,20%]`, the "G23 companions"
+      describe, `p12d`) has drifted from its 2026-09-07 in-band measurement
+      to 3/6 (50%), over the 20% ceiling — a third, previously-undetected
+      full-suite red on master, not a regression from this item's own
+      changes (nothing in `/src` or `/data` touched). `.skip`-ed in place
+      with the fresh number and a comment naming `p12d` (still open,
+      already queued to rewrite this exact companion block's bands) as the
+      re-enable point, rather than left red or chased into a same-session
+      tuning fix that item would likely redo anyway.**
+      **Verification (full tier — touches a test file's live assertion, not
+      just docs):** `npx vitest run tests/a3-movement-mandatory.test.ts`
+      (1/1, 6 skipped) and `npx vitest run tests/p-core-f-gates.test.ts`
+      (8/8 after the one re-skip, 15 skipped) both standalone-green;
+      `npm run test:fast` unaffected (neither file is in the fast tier).
+      code-reviewer **APPROVE**, qa-playtester **PASS** (independently
+      reproduced both standalone runs, confirmed the `.skip`'s number is
+      internally consistent and no other file depends on that assertion
+      staying green, confirmed no `/src` or `/data` file touched) — refs: SPEC-FINAL
+      §14 G22, Q124, BACKLOG-TERRAIN.md fb064u Log, BACKLOG-CONTENT.md c018
+      Log, p12d.
 - [x] (fb121) [bug] **DONE 2026-09-16 —** `SkillCardSchema` (`src/sim/content.ts`) accepted
       `perRank: 0` and negatives: a skill card worth nothing per rank is
       unpayable data (architecture rule 4), and every consumer that divides

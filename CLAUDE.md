@@ -152,6 +152,20 @@ loops may execute up to TWO items per iteration when both are small ([bug]/
 unchanged. New items generated inside a lane must fit its Scope or be filed
 in its Log for BACKLOG.md.
 
+**Id uniqueness (fb118, 2026-09-17):** ids are global across all four backlog
+files — before assigning a new one, grep the exact id across BACKLOG.md and
+every BACKLOG-*.md, not just the file you're editing; the 2026-09-04 merge
+already stated this rule and it still kept breaking afterward (fb085/fb177/
+fb178/fb179/fb180/fb181 all collided post-rule). `tests/fb118-backlog-id-
+uniqueness.test.ts` enforces it going forward: it fails on any id defined as
+a different item in two live backlog files, or twice in the same file,
+**unless** the id is in that test's own `KNOWN_PREEXISTING_COLLISIONS`
+allowlist — a fixed, already-logged list of collisions from before this
+guard existed, each too entangled with existing source/test citations to
+rename as a side effect of adding the guard. Never add a new id to that
+allowlist to make a fresh collision go green; fix the new collision instead
+(pick an unused id).
+
 **Generation rule:** if fewer than 3 actionable items remain, generate before
 executing: (a) run the sweep + handoff-metrics and diff against every §14 gate
 G1–G20 and the current QUALITY.md stage; (b) diff SPEC-FINAL coverage against

@@ -5,6 +5,41 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb119 done — re-measured, not re-fixed:
+  fb172 (2026-09-07) already fixed the exact bug this item diagnosed the
+  same day, without either item citing the other.** `tests/q15-command-
+  domain-fuzz.test.ts` passes standalone (33/33, well under the 60s
+  fast-tier threshold) and so does
+  `tests/q45-cli-schema-violation.test.ts` (11/11) — the worker-thread
+  module-resolution failure fb119 root-caused (`--import tsx/esm` transforms
+  a spawned Worker's entry file but doesn't give its own extensionless
+  imports resolution) is fixed by fb172's `tools/fuzz-command-domain-worker-
+  boot.mjs`, which registers the loader hooks inside the worker thread
+  itself. No config or source change needed this session; the two backlog
+  entries are now reconciled so a future reader doesn't re-diagnose the same
+  bug a third time.
+- **2026-09-17 — main lane: BACKLOG fb118 done — the "ids are global" rule
+  kept breaking after the 2026-09-04 merge that first stated it, not just in
+  the one batch fb118 was filed to describe.** A fresh scan across all four
+  live backlog files, refined across two rounds of code-reviewer
+  REQUEST-CHANGES (a bullet-shape blind spot, then an over-broad exclusion
+  that both hid real collisions and stripped protection from unrelated ids),
+  found sixteen colliding ids in total: six cross-file (fb085, fb177, fb178,
+  fb179, fb180, fb181), four more cross-file found only once the bullet
+  regex widened (fb171-fb174, BACKLOG.md's real items vs. BACKLOG-UI.md's
+  "Recently completed" stubs reusing the same ids), five intra-file echoes
+  of a file's own completed-item stub against a different later bullet
+  (fb139, fb163, p12d, p12e, p12h, all in BACKLOG.md), and one true
+  intra-file duplicate (p12i, two unrelated BACKLOG.md items). Every one
+  is already cited by name in shipped source comments, test titles, and
+  narrative docs, so renaming any of them is a real cross-file edit outside
+  this `[polish]` item's own scope — logged honestly as
+  `KNOWN_PREEXISTING_COLLISIONS` in the new
+  `tests/fb118-backlog-id-uniqueness.test.ts` guard rather than fixed or
+  swept under. That test fails on any *new* id collision (inter- or intra-
+  file) going forward; CLAUDE.md's Lanes section now states the "grep every
+  BACKLOG-*.md before taking the next free number" rule explicitly. No
+  `/src` file touched.
 - **2026-09-17 — main lane: BACKLOG fb087 done — the Windows flake family
   re-measured, not re-fixed.** All four named mechanisms already had their
   fix landed by an earlier item before this session started: `q45`/`q49`/
