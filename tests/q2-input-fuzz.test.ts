@@ -235,7 +235,12 @@ describe('q2 input fuzz', () => {
     // `class_active` dispatches on the class's `active.kind`, so fuzzing one
     // class exercises one active. SPEC-FINAL §13 wants eleven classes; this
     // loops whatever `/data` currently has, so the coverage grows with them
-    // instead of staying pinned to the engineer.
+    // instead of staying pinned to the engineer. This is also fb123's
+    // "fuzzRun gets an archer/swordsman config" half: those two are in
+    // `/data` like any other class, so `fuzzRun`'s own `active1Held` fuzzing
+    // (line ~425 above) already drives both charge kinds here — the other
+    // half (per-policy `class_active` damage coverage) is pinned separately
+    // in tests/fb123-charge-kind-bot-coverage.test.ts.
     const classes = loadContent().classes.classes.map((c) => c.key);
     expect(classes.length).toBeGreaterThan(0);
     for (const classKey of classes) {
