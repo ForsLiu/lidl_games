@@ -226,5 +226,6 @@
   "actIICarry": 3.2,
   "warmupSeconds": 100,
   "warmupStart": 0.25,
-  "burrowSurfaceDistance": 3
+  "burrowSurfaceDistance": 3,
+  "burrowHighGroundBlockCapSeconds": 3
 }

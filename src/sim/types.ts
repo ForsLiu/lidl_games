@@ -284,6 +284,13 @@ export interface Enemy {
   ghosting: boolean;
   /** Burrowed: underground, so nothing can target or hit it (SPEC 6 #12). */
   submerged: boolean;
+  /**
+   * fb129: seconds a submerged Burrower has been held past its normal surface
+   * point by the high-ground surfacing rule (`spawns.burrowHighGroundBlockCapSeconds`
+   * caps it). 0 whenever the Burrower isn't submerged, isn't yet in surfacing
+   * range, or is surfacing normally.
+   */
+  surfaceBlockedFor: number;
   /** Cached trait bitmask (see enemies.ts TRAIT), so hot loops skip string work. */
   flags: number;
   /** Last computed crowd-repulsion vector; refreshed on a stagger. */
