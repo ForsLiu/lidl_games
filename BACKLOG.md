@@ -4724,26 +4724,36 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       file already updated), and a headless `tools/sim.ts` sanity run at
       two seed/policy pairs completed clean — refs: SPEC-FINAL §2, §14
       G1/G13, Q172.
-- [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
-      call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
-      (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in
-      `src/sim/enemies.ts`/`boss.ts` asks them, so ground melee still chews
-      a tower across a cliff edge and fb064m's "no uncontestable plot"
-      constraint guards a rule no run enforces. The six call sites are
-      listed in BACKLOG-TERRAIN.md's fb064i Log; `nearestStructureWithin`
-      (`enemies.ts:1258`) selects before the rule applies. The Act II
-      residual — Spitters skip structures under `!act2`, so every
-      high-ground tower is uncontestable during the VS phase — and the
-      Burrower's widened untargetable window are design calls (Q171).
-      **Q171 verdict (2026-09-14): the Act II residual is accepted as a
-      non-issue (towers are inert and enemies hunt the Warden during VS, so
-      an uncontestable inert tower changes nothing) — closed, no code
-      needed.** The Burrower's widened untargetable window is capped at
-      **3s ⚖ per surfacing** — folds into this item's acceptance below.
-      Acceptance: rules wired at every listed site with a red-first test
-      per site; the Burrower untargetable-window cap (3s ⚖) pinned by a
-      regression test — refs: SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md
-      fb064d/fb064i/fb064m, QUESTIONS Q171.
+- [x] (fb129) [feat] **DONE 2026-09-17** — fb064d's main-lane half: the five
+      `src/sim/enemies.ts` call sites (melee breach in `moveEnemy`, the
+      Colossus stomp AoE, the Burrower's and the Wraith's surfacing checks
+      in `updatePhasing`, the Spitter's ranged structure attack) now call
+      `canAttackStructureAt`/`canSurfaceAt`; `boss.ts`'s `shatterAlong`/
+      `updateUnreachable` gained doc comments recording why they stay
+      unguarded (Q171-adjacent: bosses' specials are exempt, the anti-stall
+      failsafe must never fail to find a target). Q171's Act II residual was
+      already closed (non-issue, no code needed). The Burrower's cap is
+      `data/terrain.json`'s `highGround.surfaceBlockCap` (3 ⚖) plus a new
+      `Enemy.highGroundBlockedFor` field; qa-playtester found the same
+      mechanism was also needed on the Wraith's site (a Wraith with zero
+      relative motion to its target — e.g. parked exactly on a stationary
+      huntsWarden target — retried forever with no cap), reproduced and
+      fixed the same session by sharing `highGroundBlockedFor` between both
+      sites. Regression tests: `tests/fb129-high-ground-wiring.test.ts` (8
+      tests, one per site plus the Wraith zero-motion repro). Mechanical
+      fallout from the new `/data/terrain.json` field regenerated:
+      `tests/q7-loader-holes.ts` (`terrain.highGround.surfaceBlockCap`
+      census entry) and `tests/terrain-describe.test.ts` (GOLDEN_SEED_1's
+      `bands config=` fingerprint). `tests/boss.test.ts`'s three win-rate/
+      reachability assertions were checked against clean master via `git
+      stash` and are pre-existing failures (reproduce with none of this
+      item's changes applied) — out of scope here, not touched. A QA-filed
+      coverage gap (no test pins `boss.ts`'s two deliberately-unguarded
+      sites) is filed as fb136 below rather than fixed inline, after this
+      session's own attempt found the Warden-Eater's charge ability
+      (`shatterAlong`, itself unguarded by design) confounds an isolated
+      `updateUnreachable` repro — refs: SPEC-FINAL §10.5 (fb079),
+      BACKLOG-TERRAIN.md fb064d/fb064i/fb064m, QUESTIONS Q171.
 - [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
       migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
       `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,
@@ -4812,6 +4822,28 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       through `CodexCollection.renderDetail`). Acceptance: each UI item's
       own acceptance text, executed from main or with the Scope widened —
       refs: BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs.
+- [ ] (fb136) [bug] qa-playtester coverage gap from fb129: no regression test
+      pins `src/sim/boss.ts`'s two deliberately-unguarded high-ground sites
+      (`shatterAlong`, `updateUnreachable`) — BACKLOG-TERRAIN.md fb064i's Log
+      counts them among "the six call sites" ("every site that must call a
+      predicate, and every site that deliberately must not"), so a future
+      change that guards `updateUnreachable` "by analogy" with the other five
+      (an easy mistake — it is a `damageStructure` call shaped just like the
+      Colossus stomp site) would silently let the anti-stall failsafe stop
+      failing safe, with nothing red to catch it. fb129's own attempt found
+      the direct route confounded: sealing a `warden_eater` beside a
+      high-ground tower to force `UNREACHABLE_THRESHOLD` also lets its own
+      charge ability fire, and `shatterAlong` — itself correctly unguarded —
+      one-shots the tower first, so the test proves the wrong mechanism.
+      Needs either a boss with no charge (check `data/enemies.json` for a
+      `finalBoss`/`boss` def without `TRAIT.charges`-driving fields) or a
+      setup that suppresses/outlasts the charge windup before asserting
+      `updateUnreachable`'s own damage; `shatterAlong` needs its own case
+      driving a boss charge through/near a high-ground tower. Acceptance: a
+      "site 6" describe block in `tests/fb129-high-ground-wiring.test.ts` (or
+      a new file) exercises both functions through the public `updateEnemies`
+      surface and asserts each still damages a high-ground structure — refs:
+      BACKLOG-TERRAIN.md fb064i Log, BACKLOG.md fb129.
 
 
 ## Retired from the queue by SPEC-FINAL
