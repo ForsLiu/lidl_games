@@ -830,7 +830,7 @@ const ClassEffectSchema = z.object({
   compoundPerSecond: num.optional(),
   /** `charge_pierce`: move-speed multiplier while drawing — 0.6 is §4.2's "move −40%". */
   moveMulWhileCharging: num.optional(),
-  /** `charge_pierce`: most enemies one released shot may pass through (a perf rail on "+1 pierce per full second"). */
+  /** `charge_pierce`: the rail on the charge-derived pierce count only (a perf rail on "+1 pierce per full second"). The true enemies-pierced ceiling is `pierceCap + perRank * maxRank` off the `archer_pierce_cap` class_line card (10 on shipped data, not this field's own 6) — see `tests/class-deeper-draw.test.ts`. */
   pierceCap: num.optional(),
   /** `summon_turret`/`raise_skeletons`/`manifest_spirit`: how long one summon lives. */
   summonDurationSeconds: num.optional(),

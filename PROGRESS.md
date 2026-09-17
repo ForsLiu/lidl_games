@@ -5,6 +5,19 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb122 done — `pierceCap` doc comment
+  corrected, no code behavior changed.** `src/sim/content.ts`'s `pierceCap`
+  schema comment claimed "most enemies one released shot may pass through,"
+  which stopped being true at c017: the field only rails the charge-derived
+  pierce count, and the real enemies-pierced ceiling is
+  `pierceCap + perRank * maxRank` off the `archer_pierce_cap` class_line card
+  — 10 on shipped `/data`, not the field's own 6, a number a designer reading
+  the Tuner's generic zod-schema walk would see 40% low. Corrected the
+  comment to state the rail's actual scope and cite the true ceiling formula
+  and `tests/class-deeper-draw.test.ts` as its measurement, per the item's
+  acceptance criteria. Comment-only diff (confirmed via `git diff --stat`);
+  targeted test and `npm run test:fast` (308 passed/9 skipped/0 failed) both
+  green; code-reviewer APPROVE.
 - **2026-09-17 — main lane: BACKLOG fb119 done — re-measured, not re-fixed:
   fb172 (2026-09-07) already fixed the exact bug this item diagnosed the
   same day, without either item citing the other.** `tests/q15-command-

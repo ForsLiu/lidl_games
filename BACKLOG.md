@@ -4496,7 +4496,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       confirmed the guard is load-bearing via a `git stash` control (red
       without it) — refs: SPEC-FINAL §6.3, §12
       rule 4, BACKLOG-CONTENT.md c019 Log.
-- [ ] (fb122) [polish] `src/sim/content.ts:705`'s `pierceCap` schema
+- [x] (fb122) [polish] **DONE 2026-09-17.** `src/sim/content.ts:705`'s `pierceCap` schema
       comment ("most enemies one released shot may pass through") is false
       since c017: the field rails only the charge-derived count and the true
       ceiling is `pierceCap + perRank * maxRank` (10, not 6). It is
@@ -4504,6 +4504,14 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       designer is shown a number 40% low. Acceptance: comment corrected;
       `tests/class-deeper-draw.test.ts`'s ladder cited — refs: SPEC-FINAL
       §4.2 Archer, §6.3, BACKLOG-CONTENT.md c017 Log.
+      **Closed:** `src/sim/content.ts`'s `pierceCap` doc comment now states the
+      field only rails the charge-derived count and cites the real
+      enemies-pierced ceiling (`pierceCap + perRank * maxRank`, 10 on shipped
+      `archer_pierce_cap` data, not the field's own 6), naming
+      `tests/class-deeper-draw.test.ts` as the ladder's measurement. Comment-only
+      diff; `npx vitest run tests/class-deeper-draw.test.ts` and
+      `npm run test:fast` both green (308 passed/9 skipped/0 failed).
+      code-reviewer APPROVE.
 - [ ] (fb123) [test] no automated harness ever executes a charge-kind
       Active1: `src/bots/policy.ts` never sets `TickInput.active1Held`, so
       `fireDeadeyeDraw`/`fireCircleSlash` have zero bot/sweep coverage and
