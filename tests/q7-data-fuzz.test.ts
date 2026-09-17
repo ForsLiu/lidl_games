@@ -416,7 +416,16 @@ describe('q7 — every field, every wrong shape', () => {
     // `positive()`/`nonnegative()` only cover the handful of fields this item's
     // acceptance named) and stay pinned as floors for the same reason as before:
     // this test *falls* again the next time someone adds a guard.
-    expect(rate('negative')).toBeGreaterThan(0.8);
+    //
+    // Measured 2026-09-16 (fb121): closing the twelve `vsupgrades.
+    // skillCards.<class>[].perRank <= 0` holes moved 12 trials each for
+    // `negative` and `zero` from accepted to rejected (24 total, one class
+    // pair per family). `negative` fell from ~0.88 to 0.7859, below its old
+    // floor; `zero` fell from ~0.88 to 0.8593, still above its own floor;
+    // `fractional` is untouched by a `<= 0` guard (0.9165, within existing
+    // measurement noise). The floor that *is* falling is the fix working,
+    // not a regression.
+    expect(rate('negative')).toBeGreaterThan(0.75);
     expect(rate('zero')).toBeGreaterThan(0.85);
     expect(rate('infinite')).toBe(0);
     expect(rate('fractional')).toBeGreaterThan(0.9);
@@ -853,6 +862,19 @@ describe('q7 — filed defects (unskip with the fix)', () => {
       root[key] = [];
       const r = await load(file, root as JsonValue);
       expect(r.outcome, `${file}.${key}`).toBe('rejected');
+    }
+  });
+
+  it('fb121 — the loader refuses a skill card with perRank <= 0, naming the card', async () => {
+    for (const bad of [0, -0.5]) {
+      const root = pristine('vsupgrades') as {
+        skillCards: Record<string, { key: string; perRank: number }[]>;
+      };
+      const card = root.skillCards.archer[0];
+      card.perRank = bad;
+      const r = await load('vsupgrades', root as unknown as JsonValue);
+      expect(r.outcome, `perRank=${bad}`).toBe('rejected');
+      expect(r.error).toContain(card.key);
     }
   });
 });

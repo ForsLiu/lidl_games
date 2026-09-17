@@ -1475,3 +1475,22 @@ Q200 did not collide and are unchanged below).
   queue — logged against fb196, which already carries that priority, rather
   than reopening a second top-priority item for the same bug). — (owner
   verdict: pending)
+
+- **Q208. [fb121] `BoonSchema.perRank`/`TypeMasterySchema.perRank`
+  (`src/sim/content.ts`) share `SkillCardSchema.perRank`'s exact
+  "unpayable at <= 0" shape** — both are read the same multiplicative way in
+  `progression.ts` (`b.perRank * delta`, `typeMastery.perRank * rank`) —
+  but fb121's acceptance text named `SkillCardSchema` specifically, so the
+  new `perRank <= 0` guard was scoped there only, not to these two siblings
+  (code-reviewer finding, same session). Chosen default: leave them
+  unguarded for now and log this entry for a future session to file as a
+  BACKLOG item (this routine's own standing instruction is never to
+  generate new BACKLOG items itself) rather than silently widen fb121's own
+  scope past what its acceptance text named. — Reason: CLAUDE.md rule 5
+  (choose, log, continue) plus the
+  "check a /data row's blast radius" measurement rule — `TypeMasterySchema.
+  perRank <= 0` would be a run-wide VS-damage-multiplier hole (every built
+  tower's type, not one class), a materially larger blast radius than
+  `SkillCardSchema`'s per-class scope, and deserves its own acceptance text
+  and corpus case rather than a same-session tack-on. — (owner verdict:
+  pending)
