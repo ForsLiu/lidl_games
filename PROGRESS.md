@@ -29,6 +29,23 @@
   are in BACKLOG-CONTENT.md's two 2026-09-17 Finding sections. No `/src` or
   `/data` byte changed by this session — working tree is BACKLOG-CONTENT.md
   only.
+- **2026-09-17 — main lane: BACKLOG fb087 done — the Windows flake family
+  re-measured, not re-fixed.** All four named mechanisms already had their
+  fix landed by an earlier item before this session started: `q45`/`q49`/
+  `q52` already use `RM_RETRY` (bounded retry on `EPERM`/`EBUSY`); `q15`'s
+  hang class was fb172-174's own fix (8000 ms deadline + one retry, already
+  measured against contention); `q13-perf-ratio`'s ceiling was independently
+  re-set generous at fb054's close-out. Five consecutive `npm run test:fast`
+  runs this session came back zero failures from this set; two of the five
+  ran `b032`/`b034`/`b035` for real (rather than skipping for "no Chromium
+  installed") via `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium`,
+  including one launched concurrently with a full `test:fast` invocation to
+  reproduce contention — both passed comfortably, no slowdown worth calling
+  contention. Caveat logged in BACKLOG.md: this container is Linux, and the
+  flake family's original reports were Windows-specific, so this is not
+  proof the Windows reference host stays quiet — re-open citing this note if
+  it recurs there rather than re-deriving the same root causes. No source or
+  test file touched.
 - **2026-09-16 — main lane: BACKLOG fb085 done — the four enablers
   BACKLOG-CONTENT.md's session-1 Log named as blocking fb056/fb057/fb059/
   fb061/fb062 are now in place; the lane itself is unblocked but none of
