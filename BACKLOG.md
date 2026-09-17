@@ -4573,7 +4573,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       -> 50 and `classes.ts:1005` `auraAtkSpdMul ?? 0` -> 0.15 survive both
       passive files. Acceptance: a red-first case for each (four mutations,
       four reds) — refs: SPEC-FINAL §4.1/§4.2, BACKLOG-CONTENT.md c011 Log.
-- [ ] (fb126) [feat] three rule-4 literals the player is shown as numbers:
+- [x] (fb126) [feat] three rule-4 literals the player is shown as numbers:
       Time Flow's "4 s" is `TIME_FLOW_BASE_SECONDS` in `src/sim/run.ts:578`,
       and Thousand Cuts' bleed stack and Long Draw's per-second pierce are
       literals in `src/sim/classes.ts`; `tests/class-descriptions.test.ts`
@@ -4582,6 +4582,32 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       schema field (e.g. `charDotSeconds`) read by its site, the ledger's
       `in_code` rows flip to `field`, and the sentences are unchanged —
       refs: SPEC-FINAL §12 rule 4, BACKLOG-CONTENT.md c015 Log.
+      **Done 2026-09-17**: three new `data/classes.json` passive fields —
+      `time_lord.passive.charDotSeconds` (4), `swordsman.passive.
+      bleedBaseStacks` (1), `archer.passive.piercePerSecond` (1) — read by
+      `timeFlowWindowSeconds(w, cls)` (run.ts), `passiveOnHit` and
+      `fireDeadeyeDraw` (classes.ts) respectively. `time_flow`/`thousand_cuts`
+      gained `REQUIRED_PASSIVE_FIELDS` entries; `charDotSeconds` is
+      `.positive()`, `bleedBaseStacks` is `.int().min(1)`, `piercePerSecond`
+      is `.int().positive()` — code-reviewer (first pass) found both bare
+      `num.optional()` fields were a genuine new rule-4 hazard (a divide-by-
+      zero via `windowSeconds` and an `Array(n)` `RangeError` via a
+      fractional/negative stack count) that the `/src` literals they replaced
+      could never have hit, plus a Minor note on `piercePerSecond`'s coupled
+      base/rate read; all three tightened, second-pass code-reviewer APPROVE.
+      `tests/class-descriptions.test.ts`'s three `in_code` claims flip to
+      `field` (census now field 29/in_code 0); `tests/class-spec-numbers.
+      test.ts`'s three `in_code` rows flip to `match` (census now match 65/
+      in_code 5). `tests/q7-loader-holes.ts` regenerated twice (once per
+      schema tightening pass) via `Q7_RECORD=1`; `bleedBaseStacks` leaves
+      `ACCEPTED` entirely (no open mutation family left). qa-playtester PASS:
+      confirmed shipped-data behavior byte-identical pre/post change (`npm
+      run sim` per class), confirmed retuning each field live-propagates,
+      confirmed the two required fields throw a clear loader error when
+      omitted and `piercePerSecond` falls back to 1 gracefully, confirmed all
+      three new schema bounds reject with clean zod errors rather than
+      crashing. `npx tsc --noEmit` clean; `npm run test:fast` 4487 passed/35
+      skipped/0 failed.
 - [ ] (fb127) [feat] unblock BACKLOG-CONTENT.md c010 (Stormcaller's
       `chainGrowth`/`chainCap` authored on `active1`, read by the passive):
       the move needs `src/sim/content.ts:1288`'s `REQUIRED_EFFECT_FIELDS.

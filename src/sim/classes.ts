@@ -134,8 +134,10 @@ const FROST_ON_HIT: readonly string[] = ['frost', 'frost_track'];
  */
 function passiveOnHit(w: World, cls: ClassDef): readonly string[] {
   if (cls.passive.kind === 'thousand_cuts') {
+    const base = cls.passive.bleedBaseStacks ?? 1;
     const extra = Math.round(classLineBonus(w));
-    return extra > 0 ? Array(1 + extra).fill('bleeding') : BLEEDING_ON_HIT;
+    const total = base + extra;
+    return total === 1 ? BLEEDING_ON_HIT : Array(total).fill('bleeding');
   }
   if (cls.passive.kind === 'frost_touch') return FROST_ON_HIT;
   return NO_ON_HIT;
@@ -646,7 +648,11 @@ function fireDeadeyeDraw(
   // shape outright ("base-less stats (armor points, +1 pierce, charges) add"),
   // it moves nothing at rank 0, and `pierceCap` stays a real rail rather than
   // being deleted.
-  const hits = Math.min(eff.pierceCap ?? 1, 1 + Math.floor(held)) + classLineBonus(w);
+  // fb126: `piercePerSecond` (cls.passive) is Long Draw's own "+1 pierce per
+  // full second charged" — both the rate on `Math.floor(held)` and the base
+  // hit at zero charge share that one authored number on shipped data.
+  const pierceRate = cls.passive.piercePerSecond ?? 1;
+  const hits = Math.min(eff.pierceCap ?? 1, pierceRate * (1 + Math.floor(held))) + classLineBonus(w);
   const dir = aimDirection(w, aimX, aimY);
   // `radius` is this kind's shot length — the same field-reuse precedent
   // `dash_line`'s own unused `radius: 0` set (Q118's Nit).

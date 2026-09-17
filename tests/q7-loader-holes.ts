@@ -22,6 +22,29 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-17 (fb126, rule 4): `data/classes.json` gained three
+ * new passive fields moving player-shown numbers out of `/src` literals —
+ * `bleedBaseStacks` (Thousand Cuts) and `charDotSeconds` (Time Flow) are
+ * `REQUIRED_PASSIVE_FIELDS` for their kinds, so a missing/renamed key was
+ * already rejected; a first pass left their `negative`/`zero`/`fractional`
+ * families open (bare `num.optional()`, the same shape their sibling fields
+ * already have), but code review the same session called that a real hole,
+ * not a pre-existing-shape one: `charDotSeconds` feeds a divide (`dps: dmg /
+ * windowSeconds`) and `bleedBaseStacks` feeds `Array(n)`, so 0/negative/
+ * fractional data reaches a divide-by-zero or a `RangeError` respectively,
+ * where the `/src` literal they replace could never have been either.
+ * `charDotSeconds` -> `.positive()` (closes `negative`/`zero`, `fractional`
+ * stays open — a fractional window is a valid tune); `bleedBaseStacks` ->
+ * `.int().min(1)` (closes all three — a stack count has no fractional or
+ * sub-1 reading). `piercePerSecond` (Long Draw) has no bespoke `kind` to
+ * required-gate, but the same review flagged it too (it feeds `lineHit`'s
+ * integer hit count), so it also moved from bare `num.optional()` to
+ * `.int().positive()`, closing `negative`/`zero`/`fractional` and leaving
+ * only `drop-key`/`rename-key` (its `?? 1` fallback, unguarded like every
+ * other kind-less bespoke passive number here). Net: `bleedBaseStacks`
+ * leaves `ACCEPTED` entirely (no open family left), `charDotSeconds` and
+ * `piercePerSecond` narrow to one and two families.
+ *
  * Regenerated 2026-09-16 (fb121): `vsupgrades.json`'s `skillCards.<class>[].
  * perRank` closed its `negative`/`zero` holes — `content.ts` now refuses a
  * skill card with `perRank <= 0` (the card key and its class named in the
@@ -391,6 +414,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].maxHpMul': ['fractional'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
+  'classes.classes[].passive.charDotSeconds': ['fractional'],
   'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.corpseSeconds': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.description': ['to-string', 'empty-string'],
@@ -409,6 +433,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].passive.mods.summonCap': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.mods.towerCost': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.name': ['to-string', 'empty-string'],
+  'classes.classes[].passive.piercePerSecond': ['drop-key', 'rename-key'],
   'classes.classes[].passive.shatterDamage': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.shatterRadius': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.stanceArmor': ['negative', 'zero', 'fractional'],
