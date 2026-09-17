@@ -4,9 +4,10 @@
  */
 
 import type { EnemyDef } from './content';
+import { equipmentEffectNum } from './equipment';
 import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W } from './grid';
 import type { DamageTypeKey } from './damagetypes';
-import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
+import { clamp, dcos, dist, dist2, dsin, normalize, TAU } from './math';
 import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
 import { tierCoreDamageMul, tierEnemyHpMul } from './tiers';
@@ -187,6 +188,8 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     timeLockZoneId: 0,
     atkSlowAmount: 0,
     atkSlowRemaining: 0,
+    madnessRemaining: 0,
+    madnessStacks: 0,
   };
   return e;
 }
@@ -673,7 +676,10 @@ function drainPlagueTransfers(w: World): void {
       // p7a (§6.3) skill card "Wider Contagion": transfers to 1 extra
       // nearest enemy/rank, each taking the full unfinished total (not
       // split) — §4.1 names only one, so a rank-0 run picks exactly it.
-      const targets = 1 + Math.round(classLineBonus(w));
+      // fb085 (unblocking fb056's Ring of Contagion): the seam that item
+      // needs — an extra flat fan-out target read off the equipped item's
+      // own `effectNums.extraTargets`, 0 (a no-op) when it is not equipped.
+      const targets = 1 + Math.round(classLineBonus(w)) + Math.round(equipmentEffectNum(w, 'ring_of_contagion', 'extraTargets', 0));
       const struck = new Set<number>();
       for (let i = 0; i < targets; i++) {
         // Unbounded range, the same `Infinity` idiom `cores.ts`'s Carnivorous
@@ -797,6 +803,51 @@ export function isChilled(e: Enemy): boolean {
 }
 
 /**
+ * fb085 (unblocking BACKLOG-CONTENT.md fb057, Madness King's designer-fill
+ * "Madness" status): install/refresh the status — `Math.max` extends rather
+ * than resets, the same convention `applySlow`/`applyAtkSlow` already use so
+ * two independent sources (Whispers' 3s on-hit application, Spreading
+ * Madness' 10s AoE) can share one status with two different durations
+ * without one clobbering the other's remaining time. Honors `slowImmune` for
+ * the same CC-adjacent reasoning `applyFrost`/`applySlow` already give.
+ */
+export function applyMadness(e: Enemy, durationSeconds: number): void {
+  if ((e.flags & TRAIT.slowImmune) !== 0) return;
+  e.madnessRemaining = Math.max(e.madnessRemaining, durationSeconds);
+}
+
+/**
+ * fb085: call once a mad enemy actually lands its redirected attack on
+ * another enemy — grants one more `madnessStacks` (the "stacking" half of
+ * "+10%/+10% atk-speed/move-speed per madness attack"). A no-op once
+ * `madnessRemaining` has already lapsed, so a stray late call cannot revive
+ * an expired status's stacks.
+ */
+export function registerMadnessAttack(e: Enemy): void {
+  if (e.madnessRemaining <= 0) return;
+  e.madnessStacks += 1;
+}
+
+/**
+ * fb085: the +atk-speed/+move-speed each of `e.madnessStacks` is worth,
+ * authored once on the active class's own `whispers` passive row ("+10%/
+ * +10% per madness attack") rather than a fixed engine constant (rule 4) —
+ * read the same class-conditional way `run.ts`'s Time Flow reads
+ * `charDotSpeedMul` off `cls.passive`, since only Madness King's kit can
+ * ever author a `whispers`-kind passive. Zero for every other class (every
+ * class today, since `data/classes.json` has no `whispers` row yet), which
+ * is what keeps `e.madnessStacks` a pure no-op until fb057 lands one.
+ */
+export function madnessPerStackBonus(w: World): { attackSpeed: number; moveSpeed: number } {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.passive.kind !== 'whispers') return { attackSpeed: 0, moveSpeed: 0 };
+  return {
+    attackSpeed: cls.passive.madnessAtkSpdPerStack ?? 0,
+    moveSpeed: cls.passive.madnessMoveSpdPerStack ?? 0,
+  };
+}
+
+/**
  * SPEC-FINAL §5.5 Time: "TD: enemies within r3 have attack and movement speed
  * -20%" — read off `w.core.tdSlowRadius`/`tdSlowPct` (0 for every Core but
  * Time, so this is a no-op check for everyone else) rather than a hardcoded
@@ -816,6 +867,8 @@ export function enemyAttackSpeedMul(w: World, e: Enemy): number {
   let mul = e.frostRemaining > 0 ? 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0) : 1;
   if (e.atkSlowRemaining > 0) mul *= 1 - e.atkSlowAmount;
   if (nearCoreSlowAura(w, e)) mul *= 1 - w.core.tdSlowPct;
+  // fb085 (Madness King enabler): the stacking +atk-speed half.
+  if (e.madnessStacks > 0) mul *= 1 + e.madnessStacks * madnessPerStackBonus(w).attackSpeed;
   return mul;
 }
 
@@ -1282,6 +1335,16 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
     e.atkSlowRemaining -= dt;
     if (e.atkSlowRemaining <= 0) e.atkSlowAmount = 0;
   }
+  // fb085 (Madness King enabler): "lost at expiry" — the stack count (not
+  // just the status) is zeroed the instant `madnessRemaining` reaches 0,
+  // same shape `slowAmount`/`atkSlowAmount` reset to 0 above.
+  if (e.madnessRemaining > 0) {
+    e.madnessRemaining -= dt;
+    if (e.madnessRemaining <= 0) {
+      e.madnessRemaining = 0;
+      e.madnessStacks = 0;
+    }
+  }
   // fb013 Time Lord *Time*: the present->future stage's -20% atk/move slow,
   // deferred while this enemy was stunned/frozen at the moment it would have
   // applied — "stunned" is read as `frozenRemaining > 0` (the sim's one hard
@@ -1314,7 +1377,9 @@ export function effectiveSpeed(w: World, e: Enemy): number {
   const st = w.content.damageTypes.statuses.frost;
   const frost = e.frostRemaining > 0 ? 1 + (st.moveSpeed ?? 0) : 1;
   const coreSlow = nearCoreSlowAura(w, e) ? 1 - w.core.tdSlowPct : 1;
-  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost * coreSlow;
+  // fb085 (Madness King enabler): the stacking +move-speed half.
+  const madness = e.madnessStacks > 0 ? 1 + e.madnessStacks * madnessPerStackBonus(w).moveSpeed : 1;
+  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost * coreSlow * madness;
 }
 
 /* ----------------------------------------------------------------- update */
@@ -1343,7 +1408,12 @@ export function updateEnemies(w: World, dt: number): void {
     if (huntWarden) updateGroundUnreachable(w, e, dt, target);
 
     const taunted = tauntTarget(w, e);
-    moveEnemy(w, e, def, dt, taunted ?? target, taunted !== null);
+    // fb085 (Madness King enabler): a taunt (Clarion/Recall) outranks a
+    // self-inflicted Madness redirect — both are "walk here instead," and a
+    // caster-cast CC should not be overridden by a status the enemy itself
+    // is merely afflicted with.
+    const mad = taunted === null ? madnessMoveTarget(w, e) : null;
+    moveEnemy(w, e, def, dt, taunted ?? mad ?? target, taunted !== null || mad !== null);
 
     // Reaching the objective.
     if (huntWarden) {
@@ -1717,6 +1787,48 @@ export function tauntTarget(w: World, e: Enemy): { x: number; y: number } | null
     return totem ? { x: totem.x, y: totem.y } : null;
   }
   return null;
+}
+
+/** fb085 (Madness King enabler): search radius `madnessMoveTarget` scans for another live enemy to redirect a mad enemy's movement onto (§4.2 "attacks nearest other enemy in r3"). */
+const MADNESS_TARGET_RADIUS = 3;
+/** fb085: radius a mad enemy with nobody in range wanders inside instead of pursuing its normal path ("or self + random-walk in r1 if none"). */
+const MADNESS_WANDER_RADIUS = 1;
+
+/**
+ * fb085 (unblocking BACKLOG-CONTENT.md fb057): `tauntTarget`'s counterpart
+ * for the Madness status — the position a mad, non-elite/boss enemy moves
+ * toward this tick, instead of the normal Core/Warden target `updateEnemies`
+ * otherwise passes `moveEnemy`. Returns the nearest other live, non-submerged
+ * enemy within `MADNESS_TARGET_RADIUS` when one stands that close ("attacks
+ * nearest other enemy in r3" — the actual enemy-vs-enemy damage this implies
+ * is fb057's own kit-specific addition, not built here: this is the
+ * targeting/movement seam, not a new combat surface); a deterministic wander
+ * point within `MADNESS_WANDER_RADIUS` of its own current spot when none does
+ * ("or self + random-walk in r1 if none" — off the sim's own named `ai` RNG
+ * stream per architecture rule 1, and `dcos`/`dsin`, never native trig); or
+ * `null` when this enemy is not currently mad, is dead, or is an elite/boss
+ * ("elites never gain the movement change and keep normal pathing" — checked
+ * here so an elite's own pathing is never touched in the first place, not
+ * left to whichever caller grants stacks).
+ */
+export function madnessMoveTarget(w: World, e: Enemy): { x: number; y: number } | null {
+  if (e.madnessRemaining <= 0 || e.dead || e.elite || e.boss) return null;
+  let best: Enemy | null = null;
+  let bestD2 = MADNESS_TARGET_RADIUS * MADNESS_TARGET_RADIUS;
+  for (const other of w.enemies) {
+    if (other.id === e.id || other.dead || other.submerged) continue;
+    const d2 = dist2(e.x, e.y, other.x, other.y);
+    if (d2 <= bestD2) {
+      best = other;
+      bestD2 = d2;
+    }
+  }
+  if (best) return { x: best.x, y: best.y };
+  const angle = w.rng.ai.range(0, TAU);
+  return {
+    x: clamp(e.x + dcos(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_W - 0.4),
+    y: clamp(e.y + dsin(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_H - 0.4),
+  };
 }
 
 function moveEnemy(

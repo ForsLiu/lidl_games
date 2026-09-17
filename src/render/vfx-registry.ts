@@ -56,6 +56,21 @@ export const ACTIVE_KIND_SHAPE: Record<ClassEffect['kind'], VfxShape> = {
   // Recall Totem's placement).
   time_mark: 'nova',
   time_lock: 'nova',
+  // fb085 (BACKLOG.md, unblocking BACKLOG-CONTENT.md fb057/fb059 — Madness
+  // King and Voltbolt, neither authored in `data/classes.json` yet): schema
+  // membership alone makes `ClassEffect['kind']` exhaustive here, so these
+  // four need a placeholder shape before that type-checks, same as every
+  // other kind above. `mind_manipulation` (a per-target conversion/DoT cast)
+  // and `lightning_ball` (thrown to a point, then persists) read as `point`;
+  // `spreading_madness` (a self-cast AoE) and `overdrive_voltbolt` (a
+  // self-buff window with a self-centered burst at expiry) read as `nova`,
+  // the same "self-centered AoE" precedent Clarion Taunt/Judgement/Time Lock
+  // already set. Whichever UI lane item wires these classes' real VFX may
+  // revise these once the kit is actually built.
+  mind_manipulation: 'point',
+  spreading_madness: 'nova',
+  lightning_ball: 'point',
+  overdrive_voltbolt: 'nova',
 };
 
 /**

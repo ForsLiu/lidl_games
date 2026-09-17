@@ -54,6 +54,7 @@ import {
   useClassActive,
   useClassActive2,
 } from './classes';
+import { equipmentEffectNum } from './equipment';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
@@ -591,7 +592,17 @@ export function wardenArmor(w: World): number {
 /** fb013 Time Lord *Time Flow*: the fixed base duration its converted DoT resolves over at `charDotSpeedMul === 1`. */
 const TIME_FLOW_BASE_SECONDS = 4;
 
-
+/**
+ * fb085 (unblocking fb056's Chronomail): the seam that item needs — Time
+ * Flow's window (`TIME_FLOW_BASE_SECONDS` above), widened by the equipped
+ * item's own `effectNums.windowMul` (default 1, a no-op when Chronomail is
+ * not equipped or authors no such number). `windowMul` scales the *base*
+ * before `charDotSpeedMul` divides it, so the two stack the same way two
+ * independent multipliers on one duration always do.
+ */
+function timeFlowWindowSeconds(w: World): number {
+  return TIME_FLOW_BASE_SECONDS * equipmentEffectNum(w, 'chronomail', 'windowMul', 1);
+}
 
 /**
  * fb013 Time Lord *Time Flow*: ticks every DoT the passive has converted
@@ -672,11 +683,12 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       // (`dot: true` on the re-entrant tick), the same convention every
       // enemy-facing DoT in the sim already follows.
       const speedMul = Math.max(cls.passive.charDotSpeedMul ?? 1, 0.01);
+      const windowSeconds = timeFlowWindowSeconds(w);
       const cap = w.content.damageTypes.maxStacksPerEnemy;
       if (wd.dots.length < cap) {
         wd.dots.push({
-          dps: (dmg * speedMul) / TIME_FLOW_BASE_SECONDS,
-          remaining: TIME_FLOW_BASE_SECONDS / speedMul,
+          dps: (dmg * speedMul) / windowSeconds,
+          remaining: windowSeconds / speedMul,
           accTime: 0,
           accDamage: 0,
         });
@@ -1225,6 +1237,11 @@ export function hashWorld(w: World): string {
     h.int(e.timeMarkStage).bool(e.timeMarkPendingSlow);
     h.num(e.timeMarkPendingSlowAmount).num(e.timeMarkPendingSlowSeconds);
     h.int(e.timeLockZoneId).num(e.atkSlowAmount).num(e.atkSlowRemaining);
+    // fb085 (Madness King enabler): the same "writable sim state a replay
+    // has to agree on" reasoning as every status/CC field above — a mad
+    // enemy's redirected target and stacked atk/move-speed bonus both fork
+    // the tick the instant a divergence appears.
+    h.num(e.madnessRemaining).int(e.madnessStacks);
     h.int(e.posHistory.length);
     for (const p of e.posHistory) h.num(p.x).num(p.y);
   }
@@ -1249,11 +1266,15 @@ export function hashWorld(w: World): string {
     h.num(tw.remaining);
     for (const id of [...tw.structureIds].sort((a, b) => a - b)) h.int(id);
   }
-  // fb013: Time Lord's single Time Lock zone gates the same class of future
-  // damage/pathing the walls above do.
-  h.bool(!!w.timeLockZone);
-  if (w.timeLockZone) {
-    const z = w.timeLockZone;
+  // fb013: Time Lord's Time Lock zone(s) gate the same class of future
+  // damage/pathing the walls above do. fb085: `w.timeLockZones` is now a
+  // small array (Bracer of Overlap enabler) rather than the single nullable
+  // field this used to hash — looping it covers a second zone the instant
+  // fb056 starts populating one, at the cost of a different (still fully
+  // deterministic) byte layout than before, which is safe: nothing compares
+  // this hash against a stored literal, only against another run's own.
+  h.int(w.timeLockZones.length);
+  for (const z of w.timeLockZones) {
     h.int(z.id).num(z.x).num(z.y).num(z.radius).num(z.remaining).num(z.dotSeconds).num(z.dps);
   }
   h.int(w.projectiles.length);

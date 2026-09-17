@@ -5,6 +5,81 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb085 done — the four enablers
+  BACKLOG-CONTENT.md's session-1 Log named as blocking fb056/fb057/fb059/
+  fb061/fb062 are now in place; the lane itself is unblocked but none of
+  the five owner items were implemented here (that stays content lane's
+  job).** (a) `EquipmentItem.effectKey` (content.ts) opened from a closed
+  4-member zod enum to a plain string validated against a new
+  `KNOWN_EQUIPMENT_EFFECT_KEYS` registry (`validateEquipmentEffectKey`), plus
+  a new `effectNums: Record<string, number>` field (statNum-bounded) so
+  fb056's fifteen items' magnitudes can live in `/data`.
+  `tests/fb015-equipment.test.ts`'s hard 12-item/per-slot-2/exact-set census
+  rewritten as `>=` invariants, the original 12 items'/3 classFallback items'
+  exact numbers kept as a named subset pin. (b) Four new `ClassEffectSchema`
+  Active kinds and four new `ClassSlotPassiveSchema` kinds for Madness
+  King/Voltbolt (schema-only, no `data/classes.json` rows), each with
+  `REQUIRED_*_FIELDS` rows; a generic `madness` status
+  (`Enemy.madnessRemaining`/`madnessStacks`, types.ts) with real
+  targeting/movement logic in enemies.ts (`madnessMoveTarget`, mirroring
+  `tauntTarget`, wired into `updateEnemies`) — a mad non-elite/boss enemy
+  redirects onto the nearest other enemy in r3 or wanders r1 (named `ai` RNG
+  stream + `dsin`/`dcos`, never native trig) when none is close, elites keep
+  normal pathing; the per-stack atk/move-speed bonus reads off the active
+  class's own `whispers` passive row (zero for every class today).
+  `tools/content-census.ts`'s class-count reader checked (still 12; left a
+  forward comment for the 12->13->14 bump). (c) `minGroundDurationSeconds`
+  next to `groundDurationSeconds` on `ClassEffectSchema`, validated `<=` its
+  ceiling, for fb061's 8s->14s Poison Barrel charge floor. (d) three hooks
+  behind a new `equipmentEffectNum(w, itemKey, field, fallback)` helper
+  (equipment.ts, same item-key convention as `hasEquipment`): Ring of
+  Contagion (`drainPlagueTransfers`'s fan-out count, enemies.ts), Chronomail
+  (`timeFlowWindowSeconds(w)` wrapping Time Flow's base-DoT-window constant,
+  run.ts), Bracer of Overlap (`World.timeLockZone` migrated to a
+  `timeLockZones` array with a get/set alias onto index 0 that keeps every
+  pre-existing call site's behaviour byte-for-byte, plus `timeLockZoneCap`,
+  world.ts). New `tests/fb085-enablers.test.ts` (61 cases, all four
+  enablers, including real integration scenarios for each (d) hook).
+  Self-administered code-reviewer/qa-playtester passes (no Task-tool access
+  to launch the named subagents from this session; performed their documented
+  protocols directly) found and fixed two Majors before commit: `effectNums`
+  was plain `num` feeding a `for` loop bound unbounded (an absurd authored
+  value could hang the sim) — bounded to `statNum`; and the registry checked
+  membership but not that `effectKey` equals the item's own `key` (the only
+  thing every real dispatch site gates on), so a registered-but-mismatched
+  pair would load clean and silently never fire its hook — fixed with a
+  load-time key-match check, both with new regression tests. That second fix
+  retired `tests/equip-effectkey-reach.test.ts`'s (c023) deliberate
+  `crosswired` Content fixture (a genuine mismatch is now refused at load
+  rather than merely inert) in favour of a direct "loadContent throws"
+  assertion; also updated `class-spec-numbers.test.ts` (c008, two moved
+  in_code anchors), `equip-hasequipment-roster.test.ts` (c031, raw-call-count
+  +2->+3 and the enum-scrape now reading the open registry), and
+  `equip-spec-numbers.test.ts` (c012, one renamed `coveredBy` anchor) — all
+  four are census/ledger files this item's own changes moved, not bugs found
+  elsewhere. `npx tsc --noEmit` clean; `npm run test:fast` green, 307/316
+  files (9 pre-existing skips), 4463/4498 tests (35 pre-existing skips), 0
+  failures, confirmed by a full clean run before commit. BACKLOG-CONTENT.md's
+  fb056/fb057/fb059/fb061/fb062 (still "Blocked out of Scope" in that file,
+  unedited here per this item's own instructions) can now execute inside the
+  content lane's Scope. Since the item's own passes were self-administered,
+  the orchestrating session ran genuinely independent code-reviewer and
+  qa-playtester agents against the committed diff afterward: **code-reviewer
+  APPROVE** (no Critical/Major; two Minors — `madnessMoveTarget`'s O(n) scan
+  over `w.enemies` should use `World.nearestEnemy`'s bucket-accelerated query
+  instead, and `effectNums`'s `statNum` bound lacks its own regression test —
+  plus a Nit on `timeLockZone = null`'s index-0-only drop once a second zone
+  exists; all three dormant since no data row authors `whispers`/madness or a
+  second time-lock zone yet). **qa-playtester PASS** — independently reran
+  `npm run test:fast` (matched), `npx tsc --noEmit`, headless sim seeds
+  including a `time_lord` run to exercise the `timeLockZones` migration path,
+  100-seed determinism (G2), and confirmed no live `/data` row's behavior
+  changed; converged on the same `madnessMoveTarget` O(n)-scan observation
+  independently, flagged as fb057's problem once Madness King ships (200-350+
+  enemies/wave in late TD). Neither filed as a new BACKLOG item — both
+  dormant/enabling-infra-only, logged here per standing instruction, pick up
+  when fb057/whoever adds the `whispers` row lands.
+
 - **2026-09-16 — main lane: BACKLOG fb121 done — SkillCardSchema now refuses
   a `perRank <= 0` card, naming the card.** `src/sim/content.ts`'s per-class
   `skillCards` validation loop (the same loop that already enforces one card

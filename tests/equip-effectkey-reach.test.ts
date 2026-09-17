@@ -30,11 +30,13 @@
  *  2. *The mechanics are keyed on the item, not the field.* The three
  *     `hasEquipment(w, '<key>')` gates are anchored by regex in
  *     `src/sim/classes.ts`, so re-pointing one at `effectKey` reddens this.
- *  3. *Flipping it changes nothing observable.* `Content` is rebuilt from a
- *     copy of `data/equipment.json` with every `effectKey` blanked, and again
- *     with them deliberately cross-wired onto the wrong items; all three
- *     mechanics and every item's rendered effect text are asserted identical
- *     against the shipped build. This is the row a main-lane wiring-up flips.
+ *  3. *Flipping it changes nothing observable — or is refused outright.*
+ *     `Content` is rebuilt from a copy of `data/equipment.json` with every
+ *     `effectKey` blanked; all three mechanics and every item's rendered
+ *     effect text are asserted identical against the shipped build. A
+ *     *cross-wired* copy (every non-`'none'` `effectKey` rotated onto a
+ *     different item's key) no longer loads at all as of fb085 — asserted
+ *     directly, its own row below. This is the row a main-lane wiring-up flips.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -79,46 +81,74 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-describe('c023 — the census: no code under src/ reads equipment effectKey', () => {
+/**
+ * fb085 update: the main-lane decision landed. `effectKey` opened from the
+ * closed 4-member zod enum this describe block used to pin as "the one
+ * allowed mention" into a validated open registry
+ * (`KNOWN_EQUIPMENT_EFFECT_KEYS`) plus a real load-time reader
+ * (`validateEquipmentEffectKey`) — exactly the "a new reader reddens this"
+ * outcome this file's header always said a main-lane wiring-up would cause.
+ * `content.ts` now legitimately mentions `.effectKey` three times (the
+ * schema field declaration, and the validator's own two `item.effectKey`
+ * reads) instead of one, so its `ALLOWED` entry is now a list, not a single
+ * pattern — the census keeps its real job: *outside* `content.ts` (its own
+ * registry/validator) and the one unrelated `canvas.ts` parameter, still
+ * nothing reads `effectKey` for behaviour. Claims 2 and 3 below are
+ * unaffected: the three non-stat mechanics still gate on the item's own key
+ * (`hasEquipment`), never on `effectKey`, and flipping `effectKey` among
+ * already-registered values still changes no sim/rendered observable —
+ * `validateEquipmentEffectKey` is a load-time *typo guard*, not a runtime
+ * dispatch.
+ */
+describe('c023 — the census: no code under src/ reads equipment effectKey for behaviour', () => {
   /**
-   * The two hits that are allowed to exist, named individually rather than
-   * filtered by a pattern — a pattern would also hide the third.
+   * The mentions allowed to exist, named individually rather than filtered by
+   * a pattern — a pattern would also hide an unexpected one.
    */
-  const ALLOWED: Record<string, RegExp> = {
-    // The zod enum that *validates* the field. This is the whole point: it is
-    // schema, not a reader, and it is what makes the field look load-bearing.
-    'src/sim/content.ts': /effectKey: z\.enum\(/,
+  const ALLOWED: Record<string, RegExp[]> = {
+    // fb085: the schema field declaration (no longer a closed enum literal),
+    // and the whole registry validator function — matched end-to-end rather
+    // than line-by-line, so a reformat inside it does not itself go stray —
+    // the load-time typo guard this file's header names as the expected
+    // "new reader" (now with two checks: registry membership, and the
+    // key-match qa-playtester finding added the same item).
+    'src/sim/content.ts': [
+      /effectKey: str\.default\('none'\),/,
+      /export function validateEquipmentEffectKey\([\s\S]*?\n\}/,
+    ],
     // A local parameter of the same name on the Core VFX lookup — nothing to do
     // with equipment. Named so it cannot quietly become an equipment reader.
-    'src/render/canvas.ts': /function coreEffectColor\(coreKey: string, effectKey: string/,
+    'src/render/canvas.ts': [/function coreEffectColor\(coreKey: string, effectKey: string/],
   };
 
-  it('the only two `.effectKey` mentions in src/ are the schema and an unrelated core-VFX parameter', () => {
+  it('every `.effectKey` mention in src/ is one of the registry/validator (content.ts) or the unrelated core-VFX parameter (canvas.ts)', () => {
     const offenders: string[] = [];
     for (const file of sourceFiles(join(process.cwd(), 'src'))) {
       const rel = file.replace(process.cwd() + '/', '').replace(/\\/g, '/');
       const code = stripComments(readFileSync(file, 'utf8'));
       if (!/\beffectKey\b/.test(code)) continue;
       const allowed = ALLOWED[rel];
-      if (allowed && allowed.test(code)) {
-        // Permitted — but only for the shape named above.
-        const stray = code.replace(allowed, '');
-        if (/\.effectKey\b/.test(stray)) offenders.push(`${rel} (beyond its allowed mention)`);
+      if (allowed && allowed.every((re) => re.test(code))) {
+        // Permitted — but only for the shapes named above; strip each in turn
+        // and see if anything reads `.effectKey` beyond them.
+        let stray = code;
+        for (const re of allowed) stray = stray.replace(re, '');
+        if (/\.effectKey\b/.test(stray)) offenders.push(`${rel} (beyond its allowed mentions)`);
         continue;
       }
       offenders.push(rel);
     }
     expect(
       offenders,
-      'something under src/ now reads equipment effectKey — the field is no longer dead, so c023\'s ' +
-        'measurement is stale and the main-lane decision (remove it, or keep it wired) has been made',
+      "something under src/ now reads equipment effectKey for behaviour beyond content.ts's own load-time " +
+        'registry check — c023\'s "keyed on the item, not the field" claim (2) may no longer hold',
     ).toEqual([]);
   });
 
-  it('both allowed mentions are still present, so the census is measuring something', () => {
-    for (const [rel, re] of Object.entries(ALLOWED)) {
+  it('every allowed mention is still present, so the census is measuring something', () => {
+    for (const [rel, res] of Object.entries(ALLOWED)) {
       const code = stripComments(readFileSync(join(process.cwd(), rel), 'utf8'));
-      expect(code, `${rel} no longer contains its allowed effectKey mention`).toMatch(re);
+      for (const re of res) expect(code, `${rel} no longer contains an allowed effectKey mention (${re})`).toMatch(re);
     }
   });
 });
@@ -144,30 +174,53 @@ describe('c023 — the three non-stat mechanics gate on the item key, never on e
 
 /* ------------------------------- 3. flipping the field changes nothing */
 
-type Flip = 'blanked' | 'crosswired';
+/**
+ * fb085 update: `crosswired` (rotating `effectKey` onto a *different* item's
+ * key) used to be this section's other half of claim 3 alongside `blanked` —
+ * both built a `Content` that loaded clean, so "identical sim/render output
+ * under either" was the proof nothing consulted the field. fb085 added
+ * `validateEquipmentEffectKey`'s key-match check (a qa-playtester finding:
+ * without it, an item authored with a registered-but-mismatched `effectKey`
+ * would silently never reach its hook), which makes a genuine cross-wire
+ * **refused at load**, not merely inert — `loadContent` throws before a
+ * `CROSSWIRED` Content can even exist. That is a *stronger* form of claim 3,
+ * not a broken one: the field's own consulted-ness is now exactly "content.ts's
+ * own load-time check, and nothing else" — proven by the refusal test below —
+ * so `crosswired` retired as a flip and survives as that one assertion.
+ * `blanked` (proving the field is not *required*) is unaffected and still
+ * backs every probe/render check that follows.
+ */
+type Flip = 'blanked';
 
-/** `Content` rebuilt from a copy of `/data` with every `effectKey` rewritten. */
-function contentWith(flip: Flip): Content {
+/** `Content` rebuilt from a copy of `/data` with every `effectKey` blanked to `'none'`. */
+function contentWith(_flip: Flip): Content {
   const doc = JSON.parse(JSON.stringify(content.raw.equipment)) as {
     items: { key: string; effectKey?: string }[];
   };
-  // Deliberately wrong, not merely absent: `blanked` proves the field is not
-  // *required*, `crosswired` proves it is not *consulted* — an implementation
-  // that read it would behave differently under one or the other.
-  const order = [...SPECIAL];
-  for (const item of doc.items) {
-    if (flip === 'blanked') item.effectKey = 'none';
-    else {
-      const at = order.indexOf(item.key as (typeof SPECIAL)[number]);
-      if (at >= 0) item.effectKey = order[(at + 1) % order.length];
-      else item.effectKey = 'sleeve_sword';
-    }
-  }
+  for (const item of doc.items) item.effectKey = 'none';
   return loadContent({ equipment: doc });
 }
 
+/** A genuine cross-wire: `effectKey` rotated onto a *different* item's key (or, for a non-SPECIAL item, `'sleeve_sword'`) — the shape `validateEquipmentEffectKey`'s key-match check now refuses. */
+function crosswiredDoc(): { items: { key: string; effectKey?: string }[] } {
+  const doc = JSON.parse(JSON.stringify(content.raw.equipment)) as {
+    items: { key: string; effectKey?: string }[];
+  };
+  const order = [...SPECIAL];
+  for (const item of doc.items) {
+    const at = order.indexOf(item.key as (typeof SPECIAL)[number]);
+    item.effectKey = at >= 0 ? order[(at + 1) % order.length] : 'sleeve_sword';
+  }
+  return doc;
+}
+
 const BLANKED = contentWith('blanked');
-const CROSSWIRED = contentWith('crosswired');
+
+describe('c023 — fb085: a genuine effectKey cross-wire is refused at load, not silently consulted', () => {
+  it('loadContent throws on a cross-wired equipment.json (the mismatch validateEquipmentEffectKey now catches)', () => {
+    expect(() => loadContent({ equipment: crosswiredDoc() })).toThrow(/does not match its own key/);
+  });
+});
 
 function idle(over: Partial<TickInput> = {}): TickInput {
   return { ...emptyInput(), ...over };
@@ -244,21 +297,15 @@ const PROBES: Array<{ name: string; run: (c: Content) => number; equipment: stri
   },
 ];
 
-describe('c023 — flipping every effectKey changes no sim observable', () => {
-  it('the two flipped Contents really did change the field (or this measures nothing)', () => {
+describe('c023 — blanking every effectKey changes no sim observable', () => {
+  it('the flipped Content really did change the field (or this measures nothing)', () => {
     expect(BLANKED.equipment.items.every((i) => i.effectKey === 'none')).toBe(true);
-    for (const key of SPECIAL) {
-      expect(CROSSWIRED.equipmentByKey.get(key)!.effectKey).not.toBe(
-        content.equipmentByKey.get(key)!.effectKey,
-      );
-    }
   });
 
   for (const probe of PROBES) {
-    it(`${probe.name}: identical under blanked and cross-wired effectKeys`, () => {
+    it(`${probe.name}: identical under a blanked effectKey`, () => {
       const shipped = probe.run(content);
       expect(probe.run(BLANKED), `${probe.name}: blanking effectKey moved it`).toBeCloseTo(shipped, 10);
-      expect(probe.run(CROSSWIRED), `${probe.name}: cross-wiring effectKey moved it`).toBeCloseTo(shipped, 10);
     });
   }
 
@@ -275,11 +322,11 @@ describe('c023 — flipping every effectKey changes no sim observable', () => {
   });
 });
 
-describe('c023 — flipping every effectKey changes no rendered effect text', () => {
+describe('c023 — blanking every effectKey changes no rendered effect text', () => {
   const CTX = { classKey: 'swordsman' } as Parameters<typeof equipmentEffectMarkup>[2];
 
   for (const item of content.equipment.items) {
-    it(`${item.key}: the same four markup strings under blanked and cross-wired effectKeys`, () => {
+    it(`${item.key}: the same four markup strings under a blanked effectKey`, () => {
       const render = (c: Content) => {
         const it2 = c.equipmentByKey.get(item.key)!;
         return [
@@ -287,11 +334,10 @@ describe('c023 — flipping every effectKey changes no rendered effect text', ()
           equipmentFallbackMarkup(c, CTX, it2),
           equipmentSpecialNoteMarkup(it2, CTX),
           equipmentCodexDetailMarkup(c, it2),
-        ].join(' ');
+        ].join(' ');
       };
       const shipped = render(content);
       expect(render(BLANKED), `${item.key}: blanking effectKey changed its text`).toBe(shipped);
-      expect(render(CROSSWIRED), `${item.key}: cross-wiring effectKey changed its text`).toBe(shipped);
     });
   }
 

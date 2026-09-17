@@ -35,13 +35,25 @@ function worldWith(over: Record<string, unknown> = {}): World {
   return w;
 }
 
-describe('fb015: data/equipment.json loads as 12 items across the 6 §7 slots', () => {
-  it('has exactly the owner-named 12 items and 6 slots', () => {
+describe('fb015: data/equipment.json loads as 12+ items across the 6 §7 slots', () => {
+  // fb085: rewritten from a hard `toHaveLength(12)`/per-slot-`toHaveLength(2)`
+  // census pin to invariants over the authored rows — `effectKey` is now an
+  // open, validated registry rather than a closed 4-member enum (unblocking
+  // fb056's 15 additional items), so a growing item count is expected, not a
+  // regression. The 6 slots themselves stay a fixed §7 list.
+  it('has at least the owner-named 12 items across exactly the 6 §7 slots', () => {
     expect(content.equipment.slots).toEqual(['weapon', 'armor', 'shoes', 'ring', 'necklace', 'bracelet']);
-    expect(content.equipment.items).toHaveLength(12);
+    expect(content.equipment.items.length).toBeGreaterThanOrEqual(12);
     for (const slot of content.equipment.slots) {
-      expect(content.equipment.items.filter((i) => i.slot === slot)).toHaveLength(2);
+      expect(content.equipment.items.filter((i) => i.slot === slot).length).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it('every item has a unique key and a real slot', () => {
+    const keys = content.equipment.items.map((i) => i.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const slots = new Set(content.equipment.slots);
+    for (const item of content.equipment.items) expect(slots.has(item.slot)).toBe(true);
   });
 
   it('every item resolves through equipmentByKey', () => {
@@ -77,15 +89,22 @@ const EXPECTED_FALLBACK_MODS: Record<string, Record<string, number>> = {
   swordsman_shoes: { moveSpeedPct: 0.1 },
 };
 
-describe('p7b: every one of the 12 items\' every mods column reaches Stats as its own equipment: source', () => {
-  it('data/equipment.json has exactly the owner-table 12 keys, no more no less', () => {
-    expect(content.equipment.items.map((i) => i.key).sort()).toEqual(Object.keys(EXPECTED_ITEM_MODS).sort());
+describe("p7b: every equipment item's every mods column reaches Stats as its own equipment: source", () => {
+  // fb085: the original 12 owner-table items keep their exact numbers pinned
+  // (a wrong authored number on one of *these* rows still fails this file),
+  // but the set-equality assertion ("no more, no less") is gone — the
+  // registry is expected to grow past 12 as fb056 lands. A future item's own
+  // numbers get their own dedicated unit test per fb056's acceptance text,
+  // not a slot in this table.
+  it('the original 12 owner-table keys are still present', () => {
+    const keys = new Set(content.equipment.items.map((i) => i.key));
+    for (const key of Object.keys(EXPECTED_ITEM_MODS)) expect(keys.has(key)).toBe(true);
   });
 
-  it('each item, equipped alone, contributes every mods key at its owner-table value', () => {
-    for (const item of content.equipment.items) {
+  it('the original 12 items still contribute their owner-table mods at the owner-table value', () => {
+    for (const [key, expectedMods] of Object.entries(EXPECTED_ITEM_MODS)) {
+      const item = content.equipmentByKey.get(key)!;
       const w = new World(cfg({ classKey: 'engineer', equipment: [item.key] }));
-      const expectedMods = EXPECTED_ITEM_MODS[item.key];
       // Also pins that the item authors no column beyond the owner table's.
       expect(Object.keys(item.mods).sort()).toEqual(Object.keys(expectedMods).sort());
       for (const [statKey, value] of Object.entries(expectedMods)) {
@@ -103,10 +122,27 @@ describe('p7b: every one of the 12 items\' every mods column reaches Stats as it
     }
   });
 
-  it('each of the 3 classFallback items contributes its fallback mods for a non-excluded class', () => {
-    expect(content.equipment.items.filter((i) => i.classFallback).map((i) => i.key).sort()).toEqual(
-      Object.keys(EXPECTED_FALLBACK_MODS).sort(),
-    );
+  // fb085: the invariant version of the test above, over every authored row
+  // (not just the original 12) — computed from the item's own (already
+  // load-time-scaled, per fb153a) `mods`, so no further `scaled()`/
+  // `numberScale()` transform applies: `content.equipmentByKey`'s numbers are
+  // what `Stats.addAll` receives verbatim (`baseRunStats`, stats.ts). This
+  // generalizes to any future item without needing this file edited, at the
+  // cost of only catching a broken fold (a systemic scaling bug), not a wrong
+  // authored number — the same trade-off/precedent-break the fb056 Log itself
+  // names as acceptable once each new item gets its own dedicated test.
+  it('every item, equipped alone, contributes every mods key at its own loaded value (fold invariant)', () => {
+    for (const item of content.equipment.items) {
+      const w = new World(cfg({ classKey: 'engineer', equipment: [item.key] }));
+      for (const [statKey, value] of Object.entries(item.mods)) {
+        expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${item.key}`, value]);
+      }
+    }
+  });
+
+  it('the original 3 classFallback items are still present and still contribute their owner-table fallback mods for a non-excluded class', () => {
+    const fallbackKeys = new Set(content.equipment.items.filter((i) => i.classFallback).map((i) => i.key));
+    for (const key of Object.keys(EXPECTED_FALLBACK_MODS)) expect(fallbackKeys.has(key)).toBe(true);
     for (const [key, expectedMods] of Object.entries(EXPECTED_FALLBACK_MODS)) {
       const w = new World(cfg({ classKey: 'engineer', equipment: [key] })); // engineer !== swordsman
       for (const [statKey, value] of Object.entries(expectedMods)) {
@@ -115,13 +151,12 @@ describe('p7b: every one of the 12 items\' every mods column reaches Stats as it
     }
   });
 
-  it('each of the 3 classFallback items withholds its fallback mods for the excluded class itself', () => {
-    for (const key of Object.keys(EXPECTED_FALLBACK_MODS)) {
-      const item = content.equipmentByKey.get(key)!;
-      const w = new World(cfg({ classKey: item.classFallback!.notClassKey, equipment: [key] }));
-      for (const statKey of Object.keys(EXPECTED_FALLBACK_MODS[key])) {
+  it('every classFallback item (not just the original 3) withholds its fallback mods for the excluded class itself (fold invariant)', () => {
+    for (const item of content.equipment.items.filter((i) => i.classFallback)) {
+      const w = new World(cfg({ classKey: item.classFallback!.notClassKey, equipment: [item.key] }));
+      for (const statKey of Object.keys(item.classFallback!.mods)) {
         const sources = w.stats.contributions(statKey as never).map(([s]) => s);
-        expect(sources).not.toContain(`equipment:${key}:fallback`);
+        expect(sources).not.toContain(`equipment:${item.key}:fallback`);
       }
     }
   });

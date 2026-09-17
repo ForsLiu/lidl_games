@@ -349,13 +349,19 @@ const LEDGER: readonly Figure[] = [
     slot: 'passive',
     status: {
       kind: 'in_code',
-      site: 'drainPlagueTransfers — `const targets = 1 + Math.round(classLineBonus(w))`',
+      site:
+        'drainPlagueTransfers — `const targets = 1 + Math.round(classLineBonus(w)) + ' +
+        "Math.round(equipmentEffectNum(w, 'ring_of_contagion', 'extraTargets', 0))`",
       file: 'src/sim/enemies.ts',
-      anchors: [/const targets = 1 \+ Math\.round\(classLineBonus\(w\)\);/],
+      anchors: [
+        /const targets = 1 \+ Math\.round\(classLineBonus\(w\)\) \+ Math\.round\(equipmentEffectNum\(w, 'ring_of_contagion', 'extraTargets', 0\)\);/,
+      ],
       why:
-        'One target, once. As with Thousand Cuts, only the §6.3 line bonus is data-driven and the ' +
-        'base 1 the clause states is a literal. Already named as a blocker for fb056\'s Ring of ' +
-        'Contagion (BACKLOG-CONTENT Log, session 1) — this row pins the number that item would move.',
+        'One target, once, absent both bonuses. Only the §6.3 line bonus and (fb085, unblocking ' +
+        "fb056) Ring of Contagion's own extraTargets are data-driven — the base 1 the clause states " +
+        'is still a literal. fb085 wired the seam this row named as a blocker for fb056\'s Ring of ' +
+        "Contagion (BACKLOG-CONTENT Log, session 1); fb056 itself (data/equipment.json) is what " +
+        'would move this row from 0 to a real extra fan-out target.',
       in: 'passive',
       absentKey: /target|transfer|fanOut|spread|nearest|count/i,
     },
@@ -1295,12 +1301,17 @@ const LEDGER: readonly Figure[] = [
       anchors: [
         /const TIME_FLOW_BASE_SECONDS = 4;/,
         // fb152 reformatted this push across lines when it gained the cadence
-        // accumulators; the two figures the ledger points at are unmoved.
-        /dps: \(dmg \* speedMul\) \/ TIME_FLOW_BASE_SECONDS,\s*\n\s*remaining: TIME_FLOW_BASE_SECONDS \/ speedMul,/,
+        // accumulators; fb085 (unblocking fb056's Chronomail) then wrapped
+        // the base constant in `timeFlowWindowSeconds(w)` so an equipped
+        // item can widen the window — the figure this row pins (the base 4)
+        // is unmoved, just read through one more seam.
+        /dps: \(dmg \* speedMul\) \/ windowSeconds,\s*\n\s*remaining: windowSeconds \/ speedMul,/,
       ],
       why:
         'The passive authors `charDotSpeedMul` (the dormant equipment flag) but not the base ' +
-        'duration the multiplier applies to, so this §4 figure is a `/src` constant.',
+        'duration the multiplier applies to, so this §4 figure is a `/src` constant — fb085 added a ' +
+        "second, equipment-driven multiplier (`timeFlowWindowSeconds`, fb056's Chronomail seam) on " +
+        'the same constant, still a literal 4 absent that item.',
       in: 'passive',
       absentKey: /dot|flow|convert|baseSeconds/i,
       knownKeys: [

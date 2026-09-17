@@ -341,6 +341,27 @@ export interface Enemy {
    */
   atkSlowAmount: number;
   atkSlowRemaining: number;
+  /**
+   * fb085 (unblocking BACKLOG-CONTENT.md fb057, Madness King's designer-fill
+   * "Madness" status): seconds left mad. While positive and this enemy is
+   * neither elite nor boss, `madnessMoveTarget` (`enemies.ts`) redirects its
+   * movement onto the nearest other enemy within range instead of the
+   * Warden/Core, or has it wander near its own spot when none stands close
+   * enough — "elites never gain the movement change and keep normal
+   * pathing" is why the redirect itself, not just the stacking buff below,
+   * is gated on `!e.elite && !e.boss`. `Math.max`-refreshed by whichever
+   * source (Whispers' on-hit, Spreading Madness' AoE) applies it, same
+   * convention as `slowRemaining`/`atkSlowRemaining` above.
+   */
+  madnessRemaining: number;
+  /**
+   * fb085: stacks of the class-authored per-madness-attack attack-speed/
+   * move-speed bonus ("+10%/+10% ... stacking", read off the active class's
+   * `whispers` passive row by `enemies.ts`'s `madnessPerStackBonus`), earned
+   * one at a time by `registerMadnessAttack` and reset to 0 the moment
+   * `madnessRemaining` lapses (`tickTimers`) — never decremented on its own.
+   */
+  madnessStacks: number;
 }
 
 /**

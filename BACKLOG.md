@@ -3964,27 +3964,94 @@ was not fabricated.
       two pre-existing unrelated `q15`/`q45` tsx-worker environment
       failures (fb119) — refs: SPEC-FINAL §2, §4.2, BACKLOG-CONTENT.md
       c004.
-- [ ] (fb085) [feat] unblock the five owner items the content lane could
-      not reach (BACKLOG-CONTENT.md session-1 Log: fb056/fb057/fb059/fb061/
-      fb062 all need `src/sim/content.ts` or other shared files). Acceptance,
-      each as a `content.ts`/shared-file enabler with its own test, so the
-      lane can then execute the items inside its Scope: (a) `EquipmentItem.
-      effectKey` opened from the closed 4-member enum to a validated string
-      registry plus an `effectNums: Record<string, number>` field, so fb056's
-      fifteen sets of numbers live in `/data` (rule 4 — today `swordsman_shoes`'
-      x2 is a literal in `fireDashSlash`); `tests/fb015-equipment.test.ts`'s
-      hard census pin (`toHaveLength(12)`, per-slot 2, two `toEqual` tables)
-      rewritten as invariants over the authored rows; (b) `passive.kind`/
-      `active.kind` enums and `REQUIRED_*_FIELDS` rows for Madness King and
-      Voltbolt, plus a `madness` status on `Enemy` (`types.ts`) with its
-      targeting/movement in `enemies.ts`, and `tools/content-census.ts`'s
-      class readers checked for roster pins; (c) a zero-charge duration
-      floor beside `groundDurationSeconds` on `ClassEffectSchema` for fb061's
-      8 s -> 14 s; (d) hooks for the three fb056 effects with no `classes.ts`
-      seam: Ring of Contagion (`drainPlagueTransfers` fan-out count,
-      `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
-      Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
-      SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
+- [x] (fb085) [feat] **DONE 2026-09-16 —** unblocked the five owner items
+      (BACKLOG-CONTENT.md session-1 Log: fb056/fb057/fb059/fb061/fb062) with
+      four content.ts/shared-file enablers, each with its own test, per the
+      item's own acceptance text — no `/data` row authored for any of the
+      five items themselves, which stays content lane's job. (a)
+      `EquipmentItem.effectKey` (content.ts) opened from the closed 4-member
+      zod enum to a plain validated string checked against a new
+      `KNOWN_EQUIPMENT_EFFECT_KEYS` registry (`validateEquipmentEffectKey`,
+      called from the loader's existing per-item loop) — a typo'd/
+      unregistered key still fails to load, same as the enum did, but
+      registering a new one is now a one-line list addition. Added
+      `effectNums: Record<string, number>` (statNum-bounded, not plain
+      `num` — see code-reviewer finding below) so fb056's magnitudes live in
+      `/data`. `tests/fb015-equipment.test.ts`'s hard census (`toHaveLength
+      (12)`, per-slot `toHaveLength(2)`, two exact-set `toEqual` tables)
+      rewritten as `toBeGreaterThanOrEqual` invariants over the authored
+      rows, keeping the original 12 items'/3 classFallback items' exact
+      numbers pinned as a named subset check rather than requiring the set
+      to stay exactly 12/3. (b) Four `ClassEffectSchema.kind` members
+      (`mind_manipulation`, `spreading_madness`, `lightning_ball`,
+      `overdrive_voltbolt`) and four `ClassSlotPassiveSchema.kind` members
+      (`whispers`, `frenzied_aim`, `arc`, `lightning_accelerate`) for Madness
+      King/Voltbolt, each with its own new optional fields and
+      `REQUIRED_EFFECT_FIELDS`/`REQUIRED_PASSIVE_FIELDS` rows — schema-only,
+      no `data/classes.json` rows yet (fb057/fb059's own job). Added the
+      generic `madness` status: `Enemy.madnessRemaining`/`madnessStacks`
+      (`types.ts`), `applyMadness`/`registerMadnessAttack`/
+      `madnessPerStackBonus`/`madnessMoveTarget` (`enemies.ts`) — the last
+      mirrors `tauntTarget`'s exact shape and is wired into `updateEnemies`'s
+      per-tick loop (taunt outranks a self-inflicted madness redirect),
+      redirecting a mad non-elite/boss enemy onto the nearest other enemy in
+      r3 or a deterministic r1 wander (`w.rng.ai` + `dsin`/`dcos`, never
+      native trig) when elite/boss keep normal pathing per spec; the
+      +atk-speed/+move-speed stacking bonus is read off the active class's
+      own `whispers` row (zero for every class today) and wired into
+      `enemyAttackSpeedMul`/`effectiveSpeed`. Enemy-vs-enemy damage
+      resolution itself is explicitly left to fb057 (a new combat surface,
+      not a targeting/movement seam). `hashWorld` extended with the two new
+      fields. `tools/content-census.ts`'s class-count reader checked
+      (still exactly 12 today; left a comment naming the 12->13->14 bump
+      fb057/fb059 will need). (c) `minGroundDurationSeconds` (content.ts,
+      optional, `.positive()`, validated `<= groundDurationSeconds`) beside
+      `groundDurationSeconds` on `ClassEffectSchema`, for fb061's 8s->14s
+      zero-charge floor — absent on every shipped `ground_poison` row today,
+      so no behaviour change. (d) three hooks: Ring of Contagion
+      (`drainPlagueTransfers`'s fan-out `targets` count, enemies.ts, +
+      `equipmentEffectNum(w, 'ring_of_contagion', 'extraTargets', 0)`),
+      Chronomail (`timeFlowWindowSeconds(w)`, run.ts, wraps the
+      `TIME_FLOW_BASE_SECONDS` constant Time Flow's DoT conversion reads),
+      Bracer of Overlap (`World.timeLockZone` -> `timeLockZones: TimeLockZone
+      []` array with a get/set alias onto index 0 preserving every existing
+      call site's behaviour byte-for-byte, plus `timeLockZoneCap(w)`,
+      world.ts) — all three gate through a new `equipmentEffectNum(w,
+      itemKey, field, fallback)` helper (equipment.ts), same item-key
+      convention `hasEquipment` already uses. New `tests/fb085-enablers.
+      test.ts` (61 cases across all four enablers, including the new
+      `madness` mechanics and all three (d) hooks via real integration
+      scenarios — a live Spreading Plague transfer, a live Time Flow DoT
+      install, a live `timeLockZoneCap` read). code-reviewer-equivalent pass
+      (self-administered per this session's tooling; see PROGRESS.md) found
+      one Major (effectNums' plain `num` fed `drainPlagueTransfers`'s loop
+      bound unbounded — an absurd authored value could hang the sim; fixed
+      to `statNum`, -1e6..1e6) and, acting as qa-playtester, one further
+      Major (the registry checked membership but not that `effectKey`
+      equals the item's own `key` — the only thing every real dispatch site
+      gates on — so a registered-but-mismatched pair would load clean and
+      its hook would silently never fire; fixed with a load-time key-match
+      check in `validateEquipmentEffectKey`, both new regression tests
+      added). That second fix broke `tests/equip-effectkey-reach.test.ts`'s
+      (c023) `crosswired` Content fixture, which deliberately mismatches
+      `effectKey` to prove the field is inert — since a genuine mismatch is
+      now *refused at load*, `crosswired` retired as a flip and survives as
+      its own "loadContent throws" assertion; `blanked` (proving the field
+      isn't required) is unaffected. Also updated: `tests/class-spec-
+      numbers.test.ts`'s c008 in_code anchors for the two `/src` lines (d)
+      moved (`drainPlagueTransfers`'s `targets` line, Time Flow's `dps`/
+      `remaining` push) so those ledger rows point at the real, moved code
+      instead of going stale; `tests/equip-hasequipment-roster.test.ts`'s
+      (c031) raw `hasEquipment(` census count (+2 -> +3, `equipmentEffectNum`'s
+      own internal call) and its enum-scrape (now scrapes
+      `KNOWN_EQUIPMENT_EFFECT_KEYS` as a subset check, not the retired zod
+      enum); `tests/equip-spec-numbers.test.ts`'s (c012) one `coveredBy`
+      anchor renamed to match fb015's rewritten test title. `npx tsc
+      --noEmit` clean; `npm run test:fast` green, 307/316 files (9
+      pre-existing skips), 4463/4498 tests (35 pre-existing skips), 0
+      failures — refs: SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule
+      4, BACKLOG-CONTENT.md session-1 Log (fb056/fb057/fb059/fb061/fb062),
+      c008/c012/c023/c031.
 - [x] (fb086) [bug] **DONE 2026-09-16 —** SPEC-FINAL §4.2 Bloodlord *Blood
       Tithe* was missing a clause: "tower pays 30% current HP once ->
       permanently +25% dmg; **its share of VS attacks lifesteals +1%**". Only
