@@ -4264,13 +4264,38 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       way, per Q124) or its assertion re-pinned with the mechanism named;
       G22 re-measured with fb093's method — refs: SPEC-FINAL §14 G22, Q124,
       BACKLOG-TERRAIN.md fb064u Log, BACKLOG-CONTENT.md c018 Log.
-- [ ] (fb121) [bug] `SkillCardSchema` (`src/sim/content.ts`) accepts
+- [x] (fb121) [bug] **DONE 2026-09-16 —** `SkillCardSchema` (`src/sim/content.ts`) accepted
       `perRank: 0` and negatives: a skill card worth nothing per rank is
       unpayable data (architecture rule 4), and every consumer that divides
       by it inherits the trap — content c019's test hung a vitest worker for
-      25 minutes on `perRank: 0` before it was clamped. Acceptance: loader
-      refuses `perRank <= 0` with the card id in the message; a
-      `tests/q7`-style corpus case pins it — refs: SPEC-FINAL §6.3, §12
+      25 minutes on `perRank: 0` before it was clamped. Fixed with a check in
+      the existing per-class `skillCards` validation loop (the same loop that
+      already enforces one card per effect kind), throwing
+      `vsupgrades.json: skill card "${card.key}" (${c.key}) has perRank <= 0
+      (${card.perRank})` when `card.perRank <= 0` — names both the card id
+      and its class, per acceptance. `tests/q7-data-fuzz.test.ts` gained a new
+      corpus case mutating an archer skill card's `perRank` to `0` and `-0.5`
+      and asserting rejection with the card's key in the error;
+      `tests/q7-loader-holes.ts`'s twelve `vsupgrades.skillCards.<class>[].
+      perRank` ACCEPTED rows narrowed from `['negative', 'zero', 'fractional']`
+      to `['fractional']`. Closing the hole moved the E2 "no numeric range
+      guard" test's `rate('negative')` floor from 0.8 to a freshly measured
+      0.7859, re-pinned at 0.75 with the exact trial-count delta recorded (12
+      classes x 2 mutation families = 24 trials moved). `BoonSchema.perRank`/
+      `TypeMasterySchema.perRank` share the same unguarded shape but are out
+      of this item's SkillCardSchema-specific scope — logged as a QUESTIONS.md
+      follow-up, not assumed covered. `npx tsc --noEmit` clean; targeted
+      `tests/q7-data-fuzz.test.ts` (41/41), `class-active1-potency`,
+      `class-active2-cdr`, `class-line-bonus`, `class-board` all green;
+      `npm run test:fast` 306 passed/9 skipped files, 4400 passed/35 skipped
+      tests, 0 failures. code-reviewer **APPROVE** (two Minor: a confusing
+      comment-arithmetic wording, fixed; and this BACKLOG/PROGRESS update,
+      done here). qa-playtester **PASS** — independently re-derived every
+      rejection case (0, -1, -0.5, -0, NaN, Infinity), confirmed no
+      unvalidated skill card can reach `progression.ts`'s consumers, ruled
+      out the number-scale rescale path reintroducing a `perRank <= 0`, and
+      confirmed the guard is load-bearing via a `git stash` control (red
+      without it) — refs: SPEC-FINAL §6.3, §12
       rule 4, BACKLOG-CONTENT.md c019 Log.
 - [ ] (fb122) [polish] `src/sim/content.ts:705`'s `pierceCap` schema
       comment ("most enemies one released shot may pass through") is false

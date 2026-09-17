@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb121 done — SkillCardSchema now refuses
+  a `perRank <= 0` card, naming the card.** `src/sim/content.ts`'s per-class
+  `skillCards` validation loop (the same loop that already enforces one card
+  per effect kind) now throws `vsupgrades.json: skill card "${card.key}"
+  (${c.key}) has perRank <= 0 (${card.perRank})` — a skill card worth
+  nothing (or less) per rank was previously accepted as valid data
+  (architecture rule 4), and `progression.ts`'s `card.perRank * rank` reader
+  silently inherited the trap (content c019's test once hung a vitest
+  worker for 25 minutes on an authored `perRank: 0`). New corpus case in
+  `tests/q7-data-fuzz.test.ts` mutates an archer skill card's `perRank` to
+  `0` and `-0.5` and asserts rejection with the card's key in the error
+  message. `tests/q7-loader-holes.ts`'s twelve `vsupgrades.skillCards.
+  <class>[].perRank` ACCEPTED rows narrowed from `['negative', 'zero',
+  'fractional']` to `['fractional']`; the E2 "no numeric range guard" test's
+  `rate('negative')` floor re-measured and re-pinned 0.8 -> 0.75 (fresh
+  value 0.7859 — closing the hole moved 12 trials each for `negative` and
+  `zero`, 24 total, from accepted to rejected). `BoonSchema.perRank`/
+  `TypeMasterySchema.perRank` share the identical unguarded shape but sit
+  outside this item's SkillCardSchema-specific acceptance text — logged as
+  QUESTIONS Q208 for a future session to file, not assumed covered or
+  silently widened into this item's scope. `npx tsc --noEmit` clean;
+  targeted `tests/q7-data-fuzz.test.ts` (41/41), `class-active1-potency`,
+  `class-active2-cdr`, `class-line-bonus`, `class-board` (249/249) all
+  green; `npm run test:fast` 306 passed/9 skipped files, 4400 passed/35
+  skipped tests, 0 failures (better than the previously-logged 2-failure
+  baseline — those two pre-existing `wouldBlockPath` failures are gone,
+  presumably closed by an intervening main-lane fix). code-reviewer
+  **APPROVE** (two Minor: a confusing comment-arithmetic wording in the
+  new test, fixed; and this BACKLOG/PROGRESS bookkeeping, done here).
+  qa-playtester **PASS** — independently re-derived every rejection case (0,
+  -1, -0.5, -0, NaN, Infinity, the last two via the base `.finite()` schema
+  rather than the new guard, correctly), confirmed no unvalidated skill card
+  can reach `progression.ts`'s three consumers, ruled out the number-scale
+  rescale path (`content.ts:2221-2222`, statBoons-only, runs before this
+  validation and is itself bounded away from 0) reintroducing a
+  `perRank <= 0`, and confirmed the guard is load-bearing via a `git stash`
+  control (the new test goes red without it). Live `data/vsupgrades.json`
+  boots clean (all 36 real cards have `perRank > 0`).
+
 - **2026-09-16 — main lane: BACKLOG fb197 done — fresh full 12-seed G8
   roster sweep against the corrected gate position (fb153b); still red,
   failure shape flipped from under-floor to a floor/ceiling split.**

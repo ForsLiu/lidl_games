@@ -2533,6 +2533,12 @@ export function loadContent(overrides?: ContentOverrides): Content {
     for (const card of cards) {
       if (skillCardKeys.has(card.key)) throw new Error(`vsupgrades.json: duplicate skill card key "${card.key}"`);
       skillCardKeys.add(card.key);
+      // fb121: a skill card worth nothing (or less) per rank is unpayable
+      // data (rule 4) — every reader (`progression.ts`'s `card.perRank *
+      // rank`) inherits the trap silently instead of erroring.
+      if (card.perRank <= 0) {
+        throw new Error(`vsupgrades.json: skill card "${card.key}" (${c.key}) has perRank <= 0 (${card.perRank})`);
+      }
     }
   }
   for (const classKey of Object.keys(boons.skillCards)) {
