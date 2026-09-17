@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb125 done — four red-first mutation
+  cases added for the content lane's own residual blind spots, no production
+  code changed.** `tests/class-passive-magnitudes.test.ts` gained three new
+  `describe` blocks (plain `it`, not `itCovering` — these are not c006's nine
+  holes, and the file's completeness census is untouched): (1) Kinship's
+  speed aura read at a summon's own position, not the Warden's — a synthetic
+  summon placed outside the totem's radius while the Warden stands on it;
+  (2) Spreading Plague's on-death transfer target nearest the dying carrier,
+  not the Warden — two candidates positioned so a `wd.x/wd.y` swap would
+  strike the wrong one (kept inside the shared probe board's `EAST_REACH`
+  after `npm run test:fast` first caught an out-of-reach placement via
+  `class-board.test.ts`'s c014 guard); (3)/(4) two rule-4 fallback literals
+  today's shipped `/data` can never exercise — `maxStacksPerEnemy` read from
+  content rather than hardcoded 50 (verified via a lowered-cap `loadContent`
+  override, clamping each damage type's own `maxStacks` down with it to stay
+  loader-legal), and `auraSpeedMul`'s `s.auraAtkSpdMul ?? 0` fallback
+  (unreachable through `recall_totem` itself, whose `REQUIRED_EFFECT_FIELDS`
+  entry mandates the field — reached instead via a synthetic bare aura
+  object). The fifth clause in the item's prose (`fb013-timelord.test.ts`'s
+  back-to-back Time Flow merge test) turned out to already be covered by this
+  same file's pre-existing `'c011 — Time Flow: damage past the stack cap is
+  merged, not dropped'` block (qa-playtester independently confirmed a
+  push-formula mutation there still reds), so no fifth case was added — "four
+  mutations, four reds" is exactly Kinship/Plague/cap-hardcode/aura-fallback.
+  All four manually verified red under their named mutation and green on
+  HEAD (`git diff --stat` clean to one file throughout); `npx tsc --noEmit`
+  clean; `npm run test:fast` 4491 passed/35 skipped/0 failed. code-reviewer
+  APPROVE (no findings); qa-playtester **PASS** (independently reproduced
+  all four mutations, ran the file under `--sequence.shuffle`, checked the
+  probe-board guard, flagged one non-blocking watch item: the Kinship test's
+  `totem.x + radius + 5` offset is data-derived so the probe-board guard's
+  literal `WX + N` regex can't see it — harmless on shipped `recall_totem.
+  radius: 4`, worth a look only if that field is ever retuned far larger).
 - **2026-09-17 — main lane: BACKLOG fb123 done — charge-kind Active1 now has
   real bot/sweep coverage via the codebase's own established pattern, no
   production code changed.** No stock policy in `src/bots` ever set
