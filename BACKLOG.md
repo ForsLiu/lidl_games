@@ -4678,19 +4678,49 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       grepped all of `/src` for stray readers of the old location (none),
       and re-ran the full targeted set plus `npm run test:fast` clean — no
       bugs filed.
-- [ ] (fb128) [balance] **ORDER (feedback/verdicts-q168-205, Q172, low
-      priority)** — tower attack speed is quantised to whole 60 Hz
-      ticks and small bonuses are inert: `tickCooldown` (`types.ts:17`)
-      clamps to 0 instead of carrying the sub-tick remainder, so a tower
-      fires every `ceil(interval / (dt * speed))` ticks — the Arrow Spire
-      fires every 43 ticks at +0% and +2% alike, and +3% is the first step
-      that moves it. The owner verdict is to carry the remainder rather than
-      record the floor as intended. Acceptance: `tickCooldown` banks the
-      sub-tick remainder instead of clamping to 0, a control-run sweep
-      either side of the change is recorded, and
-      `tests/class-tower-passive-liveness.test.ts`'s declared tick-floor
-      exception is updated (removed if no longer needed) — refs:
-      SPEC-FINAL §2, §14 G1/G13, Q172.
+- [x] (fb128) [balance] **DONE 2026-09-17. ORDER (feedback/verdicts-q168-205,
+      Q172, low priority)** — tower attack speed was quantised to whole 60 Hz
+      ticks and small bonuses were inert: `tickCooldown` (`types.ts:17`)
+      clamped *any* negative post-decrement value to 0 instead of only the
+      b018 float-noise band around 0, so `updateTowers`'s `s.cooldown +=
+      def.attack.interval` reset always started from exactly 0, discarding
+      the sub-tick remainder every shot — the Arrow Spire fired every 43
+      ticks at +0% and +2% alike, and +3% was the first step that moved it.
+      Fixed: `tickCooldown` now only snaps to 0 within `COOLDOWN_EPS` of 0 in
+      either direction, otherwise banks `next` (including negative) as-is.
+      Verified the single affected call site is `towers.ts:438` (every other
+      `tickCooldown` consumer resets via `=`, not `+=`, so a banked remainder
+      there is simply overwritten — no behavioral change to Warden/enemy/aura
+      cooldowns). Control-run sweep recorded in PROGRESS.md per acceptance:
+      the old clamp was equivalent to always rounding a tower's cooldown up
+      to the next whole tick even at 0% bonus, so the fix is also a small
+      *unconditional* per-tower DPS buff (+0.23%–+2.68% depending on how
+      close the tower's interval sits to a whole number of ticks) — a 5-seed
+      before/after `npm run sim` sweep showed the expected chaos-amplified
+      divergence in a couple of seeds' exact outcome (defeat_core@w17 →
+      defeat_core@w9), not a broken mechanism. Downstream: `tests/fb196-
+      night1-basehpmul.test.ts`'s two pinned seeds stopped discriminating
+      `baseHpMul`'s effect for the same reason and were re-pinned to freshly
+      measured ones (pyromancer seed 3, seed 9) that still do — same class of
+      break that file's own fb197 note already precedented.
+      `tests/class-tower-passive-liveness.test.ts`'s Wind Slash row dropped
+      its now-obsolete tick-boundary exception (any nonzero bonus is
+      observable within a few shots now) and its header prose updated to
+      match; `tests/b018-cooldown-epsilon.test.ts` updated (one test asserted
+      the old clamp-large-negative-to-0 behavior fb128 deliberately changes;
+      added a new test pinning the near-zero band still floors). code-
+      reviewer APPROVE (two Minor nits, one fixed — a header-comment mention
+      folded in; the other, `fb196`'s ~140s runtime already exceeding the
+      fast tier's ~60s guideline, is pre-existing and logged as a known issue
+      in PROGRESS.md rather than a new backlog item). qa-playtester PASS
+      (independently reproduced the fix's arithmetic, the single-call-site
+      claim, the extreme-attack-speed edge case — no new regression, the
+      pre-existing `if (s.cooldown < 0) s.cooldown = 0` guard already capped
+      that before and after — reran the two re-pinned fb196 cases twice for
+      flakiness with stable results, and independently derived the same
+      per-tower cadence-buff table now recorded in PROGRESS.md). `npx tsc
+      --noEmit` clean; `npm run test:fast` 309 files/4495 tests passed, 9
+      files/35 skipped, 0 failed — refs: SPEC-FINAL §2, §14 G1/G13, Q172.
 - [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
       call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
       (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in

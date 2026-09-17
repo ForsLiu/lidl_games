@@ -67,20 +67,19 @@
  * other two classes, the `levelup` phase (p6d only drives `act2`), and the
  * `classTowerBonus` nulling for Pyro and Cryomancer.
  *
- * **No row asserts an authored magnitude**, with one declared exception —
- * c005/c006's convention, and `c008` now owns the figures themselves in
- * `tests/class-spec-numbers.test.ts`. A retune of `towerHp` from 0.10 to 0.12
- * must not turn this file red.
- *
- * The exception is *Wind Slash*'s cadence half, and it is forced by the sim
- * rather than chosen: `tickCooldown` discards the sub-tick remainder every
- * shot instead of carrying it, so a tower's rate of fire is quantised to whole
- * 60 Hz ticks and an attack-speed bonus smaller than one tick's worth changes
- * nothing at all. At the Arrow Spire's 0.7143 s interval that threshold is
- * ~+2.4%. A retune below it does not merely shrink Wind Slash, it makes it
- * behaviourally dead — which is precisely what a liveness file must not stay
- * green through. That row therefore asserts the boundary explicitly and fails
- * with a message naming the retune. What is
+ * **No row asserts an authored magnitude** — c005/c006's convention, and
+ * `c008` now owns the figures themselves in `tests/class-spec-numbers.test.ts`.
+ * A retune of `towerHp` from 0.10 to 0.12 must not turn this file red. *Wind
+ * Slash*'s cadence half used to be this file's one declared exception:
+ * `tickCooldown` discarded the sub-tick remainder every shot instead of
+ * carrying it, quantising a tower's rate of fire to whole 60 Hz ticks, so an
+ * attack-speed bonus smaller than about one tick's worth (~+2.4% at the
+ * Arrow Spire's 0.7143 s interval) changed nothing at all — a liveness row
+ * that stayed green through a retune below that boundary would have been
+ * lying. fb128 (owner ORDER, Q172) fixed `tickCooldown` to bank the
+ * remainder instead, so any nonzero bonus is observable within a handful of
+ * shots and the exception is gone: the row now asserts direction and
+ * presence like every other row. What is
  * asserted is direction and presence, which is why Bloodlord's row is the
  * interesting one: *Sanguine Pact* is the only tower passive carrying a
  * negative term, so its two clauses are asserted in *opposite* directions and
@@ -461,30 +460,18 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     //
     // Measured as **ticks to the Nth shot**, not damage over a fixed window.
     //
-    // The interesting part is why the obvious forms of this assertion are both
-    // wrong. `tickCooldown` (`types.ts:17`) clamps to 0 rather than carrying the
-    // sub-tick remainder, and `updateTowers` then sets `s.cooldown += interval`
-    // from that exact 0 — so the remainder is **discarded every shot** instead
-    // of accumulating. A tower's cadence is therefore quantised to whole 60 Hz
-    // ticks *per shot*: the Arrow Spire's 0.7143 s interval is 42.86 ticks, so
-    // it fires every 43 ticks at +0% and every 43 ticks at +2% alike, and no
-    // number of shots ever separates them. (+3% is the first step that moves it,
-    // to 42.) That is a property of the sim, not of this harness — logged for
-    // the main lane in BACKLOG-CONTENT, since `towers.ts`/`types.ts` are out of
-    // this lane's Scope.
-    //
-    // That makes this row the **one deliberate exception** to the file's
-    // no-authored-magnitude convention, and the header says so. Everywhere else
-    // a retune is none of this file's business; here a retune below one tick's
-    // worth genuinely makes the passive do nothing to any tower's cadence, and
-    // a liveness file that stayed green through that would be lying. So the
-    // boundary is computed from `/data` and asserted out loud, with a message
-    // that names the retune rather than leaving a bare `43 < 43`.
-    const spireDef = content.towerByKey.get(SPIRE)!;
-    const interval = spireDef.attack!.interval;
-    const pct = content.classByKey.get('swordsman')!.towerPassive.mods.towerAttackSpeed;
-    const ticksPerShot = (speedMul: number): number => Math.ceil((interval / (DT * speedMul)) * (1 - 1e-9));
-    const observable = ticksPerShot(1 + pct) < ticksPerShot(1);
+    // fb128 (owner ORDER, Q172) removed this row's former exception:
+    // `tickCooldown` used to clamp to 0 instead of carrying the sub-tick
+    // remainder, so `updateTowers`'s `s.cooldown += interval` discarded that
+    // remainder every shot and quantised a tower's cadence to whole 60 Hz
+    // ticks — a bonus under about one tick's worth (~+2.4% at the Arrow
+    // Spire's 0.7143s interval) changed no shot's timing at all. Now that
+    // `tickCooldown` banks the remainder, *any* nonzero cadence bonus shows up
+    // within a handful of shots (verified: even a 1% bonus separates a 3-shot
+    // window), so this row no longer needs a boundary computed from `/data` —
+    // it asserts the same plain "fewer ticks to N shots" claim every other row
+    // in this file asserts about its own stat.
+    const interval = content.towerByKey.get(SPIRE)!.attack!.interval;
     const shots = 3;
     const ticksToNthShot = (k: string): number => {
       const wo = towerWorld(k);
@@ -505,15 +492,10 @@ describe('c009: every class tower passive measurably changes a built tower', () 
       expect(fired, 'the spire never reached the shot count the window was sized for').toBe(shots);
       return t;
     };
-    expect(
-      observable,
-      `towerAttackSpeed ${pct} is under one 60 Hz tick at the ${SPIRE}'s ${interval}s interval ` +
-        `(${ticksPerShot(1 + pct)} vs ${ticksPerShot(1)} ticks/shot), so Wind Slash changes no tower's cadence at all`,
-    ).toBe(true);
     const fast = ticksToNthShot('swordsman');
     const slow = ticksToNthShot(SPEED_CONTROL);
     expect(fast, 'Wind Slash made the spire *slower*').toBeLessThanOrEqual(slow);
-    expect(fast, 'Wind Slash crosses a tick boundary but the spire did not actually fire sooner').toBeLessThan(slow);
+    expect(fast, 'Wind Slash did not actually fire the spire sooner').toBeLessThan(slow);
   });
 
   it('Plaguebringer *Miasma* — a spore volley stamps a higher dps on its own Poison stack', () => {

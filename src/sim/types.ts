@@ -9,14 +9,24 @@ export const TICKS_PER_SECOND = 60;
  * b018: a cooldown ticked down tick-by-tick can land on a tiny positive
  * float residual (observed: 2.34e-14) instead of exactly 0, so a strict
  * `> 0` gate silently eats a cast issued exactly `cooldownSeconds` after the
- * last one. Floor anything below this to 0 — far above float noise, far
- * below one tick (1/60s).
+ * last one. Snap anything within this band of 0 to exactly 0 — far above
+ * float noise, far below one tick (1/60s).
  */
 export const COOLDOWN_EPS = 1e-6;
 
+/**
+ * fb128 (owner ORDER, Q172): a real negative overshoot past 0 — the amount
+ * `dt` ran past the cooldown actually expiring — is banked by returning it
+ * as-is rather than floored to 0. A caller that resets by `+=` (towers.ts'
+ * `s.cooldown += def.attack.interval`) then carries that remainder into the
+ * next interval, so a sub-tick attack-speed bonus accumulates across shots
+ * instead of being discarded every tick and quantising fire rate to whole
+ * 60 Hz ticks. Only the b018 float-noise band around 0 is still snapped
+ * flat, in either direction.
+ */
 export function tickCooldown(current: number, dt: number): number {
   const next = current - dt;
-  return next < COOLDOWN_EPS ? 0 : next;
+  return Math.abs(next) < COOLDOWN_EPS ? 0 : next;
 }
 
 export type Phase = 'act1_build' | 'act1_wave' | 'act2' | 'levelup' | 'results';
