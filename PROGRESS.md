@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb127 done — Stormcaller Conduction's
+  `chainGrowth`/`chainCap` moved from `active1` to the passive row, unblocking
+  BACKLOG-CONTENT c010.** The passive named a rule about electric damage
+  generally ("+20% per jump, compounding, cap 8 jumps"), but both its numbers
+  lived only on Chain Surge's `active1`, leaving the passive row `mods: {}`
+  with no `kind`. `data/classes.json`: Conduction gains `kind: 'conduction'`
+  plus the two fields; Chain Surge drops them. `src/sim/content.ts`:
+  `ClassSlotPassiveSchema` gains the `conduction` kind and fields;
+  `REQUIRED_EFFECT_FIELDS.chain_lightning` narrows to `['chainCount']`;
+  `REQUIRED_PASSIVE_FIELDS.conduction` requires both; `validateClassEffect`
+  now refuses a `chain_lightning` row that still carries either field on
+  `active1` — a loader rule against the two-sources-of-truth shape, not just
+  a data move. `fireChainSurge` (classes.ts) reads both off `cls.passive`;
+  `chainLightningSentence`'s tooltip (`src/ui/class-info.ts`) gets them
+  overlaid from `cls.passive` at the `activeSkillMarkup` call site so the
+  Active-1 tooltip stays live. G11's x3.6 ceiling re-measured unchanged
+  across all three files that derive it independently
+  (`tests/p6d-nine-classes.test.ts`, `tests/class-gate-ratios.test.ts`,
+  `tests/class-g10-g11-verify.test.ts`) — same shipped numbers, right row.
+  Fallout beyond the two files the item named (found by grepping every
+  `active1.chainGrowth`/`chainCap` reader): `tests/class-spec-numbers.test.ts`
+  and `tests/class-descriptions.test.ts`'s figure ledgers (two rows'
+  `sibling` status, now same-slot, became plain `field` claims; the
+  now-unused `C010` authorisation string deleted; the description-ledger
+  census updated 29 field/2 sibling → 31/0); `tests/class-passive-
+  liveness.test.ts` (the "lives on `active1`" pin rewritten for `passive`;
+  the negative-control mutation table repointed; stormcaller dropped from
+  the "prose-only passive row" list since Conduction now has a real `kind`
+  binding); `tests/class-passive-magnitudes.test.ts` (two `contentWith`
+  mutations repointed to `r.passive.chainCap`). `tests/q7-loader-
+  holes.ts`'s `ACCEPTED` corpus regenerated via `Q7_RECORD=1` (the two
+  `active1.*` rows retired, the same open `num.optional()` shape re-opened
+  at `passive.*`). BACKLOG-CONTENT.md's c010 marked DONE in the same
+  commit — its full acceptance was met as a side effect of this item.
+  Whether *tower* electric (Live Wire, the VS wire grid) should also
+  compound is logged as QUESTIONS Q209 per c010's own acceptance text, not
+  implemented from here. code-reviewer APPROVE (two Minor findings fixed
+  before commit: a direct test for the "refuses the duplicated shape"
+  throw, and a new cross-slot loader guard tying `active1.kind ===
+  'chain_lightning'` to `passive.kind === 'conduction'` so a future class
+  can't ship the former without the latter and silently compound at
+  0%/cap-index 0). qa-playtester **PASS** — live-loaded shipped data,
+  scratch-mutated `/data` both directions to prove the loader both accepts
+  and refuses, ran a real Stormcaller sim plus a direct `fireChainSurge`
+  harness confirming the 1.2x per-jump ratio at runtime, rendered the
+  Active-1 tooltip and confirmed the real numbers show, grepped `/src` for
+  stray old-location readers (none found), no bugs filed. `npx tsc
+  --noEmit` clean; `npm run test:fast` 4494 passed/35 skipped/0 failed.
 - **2026-09-17 — main lane: BACKLOG fb125 done — four red-first mutation
   cases added for the content lane's own residual blind spots, no production
   code changed.** `tests/class-passive-magnitudes.test.ts` gained three new

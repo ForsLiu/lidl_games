@@ -156,13 +156,6 @@ const CONVERT: Record<Convert, (v: number) => number> = {
   pctLess: (v) => -v * 100,
 };
 
-/** c010 — the filed, Scope-blocked item that moves Conduction onto its own row. */
-const C010 =
-  'c010 (BACKLOG-CONTENT, blocked out of Scope): "Stormcaller Conduction is authored on the wrong ' +
-  'row" — the passive states a rule about electric damage generally, but both its numbers live on ' +
-  '`active1` as `chainGrowth`/`chainCap`. The item moves them onto the passive row and has ' +
-  '`fireChainSurge` read them from there; until it lands, the sentence and the fields it quotes ' +
-  'are one slot apart and this ledger is what keeps them equal.';
 /** The one self-authorising status; the census is what bounds it. */
 const C015 =
   "c015 (this item): the numeral is part of the rule's wording rather than a magnitude — it states " +
@@ -441,11 +434,9 @@ const LEDGER: readonly Claim[] = [
     // Just the binding: "compounding" sits past the comma, in the next clause.
     keywords: ['per jump'],
     status: {
-      kind: 'sibling',
-      path: ['active1', 'chainGrowth'],
+      kind: 'field',
+      path: ['passive', 'chainGrowth'],
       as: 'pct',
-      authorised: C010,
-      why: "Conduction's sentence is on the passive; the number it quotes is Chain Surge's `chainGrowth`.",
     },
   },
   {
@@ -455,10 +446,8 @@ const LEDGER: readonly Claim[] = [
     means: 'the jump at which compounding stops',
     keywords: ['jumps'],
     status: {
-      kind: 'sibling',
-      path: ['active1', 'chainCap'],
-      authorised: C010,
-      why: 'Same split as the growth above: the cap the passive states is authored on `active1`.',
+      kind: 'field',
+      path: ['passive', 'chainCap'],
     },
   },
   {
@@ -1070,11 +1059,12 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
     }
   });
 
-  it('census: 26 field · 2 sibling · 3 in code · 1 prose, over 22 sentences, 2 wordless, 4 word-numbers', () => {
+  it('census: 31 field · 0 sibling · 3 in code · 1 prose, over 22 sentences, 2 wordless, 4 word-numbers', () => {
     // The census is the barrier: a new deviation cannot be absorbed into an
-    // existing status, and closing one — c010 moving Conduction onto its own
-    // row, any of the three literals reaching `/data` — has to be recorded
-    // here rather than passing unnoticed.
+    // existing status, and closing one — fb127/c010 moved Conduction's two
+    // numbers onto its own passive row, so its former `sibling` claims are
+    // now plain `field` claims — has to be recorded here rather than
+    // passing unnoticed.
     const count = (k: Status['kind']): number => LEDGER.filter((c) => c.status.kind === k).length;
     expect({
       field: count('field'),
@@ -1084,6 +1074,6 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       sentences: new Set(LEDGER.map((c) => `${c.cls}.${c.slot}`)).size,
       wordless: NO_NUMBER.length,
       wordNumbers: WORD_NUMBERS.length,
-    }).toEqual({ field: 29, sibling: 2, in_code: 0, prose: 1, sentences: 22, wordless: 2, wordNumbers: 4 });
+    }).toEqual({ field: 31, sibling: 0, in_code: 0, prose: 1, sentences: 22, wordless: 2, wordNumbers: 4 });
   });
 });

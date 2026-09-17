@@ -4616,16 +4616,68 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       three new schema bounds reject with clean zod errors rather than
       crashing. `npx tsc --noEmit` clean; `npm run test:fast` 4487 passed/35
       skipped/0 failed.
-- [ ] (fb127) [feat] unblock BACKLOG-CONTENT.md c010 (Stormcaller's
-      `chainGrowth`/`chainCap` authored on `active1`, read by the passive):
-      the move needs `src/sim/content.ts:1288`'s `REQUIRED_EFFECT_FIELDS.
-      chain_lightning` to stop demanding them on `active1`, five sites in
-      `tests/p6d-nine-classes.test.ts` (`:116`, `:226-249`) re-pointed, and
-      `tests/q7-loader-holes.ts:248,250`'s corpus paths updated — all
-      main-lane. Acceptance: loader accepts the passive-authored shape and
-      refuses the duplicated one; p6d's G11 ceiling/growth assertions
-      re-measured as a control pair — refs: SPEC-FINAL §4.2 Stormcaller,
-      §12 rule 4, BACKLOG-CONTENT.md c010.
+- [x] (fb127) [feat] **DONE 2026-09-17.** unblocked BACKLOG-CONTENT.md c010
+      (Stormcaller's `chainGrowth`/`chainCap` moved from `active1` onto the
+      passive row `active1` had been carrying them on). `data/classes.json`:
+      Conduction (passive) gains `kind: 'conduction'` and the two fields;
+      Chain Surge (`active1`) drops them. `src/sim/content.ts`:
+      `ClassSlotPassiveSchema` gains the `conduction` kind and the two
+      fields; `REQUIRED_EFFECT_FIELDS.chain_lightning` narrowed to
+      `['chainCount']`; `REQUIRED_PASSIVE_FIELDS.conduction` added;
+      `validateClassEffect` now throws if `chain_lightning` still carries
+      either field on `active1` (refuses the duplicated shape, per
+      acceptance). `src/sim/classes.ts`'s `fireChainSurge` reads both off
+      `cls.passive` instead of `eff` (`cls.active1`).
+      `src/ui/class-info.ts`'s `chainLightningSentence` tooltip took the
+      same numbers off `eff` — `activeSkillMarkup` now overlays
+      `cls.passive`'s two fields onto the effect object it hands the
+      sentence function, so the Active tooltip stays live instead of
+      falling back to `?? 0`.
+      Fallout beyond the item's own named sites (found by grepping every
+      `active1.chainGrowth`/`chainCap` reader, not just the two files
+      named): `tests/class-gate-ratios.test.ts`, `tests/class-g10-g11-
+      verify.test.ts`, `tests/class-spec-numbers.test.ts` (two ledger rows'
+      `path`, `sibling` status → `field`), `tests/class-descriptions.test.ts`
+      (same two claims' status, plus the now-unused `C010` authorisation
+      string deleted and its census counts updated 29/2 → 31/0),
+      `tests/class-passive-liveness.test.ts` (a pin asserting Conduction
+      lived on `active1` rewritten for `passive`; the negative-control
+      mutation table's `r.active1.chainGrowth = 0` repointed to
+      `r.passive.chainGrowth`; stormcaller dropped from the "two prose-only
+      passive rows" list since it now has a real `kind` binding), and
+      `tests/class-passive-magnitudes.test.ts` (two `contentWith` mutations
+      repointed to `r.passive.chainCap`) — all re-measured, all green.
+      `tests/q7-loader-holes.ts`'s `ACCEPTED` corpus regenerated via
+      `Q7_RECORD=1 npx vitest run tests/q7-data-fuzz.test.ts` (the two
+      `active1.*` rows retired, the same bare-`num.optional()` shape
+      re-opened at `passive.*` — no field closed or newly guarded, just
+      relocated).
+      BACKLOG-CONTENT.md's c010 marked DONE in the same commit (its full
+      acceptance was met as a side effect of this item); whether *tower*
+      electric should also compound logged as QUESTIONS Q209 per c010's own
+      acceptance text, not implemented. `npx tsc --noEmit` clean;
+      `npm run test:fast` green (4494 passed/35 skipped/0 failed) — refs:
+      SPEC-FINAL §4.2 Stormcaller, §12 rule 4, BACKLOG-CONTENT.md c010,
+      QUESTIONS Q209.
+      code-reviewer APPROVE, two Minor findings both fixed before commit:
+      (1) the "refuses the duplicated shape" throw had no direct test —
+      added two `p6d-nine-classes.test.ts` cases (`chain_lightning` still
+      carrying `chainGrowth`/`chainCap` on `active1` throws; a class
+      shipping `chain_lightning` with no matching `conduction` passive
+      throws); (2) nothing tied `active1.kind === 'chain_lightning'` to
+      `passive.kind === 'conduction'`, so a future class could ship the
+      former without the latter and silently compound at 0%/cap-index 0 —
+      added a cross-slot loader guard in `content.ts`'s per-class
+      validation loop (the second new test covers it). qa-playtester
+      **PASS**: live-loaded shipped data (no throw), scratch-mutated
+      `data/classes.json` both directions (duped fields on `active1`
+      throws; either field missing under `conduction` throws), ran a real
+      Stormcaller sim plus a direct `fireChainSurge` harness confirming a
+      1.2x per-jump ratio at runtime (not just in unit tests), rendered the
+      Active-1 tooltip and confirmed it shows the real 20%/cap-8 numbers,
+      grepped all of `/src` for stray readers of the old location (none),
+      and re-ran the full targeted set plus `npm run test:fast` clean — no
+      bugs filed.
 - [ ] (fb128) [balance] **ORDER (feedback/verdicts-q168-205, Q172, low
       priority)** — tower attack speed is quantised to whole 60 Hz
       ticks and small bonuses are inert: `tickCooldown` (`types.ts:17`)

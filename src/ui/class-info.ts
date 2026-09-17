@@ -459,9 +459,15 @@ export function activeSkillMarkup(
   const cooldownFactor = live ? (which === 'active1' ? 1 - live.cdr : live.active2CdrFactor ?? 1 - live.cdr) : undefined;
   const sentence = ACTIVE_SENTENCES[eff.kind];
   if (sentence) {
+    // fb127 (c010): Conduction's chainGrowth/chainCap moved off `active1`
+    // onto the Stormcaller passive; `chainLightningSentence` still reads
+    // them off the effect object it's handed (the same signature every
+    // other kind's sentence function uses), so this overlay is what keeps
+    // the tooltip's numbers live rather than falling back to `?? 0`.
+    const effForSentence = eff.kind === 'chain_lightning' ? { ...eff, chainGrowth: cls.passive.chainGrowth, chainCap: cls.passive.chainCap } : eff;
     return `<div class="sw-effectblock">
       <b>${eff.name} (${label})</b>
-      <p class="sw-note">${sentence(eff, live, cooldownFactor)}</p>
+      <p class="sw-note">${sentence(effForSentence, live, cooldownFactor)}</p>
     </div>`;
   }
   return effectBlock(`${eff.name} (${label})`, eff, live, cooldownFactor);

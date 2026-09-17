@@ -705,9 +705,13 @@ describe('c006 — the passive that is pure `mods`', () => {
  * really lives on (so the binding is written down somewhere a grep will find
  * it), and assert the clause's behaviour anyway.
  */
-describe('c006 — the two prose-only passive rows', () => {
-  it('both really are prose-only, which is why they are here', () => {
-    for (const key of ['archer', 'stormcaller']) {
+describe('c006 — the prose-only passive row', () => {
+  it('really is prose-only, which is why it is here', () => {
+    // fb127 (c010) moved Conduction's numbers onto its own `kind`-bound
+    // passive row, so stormcaller no longer belongs in this list — archer's
+    // Long Draw is the one clause left with no `kind`/`mods` binding of its
+    // own (see the `it` right below).
+    for (const key of ['archer']) {
       const p = content.classByKey.get(key)!.passive;
       expect(p.kind, `${key}.passive gained a kind — move it out of this describe`).toBeUndefined();
       expect(Object.keys(p.mods), `${key}.passive gained mods`).toEqual([]);
@@ -747,16 +751,16 @@ describe('c006 — the two prose-only passive rows', () => {
     expect(shotDamage(cap)).toBeGreaterThan(shotDamage(cap - 2));
   });
 
-  it('stormcaller Conduction lives on `active1.chainGrowth`/`chainCap` (see c010)', () => {
-    const a1 = content.classByKey.get('stormcaller')!.active1;
-    // The pin, and the reason c010 exists: the passive *row* claims a rule
-    // about electric damage generally, but the two numbers that implement it
-    // sit on Active1, so Chain Surge is the only electric thing that
-    // compounds. c010 (this lane) owns moving them onto the passive row; this
-    // assertion is what c010 has to update when it does.
-    expect(a1.kind).toBe('chain_lightning');
-    expect(a1.chainGrowth).toBeGreaterThan(0);
-    expect(a1.chainCap).toBeGreaterThan(1);
+  it('stormcaller Conduction lives on `passive.chainGrowth`/`chainCap` (fb127, c010)', () => {
+    const stormcaller = content.classByKey.get('stormcaller')!;
+    // The pin: the passive *row* claims a rule about electric damage
+    // generally, and fb127 (c010) moved the two numbers that implement it
+    // onto that same passive row, so Chain Surge's `active1` no longer
+    // carries them (content.ts's loader now refuses a copy left there).
+    expect(stormcaller.passive.kind).toBe('conduction');
+    expect(stormcaller.passive.chainGrowth).toBeGreaterThan(0);
+    expect(stormcaller.passive.chainCap).toBeGreaterThan(1);
+    expect(stormcaller.active1.kind).toBe('chain_lightning');
 
     // Observed: each jump lands harder than the one before it.
     expect(signal.conduction(content)).toBeGreaterThan(0);
@@ -927,7 +931,7 @@ const KILLS: readonly Kill[] = [
     name: 'Conduction',
     classKey: 'stormcaller',
     measure: signal.conduction,
-    mutate: (r) => void (r.active1.chainGrowth = 0),
+    mutate: (r) => void (r.passive.chainGrowth = 0),
   },
   {
     name: 'Blood Frenzy (lifesteal)',

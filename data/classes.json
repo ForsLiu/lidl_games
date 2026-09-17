@@ -359,7 +359,10 @@
       "passive": {
         "name": "Conduction",
         "description": "Electric damage +20% per jump, compounding, cap 8 jumps.",
-        "mods": {}
+        "mods": {},
+        "kind": "conduction",
+        "chainGrowth": 0.2,
+        "chainCap": 8
       },
       "active1": {
         "name": "Chain Surge",
@@ -367,9 +370,7 @@
         "cooldownSeconds": 5,
         "radius": 5,
         "damage": 75,
-        "chainCount": 6,
-        "chainGrowth": 0.2,
-        "chainCap": 8
+        "chainCount": 6
       },
       "active2": {
         "name": "Overload",

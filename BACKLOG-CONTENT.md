@@ -66,21 +66,25 @@ Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
       `npx vitest run tests/fb038-status.test.ts`. No `/src` or `/data`
       change — refs: feedback/feature-token-economy.md, BACKLOG.md fb178.
 
-- [ ] (c010) [balance] **BLOCKED out of Scope 2026-09-04 — see the Log.**
-      Stormcaller *Conduction* is authored on the wrong row.
-      The passive names a rule about electric damage *generally* ("+20% per
-      jump, compounding, cap 8 jumps"), but its two numbers live only on
-      `active1` (`chainGrowth`/`chainCap`), leaving the passive row prose with
-      `mods: {}` and no `kind` — so Chain Surge is the only electric thing
-      that compounds, and *Live Wire*'s "+10% of their damage as extra
-      Electric" and the VS electric wire grid get none of it. Acceptance: the
-      two numbers move onto the passive row in `data/classes.json` and
-      `fireChainSurge` reads them from there (architecture rule 4: content
-      shapes live in `/data`); G11's x3.6 ceiling
-      (`tests/p6d-nine-classes.test.ts`) is re-measured unchanged as a
-      control-run pair; whether *tower* electric should also compound is
-      **logged for the main lane**, not implemented from here (`towers.ts`/
-      `vsspecials.ts` are out of Scope) - refs: SPEC-FINAL §4.2, §14 G11.
+- [x] (c010) [balance] **DONE 2026-09-17 (main lane, fb127) — was BLOCKED
+      out of Scope 2026-09-04, see the Log.** Stormcaller *Conduction* was
+      authored on the wrong row: the passive named a rule about electric
+      damage *generally* ("+20% per jump, compounding, cap 8 jumps"), but
+      its two numbers lived only on `active1` (`chainGrowth`/`chainCap`),
+      leaving the passive row prose with `mods: {}` and no `kind`. The fix
+      needed `src/sim/content.ts` (schema, `REQUIRED_EFFECT_FIELDS`/
+      `REQUIRED_PASSIVE_FIELDS`) — out of this lane's Scope — so fb127 did
+      it from the main lane: `chainGrowth`/`chainCap` moved onto the
+      passive row (now `kind: 'conduction'`) in `data/classes.json`,
+      `fireChainSurge` (`src/sim/classes.ts`) reads them off `cls.passive`
+      instead of `cls.active1`, and the loader now refuses a copy left on
+      `active1` instead of silently accepting two sources of truth. G11's
+      x3.6 ceiling (`tests/p6d-nine-classes.test.ts`,
+      `tests/class-gate-ratios.test.ts`, `tests/class-g10-g11-verify.test.ts`)
+      re-measured unchanged, confirming shipped behaviour is unaffected —
+      the same numbers just live in the right row now. Whether *tower*
+      electric should also compound is logged as QUESTIONS Q209, not
+      implemented — refs: SPEC-FINAL §4.2, §14 G11, BACKLOG.md fb127.
 
 ### Finding 2026-09-17 — fb056/fb057/fb059 carry a second, deeper Scope blocker than fb085 fixed
 

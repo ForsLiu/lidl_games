@@ -842,22 +842,18 @@ const LEDGER: readonly Figure[] = [
     clause: 'Conduction (passive)',
     figure: 'electric damage +20% per jump, compounding',
     spec: 0.2,
-    path: ['active1', 'chainGrowth'],
+    path: ['passive', 'chainGrowth'],
     slot: 'passive',
     status: { kind: 'match' },
-    note:
-      'The *value* matches. The *row* does not: §4.2 states this on the passive and the number ' +
-      'is authored on `active1`, which is c010 — a location question, not a drift question.',
   },
   {
     cls: 'stormcaller',
     clause: 'Conduction (passive)',
     figure: 'cap 8 jumps',
     spec: 8,
-    path: ['active1', 'chainCap'],
+    path: ['passive', 'chainCap'],
     slot: 'passive',
     status: { kind: 'match' },
-    note: 'Same location question as the growth figure above — c010.',
   },
   {
     cls: 'stormcaller',

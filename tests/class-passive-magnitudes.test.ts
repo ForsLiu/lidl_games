@@ -353,7 +353,7 @@ describe('c011 — Conduction: the compounding stops at `chainCap` (G11 ceiling)
     // retune of either number moves nothing in this case.
     const capAt = Math.min(3, links - 1);
     expect(capAt, 'harness needs a cap index strictly inside the chain').toBeGreaterThan(1);
-    const c = contentWith('stormcaller', (r) => void (r.active1.chainCap = capAt));
+    const c = contentWith('stormcaller', (r) => void (r.passive.chainCap = capAt));
     const dealt = chainDamage(c, links);
     for (const d of dealt) expect(d, 'a link took no damage at all').toBeGreaterThan(0);
 
@@ -371,7 +371,7 @@ describe('c011 — Conduction: the compounding stops at `chainCap` (G11 ceiling)
 
   itCovering('Conduction chainCap', 'the cap is read from `/data`: a lower cap flattens the chain sooner', () => {
     const at = (capAt: number) =>
-      chainDamage(contentWith('stormcaller', (r) => void (r.active1.chainCap = capAt)), links);
+      chainDamage(contentWith('stormcaller', (r) => void (r.passive.chainCap = capAt)), links);
     expect(links, 'harness needs a link past the low cap to compare at').toBeGreaterThanOrEqual(3);
     const last = links - 1;
     // Same chain, same growth, the last link: the higher cap must have kept
