@@ -22,7 +22,7 @@ import {
   targetFirst,
 } from './combat';
 import type { TowerDef } from './content';
-import { applyTitheLifesteal, applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
+import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
 import { applySlow } from './enemies';
@@ -449,10 +449,6 @@ export function updateTowers(w: World, dt: number): void {
     fireTower(w, s, def);
     const dealt = s.damageDealt - before;
     applyTowerLifesteal(w, s, dealt);
-    // fb086: Blood Tithe's own missing VS-share lifesteal clause, same
-    // before/after delta and the same "exactly once regardless of when its
-    // damage lands" guarantee as `applyTowerLifesteal` above.
-    applyTitheLifesteal(w, s, dealt);
   }
 }
 
