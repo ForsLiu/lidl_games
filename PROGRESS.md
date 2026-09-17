@@ -5,6 +5,15 @@
 
 ## Current state — SPEC-FINAL
 
+**Integrator (2026-09-17):** fb128 was fixed independently on two parallel
+branches (`claude/dreamy-hopper-6pebu0` and `claude/dreamy-hopper-0poxye`) —
+same root cause, same one-line fix in `tickCooldown`. The first branch's PR
+merged to master; the second conflicted on exactly the files below (`src/sim/
+types.ts`, the three touched test files, this file, BACKLOG.md) and was
+resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
+seeds throughout, discarding the second branch's duplicate rewrite of the same
+change. No functional difference between the two fixes.
+
 - **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` banks a
   tower's sub-tick cooldown remainder instead of discarding it (owner
   verdict, Q172).** `next < COOLDOWN_EPS` in `src/sim/types.ts` floored any
