@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — content lane: fb085 did not actually unblock fb056/fb057/
+  fb059/fb061 — two deeper Scope walls found and documented, no code
+  changed.** Checked fb085's own claim ("unblocking BACKLOG-CONTENT.md's
+  fb056/fb057/fb059/fb061/fb062... so those five owner items can execute
+  inside the lane's Scope") against the actual test suite rather than taking
+  it at face value. Found two separate blockers fb085 did not reach: (1)
+  `tests/equip-spec-numbers.test.ts`/`tests/class-spec-numbers.test.ts`
+  parse and hash SPEC-FINAL.md directly and hardcode its current row count —
+  a brand-new equipment item or class has no SPEC-FINAL.md row to point at,
+  and appending one is out of this lane's Scope, so fb056/fb057/fb059 stay
+  blocked regardless of the /data-side enablers fb085 built; (2) fb061
+  (Poison Barrel charge skill) was actually implemented end-to-end this
+  session and verified green on `npm run test:fast`, then reverted, because
+  a broader grep (past this lane's own `tests/class-*`/`tests/equip-*`)
+  found `tests/p6c-plaguebringer.test.ts` and `tests/fb085-enablers.test.ts`
+  hardcode the pre-amend instant-fire behaviour as their own assertions, and
+  those two files are outside this lane's Scope too — the owner's own "same
+  hold/release model as Circle Slash" spec is definitionally incompatible
+  with leaving them green. Full mechanism and the practical unblock for each
+  (a main-lane pass touching SPEC-FINAL.md/`p6c-plaguebringer.test.ts`/
+  `fb085-enablers.test.ts` in the same commit as this lane's `/data` change)
+  are in BACKLOG-CONTENT.md's two 2026-09-17 Finding sections. No `/src` or
+  `/data` byte changed by this session — working tree is BACKLOG-CONTENT.md
+  only.
 - **2026-09-16 — main lane: BACKLOG fb085 done — the four enablers
   BACKLOG-CONTENT.md's session-1 Log named as blocking fb056/fb057/fb059/
   fb061/fb062 are now in place; the lane itself is unblocked but none of

@@ -82,6 +82,44 @@ Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
       **logged for the main lane**, not implemented from here (`towers.ts`/
       `vsspecials.ts` are out of Scope) - refs: SPEC-FINAL §4.2, §14 G11.
 
+### Finding 2026-09-17 — fb056/fb057/fb059 carry a second, deeper Scope blocker than fb085 fixed
+
+fb085 (main lane) wired the `content.ts`/engine seams its own commit named as
+blocking (`effectKey` enum, the four Madness King/Voltbolt schema kinds, the
+`World.timeLockZones` array, `equipmentEffectNum`) "so those five owner items
+can execute inside the lane's Scope." Checked directly while scoping fb061
+(the one item in that group this session could actually execute): that fix
+does not reach the real wall for the other three. `tests/equip-spec-numbers.
+test.ts` (§7's ledger, `tests/equip-*`, in-Scope) and `tests/class-spec-
+numbers.test.ts` (§4's ledger, `tests/class-*`, in-Scope) both **parse
+SPEC-FINAL.md itself** and hash the parsed section (`SPEC_7_SHA256`/
+`SPEC_4_SHA256`); `equip-spec-numbers.test.ts` additionally hardcodes
+`expect(SPEC_TABLE).toHaveLength(12)` and, for every item in
+`data/equipment.json`, looks up `specRowFor(item.key)` — which throws for any
+key §7's table does not name. A **brand-new** item or class (unlike a retune
+of an existing one, see fb061 below) has no row to point at, so appending one
+to `/data` fails this in-Scope ledger the moment it loads, and the only fix
+(adding the item's row to SPEC-FINAL.md §7/§4.2, which also moves the hash)
+touches a file this lane may not edit — **SPEC-FINAL.md is not in the Scope
+list above.** This is a materially different, harder blocker than "a closed
+zod enum" or "no World field": it is a hand-authored source-of-truth
+document with its own anti-laundering hash, deliberately outside every
+lane's Scope, not a mechanically-regenerated artifact like `tests/q7-loader-
+holes.ts` (which c004 and this session's fb061 both *could* regenerate
+in-Scope via `Q7_RECORD=1`, since that file states in its own header that it
+is generated, not hand-authored).
+The practical unblock: a main-lane pass appends fb056's 15 rows to SPEC-FINAL §7
+(with a fresh `SPEC_7_SHA256`) and fb057/fb059's two class blocks to §4.2
+(with a fresh `SPEC_4_SHA256`) — genuinely a spec-authoring decision (the
+owner feedback for fb057/fb059 is explicitly tagged `[designer-fill]`, i.e.
+SPEC-FINAL.md does not have this content settled yet either), not a data
+task this lane can settle unilaterally. Once those rows exist, this lane can
+author the matching `/data` rows and `tests/equip-*`/`tests/class-*` ledger
+entries in one ordinary pass. Leaving all three `[ ]` below unchanged
+(unfixable from here, same disposition as the original 2026-09-03 finding,
+now with the precise mechanism named instead of the four items fb085 already
+closed).
+
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
@@ -161,7 +199,71 @@ Kinship summon cap +1, PR #57) — with no stale open PR or branch found for
       Acceptance: hold/release works with a charge indicator ring; radius
       and duration scale with charge level per test; numbers land in
       `/data` only — refs: SPEC-FINAL §4.1 (Plaguebringer, amends), owner
-      feedback `feature-plaguebringer-charge`.
+      feedback `feature-plaguebringer-charge`. **See the 2026-09-17 Finding
+      immediately below: attempted and reverted this session — blocked by
+      two out-of-Scope test files (`tests/p6c-plaguebringer.test.ts`,
+      `tests/fb085-enablers.test.ts`) that hardcode the pre-amend
+      instant-fire behaviour, not by a `/data` authoring wall.**
+
+### Finding 2026-09-17 — fb061 attempted and reverted: blocked by out-of-Scope test files, not a data wall
+
+Attempted a full implementation this session: `ground_poison` joined
+`isChargeKind` (classes.ts), `firePoisonBarrel` gained a `chargeSeconds`
+param lerping radius (`minRadius` 5 -> `radius` 10) and lifetime
+(`minGroundDurationSeconds` 8 -> `groundDurationSeconds` 14) exactly the way
+`circleSlashValues` already does for Circle Slash, `data/classes.json`
+authored the four new `active1` fields (`minGroundDurationSeconds` is the
+field fb085 pre-wired for exactly this), `tests/class-poison-barrel-
+mechanic.test.ts` was rewritten for the hold/release firing model, three
+other `tests/class-*.ts` files' shared generic per-Active harnesses (`class-
+area-stat`, `class-kit-liveness`, `class-kit-whiff`) were updated to fire it
+via hold/release like Circle Slash, and `tests/q7-loader-holes.ts` was
+mechanically regenerated for the one new census line (`Q7_RECORD=1`, same
+precedent as c004) — all of that landed green, `npm run test:fast`-tier.
+
+**Then a broader check this item's acceptance did not name — grepping every
+`tests/*.ts` for `ground_poison`/`Poison Barrel`, not just `tests/class-*`/
+`equip-*` — found the real wall:** `tests/p6c-plaguebringer.test.ts` (3
+tests) and `tests/fb085-enablers.test.ts` (1 test) are neither `class-*` nor
+`equip-*`, and both hardcode the *pre-amend* behaviour as their own
+assertion, not incidentally:
+- `p6c-plaguebringer.test.ts` fires Poison Barrel with a bare
+  `{k:'class_active'}` Command and asserts `active1Cooldown > 0`/a zone
+  exists *immediately* — three tests, all red the instant `ground_poison`
+  becomes a charge kind, because a charge-kind Active1's Command is supposed
+  to decline (the same p6b rule Circle Slash/Deadeye Draw already prove
+  behaviourally in `tests/class-kit-whiff.test.ts`'s own `fire()` helper).
+- `fb085-enablers.test.ts` asserts `plaguebringer.active1.
+  minGroundDurationSeconds` is `undefined` on "every currently-shipped
+  ground_poison row" — a deliberate placeholder fb085 wrote *because* fb056/
+  fb061 had not landed yet, exactly per that commit's own comment ("fb056
+  itself... is what would move this row").
+
+**This is not the SPEC-FINAL.md wall the Finding above names — it is a
+different, equally hard one specific to fb061.** The owner's own spec for
+this item ("same hold/release model as Circle Slash") is *definitionally*
+incompatible with a bare-Command instant fire: Circle Slash's own framework
+precedent (`isChargeKind`, `useClassActive`'s early return) exists exactly
+to refuse that combination, so there is no narrower implementation of "hold
+to charge" that leaves `p6c-plaguebringer.test.ts`'s three assertions true.
+Landing fb061 correctly necessarily reddens tests in two files this lane's
+Scope does not allow editing (`tests/p6c-*`, `tests/fb085-*` are covered by
+neither `tests/class-*` nor `tests/equip-*`), and leaving them red would
+mean pushing a lane branch whose CI does not pass — not an option per
+working rule 2 and this routine's own instruction to keep CI green without
+weakening tests. **Reverted the entire attempt** (`git checkout --` on every
+touched file except this one) rather than commit a red `npm run test:fast`.
+
+The practical unblock is the same shape as the Finding above: a main-lane
+(or coordinated) pass updates `p6c-plaguebringer.test.ts`'s three Command-
+based casts to the hold/release model and flips `fb085-enablers.test.ts`'s
+placeholder assertion, in the same commit as this lane's `/data`/`classes.ts`
+change — which is exactly what a lane-boundary merge is for, not something
+this lane can pre-empt by editing those files itself. Left `[ ]` below,
+unchanged content, with this precise mechanism named instead of the original
+2026-09-03 blocking reason (which was accurate before fb085 landed, and is
+now superseded by this finding for fb061 specifically — fb056/fb057/fb059
+are still blocked by the separate SPEC-FINAL.md wall above).
 
 ### Closed 2026-09-07 — c002 superseded by BALANCE DIRECTION v2 §D
 
