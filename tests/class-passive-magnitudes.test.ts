@@ -957,6 +957,122 @@ describe('c011 — Time Flow: damage past the stack cap is merged, not dropped',
   });
 });
 
+/**
+ * fb125: three blind spots the content lane's own mutation sweep above did
+ * not name, each found the same way — geometry (or a data field) that this
+ * file's other harnesses never varied, so a swap at the site survives every
+ * case that already exists. Not part of the nine-hole census above (these are
+ * not c006 holes), so plain `it`, not `itCovering`.
+ */
+
+describe("fb125 — Kinship's speed aura is read at the buffed unit's own position, not the Warden's", () => {
+  it('a summon standing outside the totem keeps its base cadence, even though the Warden stands right on it', () => {
+    const w = passiveWorld('animist');
+    expect(useClassActive2(w)).toBe(true); // the totem lands exactly on the Warden (WX, WY)
+    const totem = w.classSummons.find((s) => s.kind === 'animist_totem')!;
+    const radius = totem.auraRadius ?? 0;
+    expect(radius, 'harness totem has no radius to stand outside of').toBeGreaterThan(0);
+
+    // Placed well outside the totem's radius. The Warden never leaves the
+    // totem, so a read that used the Warden's position instead of this
+    // summon's own would find them in range regardless of where it stands.
+    const summon: ClassSummon = {
+      id: w.newId(),
+      x: totem.x + radius + 5,
+      y: totem.y,
+      dps: 10,
+      range: 100,
+      interval: 1,
+      aoe: 0,
+      attackCooldown: 0,
+      remaining: 100,
+      isAura: false,
+      kind: 'animist_spirit',
+    };
+    w.classSummons.push(summon);
+    dummy(w, summon.x + 1, summon.y);
+
+    updateClassSummons(w, DT);
+    expect(shaved(summon), 'a summon standing outside the totem was buffed anyway').toBe(0);
+  });
+});
+
+describe('fb125 — Spreading Plague transfers to the enemy nearest the dying carrier, not the Warden', () => {
+  it('picks the target next to the corpse even when a different enemy stands next to the Warden', () => {
+    const w = passiveWorld('plaguebringer');
+    // The carrier dies well clear of the Warden (still inside the shared
+    // probe board's EAST_REACH). One candidate stands beside the carrier, the
+    // other beside the Warden — a swap onto `wd.x, wd.y` would strike the
+    // wrong one.
+    const carrier = dummy(w, WX + 10, WY, 100);
+    const nearCorpse = dummy(w, WX + 11, WY);
+    const nearWarden = dummy(w, WX + 1, WY);
+    applyDot(w, carrier, 'poison', 20, 5, 'test');
+    const before = { corpse: nearCorpse.hp, warden: nearWarden.hp };
+
+    damageEnemy(w, carrier, 1e6, 'test');
+    expect(carrier.dead).toBe(true);
+    expect(nearCorpse.hp, 'the transfer did not reach the enemy next to the corpse').toBeLessThan(before.corpse);
+    expect(nearWarden.hp, 'the transfer struck the enemy next to the Warden instead of the corpse').toBe(
+      before.warden,
+    );
+  });
+});
+
+describe("fb125 — two rule-4 fallbacks that today's shipped data can never exercise", () => {
+  it("Time Flow's overflow-merge cap tracks a retuned maxStacksPerEnemy, not a hardcoded 50", () => {
+    const rawDamageTypes = content.raw.damageTypes as {
+      maxStacksPerEnemy: number;
+      types: { maxStacks?: number; [k: string]: unknown }[];
+      [k: string]: unknown;
+    };
+    const loweredCap = rawDamageTypes.maxStacksPerEnemy - 5;
+    expect(loweredCap, 'harness needs a lower cap to still be a legal one').toBeGreaterThan(0);
+    const c = loadContent({
+      damageTypes: {
+        ...rawDamageTypes,
+        maxStacksPerEnemy: loweredCap,
+        // A per-type `maxStacks` above the new cap is its own loader error
+        // (unrelated to what this case is about), so every row is clamped
+        // down with it.
+        types: rawDamageTypes.types.map((t) =>
+          t.maxStacks !== undefined && t.maxStacks > loweredCap ? { ...t, maxStacks: loweredCap } : t,
+        ),
+      },
+    });
+    expect(c.damageTypes.maxStacksPerEnemy, 'harness content did not pick up the retuned cap').toBe(loweredCap);
+
+    const w = passiveWorld('time_lord', c);
+    for (let i = 0; i < loweredCap + 3; i++) damageWarden(w, w.derived.maxHp * 0.001);
+    expect(w.warden.dots.length, "the merge cap stayed at the shipped 50 instead of tracking /data").toBe(
+      loweredCap,
+    );
+  });
+
+  it("auraSpeedMul falls back to +0%, not Kinship's shipped +15%, for an aura with no authored auraAtkSpdMul", () => {
+    // `recall_totem` itself always carries the field (REQUIRED_EFFECT_FIELDS
+    // refuses data without it), so the only way to reach this fallback is a
+    // synthetic aura built the way a future aura source might ship one short.
+    const w = passiveWorld('animist');
+    const bareAura: ClassSummon = {
+      id: w.newId(),
+      x: WX,
+      y: WY,
+      dps: 0,
+      range: 0,
+      interval: 0,
+      aoe: 0,
+      attackCooldown: 0,
+      remaining: 100,
+      isAura: true,
+      auraRadius: 10,
+      kind: 'fb125_bare_aura',
+    };
+    w.classSummons.push(bareAura);
+    expect(auraSpeedMul(w, WX, WY), 'an aura missing auraAtkSpdMul granted a buff anyway').toBe(1);
+  });
+});
+
 /* ------------------------------------------------------------- the census */
 
 describe('c011 — every hole c006 deferred has a case above', () => {

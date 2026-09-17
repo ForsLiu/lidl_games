@@ -4561,7 +4561,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       verdict is **not wanted** — c017's shipped additive shape
       (`fireDeadeyeDraw`) stands as-is. — refs: SPEC-FINAL §4.2 Archer, §14
       G10, Q168.
-- [ ] (fb125) [test] four blind spots the content lane measured but could
+- [x] (fb125) [test] four blind spots the content lane measured but could
       not fix outside its Scope: `tests/fb013-timelord.test.ts:498` lands
       every hit back-to-back, so `damageWarden`'s merge can be written as
       the push formula and stays green (age the stack array first);
@@ -4573,6 +4573,14 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       -> 50 and `classes.ts:1005` `auraAtkSpdMul ?? 0` -> 0.15 survive both
       passive files. Acceptance: a red-first case for each (four mutations,
       four reds) — refs: SPEC-FINAL §4.1/§4.2, BACKLOG-CONTENT.md c011 Log.
+      **Done 2026-09-17**: four new cases in `tests/class-passive-
+      magnitudes.test.ts` (Kinship aura position, Spreading Plague transfer
+      target, `maxStacksPerEnemy` hardcode, `auraAtkSpdMul` fallback), each
+      manually verified red under its named mutation and green on HEAD. The
+      back-to-back-merge clause turned out already covered by that file's
+      pre-existing Time Flow stack-cap `describe` (qa-playtester confirmed
+      a push-formula mutation still reds there), so no fifth case was
+      needed. See PROGRESS.md 2026-09-17 for the full writeup.
 - [x] (fb126) [feat] three rule-4 literals the player is shown as numbers:
       Time Flow's "4 s" is `TIME_FLOW_BASE_SECONDS` in `src/sim/run.ts:578`,
       and Thousand Cuts' bleed stack and Long Draw's per-second pierce are
