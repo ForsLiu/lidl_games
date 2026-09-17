@@ -838,41 +838,48 @@ honor.**
       per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q175/Q193, BACKLOG p12f/fb183.
 
-- [ ] (fb197) [balance] **found ahead of queue order 2026-09-15 while
-      shipping fb153b (working rule 3: a confirmed bug outranks the
-      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
-      `south` literal — both stale 36x20-era coordinates that had drifted
-      onto ordinary interior tiles at the shipped 56x32 grid, a live
-      gameplay bug (roughly a third of Act I spawns entering far closer to
-      the Core than the other two gates). Because `generateTerrain` takes
-      the gate list as an RNG-relevant input, the fix changes real
-      spawn-to-Core travel distance, and therefore real combat outcomes, at
-      every seed — not just terrain shape. Measured directly:
-      `tests/fb196-night1-basehpmul.test.ts`'s scripted-bot control pair
-      (seed 1, T3) flips — swordsman `defeat_warden` -> `victory`, pyromancer
-      `defeat_warden` -> `defeat_core` — at the exact seed/config the
-      fb196/fb193/fb185/p13a Night-1 bisection chain measured **G8** against
-      (both assertions `.skip`'d in that file with this finding, pending
-      this item). Every number that chain produced — fb196's fresh 12-seed
-      sweep (`tests/p6e-class-diversity.test.ts`'s header table), fb193's
-      before/after swordsman/necromancer/engineer bands, fb185's re-pin,
-      p13a's own shipping measurement — was measured against the *buggy*
-      gate position and is now stale, including this file's own "Owner
-      priority queue (2026-09-14 directive)" section text describing that
-      state. Acceptance: a fresh full 12-seed sweep of
-      `tests/p6e-class-diversity.test.ts` against the corrected gate
-      position, roster-wide (not just swordsman/pyromancer); the two
-      `fb196-night1-basehpmul.test.ts` assertions re-pinned to the newly
-      measured outcomes (or deleted in favor of a mechanism that still
-      demonstrates `baseHpMul`'s effect, if the corrected gate position
-      changes the control pair's own premise) and un-`.skip`-ed; G8's
-      recorded state in BACKLOG.md's owner-priority section text updated to
-      the fresh numbers with the before/after pair written down per
-      CLAUDE.md's measurement rules ("my change improved X needs the control
-      run, not the plausible story"); `tests/p13a-survivability-bands.test.ts`
-      and `tests/fb193`-adjacent measurements spot-checked for the same
-      dependency — refs: SPEC-FINAL §14 G8, BACKLOG fb153b/fb196/fb193/
-      fb185/p13a, QUESTIONS Q196/Q207.
+- [x] (fb197) [balance] **DONE 2026-09-16.** Fresh full 12-seed sweep of
+      `tests/p6e-class-diversity.test.ts` against the corrected gate position
+      (fb153b), roster-wide (wins/12, band `[5,8]`; before -> after):
+      swordsman 0->**11**, plaguebringer 0->**3**, engineer 4->**4**
+      (unchanged count, different seeds), pyromancer 0->**7** (**now in
+      band**, un-skipped), archer 0->**11**, necromancer 0->**2**, cryomancer
+      4->**4** (unchanged count, different seeds), stormcaller 0->**3**,
+      animist 4->**3**, paladin 0->**9**, bloodlord 3->**10**, time_lord
+      8->**8** (re-confirmed, already un-skipped). The roster-wide Night-1
+      `defeat_warden`@w3 collapse fb196 diagnosed is gone for most classes,
+      but the fix overshot the band's ceiling for five of them (swordsman/
+      archer/paladin/bloodlord all 9-11/12) while five others stay under the
+      floor for the wave-11-to-17 `defeat_core` wall already on record
+      (p10i) — only 2 of 12 (pyromancer, time_lord) land in band, up from 1
+      of 12. This is real balance work for a future session, not this
+      item's (measurement only, per its own acceptance). Fingerprint
+      distance (clause ii) moved 27->**37** failing pairs (the ceiling
+      overshoot flattens several classes' damage-share vectors toward the
+      same shared `hybrid`-tower signature). T1 (engineer) companion band
+      flipped from red (6/12, just under the 55% floor) to green (**7/12**,
+      58.3%, 25% close-win share exactly at its own floor) — un-skipped. T5
+      flipped from under-floor (0/12) to over-ceiling (**5/12**, 41.7%) —
+      still red, other side of the band. `tests/fb196-night1-
+      basehpmul.test.ts`'s control pair no longer demonstrates anything at
+      swordsman/pyromancer seed 1 (both now `victory`/w18 at *both*
+      `baseHpMul` 20 and 1) — the swordsman case is **deleted** (no seed in
+      its fresh 12-seed set still shows `defeat_warden`@w3 at baseHpMul 20);
+      the pyromancer case is **re-pinned to seed 2** (confirmed
+      `defeat_warden`@w3 at baseHpMul 20, `victory`/w18 at baseHpMul 1 — the
+      mechanism is still real) and un-skipped. `tests/p13a-
+      survivability-bands.test.ts` and `tests/fb193-survivability-
+      bands.test.ts` spot-checked: both are pure stat-derivation math
+      (`baseRunStats`/`derive()`, no terrain/spawn involvement) with no gate
+      dependency, unaffected, still green. `npm run test:fast`: 303 passed,
+      9 skipped, 0 failed (312) — unchanged baseline. Every number above
+      re-measured directly (full `tests/p6e-class-diversity.test.ts` run,
+      86.9 min; a throwaway `tools/` probe for pyromancer/time_lord/T1's
+      exact counts, deleted after use, same precedent as fb177/p12h/fb196; a
+      live re-run of `fb196-night1-basehpmul.test.ts`'s own harness for the
+      swordsman/pyromancer seed-1 and pyromancer seed-2 control pairs) — not
+      inferred from an older pass. refs: SPEC-FINAL §14 G8, BACKLOG
+      fb153b/fb196/fb193/fb185/p13a, QUESTIONS Q196/Q207.
 
 ### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
 

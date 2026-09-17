@@ -39,6 +39,21 @@
  * seed, same class, same everything except `baseHpMul`, so the outcome
  * flip is attributable to the one lever named above rather than inferred
  * from correlation across commits.
+ *
+ * **fb197 (2026-09-16) — resolved.** fb153b's gate-position fix (see the
+ * Known-issue this file carried, below) changed real spawn-to-Core travel
+ * distance at Night-1 for every seed, and a fresh full 12-seed sweep
+ * (`tests/p6e-class-diversity.test.ts`) confirmed both control-pair seeds
+ * this file pinned no longer demonstrate the mechanism: swordsman is
+ * `victory`/w18 at *both* `baseHpMul` 20 and 1 (no seed in its fresh 12-seed
+ * set still shows `defeat_warden`@w3 at baseHpMul 20 — the swordsman case
+ * below is deleted, not re-pinned, since there is no seed left to pin it
+ * to), and pyromancer seed 1 is likewise `victory`/w18 at both values now.
+ * The mechanism itself is still real, just not at seed 1 anymore: the fresh
+ * sweep shows pyromancer still losing to `defeat_warden`@w3 at seeds 2, 3
+ * and 11 — the pyromancer case below is re-pinned to seed 2 (confirmed:
+ * `defeat_warden`@w3 at baseHpMul 20, `victory`/w18 at baseHpMul 1) and
+ * un-skipped.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -91,37 +106,24 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
     expect(shipped.enemies.baseHpMul).toBe(20);
   });
 
-  // fb153b Known-issue (2026-09-15): correcting `GATES.east` (`src/sim/
-  // grid.ts` — stale 36x20-era `{tx:35,ty:17}`, an interior tile at the
-  // shipped 56x32 grid, landing roughly a third of Act I spawns far closer
-  // to the Core than intended) changes real spawn-to-Core travel distance at
-  // Night-1 for every seed — including seed 1 here. Measured post-fix:
-  // swordsman now `victory` (was `defeat_warden`), pyromancer now
-  // `defeat_core` (was also `defeat_warden`, but via a different failure
-  // mode). This is not a rescale-noise wobble; it is the *intended* effect
-  // of fixing a live gameplay bug the fb196/fb193/fb185/p13a bisection chain
-  // was never measuring against. Their numbers — and by extension G8's
-  // recorded state in BACKLOG.md's "Owner priority queue (2026-09-14
-  // directive)" section — need a fresh full re-measurement against the
-  // corrected gate position, not a quick re-pin here (this file's whole
-  // point is a controlled two-run control pair, and re-deriving the right
-  // `baseHpMul` story from a single edited run would repeat the mistake
-  // fb196 itself was filed to fix). Filed as **fb197** in BACKLOG.md.
-  // Re-enable point: fb197.
-  it.skip('swordsman seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'swordsman', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb153b (2026-09-15): corrected `GATES.east`/`world.ts`'s Fourth Gate
+  // `south` literal — both stale 36x20-era coordinates that had drifted onto
+  // ordinary interior tiles at the shipped 56x32 grid, landing roughly a
+  // third of Act I spawns far closer to the Core than the other gates. This
+  // changes real spawn-to-Core travel distance at Night-1 for every seed,
+  // including seed 1 here. fb197 (2026-09-16): a fresh full 12-seed sweep
+  // confirmed swordsman no longer loses to the first VS block at *any* of
+  // its 12 measured seeds (post-fix: 11/12 `victory`/w18) — there is no seed
+  // left for this control pair to pin for this class, so the case is
+  // deleted rather than re-pinned. See the header comment for the fuller
+  // story and pyromancer's own re-pinned case below.
 
-    const withShipped = runScriptedWithContent(config, shipped);
-    expect(withShipped.outcome).toBe('defeat_warden');
-    expect(withShipped.wavesCleared).toBe(3);
-
-    const withNeutral = runScriptedWithContent(config, neutral);
-    expect(withNeutral.outcome).not.toBe('defeat_warden');
-  }, 60_000);
-
-  // fb153b Known-issue — see the comment above. Re-enable point: fb197.
-  it.skip('pyromancer seed 1 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 1, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb197 (2026-09-16): re-pinned to seed 2 (seed 1 no longer demonstrates
+  // the mechanism for this class either — see the header comment). Seeds 2,
+  // 3 and 11 all still show `defeat_warden`@w3 in the fresh 12-seed sweep;
+  // seed 2 confirmed directly against both `baseHpMul` values below.
+  it('pyromancer seed 2 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 2, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');

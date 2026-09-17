@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-16 — main lane: BACKLOG fb197 closed — fresh G8 sweep against the
+  fb153b gate fix, roster-wide.** fb153b's gate-position correction changes
+  real spawn-to-Core travel distance at every seed, which made every prior
+  G8 measurement (fb196/fb193/fb185/p13a) stale. Fresh full 12-seed sweep
+  (`tests/p6e-class-diversity.test.ts`): the roster-wide Night-1
+  `defeat_warden`@w3 collapse those items diagnosed is gone for most classes,
+  but the fix overshot the band's ceiling for five (swordsman 0->11,
+  archer 0->11, paladin 0->9, bloodlord 3->10) while five others stay under
+  the floor for the already-documented wave-11-to-17 wall (plaguebringer 3,
+  engineer 4, necromancer 2, stormcaller 3, animist 3) — only pyromancer
+  (0->7, now un-skipped) and time_lord (unchanged, 8) land in band. This is
+  new, real balance work for a future session (recorded, not chased inside
+  this measurement-only item, per CLAUDE.md rule 8 and this item's own
+  acceptance). Fingerprint-distance diversity moved 27->37 failing pairs
+  (the ceiling overshoot flattens several classes' damage share toward the
+  shared `hybrid` tower build). The T1 companion band flipped green (6/12
+  under-floor -> 7/12 in band, un-skipped); T5 flipped from under-floor
+  (0/12) to over-ceiling (5/12), still red. `tests/fb196-night1-
+  basehpmul.test.ts`'s control pair no longer demonstrates anything at
+  swordsman/pyromancer seed 1 (both now win at both `baseHpMul` values) — the
+  swordsman case is deleted (no seed left in its 12-seed set shows the
+  mechanism), the pyromancer case is re-pinned to seed 2 (confirmed still
+  flips) and un-skipped. `tests/p13a-survivability-bands.test.ts`/`tests/
+  fb193-survivability-bands.test.ts` spot-checked and confirmed independent
+  of the gate position (pure stat-derivation math, no terrain involvement).
+  `npm run test:fast`: 303 passed, 9 skipped, 0 failed (312) — unchanged
+  baseline. Every number measured directly this session, not inherited.
 - **2026-09-16 — main lane: BACKLOG fb153b's own remaining "point 1" closed —
   `World` now reads the real four-gate `GATES`, not the stale `slice(0, 3)`.**
   `src/sim/world.ts`'s gate-list build silently dropped `GATES`'s own real
