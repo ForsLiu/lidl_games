@@ -9,7 +9,9 @@ describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
     expect(GRID_W).toBe(56);
     expect(GRID_H).toBe(32);
-    // fb156 grew the base list to 4 (one gate per edge); stale here since.
+    // fb156 grew the base gate list to four (west/north/east/south), one per
+    // edge; fb153b (BACKLOG.md, main-lane) is what made `World` actually read
+    // all four instead of silently slicing to the pre-resize three.
     expect(GATES.length).toBe(4);
     const g = new Grid();
     for (const gate of GATES) expect(g.tile[g.idx(gate.tx, gate.ty)]).toBe(TileType.Gate);
@@ -42,18 +44,16 @@ describe('grid', () => {
 
   it('rejects a placement that walls a gate off', () => {
     const g = new Grid();
-    // Box the west gate in completely. fb153/fb156 moved the west gate off
-    // its old 36x20-era (0, 10) to (0, 12) at the 56x32 grid (see `GATES`
-    // above) — this box's row stayed pinned to the old position and so
-    // walled off three ordinary interior tiles instead, a defect this
-    // session's own CI run caught (both `wouldBlockPath` assertions in this
-    // file and act1.test.ts came back false against the real gate).
+    // Box the west gate in completely. `GATES.west` is `{ tx: 0, ty: 12 }` on
+    // the shipped 56x32 layout (fb153b, BACKLOG.md, main-lane — re-measured
+    // against the real board, not the pre-resize `ty: 10` this box used to
+    // hardcode), so its only interior exit is `(1, 12)`, flanked by
+    // `(1, 11)`/`(1, 13)`.
     const box: [number, number][] = [
-      [1, GATES[0].ty - 1],
-      [1, GATES[0].ty],
-      [1, GATES[0].ty + 1],
+      [1, 11],
+      [1, 12],
+      [1, 13],
     ];
-    expect(GATES[0].key).toBe('west');
     expect(g.wouldBlockPath(box)).toBe(true);
     expect(g.allGatesReachable()).toBe(true); // state restored
   });

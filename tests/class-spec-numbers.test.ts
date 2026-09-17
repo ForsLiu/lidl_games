@@ -1010,13 +1010,10 @@ const LEDGER: readonly Figure[] = [
     path: ['active1', 'titheLifestealPct'],
     status: { kind: 'match' },
     note:
-      'fb086: was unimplemented — `s.tithed` fed `classTowerDamageMul` ' +
-      '(the damage half) and nothing read it for lifesteal. `applyTitheLifesteal` ' +
-      '(cores.ts) is the fifth `.tithed` reader this row used to wait on, called ' +
-      'from the same three sites that call `applyTowerLifesteal` (combat.ts x2, ' +
-      'towers.ts), gated on `s.tithed && w.huntsWarden` and healing the Warden ' +
-      '(not the structure) by `titheLifestealPct` of the tower\'s dealt damage — ' +
-      'see tests/fb086-blood-tithe-lifesteal.test.ts for the behavioural pin.',
+      'fb086: a tithed tower\'s own VS-phase damage heals the Warden by `titheLifestealPct` of ' +
+      'the damage dealt — the same Lifesteal crossing constant as `leech`/`towerLifestealPct` ' +
+      '(`applyTowerLifesteal`, cores.ts), inverse-scaled at load (content.ts). Covered by ' +
+      'tests/fb086-blood-tithe-lifesteal.test.ts.',
   },
   {
     cls: 'bloodlord',
@@ -1959,8 +1956,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196. fb082 separately closed
       // one remaining defect (Poison Barrel's cadence) as a match, and c004
       // closed Animist Kinship's summon-cap clause the same way. fb086 closed
-      // the last remaining unimplemented row (Bloodlord Blood Tithe's
-      // VS-share lifesteal) by wiring `titheLifestealPct` end to end.
+      // the last unimplemented row (Blood Tithe's VS-share lifesteal).
       match: 62,
       retuned: 18,
       elsewhere: 1,

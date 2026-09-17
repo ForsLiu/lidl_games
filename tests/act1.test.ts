@@ -51,19 +51,18 @@ describe('placement rules (SPEC 3.1)', () => {
     // Seal the west gate's only exit with three walls. Under the retired path
     // guarantee the third was 'blocks_path'; §10 makes it a legal seal that
     // enemies answer by breaching (tests/p1a-sealing.test.ts).
-    //
-    // fb153/fb156 moved the west gate off its old 36x20-era (0, 10) to
-    // (0, 12) at the 56x32 grid (`GATES[0]`) — this test's row stayed pinned
-    // to the old position and so walled off three ordinary interior tiles
-    // instead of the real gate, a defect this session's own CI run caught.
-    const gy = GATES[0].ty;
-    expect(GATES[0].key).toBe('west');
-    warp(w, 1, gy);
-    expect(buildTower(w, 1, 1, gy - 1).ok).toBe(true);
-    expect(buildTower(w, 1, 1, gy + 1).ok).toBe(true);
-    expect(w.grid.wouldBlockPath([[1, gy]])).toBe(true); // it is a seal…
-    expect(checkBuild(w, 1, 1, gy)).toBeNull(); // …and it is legal
-    expect(buildTower(w, 1, 1, gy).ok).toBe(true);
+    // fb153b (BACKLOG.md, main-lane): the west gate is `GATES.west` —
+    // `{ tx: 0, ty: 12 }` on the shipped 56x32 layout, not the pre-resize
+    // `ty: 10` this test hardcoded — so its only interior exit tile is
+    // `(1, 12)`, flanked by `(1, 11)`/`(1, 13)`, not `(1, 9)`/`(1, 11)`
+    // around a `(1, 10)` that is nowhere near the real gate. Re-measured
+    // against the real board, not hand-derived.
+    warp(w, 1, 12);
+    expect(buildTower(w, 1, 1, 11).ok).toBe(true);
+    expect(buildTower(w, 1, 1, 13).ok).toBe(true);
+    expect(w.grid.wouldBlockPath([[1, 12]])).toBe(true); // it is a seal…
+    expect(checkBuild(w, 1, 1, 12)).toBeNull(); // …and it is legal
+    expect(buildTower(w, 1, 1, 12).ok).toBe(true);
     expect(w.grid.allGatesReachable()).toBe(false);
   });
 
@@ -259,8 +258,10 @@ describe('economy and wave flow', () => {
     const w = run.world;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
     for (let i = 0; i < 60 * 30 && w.spawnQueue.length > 0; i++) run.step(emptyInput());
-    // 8 Husks per gate x 4 gates (fb153: World now plays all of GATES, not a
-    // stale first-3 slice).
+    // fb153b (BACKLOG.md, main-lane): `GATES` — and `World.gates`, once it
+    // reads the real list instead of the stale `slice(0, 3)` — has carried
+    // four base gates (west/north/east/south) since fb156. 8 Husks per gate
+    // x 4 gates.
     expect(w.kills + w.leaks + w.enemies.length).toBe(32);
     expect(GATES.length).toBe(4);
   });

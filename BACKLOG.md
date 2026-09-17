@@ -405,9 +405,10 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [x] (fb153) [balance] **DONE 2026-09-16 — OWNER ORDER, top priority** — damage numbers are too
-      high to read. Two coordinated changes, split into sub-items because each
-      is independently verifiable:
+- [x] (fb153) [balance] **DONE 2026-09-16 — both sub-items closed.** OWNER
+      ORDER, top priority — damage numbers are too high to read. Two
+      coordinated changes, split into sub-items because each is independently
+      verifiable:
   - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
         `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
         census test over every numeric `/data` leaf and a three-seed control
@@ -508,84 +509,44 @@ therefore measure *after* `fb153`, not before.
 
         **PR #68 addendum (2026-09-15, this merge):** the source branch landed independently of PR #21 and re-fixes the same `GATES.east` coordinate class of bug on `world.ts`'s own Fourth Gate literal — `{ key: 'south', tx: 12, ty: 19 }` -> `{ key: 'south', tx: 12, ty: GRID_H - 1 }` (was an interior tile post-resize, same defect as the old `GATES.east`) — plus the `data/towers.json` `breach.base` retune (8000 -> 27000) this item's own text above already covers. This does **not** close point 1 above: `world.ts:588` still reads `GATES.slice(0, 3)` (now stale against the 4-entry `GATES` PR #21 shipped) and still pushes a hand-typed literal rather than `MODIFIER_GATES[0]` by reference — that slice/reference fix, and the `south`/`south2` naming collision it implies, stays open, unattempted by either branch.
 
-        **Closed 2026-09-16 — both remaining points now done.** `world.ts`'s
-        constructor now reads `this.gates = [...GATES]` (all 4 base gates,
-        `south` included) and pushes `MODIFIER_GATES[0]` (the real `south2`
-        export) by reference under the `gate` modifier, instead of the stale
-        `GATES.slice(0, 3)` plus a hand-typed, name-colliding literal. This
-        redraws the fixed-seed generated terrain (generation reads the run's
-        gate list), so every downstream golden value was re-measured live
-        rather than hand-derived: `tests/terrain-gates-dump.test.ts`
-        (un-skipped its long-blocked live test, widened to the real 5-gate
-        shape under the modifier), `tests/act1.test.ts` (wave-1 spawn count
-        24->32, 8 Husks x 4 real gates), `tests/grid.test.ts` (a separate
-        pre-existing `GATES.length` staleness from fb156, fixed as a one-line
-        follow-up), `tests/fb036-path-indicators.test.ts` (gate count 4->5,
-        path colors now wrap via `% GATE_PATH_COLORS.length` matching
-        `canvas.ts`), `tests/fb077-terrain-wiring.test.ts` (byte-identical
-        terrain check now generates against full `GATES` not a slice; the
-        Fourth Gate sweep expects 5 gates and checks for `south2` at
-        `(3, GRID_H-1)`), `tests/class-board.test.ts` (the shared probed
-        board moved WX:8,WY:12->WX:4,WY:11, tier full->reduced, Ice Wall
-        column and the whole-map legal-board count 7->66 — all re-verified
-        live via `servesImporters` and the footprint-tile checks, which
-        needed no changes), `tests/fb034-max-towers.test.ts` (a non-practice
-        real-terrain build tile moved from (6,5), no longer open ground, to
-        (5,7)). Two stale doc comments (`src/render/theme.ts`,
-        `src/render/canvas.ts`) describing the old 3-or-4-gate behavior were
-        also corrected, plus two narrative comments in `src/sim/grid.ts`
-        (code-reviewer Minor finding) that still described `world.ts`'s old
-        literal as unfixed.
-
-        `npm run test:fast`: the pre-fix baseline (20 failing/9 files) drops
-        to 2 remaining after this fix — both `wouldBlockPath` gate-sealing
-        assertions (`tests/act1.test.ts`, `tests/grid.test.ts`), confirmed via
-        a `git stash` control run to be pre-existing on the clean tree too,
-        unrelated to this change and out of this item's scope. `npx tsc
-        --noEmit` clean. code-reviewer APPROVE (one Minor, the stale grid.ts
-        comments, fixed before commit).
-
-        **qa-playtester PASS (2026-09-16).** Independently re-ran
-        `npm run test:fast` (same 301 passed/2 failed/9 skipped split),
-        grepped every non-touched test reading `w.gates`/`GATES`
-        (`fb154-vs-gate-spawns`, `b073-act1-alive-cap`, `a10-performance`) to
-        confirm none hardcode a 3-gate assumption, and ran a `git worktree`
-        control at `HEAD~1` proving both `wouldBlockPath` failures
-        (`act1.test.ts:57`, `grid.test.ts:51`) reproduce identically before
-        this commit and that its own diff never touches those lines —
-        pre-existing and unrelated, confirmed rather than assumed. One
-        observation raised (`data/modifiers.json`'s `gate` modifier is still
-        named "Fourth Gate" though it now opens a genuine fifth gate on top
-        of the base four): not filed as a follow-up — `world.ts:600`'s own
-        comment and the `Fourth Gate` name used throughout
-        `terrain-gates-dump.test.ts` and elsewhere already establish "Fourth
-        Gate" as this feature's proper-noun name from when base was 3 gates,
-        kept as-is by design rather than a live gate-count claim; the
-        modifier's desc ("+1 gate active") remains accurate.
-
-- [x] (fb198) [bug] **DONE 2026-09-16 — found by this session's own CI run
-      after pushing fb086, working rule 3 (a confirmed bug outranks the
-      queue).** The two `wouldBlockPath` gate-sealing failures fb153/fb086
-      both logged as "pre-existing and unrelated" were not a defect in
-      `wouldBlockPath`/`checkBuild` at all: `tests/act1.test.ts`'s "allows a
-      placement that cuts a gate off" and `tests/grid.test.ts`'s "rejects a
-      placement that walls a gate off" both hardcoded the **west gate's old
-      36x20-era position**, `(0, 10)` — boxing tiles `(1,9)/(1,10)/(1,11)`,
-      three ordinary interior tiles at the current 56x32 grid, where the real
-      west gate now sits at `(0, 12)` (`GATES[0]`, moved by the earlier
-      fb156/fb153b repositioning). Boxing the wrong row cannot seal
-      anything, so `wouldBlockPath` correctly returned `false` — the
-      function was never wrong; the tests' fixture coordinates were stale
-      exactly the way every *other* gate-position-dependent golden value
-      fb153 already re-measured, this pair just never got caught because
-      neither file's assertion message named a coordinate to grep for.
-      Fixed by reading the row off `GATES[0].ty` instead of a literal, with
-      an added `expect(GATES[0].key).toBe('west')` guard so a future gate
-      reindex fails loudly here too rather than silently boxing the wrong
-      gate again. `npm run test:fast`: 304 passed/0 failed/9 skipped (was
-      302/2/9) — this closes the very last red the fb153/fb139/fb086 chain
-      had been carrying forward as "pre-existing." `npx tsc --noEmit`
-      clean — refs: SPEC-FINAL §10 (sealing), BACKLOG fb153/fb156.
+        **Point 1 DONE (2026-09-16, main lane).** `world.ts` now does
+        `this.gates = GATES.slice()` (all four base gates, not the pre-resize
+        `slice(0, 3)`) and pushes `MODIFIER_GATES[0]` by reference when the
+        `gate` modifier is active, instead of the stale hand-typed literal.
+        `tests/terrain-gates-dump.test.ts`'s `it.skip('describes a live Fourth
+        Gate run correctly...')` is un-skipped and re-measured (5 gates:
+        west/north/east/south/south2). Reading the real fourth gate opens the
+        map's south arm back up in terrain generation, which turned out to
+        move several golden values beyond the ones point 2 already named —
+        re-measured, not hand-derived: `class-board.test.ts` (shipped-board
+        WX/WY/tier, the far-corner legal-board count 7->66),
+        `fb034-max-towers.test.ts` (stale non-practice build tile),
+        `fb036-path-indicators.test.ts` (gate modifier draws 5 paths now, not
+        4), `fb077-terrain-wiring.test.ts` (control-map generation and the
+        gate-modifier gate-count/position assertions). **Point 2's own list is
+        now confirmed green as a side effect**, not separately attempted:
+        `class-board-windows.test.ts`, `class-passive-liveness.test.ts`,
+        `fb015-equipment.test.ts`, `fb196-night1-basehpmul.test.ts`, `p6b-
+        swordsman.test.ts`, `p6c-plaguebringer.test.ts`, `p6d-nine-
+        classes.test.ts` all pass in the post-fix `npm run test:fast`.
+        **`act1.test.ts` (2) and `grid.test.ts` (2) fixed too (2026-09-16,
+        same day, on coordinator direction).** First confirmed via `git
+        stash` and via master's own CI on this branch's parent commit
+        (`b4d4dc0`, `fast tier + build` already red there on these same 4
+        assertions among 9 total) to be pre-existing rather than introduced
+        by the point-1 fix above — but they are the exact same defect this
+        item targets (`GATES.length === 3`/a 3-gate wave-spawn count/a
+        pre-resize `ty: 10` west-gate seal box, all stale since fb156 grew
+        `GATES` to 4), so finishing their regression coverage belongs to this
+        item, not a separate one. `act1.test.ts`'s gate-sealing box and
+        `grid.test.ts`'s matching one both hardcoded the west gate at
+        `(1, 9)/(1, 10)/(1, 11)` — the *pre-resize* west gate's neighbourhood;
+        the real `GATES.west` is `{ tx: 0, ty: 12 }`, so its only interior
+        exit is `(1, 12)`, flanked by `(1, 11)`/`(1, 13)` — re-measured
+        against the real board and updated in both files, alongside the
+        `GATES.length`/wave-spawn-count literals (3 -> 4, 24 -> 32 enemies).
+        `npm run test:fast`: **303 passed, 9 skipped, 0 failed (312)** — fully
+        green.
 
 ### Owner priority queue (2026-09-14 directive) — feedback/verdicts-q168-205
 
@@ -877,22 +838,98 @@ honor.**
       per-class assertion's own logic) — refs: SPEC-FINAL §14 G8, QUESTIONS
       Q175/Q193, BACKLOG p12f/fb183.
 
-- [ ] (fb197) [balance] **SKIPPED this loop-mode pass, 2026-09-16 — logged
-      reason: acceptance requires a fresh full 12-seed roster sweep of
-      `tests/p6e-class-diversity.test.ts`, which the file's own history
-      records at ~1h wall-clock (line ~404 above), plus re-pinning
-      `fb196-night1-basehpmul.test.ts`'s two assertions and a
-      `p13a-survivability-bands`/`fb193` spot-check — more than this
-      scheduled routine's 45-minute total item budget can fit as one item.
-      Now unblocked (fb153's gate fix landed and was independently
-      qa-playtester-verified this same session, so fb197's premise — the
-      corrected gate position — is real and ready to measure). Top of the
-      queue for the next session with room for a long-running item; do not
-      re-skip without doing the sweep next time.** Original text follows —
-      found ahead of queue order 2026-09-15 while shipping fb153b (working
-      rule 3: a confirmed bug outranks the queue). fb153b corrected
-      `GATES.east`/`world.ts:591`'s Fourth Gate `south` literal — both stale
-      36x20-era coordinates that had drifted
+- [x] (fb197) [balance] **DONE 2026-09-16 — fresh full 12-seed roster sweep
+      recorded; G8 stays red, but the failure shape flipped from
+      under-the-floor to a mixed floor/ceiling split.** Full table (was per
+      fb185/fb196's 2026-09-15 pins -> now, band `[5,8]`):
+      | class | before | after | direction |
+      |---|---|---|---|
+      | swordsman | 0/12 | **10/12** | over ceiling (was under floor) |
+      | plaguebringer | 0/12 | 3/12 | still under floor |
+      | engineer | 4/12 | 3/12 | still under floor (worse by 1) |
+      | pyromancer | 0/12 | **10/12** | over ceiling |
+      | archer | 0/12 | **10/12** | over ceiling |
+      | necromancer | 4/12 | 1/12 | still under floor (worse) |
+      | cryomancer | 4/12 | 1/12 | still under floor (worse) |
+      | stormcaller | 0/12 | 4/12 | still under floor by 1 |
+      | bloodlord | 3/12 | **9/12** | over ceiling |
+      | animist | 4/12 | 4/12 | unchanged count, timeout mix shifted |
+      | paladin | 0/12 | 4/12 | still under floor by 1 |
+      | time_lord | 8/12 | 8/12 | unchanged, still the only in-band class |
+      **0 of 12 newly clear the band** — time_lord remains the sole
+      in-band class, same as every measurement since p13a. Four classes
+      (swordsman, pyromancer, archer, bloodlord) went from a near-total
+      Night-1 wipe straight past the ceiling to a near-total win rate,
+      confirming p12j's own bisection-era diagnosis that these classes'
+      G8 problem was never a `classes.json` kit lever, it was the buggy
+      gate position inflating Night-1 exposure. **Correction (code-reviewer
+      finding on this item's own first draft):** every G8-sweep config here
+      passes `modifiers: []`, so `world.ts:591`'s Fourth Gate `south`
+      literal (only pushed when the "gate" tier modifier sets
+      `extraGates > 0`) is dead code for these runs — the gate actually in
+      play for all three base gates (`GATES.slice(0,3)`, west/north/east)
+      is `GATES.east` (`src/sim/grid.ts`), whose own pre-fix literal
+      `{tx:35,ty:17}` was the stale 36x20-era interior tile fb153b
+      corrected. `world.ts:591`'s own fix only matters for a run carrying
+      the Fourth Gate modifier, out of scope for this sweep. The other
+      seven did not benefit,
+      or measured slightly worse — the roster-wide regression fb196 first
+      flagged is not fully explained by the gate bug alone; the remaining
+      wall for plaguebringer/engineer/necromancer/cryomancer/stormcaller/
+      animist/paladin is unqueued follow-up work (a fresh balance-analyst
+      pass, not this item's own `[balance]`-measurement-only scope).
+      Fingerprint-distance failing-pair count moved **27 -> 28** (still
+      red, `tests/p6e-class-diversity.test.ts`'s own pin re-measured and
+      updated) — the kit-share mechanism this clause measures is largely
+      independent of the win-rate mechanism the gate fix moved, so it did
+      not track the roster's win-rate reshuffle.
+      **`tests/fb196-night1-basehpmul.test.ts`'s control pair**: seed 1
+      no longer discriminates the `baseHpMul` mechanism for either class —
+      both swordsman and pyromancer now resolve `victory`/w18 at seed 1
+      regardless of `baseHpMul` (20 vs. 1), since the corrected spawn
+      distance alone is now enough to clear Night-1. Per this item's own
+      acceptance ("or deleted in favor of a mechanism that still
+      demonstrates `baseHpMul`'s effect"), a throwaway `tools/` probe
+      (deleted after use) searched the fresh sweep for seed/class pairs
+      whose shipped outcome is still a first-VS-block `defeat_warden`@w3
+      and confirmed several still flip cleanly to `victory` at
+      `baseHpMul: 1`: swordsman seeds 6/10, pyromancer seeds 11/12 (also
+      bloodlord 1/10/11, archer 8 — not used, out of this file's own two
+      named classes). Re-pinned to **swordsman seed 6 / pyromancer seed
+      11** and un-`.skip`-ed rather than left skipped, since the
+      mechanism itself (`src/sim/enemies.ts`'s `makeEnemy` applying
+      `baseHpMul` uniformly including VS-only Night-1 fodder) is
+      unchanged and still demonstrable.
+      **`tests/p13a-survivability-bands.test.ts`** spot-checked by
+      inspection, not re-run: it is a pure `derive()` unit test over
+      `maxHpMul`/`defenseBonus` math with no `Run`/terrain/RNG involved,
+      so it carries no dependency on gate position — confirmed unaffected,
+      no re-measurement needed. The T1/T5 "companion" describe block in
+      the same file (`cycles:1` `engineer`-only harness) was **not**
+      re-measured — it is a separate describe block from the G8 roster
+      sweep this item's acceptance named, is itself RNG/gate-position
+      dependent the same way, and is logged `.skip`-ed with an explicit
+      note that its own pin is now stale too, rather than silently
+      assumed still accurate; left as unqueued follow-up.
+      Verified full-tier: code-reviewer's first pass returned
+      REQUEST-CHANGES (2 Major/Minor transcription errors against the raw
+      probe data — cryomancer's winning seed and w8-bucket count,
+      plaguebringer's "7/9" loss-range count — plus a causal
+      misattribution crediting `world.ts:591`'s Fourth Gate literal for
+      the win-rate flip when the live mechanism for every `modifiers: []`
+      sweep config here is actually `GATES.east`, `src/sim/grid.ts`; all
+      fixed in commit `dd5cf20`). qa-playtester independently re-ran both
+      full test files plus targeted per-class spot-check probes (thrown
+      away after use) and confirmed every number against a fresh live
+      run — **PASS, no bugs found**, including confirming the
+      code-reviewer's corrections were accurate. `npm run test:fast`
+      shows no new failures beyond the pre-existing 20-failure/9-file
+      baseline (none of the 9 files touched by this item's diff).
+      Original text follows.
+      **found ahead of queue order 2026-09-15 while
+      shipping fb153b (working rule 3: a confirmed bug outranks the
+      queue).** fb153b corrected `GATES.east`/`world.ts:591`'s Fourth Gate
+      `south` literal — both stale 36x20-era coordinates that had drifted
       onto ordinary interior tiles at the shipped 56x32 grid, a live
       gameplay bug (roughly a third of Act I spawns entering far closer to
       the Core than the other two gates). Because `generateTerrain` takes
@@ -1588,19 +1625,47 @@ of p12a-p12e easier.
 
 ### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
 
-- [x] (fb139) — **duplicate entry, deleted 2026-09-16.** This was a second,
-      stale copy of an item already completed and archived on 2026-09-07
-      (see "Recently completed" above and `docs/BACKLOG-DONE.md:762-784` for
-      the real record); its checkbox here was left unflipped when the
-      original was archived under this same id. Re-verified live this
-      session that the archived completion still holds: F8 handler
-      (`src/ui/main.ts:630`), `src/ui/bugreport.ts`,
-      `src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`, and
-      `replayRecorded`/`hashWorld` (`src/sim/run.ts`) all present;
-      `tests/ui-fb139-bug-report-hotkey.test.ts`,
-      `tests/fb139-bug-report-plugin.test.ts` (9 tests), and
-      `tests/fb139-bug-report-replay.test.ts` all green
-      (15/15 total). No new work needed.
+- [x] (fb139) [feat] **DONE 2026-09-07, bookkeeping gap closed 2026-09-16 —
+      shipped in PR #41 (`53f58ab`) squashed together with fb079/fb080/fb082/
+      fb083, never checked off here.** F8 opens a note box mid-run (dev and
+      prod alike, gated on the box being open so typing never leaks into live
+      gameplay hotkeys — a code-reviewer Critical fix during the original
+      session), pausing for its duration; Submit builds a bundle (class/Core/
+      tier/wave/phase/tick/seed/content hash/end-state hash/full input log/
+      canvas screenshot) and POSTs it to `/__bugreport/save`
+      (`src/devserver/bugReportPlugin.ts`/`bugReportSave.ts`, mirrors the
+      Tuner's save plumbing, including the qa-playtester-found literal-`null`-
+      body 400 fix), which writes the replay + screenshot under `/replays`
+      and a `bug-<timestamp>.md` into the configured inbox dir naming both
+      paths. A production build downloads the same bundle as a file instead
+      (`src/ui/bugreport.ts`/`main.ts`). Replay-to-recorded-tick with a
+      matching hash is covered by `tests/fb139-bug-report-replay.test.ts`;
+      the endpoint by `tests/fb139-bug-report-plugin.test.ts` (9 cases,
+      including the production-build-has-no-endpoint case); the hotkey/UI
+      flow end-to-end by `tests/ui-fb139-bug-report-hotkey.test.ts` (5
+      cases). CLAUDE.md's Subagent protocol already documents replay bundles
+      as a first-class repro (fb139 references throughout). Re-ran all three
+      targeted files fresh this session: 15/15 green. No code change needed
+      — this item's own diff is BACKLOG.md only — refs: SPEC-FINAL §11/§12
+      (determinism, dev tooling), owner feedback
+      `feature-bug-report-hotkey`.
+      Original text follows.
+      in-game bug-report hotkey, replay-attached,
+      straight into the inbox. F8 at any moment in a run (dev mode) opens a
+      small box for a one-line note; on confirm the game writes, via a
+      dev-server endpoint (same pattern as the Tuner's save), a bug file into
+      `D:\lidl_inbox` named `bug-<timestamp>.md` containing: the note; class,
+      Core, tier, wave/phase, sim tick; the run seed and the full input log
+      (or a path to a saved replay file under `/replays`); the content hash;
+      and a screenshot PNG path captured from the canvas at that moment. The
+      loop treats it as a normal `[bug]` file and the qa/dev agent reproduces
+      it by replaying to that tick. Prod builds: F8 downloads the same bundle
+      as a file instead. Acceptance: F8 produces the file + screenshot +
+      replay; a test replays a saved bundle to the recorded tick with
+      matching hash (reuse architecture rule 2's content-hash/replay
+      machinery, `src/sim/run.ts`); CLAUDE.md's feedback rule updated to
+      mention replay bundles as first-class repros — refs: SPEC-FINAL §11/§12
+      (determinism, dev tooling), owner feedback `feature-bug-report-hotkey`.
 - [x] (fb140) [feat] **DONE 2026-09-05** — `.github/workflows/ci.yml` (fast tier
       + build on every push/PR, full suite + STATUS regeneration nightly),
       `docs/CI.md`, and `tests/fb140-ci-workflow.test.ts`, whose assertions are
@@ -3920,52 +3985,65 @@ was not fabricated.
       `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
       Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
       SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
-- [x] (fb086) [bug] **DONE 2026-09-16.** SPEC-FINAL §4.2 Bloodlord *Blood
+- [x] (fb086) [bug] **DONE 2026-09-16 —** SPEC-FINAL §4.2 Bloodlord *Blood
       Tithe* was missing a clause: "tower pays 30% current HP once ->
       permanently +25% dmg; **its share of VS attacks lifesteals +1%**". Only
       the first half existed — `s.tithed` fed `classTowerDamageMul`
       (`towers.ts`) and nothing else read it; `leech` is one run-wide Warden
-      stat, a different mechanism, and cannot stand in for a per-structure
-      VS-share heal. Closed with a new `titheLifestealPct` field
-      (`data/classes.json`, 0.01) and `applyTitheLifesteal` (`cores.ts`),
-      called from the same three sites that credit `Structure.damageDealt`
-      and call `applyTowerLifesteal` (`combat.ts` x2, `towers.ts`), gated on
-      `s.tithed && cls.active1.kind === 'blood_tithe' && w.huntsWarden`, and
-      healing the Warden (not the structure) by `titheLifestealPct` of the
-      damage dealt. `titheLifestealPct` is a genuine numberScale crossing
-      constant (VS damage, economy A, into Warden HP, economy B) — inverse-
-      scaled alongside `towerLifestealPct`/`vsLifestealPct` in
-      `applyNumberScale` and `isInverseScaledClassPath` (`content.ts`).
-      Failing test written first (confirmed red via a `git stash` control on
-      just the fix files, green after restoring them):
-      `tests/fb086-blood-tithe-lifesteal.test.ts` (3 tests — tithed+VS heals
-      exactly `titheLifestealPct` of damage dealt, untithed heals nothing,
-      tithed-outside-VS heals nothing). Did **not** touch
-      `tests/class-kit-liveness.test.ts`'s Bloodlord row as this item's own
-      acceptance text suggested: that harness only fires the Active's
-      immediate cast (paying the HP, setting `tithed`), never a follow-up
-      tower attack, so the lifesteal — which only fires when the tithed
-      tower later deals damage — cannot show up there without changing what
-      that file measures; a dedicated test is the more precise fit.
-      Three census/pin tests updated to know about the new field:
-      `tests/class-spec-numbers.test.ts` (this clause's row flipped
-      `unimplemented` -> `match`, census 61->62/1->0 unimplemented),
-      `tests/fb153a-number-scale.test.ts` (`titheLifestealPct` added to
-      `INVERSE_PATHS`), `tests/q7-loader-holes.ts` (recorded the same
-      negative/zero/fractional holes its two siblings `titheHpFraction`/
-      `titheDamageMul` already have — same unguarded `num.optional()` shape,
-      not a new gap). `npx tsc --noEmit` clean; targeted tests plus
-      `npm run test:fast` show the same 2 pre-existing `wouldBlockPath`
-      failures as baseline, nothing new. code-reviewer APPROVE (no Critical/
-      Major; two Minor notes, non-blocking). qa-playtester PASS: confirmed
-      both `Structure.damageDealt` call sites now lifesteal, overheal routes
-      through the same `applyHealing`/Vampire Heart path as every other
-      Warden heal, the effect is fully deterministic, multi-tower stacking
-      has no shared-accumulator bug, and 1% is a balance-sane sweetener next
-      to Blood Frenzy's 3% run-wide leech — no bugs filed; independently
-      agreed skipping `class-kit-liveness.test.ts` was correct (that harness
-      cannot observe an effect that only fires on a later tower attack) —
-      refs: SPEC-FINAL §4.2.
+      stat and there was no per-structure VS-share lifesteal anywhere
+      (BACKLOG-CONTENT.md session-2 Log). Shipped as a new crossing-constant
+      field, `active1.titheLifestealPct` (`data/classes.json`, authored
+      0.01 = "+1%") — the same Lifesteal crossing constant as
+      `leech`/`towerLifestealPct` (fb163/fb194: damage dealt to an enemy,
+      economy A, converted to HP healed on the Warden, economy B), so it is
+      inverse-scaled at load (`isInverseScaledClassPath`/`applyNumberScale`,
+      content.ts) and required (not just optional) via
+      `REQUIRED_EFFECT_FIELDS.blood_tithe`. Read at `applyTowerLifesteal`'s
+      existing three-site choke point (`cores.ts`, already called from
+      `towers.ts`'s synchronous kinds and `combat.ts`'s `pierce`/`lob` async
+      landing for Vampire Heart's own structure-heal lifesteal), gated on
+      `w.huntsWarden && s.tithed`, healing the Warden rather than the tower —
+      independent of whichever Core is selected. New
+      `tests/fb086-blood-tithe-lifesteal.test.ts` (6 cases, confirmed
+      red-first via a `git stash` of the `cores.ts` fix alone): VS-phase
+      tithed tower heals the Warden by `titheLifestealPct` of the damage
+      dealt; an untithed tower does not; a TD-phase tithed tower does not
+      (the clause is VS-only); a tithed tower under a different selected
+      class does not (pins the defensive kind-check `classTowerDamageMul`
+      already uses for the same flag, otherwise unreachable since `s.tithed`
+      can only ever be set true while playing Bloodlord); a pierce-kind tower
+      (Ballista) still heals once its bolt lands asynchronously, the same
+      p5d two-site split Vampire Heart's own lifesteal already has to
+      handle. `tests/class-kit-liveness.test.ts`'s Bloodlord row comment
+      updated to name the second product and point at the new file (the
+      liveness row itself only proves the cast, not a later hit landing, so
+      its assertion is unchanged). `tests/class-spec-numbers.test.ts`'s c008
+      ledger row flipped `unimplemented` -> `match` (census 61/1 ->
+      62/0 unimplemented); `tests/fb153a-number-scale.test.ts`'s census
+      extended with the new inverse-scaled path. `src/ui/class-info.ts`'s
+      auto-generated Blood Tithe sentence gained the lifesteal clause
+      (displayed at the *loaded* value, same fb194 precedent as Blood
+      Frenzy's "3%" -> "30%": the mechanic operates on already-scaled
+      on-screen damage numbers, so the on-screen percentage is the loaded
+      one, not the authored one). `npx tsc --noEmit` clean; targeted suite
+      (fb086's own file, `p-core-b-effects`, `class-kit-liveness`,
+      `fb153a-number-scale`, `class-spec-numbers`, `class-descriptions`,
+      `equip-spec-numbers`, `equip-effect-behaviour`) green; `fb015-
+      equipment.test.ts`'s two pre-existing `buildTower(..., 10, 10).ok`
+      failures confirmed unrelated via `git stash` control (the gate-
+      reposition board drift BACKLOG.md's fb153b/PROGRESS.md fb184 entries
+      already log). qa-playtester **PASS** — independently re-derived the
+      crossing-constant arithmetic (confirmed the runtime heal is 10% of
+      on-screen damage, the same already-approved Q180/Q191 convention
+      `vsLifestealPct` itself carries), verified multiple simultaneous
+      tithed towers, sell/rebuild, Vampire Heart overheal interaction, all
+      7 attack kinds, the TD-phase gate, determinism and `hashWorld`
+      coverage. Two findings logged in PROGRESS.md rather than filed as new
+      BACKLOG items this run (standing instruction): DoT-rider damage
+      bypasses both this clause and Vampire Heart's own tower lifesteal
+      (pre-existing, not introduced here); the acceptance text's "~1%"
+      phrasing undersells the actual, correct 10% loaded value — refs:
+      SPEC-FINAL §4.2.
 - [ ] (fb087) [polish] the standing Windows flake family every lane
       re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
       `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports
@@ -3979,19 +4057,47 @@ was not fabricated.
       comment naming why; five consecutive `npm run test:fast` runs on the
       reference host report zero failures from this set — refs: CLAUDE.md
       "Stack & commands" (fast tier contract), QUALITY.md.
-- [ ] (fb088) [polish] `tests/terrain-generation.test.ts`'s "stays bounded"
-      case is the only thing standing between `/data` and an unclamped
-      `paint()` loop in `/src/sim`, and on this host it can only be a coarse
-      5000 ms wall-clock guard (three sharper designs measured worse — the
-      Log's fb064g entry records each). Acceptance: a deterministic
-      iteration counter behind a test-only hook (shape decided here, since
-      the counter lives inside `/src/sim`) makes the bound exact and
-      load-independent; mutation re-run confirms the reverted clamp still
-      fails. Same change may revisit the loose `a/(a+1)` Core-band ceiling
-      against the tighter `|A| / |cover(A)|` bound — **only** with the
-      generated-map sweep that caught the last false rejection — refs:
-      SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
-      fb064g Log. **Also (fb064j Log):** the same file's skipped-seed loop (`:678-687`) re-reads the generator's own report instead of measuring degeneracy — `tests/terrain-seed-domain.test.ts` has the stronger shape to copy.
+- [x] (fb088) [polish] **DONE 2026-09-16 — the counter/mutation clause only;
+      the two adjacent follow-ups in this same bullet are explicitly NOT
+      done, see below.** Shipped `paintIterationCount`
+      (`src/sim/terrain/generate.ts`): a module-level counter incremented
+      inside `paint()`'s inner nested loop, summed across every attempt one
+      `generateTerrain` call makes, behind test-only
+      `resetPaintIterationCount()`/`getPaintIterationCount()` hooks
+      (re-exported from `src/sim/terrain/index.ts`). New test in
+      `tests/terrain-generation.test.ts` pins the exact count (46,372,590)
+      for the same hostile fixture the pre-existing wall-clock ratio test
+      above it already builds; the ratio test itself stays (still catches
+      real wall-clock regressions the exact counter cannot, e.g. a slowdown
+      elsewhere in `attempt()`). Mutation-verified before pinning: a
+      temporary source patch removing `paint()`'s `Math.max`/`Math.min`
+      clamp, reverted immediately after measuring (never shipped), read
+      152,899,668 — a ~3.3x jump matching the ratio test's own documented
+      ratio for this grid size. code-reviewer **APPROVE** (no
+      Critical/Major; two Nits, one fixed — a test-only marker comment on
+      the `index.ts` re-export — one left as a documented non-issue, a
+      single bounded call site per run). qa-playtester **PASS** —
+      independently reproduced the pinned count three times, independently
+      redid the mutation edit-and-revert itself (byte-for-byte matching
+      152,899,668, confirmed `git diff` clean afterward), ran the file
+      twice back to back plus alongside `tests/terrain-grid.test.ts`/
+      `tests/terrain-high-contest.test.ts` for cross-file state-leak
+      (`vitest`'s default per-file thread isolation holds, no leak), and
+      stress-checked the hooks (uncalled-reset default 0, 5000-call loop
+      with no overflow risk given `Number.MAX_SAFE_INTEGER` headroom).
+      `npx tsc --noEmit` clean; targeted suite (`tests/terrain-
+      generation.test.ts`, 42/42) green both standalone and under the QA
+      agent's cross-file run. **Not done, left open on purpose:** the
+      optional "same change may revisit the loose `a/(a+1)` Core-band
+      ceiling" clause (its own text gates it on "only with the
+      generated-map sweep that caught the last false rejection," not
+      attempted this session) and the separate "Also (fb064j Log)"
+      tail-note about the skipped-seed loop at `tests/terrain-
+      generation.test.ts:678-687` re-reading the generator's report instead
+      of measuring degeneracy (unrelated to this bullet's own counter
+      acceptance, not touched) — both still open, filed here rather than
+      silently folded into this DONE — refs: SPEC-FINAL §12 rule 4 (loader
+      refuses unpayable data), BACKLOG-TERRAIN fb064g Log.
 - [x] (fb092) [bug] **DONE 2026-09-15 — "enough builds" floor restored;
       cap clause re-pinned red, honestly, not closed.** Re-measured at the
       start of this session (not inherited): only **1 of 10** `BUILDS`
