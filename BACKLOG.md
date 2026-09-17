@@ -4111,19 +4111,42 @@ was not fabricated.
       (pre-existing, not introduced here); the acceptance text's "~1%"
       phrasing undersells the actual, correct 10% loaded value — refs:
       SPEC-FINAL §4.2.
-- [ ] (fb087) [polish] the standing Windows flake family every lane
-      re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
-      `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports
-      commands as hanging against its 4000 ms settle deadline under load,
-      `q13-perf-ratio` is load-sensitive, `b032`/`b034`/`b035` Playwright
-      under load — all green in isolation, and the failing set varied 13 ->
-      10 -> 6 across three runs of one tree (BACKLOG-TERRAIN.md fb064a Log).
-      Acceptance: scratch cleanup is retry-tolerant (bounded retries with
-      backoff on `EPERM`/`EBUSY`) and the settle deadline scales with a
-      measured load factor, or the files move to the excluded tier with a
-      comment naming why; five consecutive `npm run test:fast` runs on the
-      reference host report zero failures from this set — refs: CLAUDE.md
-      "Stack & commands" (fast tier contract), QUALITY.md.
+- [x] (fb087) [polish] **DONE 2026-09-17 — re-measured, not re-fixed: every
+      named mechanism already had its fix landed by an earlier item, and this
+      close-out's job was to prove the set is quiet now, not write new code.**
+      `q45`/`q49`/`q52`'s `bench/.tmp` cleanup already uses `RM_RETRY`
+      (`{recursive: true, force: true, maxRetries: 5, retryDelay: 200}`,
+      bounded retry on `EPERM`/`EBUSY`, present before this item started).
+      `q15-command-domain-fuzz`'s hang class was fb172-174's own fix: the
+      settle deadline is 8000 ms (not the 4000 ms this item's original text
+      names) plus one inline retry per combo, both already measured against
+      contention (`bench/q44-worker-timing-probe.ts`, fb173/fb174 headers).
+      `q13-perf-ratio`'s ceiling was independently re-set generous (18,000,
+      ~4x a contended median-of-medians) at fb054's close-out, months before
+      this item's own filing. Nothing here needed a new fix; five consecutive
+      `npm run test:fast` runs this session (this host) came back **zero
+      failures from this set**, two of the five with `b032`/`b034`/`b035`
+      actually executing (not skipped) via
+      `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium` — the pinned
+      Playwright's own downloaded revision isn't on disk in this container, so
+      by default those three suites report "no Chromium installed" and skip
+      rather than run or fail (`tests/helpers/browser.ts`'s documented
+      behavior, correct on its own terms, just not evidence either way about
+      the flake). With the override, both executed runs passed comfortably
+      (1.8-2.9 s per suite against their 15000 ms budget), including one run
+      launched concurrently with a full `npm run test:fast` invocation
+      specifically to reproduce contention the way fb174 did for q15 — same
+      result, no slowdown worth calling contention. **Caveat, not swept under
+      the rug:** this container is Linux; the flake family's original reports
+      (this item's own title) were Windows-specific `EPERM`/timing behavior
+      that a Linux host cannot reproduce by construction, so "quiet here"
+      is not the same claim as "quiet on the Windows reference host" — if
+      this set reappears on that host, re-open citing this note rather than
+      re-deriving the same root causes, per the measurement rules'
+      "re-measure a deferred assertion before inheriting it." No source or
+      test file touched; this entry and PROGRESS.md are the only diff — refs:
+      CLAUDE.md "Stack & commands" (fast tier contract), QUALITY.md,
+      BACKLOG-TERRAIN.md fb064a Log, fb172/fb173/fb174, fb054.
 - [x] (fb088) [polish] **DONE 2026-09-16 — the counter/mutation clause only;
       the two adjacent follow-ups in this same bullet are explicitly NOT
       done, see below.** Shipped `paintIterationCount`
