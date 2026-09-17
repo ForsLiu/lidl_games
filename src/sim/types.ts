@@ -11,12 +11,29 @@ export const TICKS_PER_SECOND = 60;
  * `> 0` gate silently eats a cast issued exactly `cooldownSeconds` after the
  * last one. Floor anything below this to 0 — far above float noise, far
  * below one tick (1/60s).
+ *
+ * fb128 (owner verdict, Q172): the floor must only catch that float noise,
+ * not a real negative overshoot. `next < COOLDOWN_EPS` caught both — every
+ * genuine overshoot (interval not an exact multiple of dt, e.g. any real
+ * firing cooldown) is far more negative than -1e-6, so it was discarded to
+ * exactly 0 every tick instead of carried into the next cooldown. Only one
+ * caller actually banks what this returns into the next cycle —
+ * `towers.ts`'s `updateTowers` does `s.cooldown += def.attack.interval`
+ * after a non-positive read, so a tower's true fire rate was quantised to
+ * whole 60 Hz ticks: a sub-tick attack-speed bonus changed nothing until it
+ * accumulated a full tick's worth on its own. (Every other caller —
+ * Warden/enemy/summon cooldowns — resets by absolute assignment on the same
+ * tick instead of accumulating, so this fix does not change their cadence;
+ * they stay tick-quantised by that separate construction.) Checking
+ * `Math.abs(next)` floors only true near-zero noise on either side of 0 and
+ * banks every real remainder, so a tower's fractional speed changes compound
+ * shot to shot instead of resetting every time its cooldown crosses zero.
  */
 export const COOLDOWN_EPS = 1e-6;
 
 export function tickCooldown(current: number, dt: number): number {
   const next = current - dt;
-  return next < COOLDOWN_EPS ? 0 : next;
+  return Math.abs(next) < COOLDOWN_EPS ? 0 : next;
 }
 
 export type Phase = 'act1_build' | 'act1_wave' | 'act2' | 'levelup' | 'results';
