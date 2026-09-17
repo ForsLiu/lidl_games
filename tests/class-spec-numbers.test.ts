@@ -160,7 +160,7 @@ interface Absence {
    * trimmed, must equal `lines` exactly.
    *
    * Searching `data/classes.json` alone is not enough to say a clause is
-   * still unimplemented: eight §4 figures in this very ledger ship as `/src`
+   * still unimplemented: five §4 figures in this very ledger ship as `/src`
    * literals, so code is the precedent. QA implemented Animist's summon cap
    * +1 as `+ (w.warden.classKey === 'animist' ? 1 : 0)` at a cap site and the
    * ledger stayed green, still asserting the clause was unimplemented. Whole
@@ -261,7 +261,6 @@ const NO_FIGURE: readonly { cls: string; slot: Slot; clause: string; why: string
 ];
 
 const CLASSES_TS = 'src/sim/classes.ts';
-const RUN_TS = 'src/sim/run.ts';
 
 /** p6e — G8's first honest per-class win-rate measurement, PROGRESS.md. */
 const P6E =
@@ -294,23 +293,9 @@ const LEDGER: readonly Figure[] = [
     figure: 'each attack applies 1 Bleeding',
     quote: 'applies 1 Bleeding',
     spec: 1,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'in_code',
-      site: "passiveOnHit — the base count is the `1` in `Array(1 + extra)`, and BLEEDING_ON_HIT is its one-element default",
-      file: CLASSES_TS,
-      anchors: [
-        /const BLEEDING_ON_HIT: readonly string\[\] = \['bleeding'\];/,
-        /Array\(1 \+ extra\)\.fill\('bleeding'\) : BLEEDING_ON_HIT;/,
-      ],
-      why:
-        'The stack count is a literal. Only the §6.3 skill card\'s *extra* stacks are data-driven ' +
-        '(`classLineBonus`); the base 1 the passive itself states is not authored anywhere. Exact ' +
-        'twin of Pyro\'s "applying 3 Burning", which *is* authored.',
-      in: 'passive',
-      absentKey: /bleed|stacks|onHit/i,
-    },
+    path: ['passive', 'bleedBaseStacks'],
+    status: { kind: 'match' },
+    note: 'fb126: the base stack count moved from a `passiveOnHit` literal into this field.',
   },
   {
     cls: 'swordsman',
@@ -440,23 +425,13 @@ const LEDGER: readonly Figure[] = [
     clause: 'Long Draw (passive)',
     figure: '+1 pierce per full second charged',
     spec: 1,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'in_code',
-      site: 'fireDeadeyeDraw — `Math.min(pierceCap, 1 + Math.floor(held)) + classLineBonus(w)`',
-      file: CLASSES_TS,
-      anchors: [/const hits = Math\.min\(eff\.pierceCap \?\? 1, 1 \+ Math\.floor\(held\)\) \+ classLineBonus\(w\);/],
-      why:
-        'The *rate* (1 per second) and the base (1) are both literals; only the ceiling ' +
-        "(`pierceCap`) is authored. This is one of c006's three prose-only passive rows — " +
-        'c006 pins that the clause lives on `active1`; this row pins its number. ' +
-        "c017 moved the §6.3 card's bonus out of the `min` and onto the resolved count " +
-        '(it was inert inside it, `pierceCap 6` sitting at exactly `1 + chargeCapSeconds`); ' +
-        "the passive's own rate and base are untouched by that, and this pointer follows the fix.",
-      in: 'active1',
-      absentKey: /pierce(?!Cap)/i,
-    },
+    path: ['passive', 'piercePerSecond'],
+    status: { kind: 'match' },
+    note:
+      'fb126: the rate (and, since they share one literal on shipped data, the base hit at zero ' +
+      "charge) moved from a `fireDeadeyeDraw` literal into this field — read as `pierceRate * (1 + " +
+      "Math.floor(held))`. c006 still pins that the *clause* (the formula this feeds) lives on " +
+      "active1's `fireDeadeyeDraw`; only where the number is authored moved.",
   },
   {
     cls: 'archer',
@@ -1292,38 +1267,12 @@ const LEDGER: readonly Figure[] = [
     clause: 'Time Flow (passive)',
     figure: 'damage taken becomes a 4 s DoT',
     spec: 4,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'in_code',
-      site: 'TIME_FLOW_BASE_SECONDS',
-      file: RUN_TS,
-      anchors: [
-        /const TIME_FLOW_BASE_SECONDS = 4;/,
-        // fb152 reformatted this push across lines when it gained the cadence
-        // accumulators; fb085 (unblocking fb056's Chronomail) then wrapped
-        // the base constant in `timeFlowWindowSeconds(w)` so an equipped
-        // item can widen the window — the figure this row pins (the base 4)
-        // is unmoved, just read through one more seam.
-        /dps: \(dmg \* speedMul\) \/ windowSeconds,\s*\n\s*remaining: windowSeconds \/ speedMul,/,
-      ],
-      why:
-        'The passive authors `charDotSpeedMul` (the dormant equipment flag) but not the base ' +
-        'duration the multiplier applies to, so this §4 figure is a `/src` constant — fb085 added a ' +
-        "second, equipment-driven multiplier (`timeFlowWindowSeconds`, fb056's Chronomail seam) on " +
-        'the same constant, still a literal 4 absent that item.',
-      in: 'passive',
-      absentKey: /dot|flow|convert|baseSeconds/i,
-      knownKeys: [
-        'passive.charDotSpeedMul',
-        'active1.markPastDotDps',
-        'active1.markPastDotSeconds',
-        'active1.markPresentDotDps',
-        'active1.markPresentDotSeconds',
-        'active1.markFutureDotSeconds',
-        'active2.zoneDotSeconds',
-      ],
-    },
+    path: ['passive', 'charDotSeconds'],
+    status: { kind: 'match' },
+    note:
+      'fb126: the base window moved from the `TIME_FLOW_BASE_SECONDS` run.ts literal into this ' +
+      "field, read by `timeFlowWindowSeconds(w, cls)` before `charDotSpeedMul` divides it and fb085's " +
+      "Chronomail seam (`windowMul`) widens it — both untouched by the move.",
   },
   {
     cls: 'time_lord',
@@ -1777,7 +1726,7 @@ describe('c008 — SPEC-FINAL §4.1/§4.2: every stated figure, matched or named
             `${id(f)}: a new classes.json key matches this figure (expected under ${f.cls}.${st.in}) — re-file this row as a match`,
           ).toEqual([...(st.knownKeys ?? [])].sort());
           // ...and the `/src` half. A clause can be implemented in code just
-          // as easily as in data — eight figures in this ledger already are —
+          // as easily as in data — five figures in this ledger already are —
           // so without this the row would keep asserting "unimplemented" after
           // the clause had shipped.
           expect(
@@ -1945,7 +1894,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 62 match · 18 retuned · 1 elsewhere · 8 in code · 0 unimplemented · 0 defect', () => {
+  it('census: 65 match · 18 retuned · 1 elsewhere · 5 in code · 0 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1967,11 +1916,14 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // bonusRangeMul/bonusAoeMul) — QUESTIONS Q196. fb082 separately closed
       // one remaining defect (Poison Barrel's cadence) as a match, and c004
       // closed Animist Kinship's summon-cap clause the same way. fb086 closed
-      // the last unimplemented row (Blood Tithe's VS-share lifesteal).
-      match: 62,
+      // the last unimplemented row (Blood Tithe's VS-share lifesteal). fb126
+      // moved three rule-4 literals (Thousand Cuts' base stack, Long Draw's
+      // pierce rate, Time Flow's base window) from in_code into /data fields,
+      // each now a match.
+      match: 65,
       retuned: 18,
       elsewhere: 1,
-      in_code: 8,
+      in_code: 5,
       unimplemented: 0,
       defect: 0,
     });

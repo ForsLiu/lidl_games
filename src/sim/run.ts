@@ -3,7 +3,7 @@
  * end-state hashing. A run is fully determined by RunConfig + input log.
  */
 
-import { defaultCoreKey, loadContent, type Content } from './content';
+import { defaultCoreKey, loadContent, type ClassDef, type Content } from './content';
 import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
 import { Hasher } from './hash';
 import { clamp, normalize } from './math';
@@ -589,19 +589,19 @@ export function wardenArmor(w: World): number {
   return w.derived.armor - w.warden.armorShred + classArmorBonus(w);
 }
 
-/** fb013 Time Lord *Time Flow*: the fixed base duration its converted DoT resolves over at `charDotSpeedMul === 1`. */
-const TIME_FLOW_BASE_SECONDS = 4;
+/** fb126, rule 4: fallback only — shipped data always authors `time_lord.passive.charDotSeconds` (REQUIRED_PASSIVE_FIELDS, content.ts), so this never actually fires. */
+const TIME_FLOW_BASE_SECONDS_FALLBACK = 4;
 
 /**
  * fb085 (unblocking fb056's Chronomail): the seam that item needs — Time
- * Flow's window (`TIME_FLOW_BASE_SECONDS` above), widened by the equipped
- * item's own `effectNums.windowMul` (default 1, a no-op when Chronomail is
- * not equipped or authors no such number). `windowMul` scales the *base*
- * before `charDotSpeedMul` divides it, so the two stack the same way two
- * independent multipliers on one duration always do.
+ * Flow's window (`cls.passive.charDotSeconds`, fb126), widened by the
+ * equipped item's own `effectNums.windowMul` (default 1, a no-op when
+ * Chronomail is not equipped or authors no such number). `windowMul` scales
+ * the *base* before `charDotSpeedMul` divides it, so the two stack the same
+ * way two independent multipliers on one duration always do.
  */
-function timeFlowWindowSeconds(w: World): number {
-  return TIME_FLOW_BASE_SECONDS * equipmentEffectNum(w, 'chronomail', 'windowMul', 1);
+function timeFlowWindowSeconds(w: World, cls: ClassDef): number {
+  return (cls.passive.charDotSeconds ?? TIME_FLOW_BASE_SECONDS_FALLBACK) * equipmentEffectNum(w, 'chronomail', 'windowMul', 1);
 }
 
 /**
@@ -683,7 +683,7 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       // (`dot: true` on the re-entrant tick), the same convention every
       // enemy-facing DoT in the sim already follows.
       const speedMul = Math.max(cls.passive.charDotSpeedMul ?? 1, 0.01);
-      const windowSeconds = timeFlowWindowSeconds(w);
+      const windowSeconds = timeFlowWindowSeconds(w, cls);
       const cap = w.content.damageTypes.maxStacksPerEnemy;
       if (wd.dots.length < cap) {
         wd.dots.push({

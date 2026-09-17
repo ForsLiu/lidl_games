@@ -20,7 +20,7 @@
  *
  * Four statuses, and only the first needs no authorisation:
  *
- *   `field`    — the number equals a field on the row's own slot. 26 claims.
+ *   `field`    — the number equals a field on the row's own slot. 29 claims.
  *   `sibling`  — the number is authored in `/data`, but on a *different* slot
  *                of the same class, so the sentence and the field it quotes
  *                cannot be kept together by the row alone. Both Conduction
@@ -28,8 +28,9 @@
  *   `in_code`  — the number is a literal in `/src`, which architecture rule 4
  *                says it should not be. Pinned by a capture group *around the
  *                literal itself*, and counted so the rule-4 debt is a number
- *                (c008 counts the same debt from the spec side; these three
- *                are the subset the *player* is also shown).
+ *                (c008 counts the same debt from the spec side; these were
+ *                the subset the *player* is also shown — `fb126` moved all
+ *                three into `/data` as `field` claims, so the count is 0).
  *   `prose`    — the numeral is not a magnitude at all but part of the rule's
  *                own wording ("counts as 1 attack"). One claim. It is the one
  *                status that authorises itself, so the census below is what
@@ -117,7 +118,7 @@
  * records the same commit). All 24 sentences agree with every number this
  * ledger can reach today. The deliverable is the barrier, not a fix.
  *
- * refs: SPEC-FINAL §4.1/§4.2, c008, c010, architecture rule 4.
+ * refs: SPEC-FINAL §4.1/§4.2, c008, c010, fb126, architecture rule 4.
  */
 
 import { readFileSync } from 'node:fs';
@@ -155,9 +156,6 @@ const CONVERT: Record<Convert, (v: number) => number> = {
   pctLess: (v) => -v * 100,
 };
 
-const CLASSES_TS = 'src/sim/classes.ts';
-const RUN_TS = 'src/sim/run.ts';
-
 /** c010 — the filed, Scope-blocked item that moves Conduction onto its own row. */
 const C010 =
   'c010 (BACKLOG-CONTENT, blocked out of Scope): "Stormcaller Conduction is authored on the wrong ' +
@@ -165,12 +163,6 @@ const C010 =
   '`active1` as `chainGrowth`/`chainCap`. The item moves them onto the passive row and has ' +
   '`fireChainSurge` read them from there; until it lands, the sentence and the fields it quotes ' +
   'are one slot apart and this ledger is what keeps them equal.';
-/** Architecture rule 4 debt, shared with c008's `in_code` rows. */
-const RULE4 =
-  'CLAUDE.md architecture rule 4 / c008 (`tests/class-spec-numbers.test.ts`, status `in_code`): the ' +
-  'figure is correct but ships as a `/src` literal instead of a `/data` field, so no path can be ' +
-  'declared for it. c008 counts the same debt from the spec side; these are the rows the player is ' +
-  'also shown, pinned here by a capture group around the literal so it cannot move without going red.';
 /** The one self-authorising status; the census is what bounds it. */
 const C015 =
   "c015 (this item): the numeral is part of the rule's wording rather than a magnitude — it states " +
@@ -309,20 +301,7 @@ const LEDGER: readonly Claim[] = [
     token: '1',
     means: 'stacks of Bleeding applied per attack',
     keywords: ['Bleeding'],
-    status: {
-      kind: 'in_code',
-      value: 1,
-      file: CLASSES_TS,
-      valueAnchor: /^return extra > 0 \? Array\((\d+) \+ extra\)\.fill\('bleeding'\) : BLEEDING_ON_HIT;$/,
-      anchors: [/^const BLEEDING_ON_HIT: readonly string\[\] = \['bleeding'\];$/],
-      absentKey: /bleed|stack/i,
-      knownKeys: [],
-      authorised: RULE4,
-      why:
-        'The base count is the captured `1` in `Array(1 + extra)`, and the second anchor pins the ' +
-        "one-element default it falls back to. `extra` is p7a's *Thousand Cuts* skill card, which " +
-        'adds stacks per rank on top of it.',
-    },
+    status: { kind: 'field', path: ['passive', 'bleedBaseStacks'] },
   },
   {
     cls: 'swordsman',
@@ -404,24 +383,7 @@ const LEDGER: readonly Claim[] = [
     token: '+1',
     means: 'extra pierce per full second charged',
     keywords: ['pierce per full second'],
-    status: {
-      kind: 'in_code',
-      value: 1,
-      file: CLASSES_TS,
-      valueAnchor:
-        /^const hits = Math\.min\(eff\.pierceCap \?\? 1, (\d+) \+ Math\.floor\(held\)\) \+ classLineBonus\(w\);$/,
-      absentKey: /pierce/i,
-      knownKeys: ['active1.pierceCap'],
-      authorised: RULE4,
-      why:
-        '`1 + Math.floor(held)` is the whole clause: one hit at zero charge and one more per full ' +
-        'second held. The capture takes the base term; the per-second step is the implicit ' +
-        "coefficient on `Math.floor(held)`, which the whole-line match is what pins. `active1`'s " +
-        '`pierceCap` is the ceiling this counts up to, not this number, and is the one key the ' +
-        'absence search is allowed to find. c017 moved the §6.3 card term out of the `min` and ' +
-        "onto the resolved count (it was inert inside it); the passive's own base and per-second " +
-        'step are untouched by that, and this anchor follows the fix.',
-    },
+    status: { kind: 'field', path: ['passive', 'piercePerSecond'] },
   },
   {
     cls: 'archer',
@@ -620,19 +582,7 @@ const LEDGER: readonly Claim[] = [
     token: '4 s',
     means: 'the window the converted damage resolves over',
     keywords: ['DoT'],
-    status: {
-      kind: 'in_code',
-      value: 4,
-      file: RUN_TS,
-      valueAnchor: /^const TIME_FLOW_BASE_SECONDS = (\d+(?:\.\d+)?);$/,
-      absentKey: /charDot|timeFlow/i,
-      knownKeys: ['passive.charDotSpeedMul'],
-      authorised: RULE4,
-      why:
-        'The row authors `charDotSpeedMul` (a dormant, shipped-at-1 speed multiplier) but not the ' +
-        'base window it scales; that is a `run.ts` constant. A `charDotSeconds` field would need ' +
-        "content.ts's schema and run.ts's reader, both outside this lane's Scope — logged, not fixed.",
-    },
+    status: { kind: 'field', path: ['passive', 'charDotSeconds'] },
   },
   {
     cls: 'time_lord',
@@ -1134,6 +1084,6 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       sentences: new Set(LEDGER.map((c) => `${c.cls}.${c.slot}`)).size,
       wordless: NO_NUMBER.length,
       wordNumbers: WORD_NUMBERS.length,
-    }).toEqual({ field: 26, sibling: 2, in_code: 3, prose: 1, sentences: 22, wordless: 2, wordNumbers: 4 });
+    }).toEqual({ field: 29, sibling: 2, in_code: 0, prose: 1, sentences: 22, wordless: 2, wordNumbers: 4 });
   });
 });

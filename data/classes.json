@@ -18,7 +18,8 @@
         "name": "Thousand Cuts",
         "description": "Each attack (including Active attacks; each damage instance from an Active counts as 1 attack) applies 1 Bleeding.",
         "mods": {},
-        "kind": "thousand_cuts"
+        "kind": "thousand_cuts",
+        "bleedBaseStacks": 1
       },
       "active1": {
         "name": "Circle Slash",
@@ -210,7 +211,8 @@
       "passive": {
         "name": "Long Draw",
         "description": "Deadeye damage has no cap; +1 pierce per full second charged.",
-        "mods": {}
+        "mods": {},
+        "piercePerSecond": 1
       },
       "active1": {
         "name": "Deadeye Draw",
@@ -552,7 +554,8 @@
         "description": "Damage taken becomes a 4 s DoT after one armor mitigation, instead of landing at once.",
         "mods": {},
         "kind": "time_flow",
-        "charDotSpeedMul": 1
+        "charDotSpeedMul": 1,
+        "charDotSeconds": 4
       },
       "active1": {
         "name": "Time",

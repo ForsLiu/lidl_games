@@ -38,6 +38,77 @@
   `totem.x + radius + 5` offset is data-derived so the probe-board guard's
   literal `WX + N` regex can't see it — harmless on shipped `recall_totem.
   radius: 4`, worth a look only if that field is ever retuned far larger).
+- **2026-09-17 — main lane: BACKLOG fb126 done — three player-shown rule-4
+  literals moved into `/data`, no player-visible behavior change.** Time
+  Lord's Time Flow ("4 s"), Swordsman's Thousand Cuts ("applies 1 Bleeding")
+  and Archer's Long Draw ("+1 pierce per full second charged") each had their
+  number tracked by `tests/class-descriptions.test.ts`/`tests/class-spec-
+  numbers.test.ts`'s ledgers as an `in_code`/`in_code` rule-4 debt row
+  (CLAUDE.md architecture rule 4: "all content and numbers live in
+  `/data/*.json`, never in code"). Added `time_lord.passive.charDotSeconds`,
+  `swordsman.passive.bleedBaseStacks`, `archer.passive.piercePerSecond` to
+  `data/classes.json`, read by `timeFlowWindowSeconds(w, cls)` (run.ts,
+  signature gained a `cls` parameter — one call site, in `damageWarden`),
+  `passiveOnHit` and `fireDeadeyeDraw` (classes.ts). `passiveOnHit` keeps its
+  original `BLEEDING_ON_HIT`-constant fast path when `base + extra === 1`
+  (the common case on shipped data); `fireDeadeyeDraw`'s pierce count is now
+  `pierceRate * (1 + Math.floor(held))`, algebraically identical to the old
+  `1 + Math.floor(held)` at the shipped `pierceRate === 1`.
+  `time_flow`/`thousand_cuts` joined `REQUIRED_PASSIVE_FIELDS` in content.ts
+  so the loader throws if either field is missing; `piercePerSecond` has no
+  bespoke passive `kind` to gate on (Long Draw is a plain `mods: {}` passive)
+  so it keeps a `?? 1` fallback, the same shape every other kind-less bespoke
+  passive number in that schema already has.
+  code-reviewer's first pass (full tier, this touches `/src/sim`) found two
+  Major findings the first schema draft (bare `num.optional()` on all three)
+  missed: `charDotSeconds` at 0/negative would divide `dps: dmg / 0` in
+  `damageWarden`'s DoT push (`Infinity`, poisoning replay hashes — rule 2's
+  reproducibility guarantee); `bleedBaseStacks` at a fractional/negative
+  value would throw `RangeError` out of `Array(total)` on Thousand Cuts'
+  first landed hit. Neither hazard existed before this item — the `/src`
+  literals they replaced were safe by construction. Closed both:
+  `charDotSeconds: num.positive().optional()`, `bleedBaseStacks: num.int().
+  min(1).optional()`. The same pass also flagged (Minor) that
+  `piercePerSecond`'s multiplicative reformulation couples the base hit and
+  the per-second rate onto one number — a future retune to, say,
+  `piercePerSecond: 2` would also double the zero-charge base hit, a side
+  effect the description text doesn't promise. Decided to keep the coupled
+  formula rather than decompose to `1 + rate * Math.floor(held))`, since that
+  would reintroduce a hardcoded literal `1` base — new rule-4 debt of exactly
+  the kind this item exists to remove — and tightened the field's bound
+  instead (`num.int().positive()`, since `fireDeadeyeDraw` feeds the product
+  straight into `lineHit`'s integer hit-count parameter). Second code-review
+  pass: APPROVE, no further findings.
+  `tests/class-descriptions.test.ts`'s three `in_code` claims (Thousand
+  Cuts, Long Draw, Time Flow) flip to `field` status pointing at the new
+  paths; census `{field: 29 (was 26), sibling: 2, in_code: 0 (was 3), prose:
+  1}`. `tests/class-spec-numbers.test.ts`'s matching three `in_code` rows
+  flip to `match`; census `{match: 65 (was 62), retuned: 18, elsewhere: 1,
+  in_code: 5 (was 8), unimplemented: 0, defect: 0}`. Removed the now-unused
+  `RULE4`/`CLASSES_TS`/`RUN_TS` consts those three claims were the only
+  readers of in `class-descriptions.test.ts` (`class-spec-numbers.test.ts`
+  keeps `CLASSES_TS`, still read by its other five `in_code` rows).
+  `tests/q7-loader-holes.ts` (the `loadContent()` fuzz-census artifact)
+  regenerated twice via `Q7_RECORD=1 npx vitest run tests/q7-data-fuzz.test.ts`
+  — once for the first schema draft (three additive `ACCEPTED` lines), once
+  more after the review-driven tightening (`bleedBaseStacks` leaves
+  `ACCEPTED` entirely, no open mutation family left; `charDotSeconds`
+  narrows to `['fractional']`; `piercePerSecond` narrows to `['drop-key',
+  'rename-key']`) — hand-inserted at their alphabetically-correct positions
+  rather than pasting the whole generated table, to avoid clobbering ~40
+  lines of hand-written inline comments elsewhere in that file. Dated
+  changelog entry added at the file's own top-of-file convention.
+  qa-playtester (full tier) PASS: `npm run sim -- --seed 1 --policy hybrid`
+  per affected class byte-identical pre/post change; retuning each field in
+  a scratch copy of `/data` live-propagated (13 targeted assertions moved as
+  expected, reverted after); omitting either required field throws the
+  expected `REQUIRED_PASSIVE_FIELDS` loader error, omitting `piercePerSecond`
+  falls back to 1 gracefully; the three new zod bounds (`.positive()`,
+  `.int().min(1)`, `.int().positive()`) reject 0/negative/fractional with
+  clean loader errors rather than crashing. No timing-based assertions added
+  (nothing belongs in `vitest.perf.config.ts`). `npx tsc --noEmit` clean;
+  `npm run test:fast` 4487 passed/35 skipped/0 failed (309 files).
+
 - **2026-09-17 — main lane: BACKLOG fb123 done — charge-kind Active1 now has
   real bot/sweep coverage via the codebase's own established pattern, no
   production code changed.** No stock policy in `src/bots` ever set

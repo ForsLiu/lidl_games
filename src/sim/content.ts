@@ -1060,10 +1060,39 @@ const ClassSlotPassiveSchema = z.object({
    * engine code. Read with a `?? 1` fallback, so its absence is inert too.
    */
   charDotSpeedMul: num.optional(),
+  /** `time_flow` (fb126, rule 4): the base seconds the converted DoT resolves over at `charDotSpeedMul === 1` — §4.2's "4 s", read by `timeFlowWindowSeconds` (run.ts) before `charDotSpeedMul` divides it and an equipped Chronomail's `windowMul` widens it. `.positive()`: a 0 or negative window divides `dps` by zero/flips `remaining` negative at the `damageWarden` push site, silently poisoning every dot pushed after — code-reviewer finding, fb126 same session. */
+  charDotSeconds: num.positive().optional(),
   /** `chronal_surge` (fb013): every `waveInterval` TD waves cleared, towers gain one free uncapped range/AoE bump (`completeWave`, run.ts) — no milestone triggers, just `bonusRangeMul`/`bonusAoeMul` folded into the ordinary `towerRange`/`towerArea` Stats sources (fb083 split the AoE half off the global `area` key). */
   waveInterval: num.optional(),
   bonusRangeMul: num.optional(),
   bonusAoeMul: num.optional(),
+  /**
+   * `thousand_cuts` (fb126, rule 4): Bleeding stacks §4.1's base attack
+   * applies, before the §6.3 "Deeper Cuts" skill card's per-rank `extra`
+   * (`classLineBonus`) adds on top — `passiveOnHit` (classes.ts). `.int().
+   * min(1)`: `passiveOnHit` feeds `base + extra` straight into `Array(n)`,
+   * which throws `RangeError` on a fractional/negative length — the base
+   * literal it replaces was always a safe integer by construction, so the
+   * schema has to hold that guarantee now that it is data (code-reviewer
+   * finding, fb126 same session). `min(1)` rather than `min(0)`: the passive
+   * states "applies 1 Bleeding", so an authored 0 would silently disable it
+   * — the same silent-neutering rule 4's own field-vs-code split exists to
+   * refuse.
+   */
+  bleedBaseStacks: num.int().min(1).optional(),
+  /**
+   * Archer *Long Draw* passive (fb126, rule 4): pierce hits gained per full
+   * second charged — §4.2's "+1 pierce per full second charged". Not a
+   * bespoke `kind`; `fireDeadeyeDraw` (classes.ts) reads it straight off
+   * `cls.passive` the same way `charDotSpeedMul` is read off `time_lord`'s,
+   * and it doubles as the base hit count at zero charge (`rate * (1 +
+   * Math.floor(held))` — the two read the same literal on shipped data).
+   * `.int().positive()`: `fireDeadeyeDraw` feeds the product straight into
+   * `lineHit`'s integer hit-count parameter, so a fractional rate would
+   * silently fractionalize the enemies-pierced count instead of erroring
+   * (code-reviewer finding, fb126 same session).
+   */
+  piercePerSecond: num.int().positive().optional(),
 
   /* ------------------------------------------- fb085 enablers (fb057/fb059) */
 
@@ -1671,6 +1700,8 @@ const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
   guardian_stance: ['stanceArmor', 'wrathFraction'],
   blood_frenzy: ['frenzyVsMul', 'frenzyTdMul'],
   chronal_surge: ['waveInterval', 'bonusRangeMul', 'bonusAoeMul'],
+  time_flow: ['charDotSeconds'],
+  thousand_cuts: ['bleedBaseStacks'],
   // fb085 enablers (fb057/fb059 — see `ClassSlotPassiveSchema`'s own field comments).
   whispers: ['madnessDurationSeconds', 'madnessCap', 'madnessAtkSpdPerStack', 'madnessMoveSpdPerStack'],
   frenzied_aim: ['frenziedAimFlatBonus'],
