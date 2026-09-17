@@ -447,7 +447,8 @@ export function updateTowers(w: World, dt: number): void {
     // its damage actually lands.
     const before = s.damageDealt;
     fireTower(w, s, def);
-    applyTowerLifesteal(w, s, s.damageDealt - before);
+    const dealt = s.damageDealt - before;
+    applyTowerLifesteal(w, s, dealt);
   }
 }
 
