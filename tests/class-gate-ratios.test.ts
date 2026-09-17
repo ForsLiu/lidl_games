@@ -64,8 +64,9 @@ function archerOptimalChargeSeconds(compoundPerSecond: number, chargeCapSeconds:
 
 describe('c034: G11 — Stormcaller chain ceiling, re-derived from shipped data', () => {
   const s = content.classByKey.get('stormcaller')!;
-  const chainGrowth = s.active1.chainGrowth!;
-  const chainCap = s.active1.chainCap!;
+  // fb127 (c010): Conduction's numbers moved onto the passive row.
+  const chainGrowth = s.passive.chainGrowth!;
+  const chainCap = s.passive.chainCap!;
 
   it('the shipped chainGrowth/chainCap stay under the x3.6 ceiling', () => {
     const ceiling = stormcallerChainCeiling(chainGrowth, chainCap);

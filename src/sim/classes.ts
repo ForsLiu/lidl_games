@@ -889,8 +889,11 @@ function fireChainSurge(w: World, cls: ClassDef, aimX: number | undefined, aimY:
   // chain count, not Conduction's separate compounding cap (`chainCap`,
   // gate G11's ceiling), which this leaves untouched.
   const jumps = Math.max(1, Math.round((eff.chainCount ?? 1) + extra + classLineBonus(w)));
-  const capIndex = Math.max(1, Math.round(eff.chainCap ?? 1)) - 1;
-  const growth = eff.chainGrowth ?? 0;
+  // fb127 (c010): Conduction's compounding growth/cap are authored on the
+  // passive row now (the ability the passive's own prose names), not on
+  // Chain Surge's `active1`.
+  const capIndex = Math.max(1, Math.round(cls.passive.chainCap ?? 1)) - 1;
+  const growth = cls.passive.chainGrowth ?? 0;
   const base = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
   const struck = new Set<number>();
   let px = wd.x;

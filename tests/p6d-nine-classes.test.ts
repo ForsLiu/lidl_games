@@ -72,7 +72,7 @@ const KITS: [string, string, string, string | undefined][] = [
   ['pyromancer', 'burst_damage', 'dash_trail', 'contagious_flame'],
   ['necromancer', 'raise_skeletons', 'death_pact', 'corpse_drop'],
   ['cryomancer', 'frost_nova', 'ice_wall', 'frost_touch'],
-  ['stormcaller', 'chain_lightning', 'overload', undefined],
+  ['stormcaller', 'chain_lightning', 'overload', 'conduction'],
   ['bloodlord', 'blood_tithe', 'dash_heal', 'blood_frenzy'],
   ['animist', 'manifest_spirit', 'recall_totem', undefined],
   ['paladin', 'clarion_taunt', 'judgement', 'guardian_stance'],
@@ -113,7 +113,7 @@ describe('p6d: §4.2 ships nine classes with the four §4 slots each', () => {
 
   it.each([
     ['charge_pierce', 'compoundPerSecond'],
-    ['chain_lightning', 'chainGrowth'],
+    ['chain_lightning', 'chainCount'],
     ['ice_wall', 'wallSeconds'],
     ['death_pact', 'pactDrainPerSecond'],
     ['judgement', 'wrathDamageMul'],
@@ -130,11 +130,29 @@ describe('p6d: §4.2 ships nine classes with the four §4 slots each', () => {
     ['frost_touch', 'shatterDamage'],
     ['guardian_stance', 'wrathFraction'],
     ['blood_frenzy', 'frenzyVsMul'],
+    ['conduction', 'chainGrowth'],
   ])('the loader refuses a %s passive row missing "%s"', (kind, field) => {
     const source = content.classes.classes.find((c) => c.passive.kind === kind)!;
     const broken = { ...source.passive } as Record<string, unknown>;
     delete broken[field];
     expect(() => validateClassPassive(broken as { kind?: string }, 'x')).toThrow();
+  });
+
+  it('the loader refuses chain_lightning carrying chainGrowth/chainCap on active1 (fb127: belongs on the passive)', () => {
+    const stormcaller = content.classes.classes.find((c) => c.key === 'stormcaller')!;
+    const dupedGrowth = { ...stormcaller.active1, chainGrowth: 0.2 } as ClassEffect;
+    expect(() => validateClassEffect(dupedGrowth, 'x')).toThrow();
+    const dupedCap = { ...stormcaller.active1, chainCap: 8 } as ClassEffect;
+    expect(() => validateClassEffect(dupedCap, 'x')).toThrow();
+  });
+
+  it('the loader refuses a class shipping chain_lightning without a matching conduction passive (fb127)', () => {
+    const doc = JSON.parse(JSON.stringify(content.raw.classes)) as {
+      classes: { key: string; passive: Record<string, unknown> }[];
+    };
+    const row = doc.classes.find((c) => c.key === 'stormcaller')!;
+    delete row.passive.kind;
+    expect(() => loadContent({ classes: doc })).toThrow(/chain_lightning but stormcaller\.passive is not conduction/);
   });
 
   it('accepts every real, shipped passive and towerPassive row', () => {
@@ -244,12 +262,12 @@ describe('p6d: G11 — Stormcaller chain multiplier stays under x3.6', () => {
 
   it('the worked case (Overload up, 8 jumps, last jump at the cap) is <= 3.6', () => {
     const jumps = s.active1.chainCount! + s.active2.overloadExtraChains!;
-    const exponent = Math.min(s.active1.chainCap! - 1, jumps - 1);
-    expect(Math.pow(1 + s.active1.chainGrowth!, exponent)).toBeLessThanOrEqual(3.6);
+    const exponent = Math.min(s.passive.chainCap! - 1, jumps - 1);
+    expect(Math.pow(1 + s.passive.chainGrowth!, exponent)).toBeLessThanOrEqual(3.6);
   });
 
   it('no reachable jump index can exceed the ceiling, however many jumps are granted', () => {
-    const worst = Math.pow(1 + s.active1.chainGrowth!, s.active1.chainCap! - 1);
+    const worst = Math.pow(1 + s.passive.chainGrowth!, s.passive.chainCap! - 1);
     expect(worst).toBeLessThanOrEqual(3.6);
   });
 
@@ -267,7 +285,7 @@ describe('p6d: G11 — Stormcaller chain multiplier stays under x3.6', () => {
     const dealt = line.map((e) => 1e6 - e.hp);
     for (const d of dealt) expect(d).toBeGreaterThan(0);
     for (let i = 1; i < dealt.length; i++) {
-      expect(dealt[i] / dealt[i - 1]).toBeCloseTo(1 + s.active1.chainGrowth!, 4);
+      expect(dealt[i] / dealt[i - 1]).toBeCloseTo(1 + s.passive.chainGrowth!, 4);
     }
   });
 

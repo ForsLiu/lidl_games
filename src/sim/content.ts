@@ -844,9 +844,16 @@ const ClassEffectSchema = z.object({
   wallSeconds: num.optional(),
   /** `chain_lightning`: jumps the bolt makes before Overload's bonus. */
   chainCount: num.optional(),
-  /** `chain_lightning`: §4.2 Conduction's per-jump compounding growth — 0.2 is "+20% per jump". */
+  /**
+   * §4.2 Conduction's per-jump compounding growth ("+20% per jump") and the
+   * jump index it stops compounding at ("cap 8 jumps", which is what gate
+   * G11 bounds) — declared here only for typing symmetry with the rest of
+   * this shared effect shape; fb127 (c010) moved the real fields onto the
+   * passive's own `conduction` kind (`ClassSlotPassiveSchema` below), and
+   * `validateClassEffect` now refuses a `chain_lightning` row that still
+   * carries either one on `active1`.
+   */
   chainGrowth: num.optional(),
-  /** `chain_lightning`: the jump index the compounding stops at ("cap 8 jumps"), which is what gate G11 bounds. */
   chainCap: num.optional(),
   /** `overload`: seconds the window lasts. */
   overloadSeconds: num.optional(),
@@ -1033,6 +1040,11 @@ const ClassSlotPassiveSchema = z.object({
       'frenzied_aim',
       'arc',
       'lightning_accelerate',
+      // fb127 (unblocking BACKLOG-CONTENT.md c010): Stormcaller's own
+      // passive kind, so *Conduction*'s "+20% per jump, compounding, cap 8
+      // jumps" numbers live where the ability they describe is authored,
+      // not smuggled onto Chain Surge's `active1` row.
+      'conduction',
     ])
     .optional(),
   /** `contagious_flame`: damage per second a Burning enemy deals to everything within `flameRadius`. */
@@ -1133,6 +1145,20 @@ const ClassSlotPassiveSchema = z.object({
    */
   projectileSpeedBonus: num.optional(),
   towerStatConversionEfficiency: num.optional(),
+
+  /**
+   * `conduction` (fb127, unblocking BACKLOG-CONTENT.md c010): Stormcaller
+   * Chain Surge's per-jump compounding growth and the jump index it stops
+   * compounding at — moved here from `active1` so the passive prose that
+   * names the rule ("electric damage +20% per jump, compounding, cap 8
+   * jumps") is what `fireChainSurge` (classes.ts) actually reads, and any
+   * future electric source (Live Wire's extra-Electric damage, the VS wire
+   * grid) can read the same two fields instead of reaching into Chain
+   * Surge's own Active row for a number that describes electric damage in
+   * general.
+   */
+  chainGrowth: num.optional(),
+  chainCap: num.optional(),
 });
 
 /**
@@ -1627,6 +1653,18 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
       throw new Error(`${where}: ground_poison's minGroundDurationSeconds must not exceed groundDurationSeconds`);
     }
   }
+  // fb127 (c010): chainGrowth/chainCap moved to the passive's `conduction`
+  // kind (REQUIRED_PASSIVE_FIELDS) — refuse the two-source-of-truth shape a
+  // stray copy left on `active1` would create rather than silently letting
+  // `fireChainSurge` read whichever row happens to be non-`undefined`.
+  if (eff.kind === 'chain_lightning') {
+    if (eff.chainGrowth !== undefined) {
+      throw new Error(`${where}: chain_lightning's chainGrowth belongs on the class's passive (conduction), not active1`);
+    }
+    if (eff.chainCap !== undefined) {
+      throw new Error(`${where}: chain_lightning's chainCap belongs on the class's passive (conduction), not active1`);
+    }
+  }
   for (const [kind, fields] of Object.entries(REQUIRED_EFFECT_FIELDS)) {
     if (eff.kind !== kind) continue;
     for (const f of fields) {
@@ -1651,7 +1689,10 @@ const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
   raise_skeletons: ['summonDurationSeconds', 'summonCap', 'summonStatMul', 'summonRadius'],
   manifest_spirit: ['summonDurationSeconds', 'summonCap', 'summonStatMul', 'summonRadius'],
   ice_wall: ['wallSeconds', 'towerKey'],
-  chain_lightning: ['chainCount', 'chainGrowth', 'chainCap'],
+  // fb127: chainGrowth/chainCap moved to the Stormcaller passive's own
+  // `conduction` kind (REQUIRED_PASSIVE_FIELDS below) — see validateClassEffect's
+  // "refuses the duplicated one" check for the row this table used to require.
+  chain_lightning: ['chainCount'],
   overload: ['overloadSeconds', 'overloadExtraChains'],
   dash_trail: ['dashRange', 'dashWidth', 'groundDurationSeconds', 'trailSegments'],
   dash_heal: ['dashRange', 'dashWidth', 'healPerEnemy'],
@@ -1707,6 +1748,8 @@ const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
   frenzied_aim: ['frenziedAimFlatBonus'],
   arc: ['arcChainDamageMul', 'arcChainRadius', 'arcChainDelaySeconds'],
   lightning_accelerate: ['projectileSpeedBonus', 'towerStatConversionEfficiency'],
+  // fb127 (c010): Stormcaller Conduction's per-jump compounding growth/cap.
+  conduction: ['chainGrowth', 'chainCap'],
 };
 
 /** Passive-slot counterpart to `validateClassEffect` — see `REQUIRED_PASSIVE_FIELDS`. */
@@ -2719,6 +2762,15 @@ export function loadContent(overrides?: ContentOverrides): Content {
       if (eff.towerKey !== undefined && !towerKeys.has(eff.towerKey)) {
         throw new Error(`classes.json: ${c.key}.${eff.name} references unknown tower "${eff.towerKey}"`);
       }
+    }
+    // fb127 (c010, code-reviewer finding): `fireChainSurge` (classes.ts) reads
+    // `chainGrowth`/`chainCap` off `cls.passive` unconditionally whenever
+    // `active1.kind === 'chain_lightning'` fires it — nothing else ties the two
+    // slots together, so a future class shipping `chain_lightning` without its
+    // own `conduction` passive would validate clean and silently compound at
+    // 0%/cap-index 0 rather than failing loudly (rule 4's "unpayable data").
+    if (c.active1.kind === 'chain_lightning' && c.passive.kind !== 'conduction') {
+      throw new Error(`classes.json: ${c.key}.active1 is chain_lightning but ${c.key}.passive is not conduction`);
     }
   }
 

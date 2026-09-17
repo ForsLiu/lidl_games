@@ -22,6 +22,12 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-17 (fb127, c010): Stormcaller Conduction's `chainGrowth`/
+ * `chainCap` moved from `active1` to `passive` (the row §4.2 actually states
+ * the rule on) — the two `active1.*` rows retired and the same bare
+ * `num.optional()` shape re-opened at `passive.*` instead; no field closed or
+ * newly guarded, just relocated.
+ *
  * Regenerated 2026-09-17 (fb126, rule 4): `data/classes.json` gained three
  * new passive fields moving player-shown numbers out of `/src` literals —
  * `bleedBaseStacks` (Thousand Cuts) and `charDotSeconds` (Time Flow) are
@@ -338,9 +344,7 @@ import type { RefVerdict } from '../tools/fuzz-data';
 export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.burnDps': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.burnDuration': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].active1.chainCap': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.chainCount': ['negative', 'zero', 'fractional'],
-  'classes.classes[].active1.chainGrowth': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.chargeCapSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.compoundPerSecond': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.cooldownSeconds': ['fractional'],
@@ -414,6 +418,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].maxHpMul': ['fractional'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
+  'classes.classes[].passive.chainCap': ['negative', 'zero', 'fractional'],
+  'classes.classes[].passive.chainGrowth': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.charDotSeconds': ['fractional'],
   'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.corpseSeconds': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],

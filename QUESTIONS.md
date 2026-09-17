@@ -1494,3 +1494,24 @@ Q200 did not collide and are unchanged below).
   `SkillCardSchema`'s per-class scope, and deserves its own acceptance text
   and corpus case rather than a same-session tack-on. — (owner verdict:
   pending)
+
+- **Q209. [fb127/c010] Should *tower* electric damage also compound under
+  Conduction, now that the rule's numbers live on the Stormcaller passive
+  and not just Chain Surge's `active1`?** fb127 moved `chainGrowth`/
+  `chainCap` onto `stormcaller.passive` (the row §4.2's Conduction prose
+  actually states the rule on) so `fireChainSurge` reads them from there,
+  but left every other electric source — Live Wire's "+10% of tower damage
+  as extra Electric" (`towerExtraElectricPct`) and the VS electric wire
+  grid (`vsspecials.ts`) — untouched; both still deal one flat hit per
+  strike, with no jump chain to compound *along*. Whether Conduction's
+  prose ("electric damage +20% per jump, compounding") is meant to reach
+  those too, or names Chain Surge's own jumps specifically, is a kit-design
+  call `towers.ts`/`vsspecials.ts` (out of this item's Scope) would have to
+  answer, not a location bug this item's engine change settles. Chosen
+  default: leave tower/VS electric exactly as shipped (one flat hit, no
+  chain) and log this rather than widen fb127 past its acceptance text
+  (move the two numbers, keep `fireChainSurge`'s behaviour identical, which
+  the unchanged G11 control-run pair confirms). — Reason: CLAUDE.md rule 5
+  (choose, log, continue); c010's own acceptance text named this exact
+  question and asked for it to be logged for the main lane rather than
+  implemented from the content lane. — (owner verdict: pending)

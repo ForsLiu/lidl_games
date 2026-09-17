@@ -28,8 +28,9 @@ const content = loadContent();
 
 describe('c034: G11 — Stormcaller max chain multiplier, derived independently from shipped /data', () => {
   const s = content.classByKey.get('stormcaller')!;
-  const chainGrowth = s.active1.chainGrowth!;
-  const chainCap = s.active1.chainCap!;
+  // fb127 (c010): Conduction's numbers moved onto the passive row.
+  const chainGrowth = s.passive.chainGrowth!;
+  const chainCap = s.passive.chainCap!;
   const chainCount = s.active1.chainCount!;
 
   it('the reachable ceiling — exponent capped at chainCap - 1, matching fireChainSurge — is <= 3.6', () => {
