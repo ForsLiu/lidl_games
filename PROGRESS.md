@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb123 done — charge-kind Active1 now has
+  real bot/sweep coverage via the codebase's own established pattern, no
+  production code changed.** No stock policy in `src/bots` ever set
+  `TickInput.active1Held` or pushed a `class_active` command at all — this
+  turned out to be an existing, documented, intentional design
+  (`tests/p6e-class-diversity.test.ts`'s own header already says so: bots
+  stay simple heuristics, and class-kit-inclusive measurement goes through
+  `tests/helpers.ts`'s `runScripted`+`scriptClassKit`, the "scripted kit
+  bot" BACKLOG p10s built for gates G1/G8/G14/G23). Rather than widen real
+  bot AI (large blast radius across every class's balance sweep, well
+  beyond this item's stated acceptance), added
+  `tests/fb123-charge-kind-bot-coverage.test.ts`, which runs every
+  registered policy (except the deliberate `idle` no-op control) through
+  `runScripted` for both archer (Deadeye Draw) and swordsman (Circle
+  Slash), asserting `report.damageByWeapon['class_active'] > 0` — 21/21
+  green. qa-playtester's mutation-kill control (stubbing `fireCircleSlash`/
+  `fireDeadeyeDraw` to return early) reddened 20/21, proving the assertion
+  is load-bearing. The `fuzzRun` half of the acceptance was already met
+  pre-fix (`tests/q2-input-fuzz.test.ts` already loops `fuzzRun` over every
+  `/data` class including archer/swordsman, and `fuzzRun` already fuzzes
+  `active1Held`); added a cross-referencing comment rather than duplicate
+  coverage. Found and confirmed unrelated: `tests/q2-input-fuzz.test.ts`'s
+  "survives whole runs with random commands" case fails identically on the
+  pre-fix baseline (seed 2, 4606 vs a >5000-tick floor, verified via `git
+  stash`) and is already outside the fast tier's exclude list — a
+  pre-existing stale pin, not filed as a new item per this routine's "never
+  generate new backlog items" rule; worth its own re-measurement item later.
+  `npm run test:fast` green (309 passed/9 skipped/0 failed) both before and
+  after. code-reviewer APPROVE, qa-playtester PASS.
+- **2026-09-17 — main lane: BACKLOG fb122 done — `pierceCap` doc comment
+  corrected, no code behavior changed.** `src/sim/content.ts`'s `pierceCap`
+  schema comment claimed "most enemies one released shot may pass through,"
+  which stopped being true at c017: the field only rails the charge-derived
+  pierce count, and the real enemies-pierced ceiling is
+  `pierceCap + perRank * maxRank` off the `archer_pierce_cap` class_line card
+  — 10 on shipped `/data`, not the field's own 6, a number a designer reading
+  the Tuner's generic zod-schema walk would see 40% low. Corrected the
+  comment to state the rail's actual scope and cite the true ceiling formula
+  and `tests/class-deeper-draw.test.ts` as its measurement, per the item's
+  acceptance criteria. Comment-only diff (confirmed via `git diff --stat`);
+  targeted test and `npm run test:fast` (308 passed/9 skipped/0 failed) both
+  green; code-reviewer APPROVE.
 - **2026-09-17 — main lane: BACKLOG fb119 done — re-measured, not re-fixed:
   fb172 (2026-09-07) already fixed the exact bug this item diagnosed the
   same day, without either item citing the other.** `tests/q15-command-

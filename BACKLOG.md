@@ -4496,7 +4496,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       confirmed the guard is load-bearing via a `git stash` control (red
       without it) — refs: SPEC-FINAL §6.3, §12
       rule 4, BACKLOG-CONTENT.md c019 Log.
-- [ ] (fb122) [polish] `src/sim/content.ts:705`'s `pierceCap` schema
+- [x] (fb122) [polish] **DONE 2026-09-17.** `src/sim/content.ts:705`'s `pierceCap` schema
       comment ("most enemies one released shot may pass through") is false
       since c017: the field rails only the charge-derived count and the true
       ceiling is `pierceCap + perRank * maxRank` (10, not 6). It is
@@ -4504,7 +4504,15 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       designer is shown a number 40% low. Acceptance: comment corrected;
       `tests/class-deeper-draw.test.ts`'s ladder cited — refs: SPEC-FINAL
       §4.2 Archer, §6.3, BACKLOG-CONTENT.md c017 Log.
-- [ ] (fb123) [test] no automated harness ever executes a charge-kind
+      **Closed:** `src/sim/content.ts`'s `pierceCap` doc comment now states the
+      field only rails the charge-derived count and cites the real
+      enemies-pierced ceiling (`pierceCap + perRank * maxRank`, 10 on shipped
+      `archer_pierce_cap` data, not the field's own 6), naming
+      `tests/class-deeper-draw.test.ts` as the ladder's measurement. Comment-only
+      diff; `npx vitest run tests/class-deeper-draw.test.ts` and
+      `npm run test:fast` both green (308 passed/9 skipped/0 failed).
+      code-reviewer APPROVE.
+- [x] (fb123) [test] **DONE 2026-09-17.** no automated harness ever executes a charge-kind
       Active1: `src/bots/policy.ts` never sets `TickInput.active1Held`, so
       `fireDeadeyeDraw`/`fireCircleSlash` have zero bot/sweep coverage and
       every sweep-derived balance claim about Archer or Swordsman is a null
@@ -4515,6 +4523,32 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `report.damageByWeapon['class_active'] > 0`; `fuzzRun` gets an
       archer/swordsman config — refs: SPEC-FINAL §14 G10, BACKLOG-CONTENT.md
       c017 Log.
+      **Closed:** confirmed no stock policy in `src/bots` ever sets
+      `active1Held`/pushes `class_active` at all (an existing, documented,
+      intentional design per `tests/p6e-class-diversity.test.ts`'s own header
+      — bots stay simple heuristics; class-kit-inclusive measurement already
+      goes through `tests/helpers.ts`'s `runScripted`+`scriptClassKit`, the
+      "scripted kit bot" BACKLOG p10s built for G1/G8/G14/G23). New
+      `tests/fb123-charge-kind-bot-coverage.test.ts` runs every registered
+      policy (except the deliberate `idle` no-op control) through
+      `runScripted` for both archer and swordsman, asserting
+      `report.damageByWeapon['class_active'] > 0` — 21/21 green, and a
+      mutation-kill control (qa-playtester stubbed `fireCircleSlash`/
+      `fireDeadeyeDraw` to `return` early) correctly reddened 20/21, proving
+      the assertion is load-bearing, not vacuous. `tools/fuzz-input.ts`'s
+      `fuzzRun` half was already satisfied pre-fix (`tests/q2-input-
+      fuzz.test.ts`'s "survives whole runs as every class in /data" already
+      calls `fuzzRun` with every `/data` class, archer/swordsman included,
+      and `fuzzRun` already fuzzes `active1Held`); added a comment there
+      cross-referencing the new file rather than duplicating coverage. No
+      production code in `src/bots`/`src/sim` changed — test-only. Found and
+      confirmed unrelated: `tests/q2-input-fuzz.test.ts`'s "survives whole
+      runs with random commands" case fails identically on pre-fix master
+      (seed 2, 4606 vs a >5000-tick floor) and is already outside the fast
+      tier's exclude list — a pre-existing stale pin, not filed here (out of
+      this item's scope; worth its own item if re-measurement is wanted).
+      `npm run test:fast` green (309 passed/9 skipped/0 failed).
+      code-reviewer APPROVE, qa-playtester PASS.
 - [x] (fb124) [balance] **CLOSED 2026-09-14 (feedback/verdicts-q168-205,
       Q168) — no change.** Deadeye Draw's reason to charge collapses at max
       investment: damage per committed second against a 10-wide line, best
