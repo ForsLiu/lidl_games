@@ -284,6 +284,16 @@ export interface Enemy {
   ghosting: boolean;
   /** Burrowed: underground, so nothing can target or hit it (SPEC 6 #12). */
   submerged: boolean;
+  /**
+   * fb129: seconds this enemy has been ready to surface/unghost but held by
+   * a high tile it cannot surface on (`highGround.surfaceBlockCap`,
+   * `data/terrain.json`) — past the cap it is forced up anyway. Shared by
+   * the Burrower's surfacing check (so it cannot stay untargetable forever)
+   * and the Wraith's phase-end check (so it cannot retry forever with zero
+   * relative motion to its target); the two traits are mutually exclusive
+   * per enemy, so the field never needs to track more than one at a time.
+   */
+  highGroundBlockedFor: number;
   /** Cached trait bitmask (see enemies.ts TRAIT), so hot loops skip string work. */
   flags: number;
   /** Last computed crowd-repulsion vector; refreshed on a stagger. */

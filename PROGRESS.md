@@ -14,6 +14,52 @@ resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
 seeds throughout, discarding the second branch's duplicate rewrite of the same
 change. No functional difference between the two fixes.
 
+- **2026-09-17 — main lane: BACKLOG fb129 done — the high-ground protection
+  rules (SPEC-FINAL §10.5, fb064i) wired at their five `src/sim/enemies.ts`
+  call sites.** `canAttackStructureAt`/`canSurfaceAt` (`src/sim/terrain/
+  high-ground.ts`, already merged and unit-tested) were built and tested but
+  had no call site, so ground melee could still chew a tower standing on
+  high ground. Wired at: the melee-breach collision in `moveEnemy` (the
+  motivating bug — a Gatebreaker's `structureBreaker` trait forces breaching
+  unconditionally, so a naive family table let it chew a high-ground tower
+  from the low tile beside it); the Colossus stomp AoE; the Burrower's and
+  the Wraith's surfacing checks in `updatePhasing`; the Spitter's ranged
+  structure attack (a no-op today, `ranged.attacksHigh: true`, wired anyway
+  so a Tuner edit isn't silently ignored). `boss.ts`'s `shatterAlong`
+  (a true boss special) and `updateUnreachable` (the anti-stall failsafe)
+  stay deliberately unguarded, each with a doc comment recording why — Q171's
+  Act II residual was already closed as a non-issue at fb129's authoring.
+  New `data/terrain.json` field `highGround.surfaceBlockCap` (3s ⚖) plus a
+  new `Enemy.highGroundBlockedFor` field cap the Burrower's surfacing denial
+  so it cannot stay untargetable forever, per the item's own acceptance text.
+  qa-playtester found the same failure mode also live on the Wraith's site —
+  a Wraith with zero relative motion to its huntsWarden target (parked
+  exactly on it) retried every phase cycle forever, since denial never called
+  `unstick` and the immediate re-arm never gave it a chance to drift off the
+  tile — reproduced and fixed the same session by sharing
+  `highGroundBlockedFor` between both sites (mutually exclusive traits, so
+  the field never needs to track more than one enemy kind at a time).
+  `tests/fb129-high-ground-wiring.test.ts` (8 tests: one red-first case per
+  wired site plus the Wraith zero-motion repro) pins the whole item.
+  Mechanical fallout from the new `/data` field regenerated per its own
+  documented workflow: `tests/q7-loader-holes.ts` (one additive census line,
+  `zero`/`fractional` both left open — legitimate tunes, `0` disables the
+  cap the same way `highContestRadius: 0` already does) and
+  `tests/terrain-describe.test.ts` (GOLDEN_SEED_1's `bands config=`
+  fingerprint — map/hash/counts/rows all byte-identical, only the
+  whole-document content fingerprint moved). `npm run test:fast` green
+  twice (4501 passed, 35 skipped, 0 failed each run). `tests/boss.test.ts`'s
+  three win-rate/reachability assertions (excluded from the fast tier, a
+  `[balance]`-tier file) were checked against clean master via a `git
+  stash`/`stash pop` round trip and are pre-existing failures, unaffected by
+  this item's scope — not touched, not this item's to fix. code-reviewer
+  returned REQUEST-CHANGES on two Minors (a vacuous exempt-family test
+  assertion, an overstated "not a live leak" comment) — both addressed, the
+  second by the Wraith fix above rather than just the comment rewrite it
+  first proposed. qa-playtester's one open finding — no regression test pins
+  `boss.ts`'s two deliberately-unguarded sites, and a first attempt at one
+  found the Warden-Eater's own charge ability confounds an isolated
+  `updateUnreachable` repro — filed as **fb136**, not fixed inline.
 - **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` banks a
   tower's sub-tick cooldown remainder instead of discarding it (owner
   verdict, Q172).** `next < COOLDOWN_EPS` in `src/sim/types.ts` floored any

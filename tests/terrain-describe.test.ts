@@ -130,12 +130,18 @@ function field(text: string, head: string, key: string): string {
  * invisible to every measured band. That is the clearest statement of what
  * fb064m costs, and it is why this golden was re-derived rather than the item
  * being talked out of moving it.
+ *
+ * **Moved a third time, at fb129**, which added `highGround.surfaceBlockCap`
+ * to `data/terrain.json` — a main-lane field the generator never reads, but
+ * `configFingerprint` hashes the whole parsed document, so every fingerprint
+ * moved. Only the `bands config=` field changed; the map, the hash, the
+ * counts and all thirty-two rows are byte-identical.
  */
 const GOLDEN_SEED_1 = [
   'terrain 56x32',
   'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=c49b8ecb',
   'gates west=0,12 north=24,0 east=55,20 south=33,31',
-  'bands config=c39bcb68 walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
+  'bands config=565f242f walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=1267 normal=1016 coreAnchors=558',
   'tiles normal=1016 rough=251 rock=429 high=96',
   'legend normal=. rough=, rock=# high=^',

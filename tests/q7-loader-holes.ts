@@ -22,6 +22,17 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-17 (fb129, rule 4): `data/terrain.json` gained
+ * `highGround.surfaceBlockCap` (BACKLOG.md fb129 — the seconds a submerged
+ * Burrower may be held under a high tile it cannot surface on before the
+ * merge forces it up anyway, so it cannot stay untargetable forever). A bare
+ * `.finite().min(0)` number, same unguarded shape as every other plain
+ * `terrain.json` number in this census — `negative` is already closed,
+ * `zero`/`fractional` are both legitimate tunes (0 disables the cap, the
+ * same "0 switches it off" convention `highContestRadius` already uses; a
+ * fractional cap is an ordinary sub-second tune), so left open rather than
+ * narrowed. One additive line, nothing else moved.
+ *
  * Regenerated 2026-09-17 (fb127, c010): Stormcaller Conduction's `chainGrowth`/
  * `chainCap` moved from `active1` to `passive` (the row §4.2 actually states
  * the rule on) — the two `active1.*` rows retired and the same bare
@@ -741,6 +752,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'terrain.highGround.families[].key': ['to-string'],
   'terrain.highGround.families[].surfacesHigh': ['flip-bool'],
   'terrain.highGround.families[].traits[]': ['to-string'],
+  'terrain.highGround.surfaceBlockCap': ['zero', 'fractional'],
   'terrain.plazaRadius': ['zero'],
   'terrain.tiles[].color': ['to-string'],
   'towers.aoeFalloff': ['negative', 'zero', 'fractional'],
