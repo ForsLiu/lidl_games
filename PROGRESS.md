@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` banks a
+  tower's sub-tick cooldown remainder instead of discarding it (owner
+  verdict, Q172).** `next < COOLDOWN_EPS` in `src/sim/types.ts` floored any
+  negative result to 0, not just true float noise near zero, so
+  `towers.ts`'s `updateTowers` — the one caller that accumulates via
+  `s.cooldown += def.attack.interval` instead of a flat reset — discarded a
+  tower's real fire-timing overshoot every shot. Fire rate was quantised to
+  whole 60 Hz ticks (the Arrow Spire always fired every 43 ticks) and a
+  sub-tick attack-speed bonus like Swordsman's Wind Slash (+2%) changed
+  nothing. Fixed to `Math.abs(next) < COOLDOWN_EPS`. Warden/enemy/summon
+  cooldowns reset by flat assignment and are unaffected — out of this
+  item's scope, noted in the fix's own comment. Control-run sweep (`npx tsx
+  tools/sweep.ts --seeds 6 --policies maxbuild,hybrid`, before/after via a
+  disposable git worktree so the working tree never left the fix's own
+  branch): win rate and every median stat held within noise at this sample
+  size (maxbuild 0.17 win both sides, hybrid 0.67 both sides) — a narrow
+  cadence nudge, not a broad balance swing. It was still sharp enough to
+  flip two already-fragile pinned seeds in
+  `tests/fb196-night1-basehpmul.test.ts` (pyromancer seed 2:
+  `defeat_warden`@w3 -> `defeat_core`@w17; seed 11 -> outright `victory`),
+  confirmed by running that file against the pre-fix code in the same
+  worktree (both passed there, both failed post-fix). Re-swept pyromancer
+  seeds 3-30 (throwaway `tools/` probe, deleted after use, same precedent as
+  that file's own fb196/fb197 probes); seeds 3 and 26 still reproduce the
+  shipped `defeat_warden`@w3 / clears-at-`baseHpMul:1` pattern and the file
+  is re-pinned to them — the same re-pinning this file has needed twice
+  before for unrelated reasons (terrain/gate fixes), not a weakening of the
+  regression. `class-tower-passive-liveness.test.ts`'s declared tick-floor
+  exception for Wind Slash is removed; that row now measures direction the
+  same way as every other row in the file. `b018-cooldown-epsilon.test.ts`
+  updated: its "large negative floors to 0" case named the exact bug this
+  item fixes, now asserts the overshoot is banked, plus a new case pinning
+  that true near-zero negative noise still floors to 0. code-reviewer
+  APPROVE (one Minor — a doc comment overstated which cooldowns benefit,
+  narrowed to name `towers.ts` specifically); qa-playtester PASS (hostile
+  extreme-attack-speed and NaN/Infinity probes, a suite-wide grep for other
+  hard-coded tick-quantisation assumptions, and a clean headless
+  `tools/sim.ts` sanity run at two seed/policy pairs). `npm run test:fast`:
+  309 files / 4495 passed / 35 skipped / 0 failed.
 - **2026-09-17 — main lane: BACKLOG fb127 done — Stormcaller Conduction's
   `chainGrowth`/`chainCap` moved from `active1` to the passive row, unblocking
   BACKLOG-CONTENT c010.** The passive named a rule about electric damage

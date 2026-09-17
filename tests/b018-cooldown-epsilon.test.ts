@@ -34,8 +34,16 @@ describe('b018: tickCooldown floors a sub-epsilon residual to exactly 0', () => 
     expect(tickCooldown(1, FIXED_DT)).toBeGreaterThan(0);
   });
 
-  it('a large negative result (well below 0) is floored to 0, not left negative', () => {
-    expect(tickCooldown(0.001, 1)).toBe(0);
+  it('a large negative result (well below 0) is banked as a real overshoot, not floored to 0 (fb128)', () => {
+    // Pre-fb128 this floored to 0, discarding the overshoot every time a
+    // cooldown crossed zero and quantising every ticked cooldown to whole
+    // 60 Hz ticks (Q172). The overshoot has to survive so it can be carried
+    // into the next `cooldown += interval`.
+    expect(tickCooldown(0.001, 1)).toBeCloseTo(-0.999, 12);
+  });
+
+  it('a tiny negative residual within COOLDOWN_EPS of 0 still floors to exactly 0', () => {
+    expect(tickCooldown(0.0000005, 0.000001)).toBe(0);
   });
 });
 
