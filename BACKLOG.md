@@ -4724,26 +4724,90 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       file already updated), and a headless `tools/sim.ts` sanity run at
       two seed/policy pairs completed clean — refs: SPEC-FINAL §2, §14
       G1/G13, Q172.
-- [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
-      call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
-      (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in
-      `src/sim/enemies.ts`/`boss.ts` asks them, so ground melee still chews
-      a tower across a cliff edge and fb064m's "no uncontestable plot"
-      constraint guards a rule no run enforces. The six call sites are
-      listed in BACKLOG-TERRAIN.md's fb064i Log; `nearestStructureWithin`
-      (`enemies.ts:1258`) selects before the rule applies. The Act II
-      residual — Spitters skip structures under `!act2`, so every
-      high-ground tower is uncontestable during the VS phase — and the
-      Burrower's widened untargetable window are design calls (Q171).
-      **Q171 verdict (2026-09-14): the Act II residual is accepted as a
-      non-issue (towers are inert and enemies hunt the Warden during VS, so
-      an uncontestable inert tower changes nothing) — closed, no code
-      needed.** The Burrower's widened untargetable window is capped at
-      **3s ⚖ per surfacing** — folds into this item's acceptance below.
-      Acceptance: rules wired at every listed site with a red-first test
-      per site; the Burrower untargetable-window cap (3s ⚖) pinned by a
-      regression test — refs: SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md
-      fb064d/fb064i/fb064m, QUESTIONS Q171.
+- [x] (fb129) [feat] **DONE 2026-09-17.** fb064d's main-lane half — wired
+      `canAttackStructureAt`/`canSurfaceAt`/`familyForDef`
+      (`src/sim/terrain/high-ground.ts`) into the five `src/sim/enemies.ts`
+      sites BACKLOG-TERRAIN.md's fb064i Log named: the melee-breach branch
+      (`moveEnemy`, *the* rule — every other site is a leak path around it),
+      the Colossus's `stomp` AoE, the Spitter's ranged structure branch
+      (a no-op under shipped data since `ranged` is exempt — wired anyway so
+      a Tuner edit revoking the exemption isn't silence), and both
+      `updatePhasing` surfacing sites (Burrower, Wraith phase-end).
+      `src/sim/boss.ts`'s two sites (`shatterAlong`, `updateUnreachable`)
+      are deliberately untouched, per `high-ground.ts`'s own doc comment.
+      `World` gained a `terrainCfg` field (the config `applyRunTerrain`
+      actually generated the run's map from) and an optional constructor
+      parameter mirroring the existing `content` DI, so a test can inject a
+      synthetic high-ground table. The Burrower untargetable-window cap
+      (Q171 verdict, **3s ⚖**) is `data/spawns.json`'s new
+      `burrowHighGroundBlockCapSeconds`, backed by a new `Enemy
+      .surfaceBlockedFor` field (hashed in `hashWorld`, reset whenever not
+      submerged-and-in-surfacing-range, forces a surface once it reaches
+      the cap so a high-ground-blocked Burrower cannot stay untargetable
+      forever). `tests/fb129-highground-wiring.test.ts`: one red-first test
+      per site (6 of 7 fail against the pre-fix code, independently
+      re-verified via a git-stash control; the 7th documents the Spitter's
+      shipped no-op and is expected to pass either way) against a real
+      generated map — enemy movement is hijacked through the Charger's
+      `chargeState`/`chargeVx`/`chargeVy` fields so the melee-breach
+      scenario doesn't depend on flow-field routing. `data/spawns.json`'s
+      new field is a plain unguarded `num` like every sibling in the file;
+      `tests/q7-loader-holes.ts`'s `ACCEPTED` ledger updated to match.
+      code-reviewer APPROVE (one nit — `familyForDef` moved inside the
+      `s &&` branch at the melee site to skip the lookup on a plain terrain
+      bump — fixed before commit; one pre-existing gap noted, not fixed
+      here: `e.submerged`/`ghosting`/`phaseRemaining`/`phaseCooldown` are
+      not hashed in `hashWorld` either, the same class of gap
+      `surfaceBlockedFor` was given a hash to avoid — worth a follow-up
+      item). qa-playtester PASS: independently reproduced the red-first
+      result, boundary-position charge collisions, a Burrower forced past
+      the cap while still genuinely on high ground (relocates cleanly via
+      `unstick`, no invalid state), and a 4-seed headless `tools/sim.ts`
+      sanity sweep (deterministic end hashes, no hangs). `npm run
+      test:fast`: 310 files / 4502 passed / 35 skipped / 0 failed — refs:
+      SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md fb064d/fb064i/fb064m,
+      QUESTIONS Q171.
+- [x] (fb136) [bug] **DONE 2026-09-17, filed by qa-playtester on fb129,
+      fixed in the same session with the failing test first.** A pocket
+      sealed only by a high-ground tower stalled the trapped ground enemy
+      forever instead of ghosting free. `updateGroundUnreachable`'s
+      `beelineHitsStructure` (`src/sim/enemies.ts`) asked only "is there a
+      structure on the beeline", true for any structure before fb129 —
+      fb129 made the melee-breach site deny an attack on a high-ground
+      tower (`e.attackingStructure` stays 0) but left this helper still
+      answering "yes, chewable" for that same tower, resetting
+      `bossUnreachableTime` to 0 every tick and never letting `e.ghosting`
+      trip. Fixed by threading `def` through to `beelineHitsStructure` and
+      gating its answer on `canAttackStructureAt` — a structure the
+      enemy's family cannot attack no longer counts as "something to
+      chew". `tests/fb136-groundunreachable-highground.test.ts` builds a
+      real generated map, seals a flat tile's three non-tower neighbors
+      with raw terrain so its only physical neighbor is a high-ground
+      tower, and pins that the trapped enemy eventually ghosts free with
+      the tower left undamaged (confirmed red against the pre-fix code via
+      a manual diff-swap control, since this bug only exists on top of
+      fb129's own wiring — pre-fb129 code has no exemption to miss).
+      `npm run test:fast`: 311 files / 4503 passed / 35 skipped / 0 failed
+      — refs: SPEC-FINAL §10.5, fb129, fb064i.
+- [ ] (fb137) [bug] qa-playtester finding on fb129: the Wraith's phase-end
+      high-ground denial (`updatePhasing`, `enemies.ts` TRAIT.phases
+      branch) has no untargetable-window cap analogous to the Burrower's
+      `surfaceBlockedFor`/`burrowHighGroundBlockCapSeconds` (Q171 verdict
+      only required one for the Burrower). The in-code comment claiming
+      "not a live leak today... `unstick` already nudges it" is wrong:
+      `unstick` only runs inside the `canSurfaceAt` branch, i.e. only once
+      surfacing is already permitted — it never runs on denial. Repro
+      (deterministic): a Wraith on a high tile with `w.warden.x/y` set to
+      its own position (the fixed-point case — direction-to-target
+      normalizes to zero, so ghosting movement never carries it off the
+      tile) stays `ghosting: true` indefinitely past its `phaseRemaining`
+      timer; the Burrower's equivalent case clears within its 3s cap.
+      Acceptance: a capped timer (mirror the Burrower's shape/field
+      naming) forces the Wraith to end its phase after the cap even while
+      denied; a red-first regression test extending
+      `tests/fb129-highground-wiring.test.ts`'s Wraith describe block with
+      the fixed-point case pins it — refs: fb129, BACKLOG-TERRAIN.md
+      fb064i Log, QUESTIONS Q171.
 - [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
       migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
       `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,
