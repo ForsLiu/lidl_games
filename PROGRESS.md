@@ -14,6 +14,36 @@ resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
 seeds throughout, discarding the second branch's duplicate rewrite of the same
 change. No functional difference between the two fixes.
 
+- **2026-09-18 — main lane: BACKLOG p12i closed (already fixed; a bookkeeping
+  miss like p12d's, below); its verification filed BACKLOG fb199, a real
+  currently-failing regression.** p12i asked to choose between retuning
+  `data/towers.json` against terrain-bearing waves or a design call to
+  isolate G13's solo-viability probe from generated terrain. Re-reading
+  `tests/a4-single-type.test.ts`'s own later "p12h" section showed the
+  isolation choice was already shipped there — `tools/a4probe.ts`'s
+  `RunConfig` sets `practice: true` (confirmed present at line 73), zero
+  `/data` touched — and p12i's checkbox was simply never closed after.
+  Logged as QUESTIONS Q210 and closed. Re-running the file's own live
+  `p12h` regression case to confirm the fix still holds (`npx vitest run
+  tests/a4-single-type.test.ts`, 860s) found it **failing at HEAD**:
+  `frost_obelisk` measures 0/5 against its own asserted `>=4`, with
+  `ember_brazier`/`tesla_coil`/`mortar`/`venom_spore` also down from the
+  docstring's claimed `{5,5,5,5,4,4,5}` table. The same class of regression
+  — not the identical reading, checked not assumed: fb092's own numbers
+  were `{ember_brazier 0, frost_obelisk 0, venom_spore 2}`, only
+  `frost_obelisk` matches this session's — was already found and bisected
+  as pre-existing by fb092 (2026-09-15, below; byte-identical with/without
+  its own diff) and flagged "for a future session to file," but no session
+  had. Filed now as **fb199** with the already-red test as its regression
+  test (CLAUDE.md rule 3), narrowed to the six commits landed between
+  fb092 (`2a30281`) and HEAD touching `src/sim/terrain`/`src/sim/world.ts`
+  — `data/towers.json` itself is exonerated (only three commits ever,
+  fb092's own already ruled out). Not chased to root cause here.
+  `npm run test:fast` re-confirmed green (this
+  item touched only `BACKLOG.md`/`QUESTIONS.md`/this file, no `/src` or
+  `/data`); code-reviewer light-tier pass found no issues — refs:
+  SPEC-FINAL §14 G13, BACKLOG p12h, p12i, fb092, fb199, QUESTIONS Q194,
+  Q210.
 - **2026-09-18 — main lane: BACKLOG p12d closed for real.** p12d's 2026-09-07
   session had already landed G1/G14/G23's T3-reference-tier rewrite and G8's
   original two-clause diversity text, but this item was left `[ ]` in

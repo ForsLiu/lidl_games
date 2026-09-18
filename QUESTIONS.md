@@ -1515,3 +1515,48 @@ Q200 did not collide and are unchanged below).
   (choose, log, continue); c010's own acceptance text named this exact
   question and asked for it to be logged for the main lane rather than
   implemented from the content lane. — (owner verdict: pending)
+
+- **Q210. [p12i] Closed — already fixed by p12h; verifying it surfaced a
+  separate unfiled drift, now filed as fb199.** p12i (filed by Q194) asked
+  for a choice between (a) retuning `data/towers.json` against
+  terrain-bearing waves, or (b) a design call that G13's solo-viability
+  clause should measure the flat fallback arena rather than real generated
+  terrain. Re-reading `tests/a4-single-type.test.ts`'s own later "p12h"
+  section (dated after Q194's entry, same continued investigation) shows
+  option (b) was already chosen and shipped there: `tools/a4probe.ts`'s
+  `RunConfig` sets `practice: true` (confirmed still present at
+  `tools/a4probe.ts:73`), isolating this probe from generated terrain the
+  same way `world.invulnerable` isolates it from VS combat, with zero
+  `/data` touched. p12i's checkbox was simply never closed afterward — the
+  same bookkeeping-miss shape PROGRESS.md's 2026-09-18 p12d entry already
+  named once this session. No further design call needed; chose to close
+  p12i as already-resolved rather than re-litigate (a) vs (b).
+  Re-running the file's own live (non-`.skip`) `p12h` regression case to
+  confirm the fix still holds found it **failing at HEAD**
+  (`frost_obelisk` 0/5 against its own `>=4` assertion, four other towers
+  also down from the docstring's `{5,5,5,5,4,4,5}` claim) — the same class
+  of regression fb092 (2026-09-15) already found and proved pre-existing
+  via a `git stash` control against its own `data/towers.json` diff, then
+  flagged "for a future session to file," but no session had filed it
+  until now. **Not the identical reading, though — checked, not assumed:**
+  fb092's own numbers were `{ember_brazier 0, frost_obelisk 0, venom_spore
+  2}` of 5 (others unlisted, implicitly >=4); this session's are
+  `{ember_brazier 4, frost_obelisk 0, tesla_coil 3, mortar 3, venom_spore
+  3}` — only `frost_obelisk` (0/5) matches exactly, the other towers moved
+  in both directions since. `git log --oneline 2a30281..HEAD -- data/
+  enemies.json data/waves.json src/sim/terrain src/sim/world.ts` shows six
+  commits touching terrain/world code landed in that window (2a30281 is
+  fb092's own commit), so further drift after fb092 is real and
+  unaccounted for, not just re-confirmation of the same fixed number.
+  Filed as BACKLOG fb199 rather than folded into this entry, since it's a
+  different mechanism (a real measurement drift, not a terrain-isolation
+  gap) with its own regression test already red at HEAD, and fb199's text
+  points at that same six-commit window as the place to start bisecting.
+  — Reason: CLAUDE.md rule 5 (choose, log, continue); measurement rules
+  ("re-measure a deferred assertion before inheriting it," "a deferral is
+  a measurement with an expiry date," "my change improved X needs the
+  control run, not the plausible story" — extended here to "my bug is the
+  same bug needs the number comparison, not the plausible story"); CLAUDE.md
+  rule 3 (confirmed bugs get a regression test before the fix — fb199's is
+  already red, satisfying this without a new test write). — refs:
+  SPEC-FINAL §14 G13, BACKLOG p12h, p12i, fb092, fb199, QUESTIONS Q194. — (owner verdict: pending)

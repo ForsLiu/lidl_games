@@ -968,8 +968,9 @@ honor.**
 "Recently completed" pointers above for p12d/p12e). p12d's gate rewrites
 landed measuring G1/G8/G14/G23 at T3 as reference tier with T1/T5 as
 companion bands, per BALANCE DIRECTION v2 §D. p12e re-anchored the
-Warden-Eater's HP fit; carried forward below as its own item is the one
-open follow-up qa-playtester filed on it, p12i.
+Warden-Eater's HP fit; the one open follow-up qa-playtester filed on it,
+p12i, is done as of 2026-09-18 (see its own DONE entry below) — its
+verification surfaced a separate, still-open drift, fb199.
 
 - [x] (p12a) [balance] Kit growth: class kit damage must compound over a run
       and be re-anchored for the post-fb025 (enemy HP x10) world. (1) A
@@ -1452,29 +1453,76 @@ open follow-up qa-playtester filed on it, p12i.
       and the clause either green or re-banded with the measurement — refs:
       SPEC-FINAL §14 G13, `tests/a4-single-type.test.ts`'s own header history.
 
-- [ ] (p12i) [bug] Follow-up from p12h's bisection: fb077's generated terrain
-      (SPEC-FINAL §10.5, landed 2026-09-04) collapses solo-tower T1
-      viability — 7/7 towers went from clearing all 18 TD waves on the flat
-      arena to 0-3/5 clears on generated terrain, three of seven now dying by
-      wave 3 (`ember_brazier`/`frost_obelisk`/`venom_spore`). Two live options,
-      neither attempted here (p12h's scope was bisection only): (a) a
-      `data/towers.json`-only retune against the terrain-bearing curve, in
-      the fb076/p10c style, but harder — the curve now varies per seed
-      (buildable-tile count, path length, chokepoint shape), so a fixed pin
-      has to hold across that variance, not just the wave-HP ladder; (b) a
-      design call that G13's solo-viability clause should measure the flat
-      fallback arena rather than real terrain, on the grounds that "does a
-      single tower type break the *curve*" and "does a single tower type
-      survive an *adversarial map roll*" are different claims — this needs an
-      inbox verdict or a QUESTIONS.md default per CLAUDE.md's "fill any
-      genuine remaining gap" rule, not a unilateral pick, since it changes
-      what the gate means. Start by checking whether the three wave-3 deaths
-      share a mechanism (sealed-pocket ghosting, a chokepoint the `BuilderPolicy`
-      bot can't route towers around, or genuine path-length variance) before
-      choosing a lever — acceptance: root cause identified for at least the
-      three wave-3-death towers, then (a) or (b) chosen and logged, then the
-      clause's `.skip` numbers re-measured against whichever is chosen — refs:
-      SPEC-FINAL §14 G13, §10.5, BACKLOG p12h, QUESTIONS Q194.
+- [x] (p12i) [bug] **DONE 2026-09-18 — already fixed by the time this item was
+      picked up; the checkbox was the only thing left open (a bookkeeping
+      miss, same shape as p12d's before it).** This item's own text describes
+      G13's solo-viability probe collapsing on generated terrain
+      (`ember_brazier`/`frost_obelisk`/`venom_spore` dying by wave 3). That is
+      exactly what `tests/a4-single-type.test.ts`'s own later "p12h" section
+      records fixing, in the same continued investigation: `tools/a4probe.ts`
+      (`runSingleType`'s `RunConfig`) now sets **`practice: true`** (verified
+      still present at `tools/a4probe.ts:73`), disabling generated terrain the
+      same way `world.invulnerable` already isolates VS combat — restoring
+      option (b) from this item's own two options, by fixing the probe's
+      isolation rather than by retuning `/data` against variable per-seed
+      terrain (option (a), confirmed materially harder and correctly not
+      attempted). Zero `/data` touched, matching the test file's own claim of
+      no blast radius on G1/G8/G14/G23.
+      **Verifying this surfaced a distinct, already-known-but-never-filed
+      regression — not the terrain issue this item names, so filed
+      separately rather than folded in.** Ran the file's own live (non-
+      `.skip`-ed) `p12h` case directly (`npx vitest run
+      tests/a4-single-type.test.ts`, 860s): it **fails at HEAD** —
+      `frost_obelisk` measures 0/5 against its own asserted `>=4`, with
+      `ember_brazier`/`tesla_coil`/`mortar`/`venom_spore` also down from the
+      `{5,5,5,5,4,4,5}` table the test's prose claims. This is the same
+      class of regression fb092 (2026-09-15, PROGRESS.md) already found and
+      bisected byte-identical with/without its own `data/towers.json` diff
+      (ruling out that session's change), flagging it "for a future session
+      to file" — but that filing never happened. **Not the identical
+      reading, though — checked, not assumed:** fb092's own numbers were
+      `{ember_brazier 0, frost_obelisk 0, venom_spore 2}` of 5 (others
+      unlisted, implicitly `>=4`); this session's are `{ember_brazier 4,
+      frost_obelisk 0, tesla_coil 3, mortar 3, venom_spore 3}` — only
+      `frost_obelisk` (0/5) matches exactly, so drift continued after fb092,
+      not just a stale re-confirmation. Filed now as **fb199** below, with
+      the already-failing test as fb199's regression test per CLAUDE.md
+      rule 3, and fb199's own text narrows the search to the commits landed
+      since fb092. — refs: SPEC-FINAL §14 G13, §10.5, BACKLOG p12h,
+      QUESTIONS Q194, Q210 (this item's closing entry).
+
+- [ ] (fb199) [bug] `tests/a4-single-type.test.ts`'s live `p12h` case ("with
+      baseHpMul reverted to identity, the terrain fix alone restores
+      fb076-era viability") fails at HEAD: measured `{"arrow_spire":5,
+      "ballista":5,"ember_brazier":4,"frost_obelisk":0,"tesla_coil":3,
+      "mortar":3,"venom_spore":3}` of 5, against the test's own asserted
+      `>=4` per tower and its docstring's claimed `{5,5,5,5,4,4,5}` table.
+      `frost_obelisk` is the total failure (0/5); the others have also
+      drifted down. The same class of regression was first flagged by
+      qa-playtester during fb092 (2026-09-15, PROGRESS.md), which measured
+      `{ember_brazier 0, frost_obelisk 0, venom_spore 2}` and confirmed it
+      pre-existing — byte-identical with/without fb092's own
+      `data/towers.json` diff via `git stash` bisection — but never filed
+      until now (p12i's 2026-09-18 close-out). That reading is **not
+      identical** to this session's (`ember_brazier`/`tesla_coil`/`mortar`/
+      `venom_spore` have all moved since, only `frost_obelisk` still reads
+      0/5), so the drift continued after fb092's own commit, `2a30281`
+      (2026-09-15) — narrow the bisection to that window first:
+      `git log --oneline 2a30281..HEAD -- data/enemies.json data/waves.json
+      src/sim/terrain src/sim/world.ts` lists six candidate commits.
+      `data/towers.json` itself has had exactly three commits ever
+      (`607e455`, `ef778af`, fb092's own `2a30281`), and fb092 already
+      exonerated its own diff, so the cause is not a `towers.json` edit.
+      `tests/p11d-g13-t3-margin.test.ts`'s "measured 17/18" comment is also
+      stale at HEAD (fb092 measured 2/18) — same drift shape, check both
+      together. Acceptance: root cause identified (a control run either
+      side of the candidate commit, per CLAUDE.md measurement rules), then
+      either fixed or the test's asserted numbers corrected to the honest
+      current reading with the cause logged (matching this file's own
+      precedent at p11d: "the pin is corrected to the honest current
+      reading rather than re-transcribing the stale one") — refs:
+      SPEC-FINAL §14 G13, BACKLOG fb092, p12h, p12i, PROGRESS.md 2026-09-15
+      fb092 entry.
 
 - [x] (p12j) [balance] **DONE 2026-09-07** — `data/classes.json`-only
       re-tune, balance-analyst method (hypothesis, one lever or a small named
