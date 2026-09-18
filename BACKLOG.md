@@ -4841,24 +4841,62 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       integration since `fb136` was already in use on master for an
       unrelated qa-playtester coverage-gap item (id collision, fb118) — refs:
       SPEC-FINAL §10.5, fb129, fb064i.
-- [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
-      migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
-      `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,
-      `sundering.ts`, `cores.ts`, `enemies.ts:606`, `src/bots/policies.ts`,
-      `src/ui/selection.ts`, `src/render/canvas.ts` — the fb064h Log lists
-      the lines) so `Grid.placeCore` is safe to call; (2) the placement
-      Command (sim Command per rule 3, bots/replays included) validated by
-      `validateCorePlacement` with the run's gate list; (3) domain-check
-      `RunConfig.seed` at ingestion (`tools/sim.ts:78` `Number(v)`) so
-      `--seed 1e18` is a CLI rejection, not a mid-run throw from
-      `generateTerrain`; (4) a run-lifecycle flag shared by `placeCore` and
-      `applyTerrain` so neither re-opens after a build-then-sell; (5)
-      `verifyTerrainMap` asserted at the run boundary; (6) the approach
-      band re-checked (or the 4.969 worst case accepted knowingly) for a
-      player-placed Core. Acceptance: G2 replay hash covers the placement;
-      seed sweep with placed Cores keeps every gate reachable — refs:
-      SPEC-FINAL §10.5 (fb079), §12 rules 2-3, BACKLOG-TERRAIN.md
-      fb064c/fb064h/fb064j/fb064o/fb064p.
+- [x] (fb130) [feat] **DONE 2026-09-18** — fb064c's main-lane half — Core
+      placement wiring, all six parts: (1) every `CORE_X`/`CORE_Y`/module-level
+      `coreCenter()` reader outside `grid.ts` migrated to
+      `grid.coreOrigin()`/`coreCenterOf()` — `world.ts`, `run.ts` (the Act I
+      Warden reform, its own `x - 2` offset left untouched, that's fb131's),
+      `sundering.ts`, `cores.ts`, `enemies.ts`, `src/bots/policies.ts`,
+      `src/ui/selection.ts`, `src/render/canvas.ts` (verified live, not just by
+      the diff's own claim, with a fresh repo-wide grep — none missed; `grid.ts`
+      keeps the constants as `coreOrigin()`'s own default, `terrain/analyze.ts`
+      keeps them for `suggestCoreAnchor`'s generation-time tie-break, both
+      correctly out of scope); (2) a new `place_core` sim Command
+      (`src/sim/cores.ts` `placeCoreCommand`, dispatched through `run.ts`'s
+      `applyCommand` exactly like `build`/`sell`, so bots/replays share the
+      surface per architecture rule 3) validated by `validateCorePlacement`
+      against the run's *real* `terrainMap`/`gates` (not the default `GATES` —
+      correct under the Fourth Gate modifier too); (3) `tools/sim.ts`'s
+      `--seed`/`--seeds` now domain-checked against `MIN_TERRAIN_SEED..
+      MAX_TERRAIN_SEED` at CLI parse time (`--seed 1e18` rejects cleanly,
+      confirmed live; the domain's own boundary values still run); (4) a sticky
+      `World.buildPhaseOpened` flag, set once from `addStructure`, refuses both
+      `placeCore` and re-`applyTerrain` after a build-then-sell — confirmed by
+      QA against both `placeCoreCommand` directly and a real build+sell+place
+      sequence; (5) `verifyTerrainMap` asserted at the run boundary — code
+      review caught that the practice-mode construction path bypassed it (only
+      `applyRunTerrain`'s branch was covered), fixed with an explicit check
+      after `this.terrainMap = mapOut.map` in `world.ts`; (6) resolved as
+      **validate**, not accept-knowingly: new `withinApproachBand` (`cores.ts`,
+      reusing the already-exported `maxGateDetour`) re-checks the clicked
+      anchor against the same ceiling `terrainLegal` already held the suggested
+      anchor to, decision logged as QUESTIONS Q211. New
+      `tests/fb130-core-placement-wiring.test.ts` (24 tests: Command dispatch,
+      every reject reason, the build-then-sell lock, G2 replay-hash
+      determinism including a bot-driven run, the 30-seed+5-seed reachability
+      sweep, `verifyTerrainMap`'s reach, the approach-band check). Full-tier
+      review: code-reviewer APPROVE (Minor-only: the practice-mode
+      `verifyTerrainMap` gap above, fixed; a `QUESTIONS.md Q216`→`Q210`
+      doc-comment typo, fixed; a small per-enemy allocation regression in
+      `coreEdgeDist2`/`nearCoreSlowAura` reading `coreOrigin()` instead of a
+      hoisted primitive, left as-is — real but minor, not touched this item; no
+      test exercises `place_core` together with the Fourth Gate modifier
+      specifically, left as a follow-up); qa-playtester PASS (no blocking bug;
+      confirmed `place_core` can be dispatched more than once before the build
+      phase opens with the last call winning — no reject reason exists for
+      "already placed" — read as intentional preview/reposition behavior, not
+      filed as a bug; noted `grid.ts`'s own doc comment claiming "nothing calls
+      `placeCore` today" is now stale prose in a file outside this lane's
+      Scope; noted the unused `src/sim/index.ts` barrel still re-exports the
+      stale `CORE_X/CORE_Y/coreCenter` names, not live today). `npx tsc
+      --noEmit` clean; `npm run test:fast` green twice (312 files / 4527
+      passed / 35 skipped / 0 failed, unchanged pass count from before this
+      item). No live UI hookup yet (out of main-lane Scope) — `place_core` is
+      ready for BACKLOG-TERRAIN.md fb064c's click-to-place flow. Acceptance
+      met: G2 replay hash covers the placement; seed sweep with placed Cores
+      keeps every gate reachable — refs: SPEC-FINAL §10.5 (fb079), §12 rules
+      2-3, BACKLOG-TERRAIN.md fb064c/fb064h/fb064j/fb064o/fb064p, QUESTIONS
+      Q211.
 - [ ] (fb131) [bug] three Warden placements bypass `wardenPassable` now
       that terrain is live (fb077): the Act I reform (`run.ts:666`, `wd.x =
       c.x - 2`) can land the Warden inside rock two tiles west of the Core;

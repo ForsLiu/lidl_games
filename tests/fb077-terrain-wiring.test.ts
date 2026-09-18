@@ -74,7 +74,7 @@ describe('fb077 — World generates and applies real terrain', () => {
     // spawn tile (clearOverlayBlock, world.ts) — a structural position that
     // is neither a GateDef nor TileType.Core, so it needs its own exclusion
     // here the same way Gate/Core tiles get one below.
-    const { tx: wtx, ty: wty } = wardenSpawnTile();
+    const { tx: wtx, ty: wty } = wardenSpawnTile(new Grid());
     for (let i = 0; i < expectedOverlay.kind.length; i++) {
       // Gate/Core tiles are forced back to normal ground by `Grid.applyTerrain`
       // regardless of what the raw map painted there; everywhere else the
@@ -112,7 +112,7 @@ describe('fb077 — World generates and applies real terrain', () => {
 
 describe('fb077 — the Warden never spawns on blocked terrain (code review finding)', () => {
   it('spawn tile is always walkable and unblocked across a 300-seed sweep', () => {
-    const { tx, ty } = wardenSpawnTile();
+    const { tx, ty } = wardenSpawnTile(new Grid());
     for (let seed = 1; seed <= 300; seed++) {
       const w = new World(runCfg({ seed }));
       expect(Math.floor(w.warden.x), `seed ${seed}`).toBe(tx);
@@ -123,7 +123,7 @@ describe('fb077 — the Warden never spawns on blocked terrain (code review find
   });
 
   it('the raw generator, blind to the Warden, can paint Rock/High directly on that tile (documents the pre-fix bug)', () => {
-    const { tx, ty } = wardenSpawnTile();
+    const { tx, ty } = wardenSpawnTile(new Grid());
     const gates = GATES.slice(0, 3);
     let blocked = 0;
     for (let seed = 1; seed <= 2000; seed++) {
@@ -204,7 +204,7 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
   });
 
   it('a Fourth Gate World plays the map the 4-gate generator produces, byte for byte off the structural tiles', () => {
-    const { tx: wtx, ty: wty } = wardenSpawnTile();
+    const { tx: wtx, ty: wty } = wardenSpawnTile(new Grid());
     for (let seed = 1; seed <= 30; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
       expect(w.terrainFallback).toBe(false);

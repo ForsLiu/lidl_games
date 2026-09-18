@@ -4,7 +4,7 @@
  */
 
 import { defaultCoreKey, loadContent, type ClassDef, type Content } from './content';
-import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
+import { GATES, GRID_H, GRID_W } from './grid';
 import { Hasher } from './hash';
 import { clamp, normalize } from './math';
 import { BASE, damageTakenMul } from './stats';
@@ -24,6 +24,7 @@ import {
   applyHealingToWarden,
   coreMoveSpeedMul,
   maxCore,
+  placeCoreCommand,
   updateCarnivorousPlant,
   updateCoreEffects,
   updateCorpse,
@@ -293,6 +294,9 @@ export function applyCommand(w: World, c: Command): void {
       break;
     case 'sell':
       sellTower(w, c.tx, c.ty);
+      break;
+    case 'place_core':
+      placeCoreCommand(w, c.tx, c.ty);
       break;
     case 'upgrade_core':
       upgradeCore(w);
@@ -729,7 +733,10 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       // Act I stakes live on the Core: a downed Warden reforms at the Core.
       wd.hp = w.derived.maxHp * 0.5;
       wd.armorShred = 0;
-      const c = coreCenter();
+      // fb130 migration: the live Core (a placed Core moves this), not the
+      // stale CORE_X/CORE_Y-keyed default — the `x - 2` offset itself is
+      // fb131's own `wardenPassable` fix, untouched here.
+      const c = w.grid.coreCenterOf();
       wd.x = c.x - 2;
       wd.y = c.y;
       wd.dashIFrames = 2;

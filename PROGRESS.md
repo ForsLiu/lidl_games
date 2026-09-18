@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: BACKLOG fb130 done — Core placement wired live
+  (fb064c's main-lane half).** The 2x2 Core no longer sits only at the fixed
+  `CORE_X/CORE_Y` (25,9): a new `place_core` sim Command
+  (`src/sim/cores.ts` `placeCoreCommand`, dispatched through `run.ts` like
+  `build`/`sell`) validates a click with `validateCorePlacement` against the
+  run's real terrain/gates and calls the already-built `Grid.placeCore`
+  (fb064h/fb064o), which was previously wired but uncalled from any run.
+  Every reader of the old fixed position was migrated to
+  `grid.coreOrigin()`/`coreCenterOf()` — rendering, pathing/targeting, tower
+  range, bot AI, the Warden's reform — confirmed complete by a fresh
+  repo-wide grep, not just the diff's own claim. A sticky
+  `World.buildPhaseOpened` flag closes the previously-open "re-place after
+  build-then-sell" hole for both `placeCore` and `applyTerrain`.
+  `verifyTerrainMap` is now asserted at every run-construction path,
+  including practice mode (a gap code-reviewer caught — the practice branch
+  bypassed `applyRunTerrain`'s own check). `tools/sim.ts`'s `--seed`/
+  `--seeds` now reject an out-of-domain value at CLI parse time instead of
+  throwing mid-run. The approach-band question fb064o's Log left open
+  ("validate a placement's detour or accept the 4.969 worst case knowingly")
+  is resolved as **validate**: `withinApproachBand` re-checks the clicked
+  anchor against the same ceiling the suggested anchor is held to at
+  generation time, logged as QUESTIONS Q211. New
+  `tests/fb130-core-placement-wiring.test.ts` (24 tests). Full-tier
+  code-reviewer APPROVE (Minor-only, addressed) and qa-playtester PASS (no
+  blocking bug — see BACKLOG.md's fb130 entry for the two informational
+  notes). `npx tsc --noEmit` clean; `npm run test:fast` green (312 files /
+  4527 passed / 35 skipped / 0 failed, unchanged from baseline). No UI hookup
+  yet (BACKLOG-TERRAIN.md fb064c's click-to-place flow is UI-lane scope) —
+  the sim side is ready for it — refs: SPEC-FINAL §10.5, §12 rules 2-3,
+  BACKLOG-TERRAIN.md fb064c/fb064h/fb064j/fb064o/fb064p, QUESTIONS Q211.
+
 **Integrator (2026-09-17):** fb128 was fixed independently on two parallel
 branches (`claude/dreamy-hopper-6pebu0` and `claude/dreamy-hopper-0poxye`) —
 same root cause, same one-line fix in `tickCooldown`. The first branch's PR

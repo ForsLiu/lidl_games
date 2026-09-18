@@ -6,8 +6,6 @@
 import {
   CORE_H,
   CORE_W,
-  CORE_X,
-  CORE_Y,
   GRID_H,
   GRID_W,
   TILE,
@@ -878,16 +876,18 @@ export class Renderer {
         case 'core_plant':
           this.pushCast('point', e.x, e.y, 0, 0, coreEffectColor(w.coreKey, 'devour', '#7ac74f'));
           break;
-        case 'core_lifesteal':
+        case 'core_lifesteal': {
+          const lifestealCenter = w.grid.coreCenterOf();
           this.pushCast(
             'line',
             e.x,
             e.y,
-            CORE_X + CORE_W / 2,
-            CORE_Y + CORE_H / 2,
+            lifestealCenter.x,
+            lifestealCenter.y,
             coreEffectColor(w.coreKey, 'lifesteal', '#ff5577'),
           );
           break;
+        }
         case 'core_beam':
           this.pushCast('line', e.x, e.y, e.a, e.b, coreEffectColor(w.coreKey, 'execute', '#ffd166'));
           break;
@@ -1205,8 +1205,9 @@ export class Renderer {
     this.drawTerrainEdges(w);
 
     // Core / Heartstone.
-    const cx = CORE_X * TILE;
-    const cy = CORE_Y * TILE;
+    const coreOrigin = w.grid.coreOrigin();
+    const cx = coreOrigin.tx * TILE;
+    const cy = coreOrigin.ty * TILE;
     const cw = CORE_W * TILE;
     const ch = CORE_H * TILE;
     if (night) {
@@ -2090,8 +2091,9 @@ export class Renderer {
    */
   private drawCoreStatus(w: World): void {
     const ctx = this.ctx;
-    const cx = (CORE_X + CORE_W / 2) * TILE;
-    const cy = (CORE_Y + CORE_H / 2) * TILE;
+    const coreCenter = w.grid.coreCenterOf();
+    const cx = coreCenter.x * TILE;
+    const cy = coreCenter.y * TILE;
     const core = w.core;
     if (w.coreKey === 'carnivorous_plant' && !w.huntsWarden && core.devourRadius > 0) {
       ctx.strokeStyle = '#7ac74f55';
@@ -2142,8 +2144,9 @@ export class Renderer {
    */
   private drawCoreLabels(w: World): void {
     const ctx = this.ctx;
-    const cx = (CORE_X + CORE_W / 2) * TILE;
-    const labelY = CORE_Y * TILE - 10;
+    const coreOrigin = w.grid.coreOrigin();
+    const cx = (coreOrigin.tx + CORE_W / 2) * TILE;
+    const labelY = coreOrigin.ty * TILE - 10;
     const core = w.core;
     let text: string | undefined;
     let color = '#ffffff';
@@ -2571,9 +2574,10 @@ function selectionAnchor(
     return { x: w.warden.x * TILE, y: w.warden.y * TILE, r: 12 };
   }
   if (sel.kind === 'core') {
+    const coreCenter = w.grid.coreCenterOf();
     return {
-      x: (CORE_X + CORE_W / 2) * TILE,
-      y: (CORE_Y + CORE_H / 2) * TILE,
+      x: coreCenter.x * TILE,
+      y: coreCenter.y * TILE,
       r: Math.max(CORE_W, CORE_H) * TILE * 0.8,
     };
   }

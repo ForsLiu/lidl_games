@@ -25,15 +25,44 @@ let makePolicy: typeof import('../src/bots').makePolicy;
 let policyNames: typeof import('../src/bots').policyNames;
 let loadContent: typeof import('../src/sim/content').loadContent;
 let allTreeNodeIds: typeof import('../src/meta/meta').allTreeNodeIds;
+// fb130 (item 3): the same accepted-seed-domain constants `generateTerrain`
+// itself enforces (`src/sim/terrain/generate.ts`), imported here so a
+// `--seed`/`--seeds` value can be rejected at CLI ingestion — loudly, before
+// any run starts — instead of surfacing as a mid-run throw from deep inside
+// terrain generation the first time a non-practice `World` is constructed.
+let MIN_TERRAIN_SEED: typeof import('../src/sim/terrain').MIN_TERRAIN_SEED;
+let MAX_TERRAIN_SEED: typeof import('../src/sim/terrain').MAX_TERRAIN_SEED;
 try {
   ({ Run } = await import('../src/sim/run'));
   ({ makePolicy, policyNames } = await import('../src/bots'));
   ({ loadContent } = await import('../src/sim/content'));
   ({ allTreeNodeIds } = await import('../src/meta/meta'));
+  ({ MIN_TERRAIN_SEED, MAX_TERRAIN_SEED } = await import('../src/sim/terrain'));
 } catch (err) {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`sim: ${message.replace(/\s+/g, ' ').trim()}`);
   process.exit(1);
+}
+
+/**
+ * fb130 (item 3): a CLI seed argument must be an integer in the domain
+ * `generateTerrain` itself accepts (`[MIN_TERRAIN_SEED, MAX_TERRAIN_SEED]`,
+ * `src/sim/terrain/generate.ts`) — anything else (`1e18`, `NaN` from a
+ * garbage string, a fractional value) used to sail through `Number(v)`
+ * unchecked and only surface as a thrown `Error` once a non-practice `World`
+ * reached `applyRunTerrain`, deep inside the first run of a sweep. Throws
+ * (rather than `process.exit`, which `parseArgs`'s "unknown flag" branch
+ * uses) so a caller — `main()` below, or a test exercising `parseArgs`
+ * directly — gets an ordinary catchable error instead of the whole process
+ * dying mid-test.
+ */
+function assertValidSeed(seed: number, raw: string | undefined, flag: string): number {
+  if (!Number.isInteger(seed) || seed < MIN_TERRAIN_SEED || seed > MAX_TERRAIN_SEED) {
+    throw new Error(
+      `${flag}: seed must be an integer in [${MIN_TERRAIN_SEED}, ${MAX_TERRAIN_SEED}], got ${String(raw)}`,
+    );
+  }
+  return seed;
 }
 
 export interface Args {
@@ -75,18 +104,19 @@ export function parseArgs(argv: string[]): Args {
     const v = argv[i + 1];
     switch (k) {
       case '--seed':
-        a.seeds = [Number(v)];
+        a.seeds = [assertValidSeed(Number(v), v, '--seed')];
         i++;
         break;
       case '--seeds': {
         const m = /^(\d+)\.\.(\d+)$/.exec(v ?? '');
         if (m) {
-          const lo = Number(m[1]);
-          const hi = Number(m[2]);
+          const lo = assertValidSeed(Number(m[1]), m[1], '--seeds');
+          const hi = assertValidSeed(Number(m[2]), m[2], '--seeds');
           a.seeds = [];
           for (let s = lo; s <= hi; s++) a.seeds.push(s);
         } else {
-          a.seeds = (v ?? '').split(',').map(Number);
+          const parts = (v ?? '').split(',');
+          a.seeds = parts.map((p) => assertValidSeed(Number(p), p, '--seeds'));
         }
         i++;
         break;
@@ -210,14 +240,19 @@ function runOne(args: Args, seed: number): RunReport {
 }
 
 function main(): void {
-  const args = parseArgs(process.argv.slice(2));
   // qa-playtester (b014 verification): `Run`'s own constructor calls
   // `loadContent()`, whose zod parse throws on a *schema* violation (a
   // retyped field, still valid JSON) — a different failure than the
   // syntax-error class the top-level dynamic import above guards against,
   // and one this file had no try/catch for at all until now, unlike
   // `tools/phase-coverage.ts`/`tools/soak.ts`, which already caught it.
+  //
+  // fb130 (item 3): `parseArgs` itself can now throw too (an out-of-domain
+  // `--seed`/`--seeds`), so it moved inside this same try — a CLI rejection
+  // prints the same clean `sim: <message>` line a bad `/data` schema does,
+  // rather than an uncaught stack trace out of `main`'s top level.
   try {
+    const args = parseArgs(process.argv.slice(2));
     const reports: RunReport[] = [];
     for (const seed of args.seeds) {
       const r = runOne(args, seed);

@@ -5,7 +5,7 @@
 
 import type { EnemyDef } from './content';
 import { equipmentEffectNum } from './equipment';
-import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W } from './grid';
+import { CORE_H, CORE_W, GRID_H, GRID_W } from './grid';
 import type { DamageTypeKey } from './damagetypes';
 import { clamp, dcos, dist, dist2, dsin, normalize, TAU } from './math';
 import { classLineBonus } from './progression';
@@ -859,8 +859,9 @@ export function madnessPerStackBonus(w: World): { attackSpeed: number; moveSpeed
 function nearCoreSlowAura(w: World, e: Enemy): boolean {
   if (w.huntsWarden || w.core.tdSlowRadius <= 0) return false;
   if ((e.flags & TRAIT.slowImmune) !== 0) return false;
-  const cx = clamp(e.x, CORE_X, CORE_X + CORE_W);
-  const cy = clamp(e.y, CORE_Y, CORE_Y + CORE_H);
+  const { tx, ty } = w.grid.coreOrigin();
+  const cx = clamp(e.x, tx, tx + CORE_W);
+  const cy = clamp(e.y, ty, ty + CORE_H);
   return dist2(e.x, e.y, cx, cy) <= w.core.tdSlowRadius * w.core.tdSlowRadius;
 }
 

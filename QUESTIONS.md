@@ -1516,6 +1516,45 @@ Q200 did not collide and are unchanged below).
   question and asked for it to be logged for the main lane rather than
   implemented from the content lane. — (owner verdict: pending)
 
+- **Q211. [fb130] Does the approach band (fb064o's `maxGateDetour`) survive
+  the Core becoming player-placed, and if not, is a player-placed Core's
+  detour validated live or is the measured worst case accepted knowingly?**
+  fb064o's own Log (BACKLOG-TERRAIN.md, 2026-09-04) measured that it does
+  not survive unmodified: over seeds 1..120 of shipped, band-passing maps,
+  104/120 admit a `validateCorePlacement`-legal Core position whose worst-gate
+  detour exceeds the shipped `maxGateDetour: 1.5` ceiling the *suggested*
+  anchor alone is held to — averaging 2.196 against 1.099 at the suggestion,
+  worst case 4.969 (seed 115, anchor tile 24,1, measured under the pre-fb156
+  3-gate layout; gate geometry has since moved to 4 gates by default). Left
+  to fb064c/fb130 to decide, explicitly, by that Log entry. Chosen default:
+  **validate**, not accept knowingly — `placeCoreCommand`'s `place_core`
+  Command (`src/sim/cores.ts`) re-runs `maxGateDetour`
+  (`src/sim/terrain/path.ts`, already exported and unmodified — no
+  terrain-lane file touched) against the *clicked* anchor after
+  `validateCorePlacement` passes, and refuses (`reason: 'too-far'`) anything
+  over `terrainCfg.constraints.maxGateDetour`, the identical ceiling
+  `terrainLegal` already held the suggested anchor to at generation time.
+  This can never refuse the suggested (pre-highlighted) anchor itself — a
+  shipped, non-fallback map's suggested anchor satisfies this same ceiling
+  by construction, so at least one legal placement always exists — pinned by
+  `tests/fb130-core-placement-wiring.test.ts` ("the suggested anchor is
+  always within the approach band", 40 seeds) and by a second test that
+  searches a seed sample for a `legalCoreAnchors`-listed, out-of-band anchor
+  and confirms it is refused with `'too-far'` rather than silently accepted.
+  — Reason: CLAUDE.md rule 5 (choose, log, continue) and the measurement
+  rules section ("check a `/data` row's blast radius before calling it
+  narrow" — a per-click validation reusing an already-exported, already-pure
+  function is a smaller blast radius than shipping a mechanic whose own
+  approach-band gate (G2/the terrain approach band, SPEC-FINAL §10.5) can be
+  silently bypassed by any player click); SPEC-FINAL §10.5's own placement
+  wording ("legal = normal ground, not within 3 tiles of a spawn gate,
+  reachable from every gate") does not itself mention a detour ceiling, so
+  this is a genuine gap-fill rather than a contradiction of shipped spec
+  text — flagged for an owner verdict in case the intended read is "legal is
+  exactly SPEC-FINAL's three clauses, no more," in which case `'too-far'`
+  should be dropped and fb064o's 4.969 worst case accepted knowingly
+  instead. — (owner verdict: pending)
+
 - **Q210. [p12i] Closed — already fixed by p12h; verifying it surfaced a
   separate unfiled drift, now filed as fb199.** p12i (filed by Q194) asked
   for a choice between (a) retuning `data/towers.json` against

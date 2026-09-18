@@ -24,8 +24,9 @@
 
 import type { Content, CoreDef } from './content';
 import { applyPoison, damageEnemy } from './enemies';
-import { CORE_H, CORE_W, CORE_X, CORE_Y, coreCenter } from './grid';
+import { CORE_H, CORE_W } from './grid';
 import { clamp, dist2 } from './math';
+import { maxGateDetour, validateCorePlacement, type CoreRejectReason } from './terrain';
 import type { Enemy, Structure } from './types';
 import type { World } from './world';
 
@@ -195,8 +196,9 @@ export function coreHpBonus(content: Content, coreKey: string, coreStep: number)
 /** §5.5: "bought by interacting at the Core (build-range rule)" — nearest point on its 2x2 footprint. */
 export function inCoreBuildRange(w: World): boolean {
   const r = w.derived.buildRange;
-  const cx = clamp(w.warden.x, CORE_X, CORE_X + CORE_W);
-  const cy = clamp(w.warden.y, CORE_Y, CORE_Y + CORE_H);
+  const { tx, ty } = w.grid.coreOrigin();
+  const cx = clamp(w.warden.x, tx, tx + CORE_W);
+  const cy = clamp(w.warden.y, ty, ty + CORE_H);
   return dist2(w.warden.x, w.warden.y, cx, cy) <= r * r;
 }
 
@@ -243,6 +245,91 @@ export function upgradeCore(w: World): boolean {
   applyCoreStep(w, def, stepIndex);
   w.recomputeCore();
   return true;
+}
+
+/**
+ * fb130 (SPEC-FINAL §10.5, fb064c's main-lane half): why a `place_core` click
+ * was refused, in the order the checks run. `validateCorePlacement`'s four
+ * terrain/reachability reasons (`CoreRejectReason`) plus three a live run
+ * alone can answer: the click landed after the build phase genuinely opened
+ * (`World.buildPhaseOpened` — a structure was ever built or sold, which does
+ * not un-set on sell, closing the "build a tower, sell it, placement re-opens"
+ * gap a live-occupancy check alone would leave; see `World.buildPhaseOpened`'s
+ * own doc comment), it landed outside "before wave 1" (SPEC-FINAL §10.5's own
+ * wording) — `w.wave > 0` or the run is not in its Act I build phase — or the
+ * tile is legal by `validateCorePlacement`'s own rules but too far a detour
+ * from some gate (item 6, below).
+ */
+export type PlaceCoreResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: CoreRejectReason | 'build-started' | 'past-wave-1' | 'too-far';
+    };
+
+/**
+ * fb130 item 6: `validateCorePlacement` alone answers "normal ground, clear
+ * of gates, reachable from all of them" — it says nothing about *how far*, so
+ * a player free to click anywhere `legalCoreAnchors` admits can pick a tile
+ * far worse than the pre-highlighted default. fb064o measured exactly this
+ * gap on the shipped band (BACKLOG-TERRAIN.md's fb064o Log, "the approach
+ * band does not survive the Core becoming player-placed"): over seeds 1..120
+ * of shipped, band-passing maps, 104/120 admit a legal Core position above
+ * the suggested anchor's own `maxGateDetour` ceiling, averaging 2.196 against
+ * 1.099 at the suggestion, worst case 4.969 (seed 115, anchor tile 24,1) —
+ * nearly 3.3x the shipped ceiling the waves were tuned against.
+ *
+ * fb064o's own Log left the choice to this item: "validate a placement's
+ * detour or accept the 4.969 worst case knowingly." Chosen here: **validate**
+ * — `maxGateDetour` (`src/sim/terrain/path.ts`, already exported, unmodified)
+ * is re-run against the *clicked* anchor and held to the same
+ * `terrainCfg.constraints.maxGateDetour` ceiling `terrainLegal` already held
+ * the *suggested* anchor to at generation time. This can never refuse the
+ * suggested anchor itself — a shipped (non-fallback) map's suggested anchor
+ * satisfies this same ceiling by construction (`terrainLegal`), so at least
+ * one legal placement always exists — and QUESTIONS.md Q211 logs the
+ * decision and the measured numbers per CLAUDE.md working rule 5.
+ */
+function withinApproachBand(w: World, anchor: number): boolean {
+  const detour = maxGateDetour(w.terrainMap, w.terrainCfg, anchor, CORE_W, CORE_H, w.gates);
+  return detour >= 1 && detour <= w.terrainCfg.constraints.maxGateDetour;
+}
+
+/**
+ * fb130: the `place_core` Command's full rule set, called from
+ * `applyCommand` (run.ts) exactly the way `buildTower`/`upgradeTower` are —
+ * so a bot or a replay places the Core through the same Command surface a
+ * player's click does (architecture rule 3), never a direct `Grid` edit.
+ *
+ * `validateCorePlacement` runs against this *run's* generated map
+ * (`w.terrainMap`, the actual `TerrainMap` `applyRunTerrain` adopted — not a
+ * fresh `generateTerrain(w.cfg.seed, ...)`, which would silently disagree on
+ * every seed `applyRunTerrain`'s own Core-unreachable retry advanced past
+ * `w.cfg.seed`) and this run's real gate list (`w.gates`, base four plus the
+ * Fourth Gate modifier's fifth when active — never the default `GATES` a
+ * five-gate run would validate the wrong geometry against).
+ *
+ * On success, `Grid.placeCore` moves the structural Core and `grid.refresh()`
+ * rebuilds the flow fields around it — `placeCore` itself only marks the grid
+ * dirty (`syncTerrain`), the same two-call contract `applyRunTerrain` already
+ * uses for `applyTerrain`.
+ */
+export function placeCoreCommand(w: World, tx: number, ty: number): PlaceCoreResult {
+  // "at run start, before wave 1" (SPEC-FINAL §10.5): once a wave has ever
+  // started, or the run has left its very first build phase, a click is a
+  // no-op — never a mid-fight or Act II relocation.
+  if (w.phase !== 'act1_build' || w.wave !== 0) return { ok: false, reason: 'past-wave-1' };
+  // The sticky lifecycle flag (item 4): a live-occupancy check alone (the one
+  // `Grid.placeCore` itself still runs, as its own structural-only guard)
+  // re-opens the instant a build-then-sell empties the grid again, which is
+  // exactly the gap `w.buildPhaseOpened` — never un-set once true — closes.
+  if (w.buildPhaseOpened) return { ok: false, reason: 'build-started' };
+  const result = validateCorePlacement(w.terrainMap, w.terrainCfg, tx, ty, undefined, w.gates);
+  if (!result.ok) return result;
+  if (!withinApproachBand(w, result.anchor)) return { ok: false, reason: 'too-far' };
+  w.grid.placeCore(tx, ty);
+  w.grid.refresh();
+  return { ok: true };
 }
 
 /**
@@ -415,23 +502,30 @@ export function updateCarnivorousPlant(w: World, dt: number): void {
   else updatePlantDevour(w, dt);
 }
 
-/** Squared distance from `(x, y)` to the nearest point on the Core's 2x2 footprint — the same clamp `inCoreBuildRange`/`nearCoreSlowAura` use, not a bare center-point distance. */
-function coreEdgeDist2(x: number, y: number): number {
-  const cx = clamp(x, CORE_X, CORE_X + CORE_W);
-  const cy = clamp(y, CORE_Y, CORE_Y + CORE_H);
+/**
+ * Squared distance from `(x, y)` to the nearest point on the Core's 2x2
+ * footprint — the same clamp `inCoreBuildRange`/`nearCoreSlowAura` use, not a
+ * bare center-point distance. `w`, not a bare origin, so every caller reads
+ * the *live* Core (fb130 migration: `grid.coreOrigin()`, not the stale
+ * `CORE_X`/`CORE_Y` constants a moved Core leaves behind).
+ */
+function coreEdgeDist2(w: World, x: number, y: number): number {
+  const { tx, ty } = w.grid.coreOrigin();
+  const cx = clamp(x, tx, tx + CORE_W);
+  const cy = clamp(y, ty, ty + CORE_H);
   return dist2(x, y, cx, cy);
 }
 
 /** The `limit` live enemies nearest the Core's own footprint within `radius` (or unbounded, for `Infinity`), nearest first, ties broken by id for determinism. */
 function nearestEnemiesToCore(w: World, radius: number, limit: number): Enemy[] {
-  const cc = coreCenter();
+  const cc = w.grid.coreCenterOf();
   // `enemiesInRadius`'s bucket scan is center-anchored; padded by the
   // footprint's own half-diagonal (~1.42) so it can't clip a real edge hit
   // the exact `coreEdgeDist2` filter below would otherwise have kept.
   const scanRadius = radius === Infinity ? Infinity : radius + 1.5;
   const r2 = radius * radius;
-  const list = w.enemiesInRadius(cc.x, cc.y, scanRadius).filter((e) => !e.dead && coreEdgeDist2(e.x, e.y) <= r2);
-  list.sort((a, b) => coreEdgeDist2(a.x, a.y) - coreEdgeDist2(b.x, b.y) || a.id - b.id);
+  const list = w.enemiesInRadius(cc.x, cc.y, scanRadius).filter((e) => !e.dead && coreEdgeDist2(w, e.x, e.y) <= r2);
+  list.sort((a, b) => coreEdgeDist2(w, a.x, a.y) - coreEdgeDist2(w, b.x, b.y) || a.id - b.id);
   return list.length > limit ? list.slice(0, limit) : list;
 }
 
@@ -611,7 +705,7 @@ function updateCorpseExecute(w: World, dt: number): void {
   w.emit('execute', tx, ty, spend, 0);
   // fb016: the execution beam from the Core to the target, alongside the
   // larger floating number the 'execute' event above already drives.
-  const cc = coreCenter();
+  const cc = w.grid.coreCenterOf();
   w.emit('core_beam', cc.x, cc.y, tx, ty);
   // The kill above already credited `corpseStoreRatio` of `spend` back into
   // the store via the `damageEnemy` hook (enemies.ts) — subtracting the full
@@ -638,7 +732,7 @@ function updateCorpseAutoFire(w: World, dt: number): void {
   // fb050: the hit itself already flashes via `damageEnemy`'s own `hit:normal`
   // event (not `dot`, so it isn't suppressed) — this beam is the missing
   // piece, showing the shot came from the Core rather than nothing at all.
-  const cc = coreCenter();
+  const cc = w.grid.coreCenterOf();
   w.emit('core_autofire', cc.x, cc.y, target.x, target.y);
 }
 
@@ -670,7 +764,7 @@ function updateCorpseAutoFire(w: World, dt: number): void {
  */
 export function updateTimeDecay(w: World, dt: number): void {
   if (w.huntsWarden || w.core.decayRadius <= 0) return;
-  const cc = coreCenter();
+  const cc = w.grid.coreCenterOf();
   const r = w.core.decayRadius;
   // Same bucket-scan padding rule `nearestEnemiesToCore` documents: the scan
   // is center-anchored, padded by the footprint's own half-diagonal so it
@@ -678,7 +772,7 @@ export function updateTimeDecay(w: World, dt: number): void {
   // otherwise have kept.
   for (const e of w.enemiesInRadius(cc.x, cc.y, r + 1.5)) {
     if (e.dead) continue;
-    const d2 = coreEdgeDist2(e.x, e.y);
+    const d2 = coreEdgeDist2(w, e.x, e.y);
     if (d2 > r * r) continue;
     const ring = Math.max(1, Math.ceil(Math.sqrt(d2)));
     // fb153a: the leading coefficient SPEC-FINAL states as "1 x 1.2^(5-ring)

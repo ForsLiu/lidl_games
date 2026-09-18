@@ -90,7 +90,7 @@ describe('gridTerrain (fb065c)', () => {
     let identical = 0;
     let fellBack = 0;
     let unexplained = 0;
-    const warden = wardenSpawnTile();
+    const warden = wardenSpawnTile(new Grid());
     const seeds = 100;
     for (let seed = 1; seed <= seeds; seed++) {
       const g = new Grid();
