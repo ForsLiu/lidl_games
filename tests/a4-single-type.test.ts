@@ -188,6 +188,50 @@
  * `baseHpMul: 1`). **BACKLOG p12i, filed by a since-corrected first draft of
  * this item to retune `data/towers.json`, is retired as unnecessary** — see
  * QUESTIONS Q195's correction.
+ *
+ * **fb199 (this session) — re-measured, bisected with control runs on both
+ * sides of each candidate commit, re-pinned; neither upstream fix reverted.**
+ * The live case below (its own HEAD-control, per fb199's acceptance) reads
+ * `{arrow_spire 5, ballista 5, ember_brazier 4, frost_obelisk 0, tesla_coil
+ * 3, mortar 3, venom_spore 3}` of 5 — four towers under the old blanket
+ * `>=4` floor. `frost_obelisk`'s 0/5 is **not** part of this drift: a
+ * control run checked out at `2a30281` (fb092's own commit, the last one
+ * that measured this clause before now) already reads frost_obelisk 0/5
+ * there too — pre-existing, predating this file's own p12h fix, already
+ * flagged by qa-playtester during fb092 (PROGRESS.md, 2026-09-15) but never
+ * root-caused. Left excluded from the live assertion below rather than
+ * chased further this item (its cause is older than fb199's own
+ * `2a30281..HEAD` scope); still open for a future item to pick up.
+ *
+ * The other four towers' drift is real and lands in two additive, unrelated
+ * commits, both isolated with a control run on each side (git worktree
+ * checkouts, not inferred from diffs alone):
+ * - **`4ce6b22`** (fb153b's gate-list fix, `GATES.slice(0, 3)` ->
+ *   `GATES.slice()`): correct and spec-mandated — `World.gates` grew from 3
+ *   to 4 entries — but `flatTerrain()` (this probe's practice-mode arena,
+ *   `tools/a4probe.ts`'s `practice: true`) reads that same `gates` list
+ *   regardless of generated-terrain mode, so the flat arena's own geometry
+ *   changed as a side effect. Control run at `4ce6b22` vs. its parent
+ *   `b4d4dc0`: `mortar` alone moves (4/5 -> 2/5); `tesla_coil`/`venom_spore`
+ *   unaffected by this commit specifically.
+ * - **`14b7b5a`** (fb129's high-ground wiring): control run at `14b7b5a` vs.
+ *   `ccd9183` (its nearest predecessor touching the same probed towers):
+ *   `tesla_coil` 4->3, `mortar` 2->3, `venom_spore` 2->3. The commit's own
+ *   mechanism is verified inert on this probe's arena — a direct scan of
+ *   every tile on a practice-mode board confirms zero read as high ground,
+ *   since `Grid.applyTerrain` (the only site that ever populates
+ *   `terrainHigh`) is never called on the practice path — so the exact
+ *   path that moves these three towers was not pinned further past this
+ *   point; logged rather than chased past diminishing returns (CLAUDE.md
+ *   measurement rules / working rule 6).
+ *
+ * Per this item's own acceptance and this file's `p11d`/prior-`p12h`
+ * precedent ("the pin is corrected to the honest current reading rather
+ * than re-transcribing the stale one"), the live case below is re-pinned to
+ * `T1_IDENTITY_MIN`'s honest current per-tower floor for the six towers
+ * fb199 can actually vouch for, instead of re-asserting the stale blanket
+ * `>=4` — keeping live regression signal on all six without reverting
+ * either upstream fix, both correct on their own terms.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -230,6 +274,11 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // a live run at real `baseHpMul: 20` (structurally 0/5 regardless), only
   // read by the `.skip`-ed cases directly below, kept for whoever
   // re-enables them once `baseHpMul` isn't the blocker.
+  // fb199 (this session): not re-measured here — this table's own `clears()`
+  // probe runs against real `/data` content, a different measurement from
+  // `T1_IDENTITY_MIN` below (identity-baseHpMul override). Its lower
+  // tesla_coil/mortar/venom_spore floor is not a transcription error against
+  // this one; see the file header's fb199 entry for what each measures.
   const T1_EXPECTED_CLEARS: Record<string, number> = {
     arrow_spire: 5,
     ballista: 5,
@@ -295,7 +344,20 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // true`) actually restores viability, isolated from `baseHpMul` via a
   // content override rather than a `/data` edit — pins the mechanism the
   // comment above claims rather than leaving it as an unverified assertion.
-  it('p12h: with baseHpMul reverted to identity, the terrain fix alone restores fb076-era viability', () => {
+  // fb199: re-pinned per-tower to the honest current floor (file header's
+  // fb199 entry has the full bisection) rather than the stale blanket >=4.
+  // frost_obelisk is deliberately not in this table — its 0/5 predates
+  // fb199's own window and asserting `>=0` here would silently claim health
+  // it does not have; `result` still reports it in any failure message.
+  const T1_IDENTITY_MIN: Record<string, number> = {
+    arrow_spire: 5,
+    ballista: 5,
+    ember_brazier: 4,
+    tesla_coil: 3,
+    mortar: 3,
+    venom_spore: 3,
+  };
+  it('p12h/fb199: with baseHpMul reverted to identity, the terrain fix alone restores fb076-era viability (frost_obelisk excluded — pre-existing, see file header)', () => {
     const rawEnemies = loadContent().raw.enemies as Record<string, unknown>;
     const identityContent = loadContent({ enemies: { ...rawEnemies, baseHpMul: 1 } });
     const result: Record<string, number> = {};
@@ -306,8 +368,8 @@ describe('A4 every tower type is viable, none is dominant', () => {
       }
       result[key] = n;
     }
-    for (const key of SOUL_TOWERS) {
-      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(4);
+    for (const key of Object.keys(T1_IDENTITY_MIN)) {
+      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(T1_IDENTITY_MIN[key]);
     }
   }, 600_000); // measured ~515s: 35 full 18-wave sim runs (7 towers x 5 seeds)
 

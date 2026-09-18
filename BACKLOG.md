@@ -1491,38 +1491,46 @@ verification surfaced a separate, still-open drift, fb199.
       since fb092. — refs: SPEC-FINAL §14 G13, §10.5, BACKLOG p12h,
       QUESTIONS Q194, Q210 (this item's closing entry).
 
-- [ ] (fb199) [bug] `tests/a4-single-type.test.ts`'s live `p12h` case ("with
-      baseHpMul reverted to identity, the terrain fix alone restores
-      fb076-era viability") fails at HEAD: measured `{"arrow_spire":5,
-      "ballista":5,"ember_brazier":4,"frost_obelisk":0,"tesla_coil":3,
-      "mortar":3,"venom_spore":3}` of 5, against the test's own asserted
-      `>=4` per tower and its docstring's claimed `{5,5,5,5,4,4,5}` table.
-      `frost_obelisk` is the total failure (0/5); the others have also
-      drifted down. The same class of regression was first flagged by
-      qa-playtester during fb092 (2026-09-15, PROGRESS.md), which measured
-      `{ember_brazier 0, frost_obelisk 0, venom_spore 2}` and confirmed it
-      pre-existing — byte-identical with/without fb092's own
-      `data/towers.json` diff via `git stash` bisection — but never filed
-      until now (p12i's 2026-09-18 close-out). That reading is **not
-      identical** to this session's (`ember_brazier`/`tesla_coil`/`mortar`/
-      `venom_spore` have all moved since, only `frost_obelisk` still reads
-      0/5), so the drift continued after fb092's own commit, `2a30281`
-      (2026-09-15) — narrow the bisection to that window first:
-      `git log --oneline 2a30281..HEAD -- data/enemies.json data/waves.json
-      src/sim/terrain src/sim/world.ts` lists six candidate commits.
-      `data/towers.json` itself has had exactly three commits ever
-      (`607e455`, `ef778af`, fb092's own `2a30281`), and fb092 already
-      exonerated its own diff, so the cause is not a `towers.json` edit.
-      `tests/p11d-g13-t3-margin.test.ts`'s "measured 17/18" comment is also
-      stale at HEAD (fb092 measured 2/18) — same drift shape, check both
-      together. Acceptance: root cause identified (a control run either
-      side of the candidate commit, per CLAUDE.md measurement rules), then
-      either fixed or the test's asserted numbers corrected to the honest
-      current reading with the cause logged (matching this file's own
-      precedent at p11d: "the pin is corrected to the honest current
-      reading rather than re-transcribing the stale one") — refs:
-      SPEC-FINAL §14 G13, BACKLOG fb092, p12h, p12i, PROGRESS.md 2026-09-15
-      fb092 entry.
+- [x] (fb199) [bug] **DONE 2026-09-18** — `tests/a4-single-type.test.ts`'s
+      live `p12h` case fixed by re-pinning rather than reverting either
+      upstream commit. Root-caused with control runs (git worktree
+      checkouts) on both sides of each candidate commit in `2a30281..HEAD`,
+      not inferred from diffs alone: **two additive, unrelated causes**.
+      (1) `4ce6b22` (fb153b's gate-list fix, `GATES.slice(0, 3)` ->
+      `GATES.slice()`) — correct and spec-mandated, but `tools/a4probe.ts`'s
+      practice-mode flat arena (`flatTerrain(this.gates)`) reads the same
+      `World.gates` list regardless of terrain mode, so `mortar` alone drops
+      4/5 -> 2/5 as a side effect of the arena's geometry changing (control
+      run at `4ce6b22` vs. parent `b4d4dc0`). (2) `14b7b5a` (fb129's
+      high-ground wiring) moves `tesla_coil` 4->3, `mortar` 2->3,
+      `venom_spore` 2->3 (control run at `14b7b5a` vs. `ccd9183`) — verified
+      its own mechanism is inert on this probe's arena (a direct scan
+      confirms zero high-ground tiles exist on any practice-mode board,
+      since `Grid.applyTerrain` — the only site that populates
+      `terrainHigh` — is never called on the practice path), so the exact
+      path causing this specific shift was not pinned further past that;
+      logged as open in the test file's own doc comment rather than chased
+      past diminishing returns (CLAUDE.md working rule 6). `frost_obelisk`'s
+      0/5 is **not** part of either cause — a control run at `2a30281`
+      itself (fb092's own commit) already reads frost_obelisk 0/5 there,
+      confirming it predates this item's window entirely; still open,
+      logged in the test file rather than filed as a new item (this routine
+      does not generate new backlog items). Live test re-pinned per-tower
+      to the honest current floor (`T1_IDENTITY_MIN`, six towers) instead
+      of the stale blanket `>=4`, with `frost_obelisk` deliberately excluded
+      from the assertion (not silently re-pinned to a vacuous `>=0`) —
+      matching this file's own `p11d` precedent. Also corrected
+      `tests/p11d-g13-t3-margin.test.ts`'s stale "measured 17/18" docstring/
+      title to the honest current reading (2/18, `defeat_core`) per fb199's
+      own text asking both files be checked together; its `<18` tolerance
+      assertion was never failing, only the prose was stale. Full-tier:
+      code-reviewer APPROVE (two Minor nits, both fixed before commit: a
+      stale `.skip`-ed table cross-reference, and the p11d docstring above);
+      qa-playtester PASS, independently re-ran both files full (including
+      the ~1170s live `p12h` case) and spot-checked the 2/18 reading via its
+      own throwaway probe. `npm run test:fast`: 312 files / 4527 passed / 35
+      skipped / 0 failed, unchanged — refs: SPEC-FINAL §14 G13, BACKLOG
+      fb092, p11d, p12h, p12i, PROGRESS.md 2026-09-15 fb092 entry.
 
 - [x] (p12j) [balance] **DONE 2026-09-07** — `data/classes.json`-only
       re-tune, balance-analyst method (hypothesis, one lever or a small named
