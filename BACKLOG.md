@@ -5120,7 +5120,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       passed / 35 skipped, up from the 313/4538 baseline by this item's new
       tests). — refs: QUALITY.md BETA, SPEC-FINAL §11, BACKLOG-UI.md
       fb085/fb093/fb097/fb107 Logs.
-- [ ] (fb136) [bug] qa-playtester coverage gap from fb129: no regression test
+- [x] (fb136) [bug] qa-playtester coverage gap from fb129: no regression test
       pins `src/sim/boss.ts`'s two deliberately-unguarded high-ground sites
       (`shatterAlong`, `updateUnreachable`) — BACKLOG-TERRAIN.md fb064i's Log
       counts them among "the six call sites" ("every site that must call a
@@ -5141,7 +5141,42 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       "site 6" describe block in `tests/fb129-high-ground-wiring.test.ts` (or
       a new file) exercises both functions through the public `updateEnemies`
       surface and asserts each still damages a high-ground structure — refs:
-      BACKLOG-TERRAIN.md fb064i Log, BACKLOG.md fb129.
+      BACKLOG-TERRAIN.md fb064i Log, BACKLOG.md fb129. **Done (2026-09-18):**
+      `data/enemies.json`'s only other `boss`-trait enemy (`gatebreaker`) is
+      not a viable "boss with no charge" substitute — `bossUpdate` (the
+      script owning both `shatterAlong` and `updateUnreachable`) is gated on
+      `TRAIT.finalBoss` alone (`enemies.ts:1410`), which only `warden_eater`
+      carries, so a non-finalBoss "boss" never reaches either function at
+      all. Used the suppression route instead, and drove `bossUpdate`
+      directly (exported from `boss.ts`) rather than through `updateEnemies`
+      — a deliberate, logged deviation from the acceptance text's literal
+      "public `updateEnemies` surface": `tests/p8d-boss-termination.test.ts`
+      already established this exact `bossUpdate`-direct pattern (its
+      `sealRing`/`boss()` helpers, its `e.bossTimer = 1e9` isolation trick)
+      for the identical plain-ground unreachable-structure case, so reusing
+      it is more precise than re-deriving the isolation through the full
+      `TRAIT.finalBoss` dispatch path, which calls the same `bossUpdate`
+      internally anyway. New "site 6" describe block,
+      `tests/fb129-high-ground-wiring.test.ts`: site 6a seals a
+      `warden_eater` inside an 8-tile palisade ring (one tile patched to high
+      ground) with `e.bossTimer = 1e9` isolating it from the charge script,
+      runs `UNREACHABLE_THRESHOLD + 2` seconds of direct `bossUpdate` ticks,
+      and asserts the high-ground wall took damage; site 6b places a
+      high-ground tower on the straight-line charge path between a boss and
+      a far Warden, forces the CHARGING state directly (bypassing the
+      TELEGRAPH windup) for a short (≤1s) window — structurally too short for
+      `updateUnreachable`'s own 6s threshold to fire regardless of
+      reachability — and asserts the tower took damage. Full-tier
+      code-reviewer APPROVE (one Minor: reworded a comment that overstated
+      what a construction-guaranteed assertion proves) and qa-playtester PASS
+      — its verification went further than reading the diff: mutation-tested
+      both functions (temporarily adding the exact "guard by analogy" this
+      item warns about to a scratch copy of `boss.ts`, confirming each
+      mutation turns exactly its own site red and nothing else, then
+      reverting cleanly) rather than only reasoning about it. `npx tsc
+      --noEmit` clean; `npm run test:fast` green (314 files / 4547 passed /
+      35 skipped, up from fb135's 4545). — refs: BACKLOG-TERRAIN.md fb064i
+      Log, BACKLOG.md fb129.
 
 
 ## Retired from the queue by SPEC-FINAL

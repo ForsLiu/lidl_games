@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: BACKLOG fb136 done — a "site 6" regression test
+  now pins `boss.ts`'s two deliberately-unguarded high-ground call sites
+  (`shatterAlong`, `updateUnreachable`), closing the qa-playtester coverage
+  gap fb129 left open.** `data/enemies.json`'s only other `boss`-trait enemy
+  (`gatebreaker`) can't substitute for a "boss with no charge": `bossUpdate`
+  is gated on `TRAIT.finalBoss` alone, which only `warden_eater` carries, so
+  a non-finalBoss boss never reaches either function. Used the suppression
+  route from fb136's own acceptance text instead, driving `bossUpdate`
+  directly (exported from `boss.ts`) rather than through the literal
+  `updateEnemies` surface the acceptance text named — a logged deviation,
+  reusing `tests/p8d-boss-termination.test.ts`'s already-established
+  `bossUpdate`-direct pattern (`sealRing`/`boss()` helpers, the
+  `e.bossTimer = 1e9` isolation trick) for the identical isolation problem
+  rather than re-deriving it through the full dispatch path, which calls the
+  same `bossUpdate` internally anyway. New `tests/fb129-high-ground-
+  wiring.test.ts` "site 6" describe block: site 6a seals a `warden_eater`
+  inside an 8-tile palisade ring (one tile high ground) with the charge
+  script suppressed, runs past `UNREACHABLE_THRESHOLD`, and confirms
+  `updateUnreachable` still chips the high-ground wall; site 6b forces a
+  charge through a high-ground tower on the boss's path and confirms
+  `shatterAlong` still destroys it, in a window structurally too short for
+  `updateUnreachable`'s own threshold to be the real cause. Full-tier
+  code-reviewer APPROVE (one Minor: a comment overstating what a
+  construction-guaranteed assertion proves, reworded) and qa-playtester
+  PASS — qa mutation-tested both functions directly (temporarily adding the
+  exact "guard by analogy" regression this item warns about to a scratch
+  copy of `boss.ts`, confirming each mutation turns exactly its own new test
+  red and nothing else, then reverting cleanly) rather than only reasoning
+  about it from the diff. `npx tsc --noEmit` clean; `npm run test:fast`
+  green (314 files / 4547 passed / 35 skipped, up from fb135's 4545). —
+  refs: BACKLOG-TERRAIN.md fb064i Log, BACKLOG.md fb129/fb136.
+
 - **2026-09-18 — main lane: BACKLOG fb135 done — unblocked fb107's Codex
   keyBindings gap and shipped fb085's localization-readiness groundwork as
   the two real remaining pieces (fb093/fb097 were already DONE in
