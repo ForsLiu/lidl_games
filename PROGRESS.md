@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: routine exit, hard blocker — no workable
+  owner-directed item in BACKLOG.md.** fb133 is the sole open `- [ ]` item
+  in BACKLOG.md's main lane; it was already attempted and reverted twice
+  this same day (dd0b3b9, and confirmed not re-attempted in the fb135
+  session) with the same finding: enabling `noUncheckedIndexedAccess`
+  surfaces 1806 `error TS` diagnostics across ~90 files, far past what one
+  loop-contract item or a 45-minute/6-item routine budget can fix with real
+  guards. Its own logged note says it "needs deliberate per-file or
+  per-directory follow-up items" — but this routine's standing instruction
+  is to never generate new backlog items while owner-directed ones exist,
+  and fb133 is itself the owner-directed item, so this session cannot split
+  it into workable children without violating that rule. No other `fb*` or
+  feedback/verdict-citing item is open in BACKLOG.md (BACKLOG-CONTENT.md,
+  BACKLOG-TERRAIN.md and BACKLOG-UI.md have open owner-directed items too,
+  but those are out of main-lane scope for this routine). Made no code
+  changes; owner notified to either split fb133 into scoped sub-items
+  directly in BACKLOG.md or authorize this routine to do so. — refs:
+  BACKLOG.md fb133 Log.
+
 - **2026-09-18 — main lane: BACKLOG fb136 done — a "site 6" regression test
   now pins `boss.ts`'s two deliberately-unguarded high-ground call sites
   (`shatterAlong`, `updateUnreachable`), closing the qa-playtester coverage
