@@ -237,6 +237,11 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // a live run at real `baseHpMul: 20` (structurally 0/5 regardless), only
   // read by the `.skip`-ed cases directly below, kept for whoever
   // re-enables them once `baseHpMul` isn't the blocker.
+  // fb199 (this session): not re-measured here — this table's own `clears()`
+  // probe runs against real `/data` content, a different measurement from
+  // `T1_IDENTITY_MIN` below (identity-baseHpMul override). Its lower
+  // tesla_coil/mortar/venom_spore floor is not a transcription error against
+  // this one; see the file header's fb199 entry for what each measures.
   const T1_EXPECTED_CLEARS: Record<string, number> = {
     arrow_spire: 5,
     ballista: 5,
