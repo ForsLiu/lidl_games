@@ -1696,3 +1696,60 @@ Q200 did not collide and are unchanged below).
   `tests/fb131-warden-terrain-teleport.test.ts`'s corner-chord case, checked
   to fail against the fixed-step version before this correction). — refs:
   SPEC-FINAL §10.5, BACKLOG.md fb131, BACKLOG-TERRAIN.md fb064b/fb064q Logs.
+
+- **Q214. [fb134] Closed — `ROOM_RADIUS` moved into `data/terrain.json` as
+  `coreRoomRadius`.** fb064o's own doc block on the old `analyze.ts` constant
+  had already re-opened the architecture-rule-4 exemption it started under:
+  the constant stopped being a pure tie-break the moment `terrainLegal` was
+  shown to read `maxGateDetour`, which is measured *to the anchor this
+  constant helps `suggestCoreAnchor` pick* — so its value can flip a map
+  from legal to refused (seed 1326 at radius 1, per that doc block), which is
+  exactly the "tuning band" the exemption said it was not. The block also
+  named the one blocker: deciding this needed `data/terrain.json` inside
+  `contentHash()`, which was fb064b's merge blocker at the time. That
+  blocker is long resolved — `configFingerprint()`/`contentHash()` cover the
+  whole parsed `data/terrain.json` today (confirmed by fb129's own golden
+  move over `highGround.surfaceBlockCap`, an unrelated field, and now by
+  this item's own golden move) — so nothing is left arguing for "why not."
+  **Chose: move it**, not re-argue a second exemption. Added
+  `coreRoomRadius` to `TerrainFileSchema` (bounded like the other radii,
+  `nonNegInt.max(SPAN)`) and `data/terrain.json` (value `2`, identical to
+  the old hardcoded constant, so no generated map, anchor pick or measured
+  band changes — only `configFingerprint` moves, the same fb129 already
+  established is the expected cost of any `/data` addition).
+  `suggestCoreAnchor` now reads `cfg.coreRoomRadius` instead of the module
+  constant. First pass kept a `DEFAULT_ROOM_RADIUS = 2` **parameter**
+  default on `coreAnchorRoom` (mirroring `generateTerrain`/`describeTerrain`'s
+  own `gates = GATES` idiom in this module) so
+  `tests/terrain-anchor-quality.test.ts`'s direct calls needed no changes —
+  **code-reviewer correctly rejected this**: unlike `GATES` (one canonical
+  export, no duplicate value to drift), `DEFAULT_ROOM_RADIUS` was a second,
+  freestanding literal duplicating the exact value this item just moved into
+  `/data`, and the Subagent protocol's balance-analyst workflow (`/data`-only
+  edits) is specifically meant to be able to tune `coreRoomRadius` without
+  touching `analyze.ts` — a mirrored default would leave the test file
+  silently measuring the old, un-tuned radius the moment that happened,
+  undetected until a QA pass noticed the drift. Fixed: `roomRadius` is now a
+  **required** parameter (no default, `DEFAULT_ROOM_RADIUS` deleted), and
+  all six `coreAnchorRoom` call sites in
+  `tests/terrain-anchor-quality.test.ts` — including its own "absolute
+  reading of the metric" tests that pin literal 36/16/28 — now pass
+  `cfg.coreRoomRadius` explicitly, so a future tune moves those goldens
+  loudly instead of drifting quietly. Also extended fb064k's "carries the
+  gates" test
+  (`tests/terrain-describe.test.ts`) to run against `FOUR_GATES` as well as
+  the base list, asserting `parsed.gates` against whichever list the dump
+  was actually written under rather than the hardcoded base `GATES` — the
+  gap fb134 named: a repro taken from a Fourth Gate run would have reported
+  only three gates in the dump's own test coverage, though the format
+  itself (`describeTerrain`/`parseTerrainDump`) already threads an explicit
+  `gates` list correctly and had no live bug. Fixed the adjacent
+  `config.ts:25` finding in the same item: `MAX_WALKABLE_FRAC`'s ceiling now
+  counts `GATES.length + MODIFIER_GATES.length` (5 gate tiles, not 4), since
+  a Fourth Gate run opens the modifier's `south2` gate alongside the base
+  four. — Reason: CLAUDE.md architecture rule 4 (all content and numbers
+  live in `/data`, never in code) as a hard rule outranking the deferred
+  exemption once its own stated blocker was gone; CLAUDE.md rule 5 (choose,
+  log, continue) rather than re-deferring a decision fb064o already framed
+  as binary. — refs: SPEC-FINAL §12 rule 4, BACKLOG.md fb134,
+  BACKLOG-TERRAIN.md fb064k/fb064o Logs.

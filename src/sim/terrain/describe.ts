@@ -78,8 +78,10 @@ import type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
  * These live in code rather than `/data`, a deliberate exception to
  * architecture rule 4: a Tuner-editable glyph would fork every golden and break
  * the round trip for every dump written before the edit. The format is a
- * diagnostic contract, not tuning. Recorded in the lane Log alongside
- * `core-placement.ts`'s `ROOM_RADIUS`.
+ * diagnostic contract, not tuning. Recorded in the lane Log. (`analyze.ts`'s
+ * `ROOM_RADIUS` used to be cited here as a peer example — fb134 moved it into
+ * `data/terrain.json` as `coreRoomRadius` once `contentHash()` covered that
+ * file, since unlike this glyph table it genuinely decided map legality.)
  */
 const GLYPHS: Readonly<Record<TerrainKey, string>> = {
   normal: '.',

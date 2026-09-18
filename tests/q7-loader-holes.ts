@@ -740,6 +740,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'terrain.constraints.minGateReachFrac': ['zero'],
   'terrain.constraints.minWalkableFrac': ['zero'],
   'terrain.coreGateClearance': ['zero'],
+  'terrain.coreRoomRadius': ['zero'],
   'terrain.corridorJitter': ['zero', 'fractional'],
   'terrain.density.high': ['zero', 'fractional'],
   'terrain.density.jitter': ['zero', 'fractional'],

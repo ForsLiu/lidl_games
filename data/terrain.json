@@ -49,6 +49,7 @@
   "gateClearRadius": 2,
   "plazaRadius": 3,
   "coreGateClearance": 3,
+  "coreRoomRadius": 2,
   "highContestRadius": 4,
   "maxAttempts": 8,
   "constraints": {

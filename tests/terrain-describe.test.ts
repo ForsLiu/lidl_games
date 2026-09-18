@@ -136,12 +136,19 @@ function field(text: string, head: string, key: string): string {
  * `configFingerprint` hashes the whole parsed document, so every fingerprint
  * moved. Only the `bands config=` field changed; the map, the hash, the
  * counts and all thirty-two rows are byte-identical.
+ *
+ * **Moved a fourth time, at fb134**, which added `coreRoomRadius` to
+ * `data/terrain.json` (the former `ROOM_RADIUS` code constant, moved under
+ * architecture rule 4 now that `contentHash()` covers this file). Its value
+ * (2) matches the old hardcoded constant exactly, so `suggestCoreAnchor`'s
+ * pick and every band it feeds — `gateDetour` and `coreLegal` included — are
+ * unchanged; only `configFingerprint` moved again, same as fb129.
  */
 const GOLDEN_SEED_1 = [
   'terrain 56x32',
   'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=c49b8ecb',
   'gates west=0,12 north=24,0 east=55,20 south=33,31',
-  'bands config=565f242f walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
+  'bands config=010da856 walkable=0.707031 buildableNormal=0.566964 gateReach=1.000000 coreLegal=0.549213 gateDetour=1.083969 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=1267 normal=1016 coreAnchors=558',
   'tiles normal=1016 rough=251 rock=429 high=96',
   'legend normal=. rough=, rock=# high=^',
@@ -254,11 +261,20 @@ describe('fb064k — a terrain dump is the whole repro', () => {
     expect(rowsOf(describeTerrain(two, cfg))[0][0]).toBe('^');
   });
 
-  it('carries the gates, the legal-anchor count and every measured band', () => {
-    const map = generateTerrain(4242, cfg);
-    const dump = describeTerrain(map, cfg);
+  it.each([
+    ['the base gates', GATES],
+    ['a Fourth Gate map', FOUR_GATES],
+  ])('carries the gates, the legal-anchor count and every measured band — %s', (_label, gates) => {
+    // fb134: run against both the base list and `FOUR_GATES` (base + the
+    // Fourth Gate modifier) rather than only the base three-gate default —
+    // `describeTerrain`/`parseTerrainDump` already take an explicit `gates`
+    // list, but nothing here exercised it, so a repro taken from a real
+    // Fourth Gate run could have reported only the base gates and silently
+    // dropped the one the bug is about.
+    const map = generateTerrain(4242, cfg, gates);
+    const dump = describeTerrain(map, cfg, gates);
     const parsed = parseTerrainDump(dump);
-    const m = measureTerrain(map, cfg);
+    const m = measureTerrain(map, cfg, gates);
 
     // Walks `TerrainMeasure`'s own keys, not a list copied by hand: a band added
     // to the measurement and forgotten in the dump fails right here, which a
@@ -276,9 +292,13 @@ describe('fb064k — a terrain dump is the whole repro', () => {
     // bands, so the round trip above is over the same object shape.
     expect(Object.keys(parsed.measure).sort()).toEqual([...keys].sort());
 
-    expect(parsed.measure.legalCoreCount).toBe(legalCoreAnchors(map, cfg).length);
+    expect(parsed.measure.legalCoreCount).toBe(legalCoreAnchors(map, cfg, undefined, gates).length);
+    // Against `gates` — the list this dump was actually written and parsed
+    // under — not the hardcoded base `GATES`, so the Fourth Gate case is a
+    // real assertion rather than a vacuous one that happens to reuse the
+    // base gates' own values.
     expect(parsed.gates.map((g) => [g.key, g.tx, g.ty])).toEqual(
-      GATES.map((g) => [g.key, g.tx, g.ty]),
+      gates.map((g) => [g.key, g.tx, g.ty]),
     );
     expect(parsed.provenance).toEqual({
       requestedSeed: map.requestedSeed,

@@ -504,37 +504,6 @@ export function terrainLegal(measure: TerrainMeasure, cfg: TerrainConfig): boole
 }
 
 /**
- * How far around the footprint `suggestCoreAnchor` looks for build room. Two
- * tiles is the first ring a tower can actually occupy plus one, i.e. enough to
- * tell a Core in an alcove from a Core in the open.
- *
- * **fb064o changed what this constant is.** Until then it was a pure tie-break
- * weight that "cannot make a map legal or illegal, since every value of it
- * picks some member of a set `legalCoreAnchors` already validated", and that
- * clause was the whole justification for keeping it out of `data/terrain.json`
- * against architecture rule 4. It is now false: `terrainLegal` reads
- * `maxGateDetour`, `measureTerrain` measures that *to the anchor this constant
- * helps pick*, so the value decides whether a map is refused.
- *
- * Measured, not argued. Re-running `suggestCoreAnchor` at radius 1 over seeds
- * 1..3000 moves the anchor on 95 of them and flips `terrainLegal` on one:
- * **seed 1326**, where anchors 421 and 277 are the same distance from
- * `CORE_X/CORE_Y` (both `dist^2 = 4`) so this constant alone separates them —
- * 421 measures a 1.1304 detour and ships, 277 measures 1.6508 and is refused,
- * and the generator would hand that run a different map. Pinned by
- * `tests/terrain-approach.test.ts`, which goes red at radius 1; the golden
- * table in `tests/terrain-core-placement.test.ts` does not cover it (its own
- * comment records that radius 1 moves *zero* rows there).
- *
- * The `/data` exemption is therefore **re-opened, not re-argued**: this is now
- * exactly the "tuning band" the exemption said it was not, and fb064f's live
- * Tuner would be editing map legality through it. Deciding that needs
- * `data/terrain.json` inside `contentHash()` (fb064b's merge blocker), so it is
- * logged in BACKLOG-TERRAIN.md for the merge rather than taken here.
- */
-const ROOM_RADIUS = 2;
-
-/**
  * The pre-highlighted default: the legal anchor closest to `CORE_X/CORE_Y`,
  * tie-broken by build room and then by tile order. `null` only when the map has
  * no legal anchor at all — which the `minCoreLegalFrac` band makes impossible
@@ -574,7 +543,13 @@ export function suggestCoreAnchor(
     const dy = y - CORE_Y;
     const dist = dx * dx + dy * dy;
     if (best !== null && dist > bestDist) continue;
-    const room = coreAnchorRoom(map, x, y);
+    // `cfg.coreRoomRadius` (`data/terrain.json`), not a code constant: fb064o
+    // found this tie-break decides `maxGateDetour`, which `terrainLegal`
+    // reads, so its value can flip whether a map ships (seed 1326 at radius
+    // 1) — exactly the "tuning band" architecture rule 4 puts in `/data`.
+    // fb134 moved it once `contentHash()` covered this file; see QUESTIONS
+    // Q214 for the full history.
+    const room = coreAnchorRoom(map, x, y, cfg.coreRoomRadius);
     // Both comparisons are strict, and both matter. `anchors` is ascending, so
     // strictness leaves the lowest index winning a full tie — a stable answer
     // that does not depend on the enumeration order of a set the generator
@@ -614,7 +589,7 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
 }
 
 /**
- * Normal tiles in the `ROOM_RADIUS`-wide **block** around the 2x2 footprint —
+ * Normal tiles in the `roomRadius`-wide **block** around the 2x2 footprint —
  * the quantity `suggestCoreAnchor` breaks a distance tie on.
  *
  * Block, not ring: the loops run `ty - 2 .. ty + CORE_H + 1` by the same in x,
@@ -622,17 +597,22 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
  * constant 4 (every caller has passed `isNormalFootprint` first), so it never
  * changes an ordering — but the shape is now exported, and the doc said "ring"
  * while the test file next door uses that word for a genuinely different
- * radius-1 ring. `coreAnchorRoom(flatTerrain(), 25, 9)` is **36**, which is
+ * radius-1 ring. `coreAnchorRoom(flatTerrain(), 25, 9, 2)` is **36**, which is
  * 6x6 and not 6x6 minus the footprint; that reading is pinned in
  * `tests/terrain-anchor-quality.test.ts`.
  *
- * Exported at fb065b because it is not an implementation detail: `ROOM_RADIUS`'
- * doc block above records that this tie-break decides `maxGateDetour`, which
- * `terrainLegal` reads, so this number decides whether a map ships. A quantity
- * that picks the Core's tile on ~3% of runs and can refuse a whole map should
- * be measurable from outside the module, and `tests/terrain-anchor-quality.test.ts`
- * asserts the rule through it: the chosen anchor carries the maximum of this
- * over its own minimum-distance tie set.
+ * Exported at fb065b because it is not an implementation detail: this
+ * tie-break decides `maxGateDetour`, which `terrainLegal` reads, so this
+ * number decides whether a map ships (QUESTIONS Q214 has the full history —
+ * `suggestCoreAnchor` reads the radius from `cfg.coreRoomRadius`, not a
+ * code constant). A quantity that picks the Core's tile on ~3% of runs and
+ * can refuse a whole map should be measurable from outside the module, and
+ * `tests/terrain-anchor-quality.test.ts` asserts the rule through it: the
+ * chosen anchor carries the maximum of this over its own minimum-distance
+ * tie set. `roomRadius` is a required parameter, not a mirrored default, so
+ * every call site — including this file's own "absolute reading of the
+ * metric" tests — is forced to say which radius it means rather than
+ * silently agreeing with `/data` by coincidence.
  *
  * Not re-exported from `index.ts`: that barrel is the public surface, and this
  * is a tie-break internal a test measures through. It keeps tile coordinates
@@ -640,10 +620,10 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
  * one caller in *this* module has `(x, y)` already and because it is the same
  * shape as `gateDistance` beside it.
  */
-export function coreAnchorRoom(map: TerrainGrid, tx: number, ty: number): number {
+export function coreAnchorRoom(map: TerrainGrid, tx: number, ty: number, roomRadius: number): number {
   let room = 0;
-  for (let y = ty - ROOM_RADIUS; y < ty + CORE_H + ROOM_RADIUS; y++) {
-    for (let x = tx - ROOM_RADIUS; x < tx + CORE_W + ROOM_RADIUS; x++) {
+  for (let y = ty - roomRadius; y < ty + CORE_H + roomRadius; y++) {
+    for (let x = tx - roomRadius; x < tx + CORE_W + roomRadius; x++) {
       if (x < 0 || y < 0 || x >= map.w || y >= map.h) continue;
       if (map.kind[y * map.w + x] === TerrainKind.Normal) room++;
     }

@@ -450,14 +450,16 @@ function rows(): Row[] {
       }
     }
     const ties = tieSet(map, anchors);
-    const maxTieRoom = Math.max(...ties.map((a) => coreAnchorRoom(map, a % map.w, (a / map.w) | 0)));
+    const maxTieRoom = Math.max(
+      ...ties.map((a) => coreAnchorRoom(map, a % map.w, (a / map.w) | 0, cfg.coreRoomRadius)),
+    );
     out.push({
       seed,
       anchor,
       q,
       tieCount: ties.length,
       tieMoved: ties.length > 1 && anchor !== ties[0],
-      tieTakesMaxRoom: coreAnchorRoom(map, tx, ty) === maxTieRoom,
+      tieTakesMaxRoom: coreAnchorRoom(map, tx, ty, cfg.coreRoomRadius) === maxTieRoom,
       pickInTieSet: ties.includes(anchor),
       fixedRoom: buildRoomAt(map, CORE_X, CORE_Y, BUILD_RANGE),
       fixedCentroidDist: Math.hypot(CORE_X + CORE_W / 2 - centroid[0], CORE_Y + CORE_H / 2 - centroid[1]),
@@ -811,14 +813,14 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // small neighbourhood of the anchor, not of the arena. The clipped corner
     // and a real generated anchor pin it against a metric that agrees with 36
     // by accident.
-    expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y)).toBe(36);
-    expect(coreAnchorRoom(flatTerrain(), 1, 1)).toBe(16);
+    expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y, cfg.coreRoomRadius)).toBe(36);
+    expect(coreAnchorRoom(flatTerrain(), 1, 1, cfg.coreRoomRadius)).toBe(16);
     // 28, not 32 (the 3-gate 56x32 reading): seed 411's own generated map
     // differs under the 4-gate layout, so the neighbourhood at this same tile
     // is a different mix of terrain — the metric itself (radius, shape, kind
     // counted) is unchanged, which is what the other two checks in this test
     // pin.
-    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(28);
+    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9, cfg.coreRoomRadius)).toBe(28);
   });
 
   it('pins the seed the declined tie-break would cost a whole map', () => {
@@ -842,7 +844,7 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       const ty = (a / map.w) | 0;
       return {
         at: `(${tx},${ty})`,
-        ringRoom: coreAnchorRoom(map, tx, ty),
+        ringRoom: coreAnchorRoom(map, tx, ty, cfg.coreRoomRadius),
         discRoom: buildRoomAt(map, tx, ty, BUILD_RANGE),
         detour: Number(maxGateDetour(map, cfg, a, CORE_W, CORE_H).toFixed(4)),
       };
