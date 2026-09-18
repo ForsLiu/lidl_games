@@ -5,6 +5,78 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: BACKLOG fb136 done — a "site 6" regression test
+  now pins `boss.ts`'s two deliberately-unguarded high-ground call sites
+  (`shatterAlong`, `updateUnreachable`), closing the qa-playtester coverage
+  gap fb129 left open.** `data/enemies.json`'s only other `boss`-trait enemy
+  (`gatebreaker`) can't substitute for a "boss with no charge": `bossUpdate`
+  is gated on `TRAIT.finalBoss` alone, which only `warden_eater` carries, so
+  a non-finalBoss boss never reaches either function. Used the suppression
+  route from fb136's own acceptance text instead, driving `bossUpdate`
+  directly (exported from `boss.ts`) rather than through the literal
+  `updateEnemies` surface the acceptance text named — a logged deviation,
+  reusing `tests/p8d-boss-termination.test.ts`'s already-established
+  `bossUpdate`-direct pattern (`sealRing`/`boss()` helpers, the
+  `e.bossTimer = 1e9` isolation trick) for the identical isolation problem
+  rather than re-deriving it through the full dispatch path, which calls the
+  same `bossUpdate` internally anyway. New `tests/fb129-high-ground-
+  wiring.test.ts` "site 6" describe block: site 6a seals a `warden_eater`
+  inside an 8-tile palisade ring (one tile high ground) with the charge
+  script suppressed, runs past `UNREACHABLE_THRESHOLD`, and confirms
+  `updateUnreachable` still chips the high-ground wall; site 6b forces a
+  charge through a high-ground tower on the boss's path and confirms
+  `shatterAlong` still destroys it, in a window structurally too short for
+  `updateUnreachable`'s own threshold to be the real cause. Full-tier
+  code-reviewer APPROVE (one Minor: a comment overstating what a
+  construction-guaranteed assertion proves, reworded) and qa-playtester
+  PASS — qa mutation-tested both functions directly (temporarily adding the
+  exact "guard by analogy" regression this item warns about to a scratch
+  copy of `boss.ts`, confirming each mutation turns exactly its own new test
+  red and nothing else, then reverting cleanly) rather than only reasoning
+  about it from the diff. `npx tsc --noEmit` clean; `npm run test:fast`
+  green (314 files / 4547 passed / 35 skipped, up from fb135's 4545). —
+  refs: BACKLOG-TERRAIN.md fb064i Log, BACKLOG.md fb129/fb136.
+
+- **2026-09-18 — main lane: BACKLOG fb135 done — unblocked fb107's Codex
+  keyBindings gap and shipped fb085's localization-readiness groundwork as
+  the two real remaining pieces (fb093/fb097 were already DONE in
+  BACKLOG-UI.md, confirmed by reading it directly rather than trusting this
+  item's own stale description).** `codex-collections.ts`'s
+  `buildCodexCollections` now takes an optional `keyBindings` param threaded
+  into the classes collection's `renderDetail`, and `Hub.renderCodex`
+  (`hub.ts`) passes `this.keyBindings` through, so the Codex's Class detail
+  view shows a rebound Active1/Active2 key instead of always the default
+  Q/E, matching Class Select one tab over. New `data/strings.json` (seeded
+  with the pause card's ~13 strings) plus a small typed loader
+  `src/ui/strings.ts` (`t(key)`) and its own reintroduction guard,
+  `findReintroducedLiterals` — a value-based substring check rather than an
+  AST/text-node scan, so it catches a reverted literal inside a `${...}`
+  interpolation the same as a bare text node (the exact gap fb135's own
+  filed note said a reverted earlier attempt left open). `hud.ts`'s
+  `showPause()` is the first migrated surface, converted to pull every
+  visible string through `t(...)`. `tests/fb085-strings-lint.test.ts` is the
+  rule's own proof case, scoped to `showPause`'s method body via a
+  brace-balancing `extractMethodBody` helper so a short common word
+  ("Cancel", "Options") already used elsewhere in `hud.ts`'s *unconverted*
+  text doesn't false-positive. Full-tier code-reviewer APPROVE (two Minor
+  findings addressed pre-commit: tightened the letter-boundary regex to
+  also exclude digit/underscore neighbors, documented `stripComments`'s
+  known `//`-inside-a-value false-negative risk) and qa-playtester PASS
+  (drove a real rebind through the Settings UI end to end, confirmed by
+  exact-text grep that nothing else depends on the old hud.ts pause
+  literals, and adversarially tried to break the lint rule — found two
+  logged-not-filed evasions out of this item's scope: a value hoisted to a
+  module-level `const` outside the converted method, and a
+  unicode-escape/HTML-entity encoding of a migrated value, both accepted
+  limitations of a "seeded, not exhaustive" mechanism). `npx tsc --noEmit`
+  clean; `npm run test:fast` green (314 files / 4545 passed / 35 skipped,
+  up from the 313/4538 baseline). fb133 remains open, already logged with
+  its own reason (a real-guards `noUncheckedIndexedAccess` fix surfaces
+  1806 errors across ~90 files — too large for one loop-contract item,
+  needs a deliberate per-file/per-directory split) — not re-attempted this
+  session. — refs: QUALITY.md BETA, SPEC-FINAL §11, BACKLOG.md fb135,
+  BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs.
+
 - **2026-09-18 — main lane: BACKLOG fb131 done — all three Warden
   teleports now respect `wardenPassable`, terrain being live.** New
   `Grid.nearestWardenPassable` (a deterministic expanding-ring search,

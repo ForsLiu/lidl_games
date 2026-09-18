@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GRID_W } from '../src/sim/grid';
 import { spawnEnemy, TRAIT, updateEnemies } from '../src/sim/enemies';
+import { bossUpdate, UNREACHABLE_THRESHOLD } from '../src/sim/boss';
 import { buildTower } from '../src/sim/towers';
 import type { Structure } from '../src/sim/types';
 import { loadTerrain, terrainOverlay, TerrainKind, flatTerrain } from '../src/sim/terrain';
@@ -246,8 +247,100 @@ describe('fb129 site 5 — enemies.ts updatePhasing Wraith phase end (ground fam
   });
 });
 
-// fb129: `boss.ts`'s `shatterAlong` and `updateUnreachable` are deliberately
-// NOT guarded (SPEC-FINAL §10.5: "the bosses' special attacks still can",
-// and the anti-stall failsafe must never fail to find a target) — recorded
-// in each function's own doc comment in boss.ts rather than pinned here,
-// since neither is exported for a test to drive in isolation.
+// fb136 (qa-playtester, verifying fb129 — the coverage gap BACKLOG-TERRAIN.md
+// fb064i's Log itself named): `boss.ts`'s `shatterAlong` and
+// `updateUnreachable` are deliberately NOT guarded (SPEC-FINAL §10.5: "the
+// bosses' special attacks still can", and the anti-stall failsafe must never
+// fail to find a target). Neither is exported, but the boss script they live
+// inside, `bossUpdate`, is (`tests/p8d-boss-termination.test.ts` already
+// drives it directly for the plain-ground unreachable-structure case) — so
+// this drives it too, rather than going through `updateEnemies`/`TRAIT.
+// finalBoss` dispatch, which would need a real Warden-Eater spawn path.
+//
+// fb129's own attempt found the direct route confounded: sealing a
+// `warden_eater` beside a high-ground tower to force `UNREACHABLE_THRESHOLD`
+// also lets its own charge ability fire, and `shatterAlong` — itself
+// correctly unguarded — one-shots the tower first, so a naive test proves
+// the wrong mechanism. Both sites below isolate their own mechanism from the
+// other's: site 6a pins `e.bossTimer` absurdly high so the charge script's
+// own countdown (`updateCharge`'s IDLE branch, boss.ts) never reaches zero
+// and shatterAlong never fires; site 6b drives the CHARGING state directly
+// (bypassing the TELEGRAPH windup) over a short enough window that
+// `updateUnreachable`'s own `UNREACHABLE_THRESHOLD` (6s) never trips.
+describe('fb129/fb136 site 6 — boss.ts: shatterAlong and updateUnreachable stay unguarded against high ground', () => {
+  it('site 6a: updateUnreachable still chips a high-ground wall sealing the boss away from the Warden', () => {
+    const w = newWorld();
+    const cx = 40;
+    const cy = 16;
+    // The whole 8-tile ring around (cx,cy) walls the Warden in; only the
+    // east tile is patched to High, so it alone is the "does the anti-stall
+    // failsafe still see a target through a high-ground wall" case.
+    patchTile(w, [[cx + 1, cy, TerrainKind.High]]);
+    w.phase = 'act1_build';
+    w.gold = 1_000_000;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        place(w, PALISADE, cx + dx, cy + dy);
+      }
+    }
+    w.phase = 'act2';
+    warp(w, cx, cy);
+    w.updateNav(true);
+
+    const highWall = w.structures.find((s) => s.tx === cx + 1 && s.ty === cy)!;
+    expect(highWall).toBeTruthy();
+    expect(w.grid.isHighGround(cx + 1, cy)).toBe(true);
+    const startHp = highWall.hp;
+
+    const e = spawnEnemy(w, 'warden_eater', cx + 2.5, cy + 0.5, { overlay: false })!;
+    expect((e.flags & TRAIT.finalBoss) !== 0).toBe(true);
+    // Isolate updateUnreachable from the scripted charge — see the block
+    // comment above.
+    e.bossTimer = 1e9;
+
+    const dt = 1 / 60;
+    for (let i = 0; i < Math.round((UNREACHABLE_THRESHOLD + 2) * 60); i++) {
+      w.rebuildBuckets();
+      bossUpdate(w, e, dt);
+    }
+
+    expect(highWall.hp).toBeLessThan(startHp);
+  });
+
+  it('site 6b: a boss charge line still shatters a high-ground tower crossing its path', () => {
+    const w = newWorld();
+    const tx = 15;
+    const ty = 16;
+    patchTile(w, [[tx, ty, TerrainKind.High]]);
+    const highTower = place(w, PALISADE, tx, ty);
+    w.phase = 'act2';
+    warp(w, 30, ty); // the Warden, far east, collinear with the boss and the tower
+    w.updateNav(true);
+
+    const e = spawnEnemy(w, 'warden_eater', 10.5, ty + 0.5, { overlay: false })!;
+    expect(w.grid.isHighGround(tx, ty)).toBe(true);
+    // Drive the CHARGING state directly rather than waiting through the
+    // TELEGRAPH windup — boss.ts's (unexported) IDLE/TELEGRAPH/CHARGING enum
+    // values are 0/1/2; chargeVx/chargeVy point straight at the tower's row.
+    e.bossAction = 2;
+    e.bossTimer = 999; // long enough to cross the tower well within CHARGE_SPEED
+    e.chargeVx = 1;
+    e.chargeVy = 0;
+
+    const dt = 1 / 60;
+    for (let i = 0; i < 60 && highTower.hp === highTower.maxHp; i++) {
+      w.rebuildBuckets();
+      bossUpdate(w, e, dt);
+    }
+
+    expect(highTower.hp).toBeLessThan(highTower.maxHp);
+    // code-reviewer (fb136): this is a construction invariant, not evidence
+    // against updateUnreachable — the loop is capped at 60 ticks (1s), well
+    // under UNREACHABLE_THRESHOLD (6s), so bossUnreachableTime could not
+    // have crossed it and triggered a chip regardless of which mechanism
+    // ran. What actually isolates shatterAlong as the cause is the CHARGING
+    // state forced above and the short window itself, not this assertion.
+    expect(e.bossUnreachableTime).toBeLessThan(UNREACHABLE_THRESHOLD);
+  });
+});

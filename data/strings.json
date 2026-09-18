@@ -1,0 +1,16 @@
+{
+  "pause.title": "Paused",
+  "pause.subtitle": "The Vale holds its breath.",
+  "pause.resume": "Resume",
+  "pause.options": "Options",
+  "pause.abandon": "Abandon run",
+  "pause.footer": "Esc resumes · abandoning returns to the Hub and keeps nothing.",
+  "pause.abandonConfirmTitle": "Abandon run?",
+  "pause.abandonConfirmBody": "This ends the run now and returns to the Hub. Nothing from it is kept.",
+  "pause.cancel": "Cancel",
+  "pause.autoPickLabel": "Auto-pick level-ups",
+  "pause.autoPickOnNote": "Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered.",
+  "pause.autoPickOffNote": "Level-ups pause the run for your choice.",
+  "pause.fullscreenNote": "Fullscreen also works from the Hub's Settings tab.",
+  "pause.back": "Back"
+}

@@ -13,19 +13,23 @@ import { Hub } from '../src/ui/hub';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
 import { buildCodexCollections } from '../src/ui/codex-collections';
+import { classAbilitiesMarkup } from '../src/ui/class-info';
+import { loadContent } from '../src/sim/content';
+import { defaultKeyBindings, type KeyBindings } from '../src/ui/keybindings';
 
 function mount(): HTMLElement {
   document.body.innerHTML = '<div id="app"></div>';
   return document.getElementById('app') as HTMLElement;
 }
 
-function openHub(): Hub {
+function openHub(keyBindings?: KeyBindings): Hub {
   const root = mount();
   const hub = new Hub(root, defaultMeta(), 1, {
     settings: defaultSettings(),
     onSettingsChanged: () => {},
     onStart: () => {},
     onMetaChanged: () => {},
+    keyBindings,
   });
   hub.show();
   return hub;
@@ -73,5 +77,22 @@ describe('Hub Codex tab (p9b)', () => {
     // pinned to whatever was selected before the tab switch tore it down.
     const collections = buildCodexCollections();
     expect(root.querySelector('.sw-codex-content h2')!.textContent).toBe(collections[0].label);
+  });
+
+  it('fb107: the Codex classes detail shows a rebound key, matching Class Select one tab over', () => {
+    const root = document.body;
+    const rebound: KeyBindings = { ...defaultKeyBindings(), active1: 'j' };
+    const hub = openHub(rebound);
+    hub.openTab('codex');
+
+    const content = loadContent();
+    const swordsmanCls = content.classByKey.get('swordsman')!;
+    const rows = root.querySelectorAll('.sw-codex-content tbody tr');
+    const idx = content.classes.classes.findIndex((c) => c.key === 'swordsman');
+    (rows[idx] as HTMLElement).click();
+
+    const detail = root.querySelector('.sw-codex-detail')!;
+    expect(detail.innerHTML).toBe(classAbilitiesMarkup(swordsmanCls, { keyBindings: rebound }));
+    expect(detail.innerHTML).toContain('J, Active 1');
   });
 });

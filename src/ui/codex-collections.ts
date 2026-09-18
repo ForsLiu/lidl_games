@@ -17,6 +17,7 @@ import { loadContent, type ClassDef, type Content, type EnemyDef, type Equipment
 import { classAbilitiesMarkup } from './class-info';
 import { equipmentCodexDetailMarkup } from './equipment-info';
 import { enemyAttackMarkup } from './enemy-info';
+import { defaultKeyBindings, type KeyBindings } from './keybindings';
 
 export interface CodexCollection {
   key: string;
@@ -60,7 +61,10 @@ function asRows(value: unknown): Record<string, unknown>[] {
   return [];
 }
 
-export function buildCodexCollections(content: Content = loadContent()): CodexCollection[] {
+export function buildCodexCollections(
+  content: Content = loadContent(),
+  keyBindings: KeyBindings = defaultKeyBindings(),
+): CodexCollection[] {
   return [
     {
       key: 'classes',
@@ -73,7 +77,10 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       // the in-run character panel already call, with no live context (the
       // Codex is a pre-run reference), so numbers match the plain-authored
       // ones those two surfaces show before a run starts.
-      renderDetail: (row) => classAbilitiesMarkup(row as unknown as ClassDef),
+      // fb107: threaded `keyBindings` so a rebind shows here too — Class
+      // Select one tab over already reads `this.keyBindings` for the same
+      // sentence text, and the two disagreeing after a rebind was the gap.
+      renderDetail: (row) => classAbilitiesMarkup(row as unknown as ClassDef, { keyBindings }),
     },
     { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers), tunerFile: 'towers', raw: content.raw.towers },
     {
