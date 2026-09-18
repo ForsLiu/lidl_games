@@ -169,9 +169,19 @@ const DASH_KINDS: ReadonlyArray<[string, string]> = [
  * measurement covers all four kinds (only `dash_line` has a hit line to
  * binary-search, and `dash_trail`/`dash_heal` express their reach as patches
  * and a heal count instead).
+ *
+ * `practice: true` (fb131): this file is about the multiplier stack
+ * (move-speed ratio, the Shoes doubling), not terrain — but a dash now
+ * genuinely stops short of its analytic distance when real generated
+ * terrain crosses its line (`resolveDashTarget`'s fb131 fix), and this
+ * fixed start position/direction happened to cross rock on the default
+ * seed. The flat practice arena is what every other terrain-agnostic sim
+ * test already uses to keep an assertion about one mechanic from being
+ * confounded by another (`tests/fb129-high-ground-wiring.test.ts`'s own
+ * `newWorld`).
  */
 function dashTravelDistance(classKey: string, equipment: string[]): number {
-  const w = new World(cfg({ classKey, equipment }));
+  const w = new World(cfg({ classKey, equipment, practice: true }));
   w.warden.x = 4;
   w.warden.y = 12;
   applyCommand(w, { k: 'class_active2', aimX: w.warden.x + 100, aimY: w.warden.y });

@@ -1658,3 +1658,32 @@ Q200 did not collide and are unchanged below).
   correcting pins to honest readings rather than re-transcribing stale
   ones. — refs: SPEC-FINAL §14 G13, BACKLOG fb199,
   p11d, p12h, p12i, QUESTIONS Q195, Q210.
+
+- **Q213. [fb131] Closed — a dash's travel line is sampled the whole way,
+  not just checked at the endpoint.** fb131 named `tickDashTravel`'s per-tick
+  lerp between `resolveDashTarget`'s two endpoints as a hole: the endpoint
+  was legal by construction, but nothing verified the *line* to it stayed on
+  legal ground, so a target on open ground just past a rock blob or fencing
+  a patch of high ground resolved as reachable without ever asking whether a
+  straight line to it crossed the rock in between. Two readings were
+  available — sample the line (stop the dash at the last legal point before
+  an obstruction) or accept brief clipping through terrain as the dash's own
+  character (it already grants i-frames and is documented as a fast *move*,
+  not strictly a walk). **Chose: sample the line.** `fb064b`'s own reasoning
+  for making the Warden respect terrain at all — "a Warden that dashes into
+  a mountain is a hole, and one parked on high ground is unreachable by
+  every ground melee enemy at once" — is a statement about reachability, not
+  about the visual of clipping through a wall, and it applies exactly as
+  much to a dash that passes *through* a mountain to reach a spot no ground
+  enemy can otherwise threaten as to one that ends inside the mountain
+  itself; accepting the clip as flavor would reopen the exact safe-spot hole
+  fb064b closed, just one hop further along the line. `resolveDashTarget`
+  (`src/sim/wardenmove.ts`) now marches forward from the Warden's own
+  already-legal position in fixed 0.1-tile steps regardless of dash length
+  (fine enough that no rock blob thinner than a tile is skipped between
+  samples) and stops at the last sample still on legal ground, so
+  `tickDashTravel`'s lerp now only ever interpolates between two points
+  already proven mutually reachable in a straight line. — Reason: CLAUDE.md
+  rule 5 (choose, log, continue); BACKLOG.md fb131's own either/or
+  acceptance text. — refs: SPEC-FINAL §10.5, BACKLOG.md fb131,
+  BACKLOG-TERRAIN.md fb064b/fb064q Logs.

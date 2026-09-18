@@ -404,10 +404,11 @@ export const TerrainFileSchema = z
     // the character. Normal is the kind the Core's own 2x2 stands on, the kind
     // the Warden spawns and reforms onto, and — by `minBuildableNormalFrac` —
     // at least 45% of the board; blocking it leaves the character nowhere legal
-    // to be, and `resolveDashTarget`'s backwards walk would fail on every tile
-    // and pin it in place forever. Every other combination is a design choice
-    // the owner may make, including `rough` (walkable ground the character
-    // cannot cross) and `rock` in either direction — that one *is* the veto.
+    // to be, and `resolveDashTarget`'s line search would fail on the very
+    // first sample and pin it in place forever. Every other combination is a
+    // design choice the owner may make, including `rough` (walkable ground
+    // the character cannot cross) and `rock` in either direction — that one
+    // *is* the veto.
     // Optional-chained for the same fb064t reason as the loop above: a short
     // `tiles` array has no Normal tile to ask about, and the length issue on
     // `tiles` is the only honest thing to say about that document.

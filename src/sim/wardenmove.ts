@@ -48,24 +48,43 @@ export function classDashDuration(dashRange: number, baseMoveSpeed: number): num
 }
 
 /**
- * Resolves where a dash of (dx, dy) actually lands: it ignores terrain and
- * friendly structures (fb002 — `wardenPassable` only fails on the border),
- * but must land somewhere legal, walking the line backwards until a legal
- * tile appears. Pure — does not move the Warden. Gameplay effects that need
- * the dash's endpoint at cast time (hit lines, heal counts, trail segments)
- * call this directly instead of waiting for the travel to finish.
+ * Resolves where a dash of (dx, dy) actually lands: it ignores friendly
+ * structures (fb002 — `wardenPassable` only fails on the border and on
+ * terrain that blocks the character), but must land somewhere legal.
+ *
+ * fb131 (QUESTIONS.md): this used to check only the full-distance endpoint
+ * and back off *from there* in fixed 0.1 steps, which meant a target on open
+ * ground just past a rock — a gap, or a stretch of high ground fenced by a
+ * cliff — resolved as legal without ever asking whether the straight line to
+ * it stayed on legal ground. `fb064b`'s own reasoning for why the Warden
+ * must respect terrain at all ("a Warden that dashes into a mountain is a
+ * hole, and one parked on high ground is unreachable by every ground melee
+ * enemy at once") applies exactly as much to dashing *through* one to reach
+ * a spot no ground enemy can otherwise threaten — so the line is sampled
+ * forward from the Warden's own (already-legal) position, in fixed
+ * 0.1-tile steps regardless of dash length (fine enough that no rock blob
+ * thinner than a tile is skipped between samples), and travel stops at the
+ * last sample still on legal ground. `tickDashTravel`'s per-tick lerp then
+ * only ever interpolates between two points already proven mutually
+ * reachable in a straight line, not just individually legal.
  */
 export function resolveDashTarget(w: World, dx: number, dy: number): { x: number; y: number } {
   const wd = w.warden;
-  const tx = clamp(wd.x + dx, 0.4, GRID_W - 0.4);
-  const ty = clamp(wd.y + dy, 0.4, GRID_H - 0.4);
-  if (w.grid.wardenPassable(Math.floor(tx), Math.floor(ty))) return { x: tx, y: ty };
-  for (let s = 0.9; s > 0; s -= 0.1) {
+  // `Math.hypot` is banned sim-wide (architecture rule 1); the plain
+  // Pythagorean form is what `linkSpires` (sundering.ts) already uses.
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const steps = Math.max(1, Math.ceil(dist / 0.1));
+  let lastX = wd.x;
+  let lastY = wd.y;
+  for (let i = 1; i <= steps; i++) {
+    const s = i / steps;
     const px = clamp(wd.x + dx * s, 0.4, GRID_W - 0.4);
     const py = clamp(wd.y + dy * s, 0.4, GRID_H - 0.4);
-    if (w.grid.wardenPassable(Math.floor(px), Math.floor(py))) return { x: px, y: py };
+    if (!w.grid.wardenPassable(Math.floor(px), Math.floor(py))) break;
+    lastX = px;
+    lastY = py;
   }
-  return { x: wd.x, y: wd.y };
+  return { x: lastX, y: lastY };
 }
 
 /** Starts the Warden travelling from its current position to `target` over `duration` seconds. */
