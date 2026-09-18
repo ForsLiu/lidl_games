@@ -287,7 +287,7 @@ export type PlaceCoreResult =
  * the *suggested* anchor to at generation time. This can never refuse the
  * suggested anchor itself — a shipped (non-fallback) map's suggested anchor
  * satisfies this same ceiling by construction (`terrainLegal`), so at least
- * one legal placement always exists — and QUESTIONS.md Q210 logs the
+ * one legal placement always exists — and QUESTIONS.md Q211 logs the
  * decision and the measured numbers per CLAUDE.md working rule 5.
  */
 function withinApproachBand(w: World, anchor: number): boolean {

@@ -26,7 +26,7 @@
   ("validate a placement's detour or accept the 4.969 worst case knowingly")
   is resolved as **validate**: `withinApproachBand` re-checks the clicked
   anchor against the same ceiling the suggested anchor is held to at
-  generation time, logged as QUESTIONS Q210. New
+  generation time, logged as QUESTIONS Q211. New
   `tests/fb130-core-placement-wiring.test.ts` (24 tests). Full-tier
   code-reviewer APPROVE (Minor-only, addressed) and qa-playtester PASS (no
   blocking bug — see BACKLOG.md's fb130 entry for the two informational
@@ -34,7 +34,7 @@
   4527 passed / 35 skipped / 0 failed, unchanged from baseline). No UI hookup
   yet (BACKLOG-TERRAIN.md fb064c's click-to-place flow is UI-lane scope) —
   the sim side is ready for it — refs: SPEC-FINAL §10.5, §12 rules 2-3,
-  BACKLOG-TERRAIN.md fb064c/fb064h/fb064j/fb064o/fb064p, QUESTIONS Q210.
+  BACKLOG-TERRAIN.md fb064c/fb064h/fb064j/fb064o/fb064p, QUESTIONS Q211.
 
 **Integrator (2026-09-17):** fb128 was fixed independently on two parallel
 branches (`claude/dreamy-hopper-6pebu0` and `claude/dreamy-hopper-0poxye`) —
@@ -45,6 +45,36 @@ resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
 seeds throughout, discarding the second branch's duplicate rewrite of the same
 change. No functional difference between the two fixes.
 
+- **2026-09-18 — main lane: BACKLOG p12i closed (already fixed; a bookkeeping
+  miss like p12d's, below); its verification filed BACKLOG fb199, a real
+  currently-failing regression.** p12i asked to choose between retuning
+  `data/towers.json` against terrain-bearing waves or a design call to
+  isolate G13's solo-viability probe from generated terrain. Re-reading
+  `tests/a4-single-type.test.ts`'s own later "p12h" section showed the
+  isolation choice was already shipped there — `tools/a4probe.ts`'s
+  `RunConfig` sets `practice: true` (confirmed present at line 73), zero
+  `/data` touched — and p12i's checkbox was simply never closed after.
+  Logged as QUESTIONS Q210 and closed. Re-running the file's own live
+  `p12h` regression case to confirm the fix still holds (`npx vitest run
+  tests/a4-single-type.test.ts`, 860s) found it **failing at HEAD**:
+  `frost_obelisk` measures 0/5 against its own asserted `>=4`, with
+  `ember_brazier`/`tesla_coil`/`mortar`/`venom_spore` also down from the
+  docstring's claimed `{5,5,5,5,4,4,5}` table. The same class of regression
+  — not the identical reading, checked not assumed: fb092's own numbers
+  were `{ember_brazier 0, frost_obelisk 0, venom_spore 2}`, only
+  `frost_obelisk` matches this session's — was already found and bisected
+  as pre-existing by fb092 (2026-09-15, below; byte-identical with/without
+  its own diff) and flagged "for a future session to file," but no session
+  had. Filed now as **fb199** with the already-red test as its regression
+  test (CLAUDE.md rule 3), narrowed to the six commits landed between
+  fb092 (`2a30281`) and HEAD touching `src/sim/terrain`/`src/sim/world.ts`
+  — `data/towers.json` itself is exonerated (only three commits ever,
+  fb092's own already ruled out). Not chased to root cause here.
+  `npm run test:fast` re-confirmed green (this
+  item touched only `BACKLOG.md`/`QUESTIONS.md`/this file, no `/src` or
+  `/data`); code-reviewer light-tier pass found no issues — refs:
+  SPEC-FINAL §14 G13, BACKLOG p12h, p12i, fb092, fb199, QUESTIONS Q194,
+  Q210.
 - **2026-09-18 — main lane: BACKLOG p12d closed for real.** p12d's 2026-09-07
   session had already landed G1/G14/G23's T3-reference-tier rewrite and G8's
   original two-clause diversity text, but this item was left `[ ]` in
