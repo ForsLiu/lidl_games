@@ -1491,7 +1491,7 @@ verification surfaced a separate, still-open drift, fb199.
       since fb092. — refs: SPEC-FINAL §14 G13, §10.5, BACKLOG p12h,
       QUESTIONS Q194, Q210 (this item's closing entry).
 
-- [ ] (fb199) [bug] `tests/a4-single-type.test.ts`'s live `p12h` case ("with
+- [x] (fb199) [bug] **DONE 2026-09-18.** `tests/a4-single-type.test.ts`'s live `p12h` case ("with
       baseHpMul reverted to identity, the terrain fix alone restores
       fb076-era viability") fails at HEAD: measured `{"arrow_spire":5,
       "ballista":5,"ember_brazier":4,"frost_obelisk":0,"tesla_coil":3,
@@ -1523,6 +1523,54 @@ verification surfaced a separate, still-open drift, fb199.
       reading rather than re-transcribing the stale one") — refs:
       SPEC-FINAL §14 G13, BACKLOG fb092, p12h, p12i, PROGRESS.md 2026-09-15
       fb092 entry.
+
+      **Resolved:** root cause is **two commits, not one** — qa-playtester's
+      verification pass caught the first-draft writeup comparing
+      `4ce6b22^` to current HEAD and crediting the entire delta to
+      `4ce6b22` alone. Re-isolated directly either side of `4ce6b22`
+      (fb153b's `GATES.slice(0,3) -> [...GATES]` fix, the one commit in the
+      2a30281..HEAD window that touches `this.gates`, which practice-mode's
+      `flatTerrain(this.gates)` (`src/sim/world.ts`) reads directly): `git
+      worktree` + `npx tsx`, same `node_modules`, 5-seed/7-tower reading —
+      `{arrow_spire:5,ballista:5,ember_brazier:0,frost_obelisk:0,
+      tesla_coil:4,mortar:4,venom_spore:2}` at `4ce6b22^` ->
+      `{5,5,4,0,4,2,2}` at `4ce6b22` itself: only ember_brazier/mortar move,
+      cleanly attributable to the gate-count change. `4ce6b22` -> HEAD then
+      moves tesla_coil/mortar/venom_spore further (`{5,5,4,0,4,2,2}` ->
+      `{5,5,4,0,3,3,3}`, the reading already on file above) with no further
+      `this.gates` change anywhere in that range — likely fb128's
+      `tickCooldown` fix (already documented in PROGRESS.md 2026-09-17 as
+      flipping pinned-seed outcomes elsewhere), plausible but not
+      independently isolated the way `4ce6b22` was. Either way, zero
+      `data/towers.json` commits exist in the window. Not a data
+      regression: the flat practice arena was never designed to hold gate
+      count or cooldown-tick timing constant, any more than `p12c`'s
+      `baseHpMul` anchor was — both fb153b's and (if it is the cause)
+      fb128's fixes are correct on their own merits. Per this item's own
+      acceptance, corrected the pin regardless of exact attribution:
+      `tests/a4-single-type.test.ts`'s uniform `toBeGreaterThanOrEqual(4)`
+      is now a per-tower `T1_IDENTITY_FLOOR` pinned to today's honest
+      reading (so further drift below today still fails loud), with the
+      corrected two-contributor mechanism logged in both the test's own
+      comments and the file header. **`frost_obelisk`'s floor of 0 is a
+      separate, named exception**, not explained by either contributor:
+      qa-playtester traced it back to at or before fb092's own commit
+      (`2a30281`), predating this item's whole window — its floor can't
+      itself catch further regression, and a from-scratch investigation of
+      it is real, unclaimed follow-up work, named rather than silently
+      folded into this item's story. Also corrected `tests/
+      p11d-g13-t3-margin.test.ts`'s stale "measured 17/18" docstring/title
+      (now `waves:2, defeat_core` — its `<18` tolerance already covered
+      this without needing a code change). Targeted tests green (`tests/
+      a4-single-type.test.ts` full run, `tests/p11d-g13-t3-margin.test.ts`);
+      `npm run test:fast` unaffected (both files are fast-tier-excluded per
+      this file's own header; the one `test:fast` failure this session's
+      own full run hit, `tests/terrain-cost.test.ts`, was confirmed
+      pre-existing and unrelated via a `git stash` control — passes in
+      isolation both with and without this diff). code-reviewer APPROVE
+      (two Minor/Nit notes addressed inline); qa-playtester's own
+      verification pass is what caught and drove the correction above —
+      re-verified green after the correction. — refs: QUESTIONS Q212.
 
 - [x] (p12j) [balance] **DONE 2026-09-07** — `data/classes.json`-only
       re-tune, balance-analyst method (hypothesis, one lever or a small named

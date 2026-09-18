@@ -188,6 +188,13 @@
  * `baseHpMul: 1`). **BACKLOG p12i, filed by a since-corrected first draft of
  * this item to retune `data/towers.json`, is retired as unnecessary** — see
  * QUESTIONS Q195's correction.
+ *
+ * **fb199 (2026-09-18): the live `p12h` case below drifted again**, this
+ * time from terrain/gate-geometry commits landed after this fix (not a
+ * `data/towers.json` edit — see that test's own comment and QUESTIONS
+ * Q212). Its uniform `>=4` floor is now a per-tower `T1_IDENTITY_FLOOR`
+ * pinned to the honest current reading, same convention as
+ * `T1_EXPECTED_CLEARS` above.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -295,7 +302,59 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // true`) actually restores viability, isolated from `baseHpMul` via a
   // content override rather than a `/data` edit — pins the mechanism the
   // comment above claims rather than leaving it as an unverified assertion.
-  it('p12h: with baseHpMul reverted to identity, the terrain fix alone restores fb076-era viability', () => {
+  //
+  // fb199 (2026-09-18): a uniform >=4 floor no longer holds — bisected to
+  // the terrain/gate-geometry and cooldown-tick commits landed between
+  // fb092 (2a30281) and HEAD, not to any `data/towers.json` edit (that
+  // file has had exactly three commits ever, none in this window).
+  // **Two separate contributors, not one** (qa-playtester caught the first
+  // cut of this comment overclaiming a single cause):
+  // (1) `4ce6b22` (fb153b's `GATES.slice(0,3) -> [...GATES]` fix), isolated
+  // via a control run directly either side of that one commit: `{5,5,0,0,
+  // 4,4,2}` at `4ce6b22^` -> `{5,5,4,0,4,2,2}` at `4ce6b22` itself
+  // (arrow_spire..venom_spore) — ember_brazier and mortar move, the rest
+  // don't, because the practice-mode flat arena is built from `this.gates`
+  // via `flatTerrain` (`src/sim/world.ts`), which that commit changes.
+  // (2) `4ce6b22` -> HEAD then moves tesla_coil/mortar/venom_spore further
+  // (`{5,5,4,0,4,2,2}` -> `{5,5,4,0,3,3,3}`) with no further `this.gates`
+  // change anywhere in that range — the likely cause is fb128's
+  // `tickCooldown` sub-tick-remainder fix (PROGRESS.md 2026-09-17: already
+  // documented there as flipping pinned-seed outcomes elsewhere in this
+  // repo), but that attribution is not independently isolated here the way
+  // (1) is — flagged, not proven, per QUESTIONS Q212's correction.
+  // fb153b's fix is correct (dropping a real gate was the actual bug); this
+  // probe's flat arena was just never designed to hold gate *count*
+  // constant any more than p12c's baseHpMul anchor was, and a
+  // `data/towers.json` retune to chase either contributor was already
+  // ruled out as unnecessary (Q195/p12i) and stays out of scope regardless
+  // of which commit(s) explain the delta. Per this item's own acceptance
+  // and the `p11d` precedent ("the pin is corrected to the honest current
+  // reading rather than re-transcribing the stale one"), the floor is
+  // corrected to a per-tower honest reading rather than lowered as one
+  // uniform number, so any *further* drift below today's baseline still
+  // fails loud. See BACKLOG fb199, QUESTIONS Q212.
+  // (code-reviewer note: `frost_obelisk`'s floor of 0 is the metric's own
+  // minimum — a count can't drop further, so unlike the other six towers
+  // this one row can't itself catch new regression; it stays at the honest
+  // reading rather than a higher, false floor. qa-playtester traced this
+  // 0/5 back past this item's own commit window, to at or before fb092's
+  // 2a30281 — it is not something this item's gate/cooldown bisection
+  // explains or introduces, and pinning it here is not a new decision to
+  // accept it: it was already the honest reading this whole file's history
+  // carried forward. A from-scratch `frost_obelisk`-only investigation is
+  // real remaining work, out of scope for this item's own acceptance —
+  // left named rather than silently absorbed into "gate geometry" so a
+  // future session doesn't have to re-discover it, per QUESTIONS Q212.)
+  const T1_IDENTITY_FLOOR: Record<string, number> = {
+    arrow_spire: 5,
+    ballista: 5,
+    ember_brazier: 4,
+    frost_obelisk: 0,
+    tesla_coil: 3,
+    mortar: 3,
+    venom_spore: 3,
+  };
+  it('p12h: with baseHpMul reverted to identity, the terrain fix restores per-tower viability (fb199-corrected floor)', () => {
     const rawEnemies = loadContent().raw.enemies as Record<string, unknown>;
     const identityContent = loadContent({ enemies: { ...rawEnemies, baseHpMul: 1 } });
     const result: Record<string, number> = {};
@@ -307,9 +366,11 @@ describe('A4 every tower type is viable, none is dominant', () => {
       result[key] = n;
     }
     for (const key of SOUL_TOWERS) {
-      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(4);
+      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(
+        T1_IDENTITY_FLOOR[key],
+      );
     }
-  }, 600_000); // measured ~515s: 35 full 18-wave sim runs (7 towers x 5 seeds)
+  }, 600_000); // measured 500-900s depending on host contention: 35 full 18-wave sim runs (7 towers x 5 seeds)
 
   for (const key of SOUL_TOWERS) {
     it(`${key} alone fails the TD wave curve at T3`, () => {

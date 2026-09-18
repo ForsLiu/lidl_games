@@ -1599,3 +1599,62 @@ Q200 did not collide and are unchanged below).
   rule 3 (confirmed bugs get a regression test before the fix — fb199's is
   already red, satisfying this without a new test write). — refs:
   SPEC-FINAL §14 G13, BACKLOG p12h, p12i, fb092, fb199, QUESTIONS Q194. — (owner verdict: pending)
+
+- **Q212. [fb199] Closed — root cause is two commits, not one (fb153b's
+  gate-list fix plus, unproven but likely, fb128's cooldown-tick fix), not
+  a `data/towers.json` regression; test pins corrected rather than chased
+  with a re-tune. Corrected below after qa-playtester's verification pass
+  caught the first-draft writeup overclaiming a single cause.** fb199 asked
+  for a control run either side of the candidate commit that explains the
+  drift Q210 found. Of the `2a30281..HEAD` window's seven candidates, only
+  `4ce6b22` (fb153b: `this.gates = GATES.slice(0,3)` -> `[...GATES]`)
+  touches `this.gates`, which practice-mode's `flatTerrain(this.gates)`
+  (`src/sim/world.ts`, landed later at `56b5267`) builds the flat T1/T3
+  probe arena from directly. **A control run isolated directly either side
+  of that one commit** (`git worktree`, same `node_modules`,
+  `tools/a4probe.ts`'s `runSingleType` at 5 seeds x 7 towers, `baseHpMul`
+  identity override): `{arrow_spire:5,ballista:5,ember_brazier:0,
+  frost_obelisk:0,tesla_coil:4,mortar:4,venom_spore:2}` at `4ce6b22^` ->
+  `{5,5,4,0,4,2,2}` at `4ce6b22` itself — only `ember_brazier` and `mortar`
+  move, cleanly attributable to the gate-count change. **The first draft of
+  this entry instead compared `4ce6b22^` to current HEAD** (15 commits
+  later) and attributed the *entire* delta to `4ce6b22` — qa-playtester
+  re-ran the isolated-commit control above and showed `4ce6b22` -> HEAD
+  moves `tesla_coil`/`mortar`/`venom_spore` further (`{5,5,4,0,4,2,2}` ->
+  `{5,5,4,0,3,3,3}`) with no further `this.gates` change anywhere in that
+  range, so a second contributor is real and unexplained by the gate fix.
+  Likely cause: fb128's `tickCooldown` sub-tick-remainder fix, already
+  documented in PROGRESS.md's 2026-09-17 entry as flipping pinned-seed
+  outcomes elsewhere in this repo — plausible by timing and by precedent,
+  but **not independently isolated the way `4ce6b22` was**; logged as an
+  attribution, not a proof. Either way, zero `data/towers.json` commits
+  exist in the whole window, confirming (again, differently from fb092's
+  own check) that neither contributor is a data edit. Both fb153b's and
+  (if it is the cause) fb128's fixes are correct on their own merits — fb153b
+  restored a genuinely dropped fourth gate, fb128 fixed a real sub-tick
+  rounding bug — so there is nothing to revert; the practice-mode probe
+  just was never designed to hold gate count or cooldown-tick timing
+  constant, the same kind of out-of-scope variable p12c's `baseHpMul`
+  anchor already was for this same file. Chose the "corrected pin" branch
+  of fb199's own either/or acceptance over a `data/towers.json` retune,
+  since p12i/Q195 already ruled that retune out as unnecessary and nothing
+  here reopens that call, regardless of which commit(s) explain the delta
+  — a per-tower `T1_IDENTITY_FLOOR` replaces the uniform `>=4` floor in
+  `tests/a4-single-type.test.ts`, pinned to today's honest reading so
+  future drift below it still fails loud. **`frost_obelisk`'s floor of 0
+  is a separate, named exception**: qa-playtester traced that tower's 0/5
+  back to at or before fb092's own commit (`2a30281`), predating this
+  item's entire bisection window — its collapse is not explained by either
+  contributor above, was already the honest reading before this item
+  touched anything, and its floor of 0 cannot itself catch further
+  regression (a count's own minimum). A from-scratch `frost_obelisk`-only
+  investigation is real, separate, unclaimed work — named here rather than
+  silently absorbed into this item's "gate/cooldown geometry" story, for
+  whichever session picks it up next. — Reason: CLAUDE.md rule 5 (choose,
+  log, continue); measurement rules ("my change improved X needs the
+  control run, not the plausible story" — extended by qa-playtester's own
+  pass to "my commit is the cause needs the isolated-commit control, not
+  the wider-range comparison"); this file's own p11d precedent for
+  correcting pins to honest readings rather than re-transcribing stale
+  ones. — refs: SPEC-FINAL §14 G13, BACKLOG fb199,
+  p11d, p12h, p12i, QUESTIONS Q195, Q210.
