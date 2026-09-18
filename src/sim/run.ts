@@ -734,11 +734,14 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       wd.hp = w.derived.maxHp * 0.5;
       wd.armorShred = 0;
       // fb130 migration: the live Core (a placed Core moves this), not the
-      // stale CORE_X/CORE_Y-keyed default — the `x - 2` offset itself is
-      // fb131's own `wardenPassable` fix, untouched here.
+      // stale CORE_X/CORE_Y-keyed default. fb131: with terrain live (fb077)
+      // the tile two west of a moved Core can be rock, so the offset is
+      // snapped to the nearest tile `wardenPassable` actually accepts rather
+      // than assumed clear.
       const c = w.grid.coreCenterOf();
-      wd.x = c.x - 2;
-      wd.y = c.y;
+      const reform = w.grid.nearestWardenPassable(c.x - 2, c.y);
+      wd.x = reform.tx;
+      wd.y = reform.ty;
       wd.dashIFrames = 2;
       w.emit('reform', wd.x, wd.y, 0, 0);
     }

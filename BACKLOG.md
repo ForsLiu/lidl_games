@@ -4945,17 +4945,57 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       keeps every gate reachable — refs: SPEC-FINAL §10.5 (fb079), §12 rules
       2-3, BACKLOG-TERRAIN.md fb064c/fb064h/fb064j/fb064o/fb064p, QUESTIONS
       Q211.
-- [ ] (fb131) [bug] three Warden placements bypass `wardenPassable` now
-      that terrain is live (fb077): the Act I reform (`run.ts:666`, `wd.x =
-      c.x - 2`) can land the Warden inside rock two tiles west of the Core;
-      `sundering.ts:21` teleports to the Core centre unchecked (safe today,
-      but fb130 moves the Core); and `tickDashTravel` (`wardenmove.ts:56-61`)
-      lerps along the dash line checking only the endpoint, so a dash passes
-      through a mountain it cannot end in. Acceptance: reform/sundering
-      snap to the nearest `wardenPassable` tile (red-first on a seed whose
-      map has rock there); the dash rule decided in QUESTIONS.md (sample the
-      line, or accept it as the dash's character) and pinned either way —
-      refs: SPEC-FINAL §10.5, BACKLOG-TERRAIN.md fb064q Log.
+- [x] (fb131) [bug] **DONE 2026-09-18** — all three Warden placements now
+      respect `wardenPassable`. New `Grid.nearestWardenPassable(tx, ty)`
+      (`grid.ts`, a fixed-order expanding-Chebyshev-ring search so two
+      callers asking about the same tile always agree — architecture rule
+      2; throws on a non-integer tile, matching `placeCore`/`openGate`'s
+      "nothing sensible to continue past" convention, added to
+      `tests/terrain-grid.test.ts`'s fb064x member enumeration) is called
+      at both teleport sites: the Act I reform (`run.ts`'s `damageWarden`,
+      the old `c.x - 2` offset now snapped) and the Sundering's
+      return-to-Core (`sundering.ts`'s `finishSundering` — defensive only,
+      the Core's own footprint always outranks the scatter today, kept for
+      when it might not). The dash question is resolved **sample the
+      line** (QUESTIONS.md Q213): `resolveDashTarget` (`wardenmove.ts`)
+      used to check only the full-distance endpoint and back off from
+      there, so a target on open ground just past a rock resolved as
+      legal without the line to it ever being asked about — exactly the
+      "dashes through a mountain" hole fb064b's own reasoning already
+      named. Fixing the dash rippled into two pinned bot-driven balance
+      tests: `tests/ui-fb148-dash-range-live.test.ts`'s `dashTravelDistance`
+      measured against real generated terrain that happened to cross the
+      fixed test line — moved to the flat practice arena it should have
+      used all along, since that file is about the multiplier stack, not
+      terrain; and `tests/fb196-night1-basehpmul.test.ts`'s pyromancer
+      seeds 3/26 no longer discriminate the `baseHpMul` mechanism post-fix
+      (both now clear Night-1 regardless), re-swept and re-pinned to seeds
+      19/37 — same "measurement with an expiry date" playbook fb199
+      already used for an unrelated engine fix's own ripple. Full-tier
+      code-reviewer and qa-playtester run against a first landing (a fixed
+      0.1-tile forward march) and each found a real, distinct gap of the
+      same bug class: code-reviewer caught `world.ts`'s Warden spawn
+      (`cc.x - 3, cc.y`, the run's very first frame) using the identical
+      unguarded fixed-Core-offset pattern the reform site had before this
+      item — now also snapped through `nearestWardenPassable`; qa-playtester
+      broke the 0.1-tile sampling itself with a real repro (rock at
+      (15, 15), a dash chord clipping barely 0.024 tile of its corner,
+      falling entirely between two samples) — no fixed step short of the
+      tile size can close that class of gap, so `resolveDashTarget` is now
+      an exact grid walk ("supercover line" / DDA, the standard raycasting
+      fix for the identical problem): it steps to each tile boundary the
+      segment crosses, in order, checking every tile its interior actually
+      touches, with no distance-based step count and no `Math.sqrt` left in
+      the function. `tickDashTravel`'s lerp still only ever interpolates
+      between two points already proven mutually reachable. New
+      `tests/fb131-warden-terrain-teleport.test.ts` (11 tests) covers the
+      helper's determinism and ring search, both teleport sites red-first
+      against a hand-placed rock tile, the dash line-sample, and the
+      corner-chord repro — each confirmed to fail against the pre-fix code
+      by a manual revert-and-rerun, not just asserted. `npx tsc --noEmit`
+      clean; `npm run test:fast` green (313 files / 4538 passed / 35
+      skipped / 0 failed) — refs: SPEC-FINAL §10.5, BACKLOG-TERRAIN.md
+      fb064b/fb064q Logs, QUESTIONS Q213, BACKLOG.md fb130/fb199.
 - [ ] (fb132) [polish] no `.gitattributes` and `core.autocrlf=true`: every
       checkout is CRLF, `git diff` is noisy between LF-writing agents and
       CRLF checkouts, and fb064k's byte-exact golden had to be made immune

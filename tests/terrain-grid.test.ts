@@ -867,6 +867,13 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       ['passable', 'refuses'],
       ['passableGhost', 'refuses'],
       ['wardenPassable', 'refuses'],
+      // fb131: not a predicate — it returns a landing tile, not a boolean —
+      // so it cannot join the `refuses`-with-`false` family above it even
+      // though it shares their integer guard. Both live callers derive the
+      // input from `coreCenterOf()`, always an integer tile, the same
+      // "nothing sensible to continue past" case `placeCore`/`openGate`
+      // are below.
+      ['nearestWardenPassable', 'throws'],
       ['buildable', 'refuses'],
       // Arrived from master at this merge (fb078: it distinguishes a build
       // rejected by terrain from one rejected by occupancy). It already

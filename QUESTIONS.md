@@ -1658,3 +1658,41 @@ Q200 did not collide and are unchanged below).
   correcting pins to honest readings rather than re-transcribing stale
   ones. — refs: SPEC-FINAL §14 G13, BACKLOG fb199,
   p11d, p12h, p12i, QUESTIONS Q195, Q210.
+
+- **Q213. [fb131] Closed — a dash's travel line is sampled the whole way,
+  not just checked at the endpoint.** fb131 named `tickDashTravel`'s per-tick
+  lerp between `resolveDashTarget`'s two endpoints as a hole: the endpoint
+  was legal by construction, but nothing verified the *line* to it stayed on
+  legal ground, so a target on open ground just past a rock blob or fencing
+  a patch of high ground resolved as reachable without ever asking whether a
+  straight line to it crossed the rock in between. Two readings were
+  available — sample the line (stop the dash at the last legal point before
+  an obstruction) or accept brief clipping through terrain as the dash's own
+  character (it already grants i-frames and is documented as a fast *move*,
+  not strictly a walk). **Chose: sample the line.** `fb064b`'s own reasoning
+  for making the Warden respect terrain at all — "a Warden that dashes into
+  a mountain is a hole, and one parked on high ground is unreachable by
+  every ground melee enemy at once" — is a statement about reachability, not
+  about the visual of clipping through a wall, and it applies exactly as
+  much to a dash that passes *through* a mountain to reach a spot no ground
+  enemy can otherwise threaten as to one that ends inside the mountain
+  itself; accepting the clip as flavor would reopen the exact safe-spot hole
+  fb064b closed, just one hop further along the line.
+  **qa-playtester's own verification pass broke the first landing**: a fixed
+  0.1-tile forward march still left a gap no fixed step can close — a chord
+  that clips a blocked tile's corner in under one step (a real repro: rock
+  at (15, 15), a line crossing barely 0.024 tile of it) falls entirely
+  between two samples. `resolveDashTarget` (`src/sim/wardenmove.ts`) is now
+  an exact grid walk instead ("supercover line" / DDA, the standard fix for
+  the identical problem in raycasting): it steps to each tile boundary the
+  segment actually crosses, in order, and checks the tile just entered — so
+  every tile the segment's interior touches is checked, however thin the
+  chord, with no distance-based step count and (a side benefit) no
+  `Math.sqrt` left in the function at all. `tickDashTravel`'s lerp still
+  only ever interpolates between two points already proven mutually
+  reachable in a straight line. — Reason: CLAUDE.md rule 5 (choose, log,
+  continue); BACKLOG.md fb131's own either/or acceptance text; working rule
+  3 (a qa-playtester-confirmed bug gets a regression test before the fix —
+  `tests/fb131-warden-terrain-teleport.test.ts`'s corner-chord case, checked
+  to fail against the fixed-step version before this correction). — refs:
+  SPEC-FINAL §10.5, BACKLOG.md fb131, BACKLOG-TERRAIN.md fb064b/fb064q Logs.

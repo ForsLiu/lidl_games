@@ -134,8 +134,27 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
   // precedent as fb196/fb197's own probes) found seeds 3 and 26 still
   // resolve shipped-content `defeat_warden`@w3 and clear at `baseHpMul: 1`
   // — re-pinned to those.
-  it('pyromancer seed 3 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 3, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  //
+  // fb131 (2026-09-18): re-measured again after `resolveDashTarget`
+  // (`src/sim/wardenmove.ts`) was fixed to sample a dash's whole line
+  // instead of only its endpoint (BACKLOG fb131 — the old check let a dash
+  // cross straight through a rock the bot's own hybrid policy runs it
+  // into, which sometimes cost it position or i-frame timing it no longer
+  // gets to skip past). The scripted pyromancer kit dashes every Active2
+  // cooldown, so this is exactly the kind of call site CLAUDE.md's "check
+  // a row's blast radius" rule warns about: a bug-fix elsewhere reaching a
+  // balance-pinned outcome through a mechanism this file never mentions.
+  // Both re-pinned seeds now clear Night-1 regardless of `baseHpMul` —
+  // seed 3 resolves `victory`@w18 and seed 26 `defeat_core`@w9 at the
+  // shipped value, so neither discriminates the mechanism post-fix. A
+  // fresh sweep (pyromancer seeds 1-40, same `tools/`-probe precedent,
+  // deleted after use) found seeds 19 and 37 still resolve shipped-content
+  // `defeat_warden`@w3 and clear (`victory`@w18) at `baseHpMul: 1` —
+  // re-pinned to those. The mechanism itself (`baseHpMul` inflating
+  // Night-1 mob HP in `makeEnemy`, `src/sim/enemies.ts`) is untouched by
+  // fb131; only these two control seeds' own dash-adjacent geometry moved.
+  it('pyromancer seed 19 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 19, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');
@@ -145,9 +164,9 @@ describe('fb196: baseHpMul, not PR #55, drives the Night-1 defeat_warden collaps
     expect(withNeutral.outcome).not.toBe('defeat_warden');
   }, 60_000);
 
-  // fb128 — see the comment above.
-  it('pyromancer seed 26 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
-    const config: RunConfig = { seed: 26, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
+  // fb131 — see the comment above.
+  it('pyromancer seed 37 (T3, scripted kit bot) loses to the first VS block at baseHpMul 20, and does not at baseHpMul 1', () => {
+    const config: RunConfig = { seed: 37, classKey: 'pyromancer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE, policy: 'hybrid', cycles: 6 };
 
     const withShipped = runScriptedWithContent(config, shipped);
     expect(withShipped.outcome).toBe('defeat_warden');

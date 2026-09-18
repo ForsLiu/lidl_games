@@ -17,8 +17,14 @@ export function finishSundering(w: World): void {
   const c = w.grid.coreCenterOf();
   w.heartstoneX = c.x;
   w.heartstoneY = c.y;
-  w.warden.x = c.x;
-  w.warden.y = c.y;
+  // fb131: the Core's own footprint outranks the scatter (`wardenPassable`),
+  // so this snap is a no-op today — kept defensive rather than assumed, the
+  // same reasoning the Act I reform site (`run.ts`'s `damageWarden`) now
+  // applies, in case a future Core shape or rule ever makes its centre tile
+  // something other than guaranteed-passable.
+  const landing = w.grid.nearestWardenPassable(c.x, c.y);
+  w.warden.x = landing.tx;
+  w.warden.y = landing.ty;
   w.warden.hp = w.derived.maxHp;
   w.sundered = true;
   w.damageAtSunder = { ...w.damageByWeapon };

@@ -895,6 +895,50 @@ export class Grid {
     return this.terrainCharBlock[i] === 0;
   }
 
+  /**
+   * fb131: the nearest tile `wardenPassable` accepts, for a caller that
+   * teleports the Warden (reform, the Sundering) rather than walking or
+   * dashing it there — those two motions already resolve their own legal
+   * landing spot (`walkable`'s clamp, `resolveDashTarget`'s line search), but
+   * a teleport target computed from the Core's position has no such guard,
+   * and terrain being live (fb077) means that position can now be rock.
+   *
+   * Both live callers derive `(tx, ty)` from `coreCenterOf()`, always an
+   * integer tile, so — matching `placeCore`/`openGate`, the tile-set's own
+   * "nothing sensible to continue past" cases (`tests/terrain-grid.test.ts`'s
+   * fb064x enumeration) — a fractional or non-finite coordinate throws rather
+   * than silently guessing which tile was meant. Search order is a fixed
+   * expanding Chebyshev ring — ring 0 is the tile itself, ring `r` every tile
+   * at Chebyshev distance `r`, scanned in a constant row-major order — so two
+   * callers asking about the same tile always get the same answer
+   * (architecture rule 2). The config loader's rule 4 exemption
+   * (`terrain/config.ts`) guarantees Normal ground is never `blocksCharacter`,
+   * so some ring always terminates the search before it reaches the map's
+   * edge; the starting tile itself is returned as a last resort only so this
+   * can never loop forever.
+   */
+  nearestWardenPassable(tx: number, ty: number): { tx: number; ty: number } {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+      throw new Error(`nearestWardenPassable: (${tx}, ${ty}) is not an integer tile`);
+    }
+    const ox = tx;
+    const oy = ty;
+    if (this.wardenPassable(ox, oy)) return { tx: ox, ty: oy };
+    const maxRing = Math.max(GRID_W, GRID_H);
+    for (let r = 1; r <= maxRing; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        const onYEdge = dy === -r || dy === r;
+        const step = onYEdge ? 1 : 2 * r;
+        for (let dx = -r; dx <= r; dx += step) {
+          const cx = ox + dx;
+          const cy = oy + dy;
+          if (this.wardenPassable(cx, cy)) return { tx: cx, ty: cy };
+        }
+      }
+    }
+    return { tx: ox, ty: oy };
+  }
+
   /** Tiles a tower may be placed on before the path-guarantee check. */
   buildable(tx: number, ty: number): boolean {
     // b007: a fractional tx/ty can still multiply out to a legal integer flat
