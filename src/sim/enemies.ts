@@ -1407,7 +1407,7 @@ export function updateEnemies(w: World, dt: number): void {
     // The final boss has its own script (M6); it falls through to normal
     // chase movement whenever the script has nothing to say this tick.
     if ((e.flags & TRAIT.finalBoss) !== 0 && bossUpdate(w, e, dt)) continue;
-    if (huntWarden) updateGroundUnreachable(w, e, dt, target);
+    if (huntWarden) updateGroundUnreachable(w, e, def, dt, target);
 
     const taunted = tauntTarget(w, e);
     // fb085 (Madness King enabler): a taunt (Clarion/Recall) outranks a
@@ -1550,7 +1550,7 @@ const GROUND_UNREACHABLE_THRESHOLD = 6; // mirrors boss.ts's UNREACHABLE_THRESHO
  * or the border (nothing to chew). No route existing means this is exactly
  * the line `flowAim`'s no-route fallback will actually walk.
  */
-function beelineHitsStructure(w: World, e: Enemy, target: { x: number; y: number }): boolean {
+function beelineHitsStructure(w: World, e: Enemy, def: EnemyDef, target: { x: number; y: number }): boolean {
   const dx = target.x - e.x;
   const dy = target.y - e.y;
   const d = Math.sqrt(dx * dx + dy * dy);
@@ -1567,12 +1567,21 @@ function beelineHitsStructure(w: World, e: Enemy, target: { x: number; y: number
     const ty = Math.floor(y);
     if (!w.grid.inBounds(tx, ty)) return false;
     if (w.grid.passable(tx, ty)) continue;
-    return w.structureAt(tx, ty) !== null;
+    const s = w.structureAt(tx, ty);
+    if (!s) return false;
+    // fb198 (found by qa-playtester verifying fb129): a structure this
+    // enemy's family is denied from attacking by high ground (fb129) is not
+    // "something to chew" — it must not rescue the enemy from the
+    // unreachable timer below, or a pocket sealed only by a high-ground
+    // tower stalls forever (attackingStructure never sets, bossUnreachableTime
+    // never accumulates).
+    const fam = familyForDef(loadTerrain(), def.id, def.traits);
+    return canAttackStructureAt(w.grid, fam, tx, ty);
   }
   return false;
 }
 
-function updateGroundUnreachable(w: World, e: Enemy, dt: number, target: { x: number; y: number }): void {
+function updateGroundUnreachable(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: number; y: number }): void {
   if ((e.flags & (TRAIT.finalBoss | TRAIT.burrows | TRAIT.phases)) !== 0) return;
   if (e.flying || e.ghosting) return;
   const tx = Math.floor(e.x);
@@ -1581,7 +1590,7 @@ function updateGroundUnreachable(w: World, e: Enemy, dt: number, target: { x: nu
     !w.grid.inBounds(tx, ty) ||
     (tx === Math.floor(w.warden.x) && ty === Math.floor(w.warden.y)) ||
     w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
-  if (reachable || beelineHitsStructure(w, e, target)) {
+  if (reachable || beelineHitsStructure(w, e, def, target)) {
     e.bossUnreachableTime = 0;
     return;
   }

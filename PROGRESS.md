@@ -60,6 +60,33 @@ change. No functional difference between the two fixes.
   `boss.ts`'s two deliberately-unguarded sites, and a first attempt at one
   found the Warden-Eater's own charge ability confounds an isolated
   `updateUnreachable` repro — filed as **fb136**, not fixed inline.
+- **2026-09-18 — Integrator: main lane BACKLOG fb198 done — a high-ground-
+  sealed pocket no longer stalls forever (found by qa-playtester verifying
+  fb129, fixed in the same session on `claude/dreamy-hopper-aq9hsn`, merged
+  here on top of master's fb129).** `updateGroundUnreachable`'s
+  `beelineHitsStructure` (`src/sim/enemies.ts`) treated any structure on the
+  enemy's beeline as "something to chew", true for every structure before
+  fb129. fb129's melee-breach denial made that false for a high-ground
+  tower without updating this helper, so an enemy trapped in a pocket whose
+  only physical neighbor is a high-ground tower could never attack (denied)
+  and never accumulated `bossUnreachableTime` (reset to 0 every tick by the
+  stale "yes, chewable" answer) — a permanent soft-lock. Fixed by threading
+  `def` through to `beelineHitsStructure` and gating its answer on
+  `canAttackStructureAt`, matching the melee-breach site's own rule. New
+  `tests/fb198-groundunreachable-highground.test.ts` builds a real
+  generated map (seed 1), seals a flat tile's three non-tower orthogonal
+  neighbors with raw terrain (`w.grid.blocked`, not structures — no corner-
+  cutting means the diagonals seal too) so its only neighbor is a
+  high-ground tower, and pins that the trapped enemy eventually ghosts free
+  with the tower left undamaged. Originally authored as `fb136`; re-numbered
+  fb198 at integration since master's own fb129 session had already used
+  `fb136` for an unrelated qa-playtester coverage-gap item (id collision,
+  fb118) — the Wraith untargetable-cap gap this branch separately filed as
+  `fb137` is dropped as stale: master's fb129 already gives the Wraith's
+  phase-end site the same `highGroundBlockedFor` cap the Burrower has, so
+  the gap fb137 described no longer exists. `npm run test:fast`: 310 files
+  / 4502 passed / 35 skipped / 0 failed — refs: SPEC-FINAL §10.5, fb129,
+  fb064i.
 - **2026-09-17 — main lane: BACKLOG fb128 done — `tickCooldown` banks a
   tower's sub-tick cooldown remainder instead of discarding it (owner
   verdict, Q172).** `next < COOLDOWN_EPS` in `src/sim/types.ts` floored any

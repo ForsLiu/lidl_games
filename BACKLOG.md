@@ -4754,6 +4754,29 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       (`shatterAlong`, itself unguarded by design) confounds an isolated
       `updateUnreachable` repro — refs: SPEC-FINAL §10.5 (fb079),
       BACKLOG-TERRAIN.md fb064d/fb064i/fb064m, QUESTIONS Q171.
+- [x] (fb198) [bug] **DONE 2026-09-18, filed by qa-playtester on fb129,
+      fixed in the same session with the failing test first.** A pocket
+      sealed only by a high-ground tower stalled the trapped ground enemy
+      forever instead of ghosting free. `updateGroundUnreachable`'s
+      `beelineHitsStructure` (`src/sim/enemies.ts`) asked only "is there a
+      structure on the beeline", true for any structure before fb129 —
+      fb129 made the melee-breach site deny an attack on a high-ground
+      tower (`e.attackingStructure` stays 0) but left this helper still
+      answering "yes, chewable" for that same tower, resetting
+      `bossUnreachableTime` to 0 every tick and never letting `e.ghosting`
+      trip. Fixed by threading `def` through to `beelineHitsStructure` and
+      gating its answer on `canAttackStructureAt` — a structure the
+      enemy's family cannot attack no longer counts as "something to
+      chew". `tests/fb198-groundunreachable-highground.test.ts` builds a
+      real generated map, seals a flat tile's three non-tower neighbors
+      with raw terrain so its only physical neighbor is a high-ground
+      tower, and pins that the trapped enemy eventually ghosts free with
+      the tower left undamaged. Originally authored as a duplicate `fb136`
+      on `claude/dreamy-hopper-aq9hsn`, alongside a second independent
+      `fb129` wiring pass merged separately to master; re-numbered fb198 at
+      integration since `fb136` was already in use on master for an
+      unrelated qa-playtester coverage-gap item (id collision, fb118) — refs:
+      SPEC-FINAL §10.5, fb129, fb064i.
 - [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
       migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
       `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,
