@@ -14,6 +14,23 @@ resolved by keeping master's already-merged-and-CI-verified fix and re-pinned
 seeds throughout, discarding the second branch's duplicate rewrite of the same
 change. No functional difference between the two fixes.
 
+- **2026-09-18 — main lane: BACKLOG p12d closed for real.** p12d's 2026-09-07
+  session had already landed G1/G14/G23's T3-reference-tier rewrite and G8's
+  original two-clause diversity text, but this item was left `[ ]` in
+  BACKLOG.md's queue afterward — a bookkeeping miss. Meanwhile the 2026-09-14
+  Q175/Q193 verdict retired G8's own-kit-share clause from the gate (restated
+  as a BALANCE.md-only ≥15%-from-wave-12 target); fb183/fb195 (2026-09-15)
+  applied that to BALANCE.md and `tests/p6e-class-diversity.test.ts`, but
+  neither went back to fix SPEC-FINAL.md's own G8 row, which still described
+  the retired ≥35% clause — spec text openly contradicting the shipped
+  gate test and BALANCE.md target. Fixed: SPEC-FINAL.md §14's G8 row now
+  states only the pairwise fingerprint-distance clause plus a note that
+  own-kit share is measured separately per Q175/Q193; G1/G14/G23 rows
+  re-checked against their live tests, already correct. Doc-only change (no
+  `/src`/`/data` edits); `npm run test:fast` green (310 files / 4502 passed /
+  35 skipped / 0 failed); code-reviewer APPROVE (one Minor wording fix
+  applied: fb183, not fb195, made the `BALANCE.md` edit) — refs: SPEC-FINAL
+  §14 G8, QUESTIONS Q175/Q193, BACKLOG fb183/fb195.
 - **2026-09-17 — main lane: BACKLOG fb129 done — the high-ground protection
   rules (SPEC-FINAL §10.5, fb064i) wired at their five `src/sim/enemies.ts`
   call sites.** `canAttackStructureAt`/`canSurfaceAt` (`src/sim/terrain/

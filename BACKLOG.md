@@ -1035,25 +1035,41 @@ open follow-up qa-playtester filed on it, p12i.
       ⚖ (no all-landslide roster), measured via `classifyMargin`/
       `summarizeMargins`; T3's G1/G8/G14/G23 bands (moved there by p12b) are
       re-confirmed unaffected — refs: BALANCE DIRECTION v2 §C.
-- [ ] (p12d) [balance] Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
-      §14) and their test files to (1) measure at T3 as reference tier
-      (p12b), with the new T1 band `[55%,90%]`/`>=25% close-win` (p12c) and T5
-      `[5%,20%]` (p12b) as companion assertions, not replacements for the T3
-      bands; (2) replace G8's diversity clause ("top damage source distinct
-      across >=9/12") with the two checks Q160/Q161/D specify: (i) every
-      class meets p12a's >=35%-own-kit-share target; (ii) pairwise class
-      fingerprint distance (damage-source/damage-type vector, G22's existing
-      method) >= 0.15 ⚖ for every pair. Acceptance: SPEC-FINAL §14's G1/G8/
-      G14/G23 text is edited to match; the corresponding test files assert
-      the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
-      check) and are green against p12a-p12c's tuning — refs: BALANCE
-      DIRECTION v2 §D, QUESTIONS Q160/Q161.
-      **Skipped this session (2026-09-07), logged reason**: doubly blocked —
-      clause (2)(i) needs p12f's own-kit-share target actually closed first
-      (p12f is still open), and G8's test file itself is stale/red for
-      unrelated reasons as of this session (**fb177**), so there is no stable
-      T3 measurement to write the rewritten band text against yet. Re-attempt
-      once both land.
+- [x] (p12d) [balance] **DONE 2026-09-18 — closed the residual gap left by
+      the 2026-09-07 pass and this file's own stale duplicate.** The
+      2026-09-07 session (archived `docs/BACKLOG-DONE.md`) landed G1/G14/G23's
+      T3-reference-tier rewrite and G8's *original* two-clause diversity text
+      live in both SPEC-FINAL.md and the four gate test files, but this exact
+      item was left `[ ]` here afterward instead of being checked off —
+      apparently a bookkeeping miss at that session's end (`fb118`'s test
+      already treats this id's duplication as a known, allowlisted echo of
+      the "Recently completed" stub above, so nothing there was flagging it).
+      Meanwhile Q175/Q193's 2026-09-14 verdict (feedback/processed/
+      verdicts-q168-205.md) amended BALANCE DIRECTION v2 §A: G8's clause (i)
+      (own-kit VS share ≥35%) was retired from the gate entirely and restated
+      as a BALANCE.md-only target at ≥15% from TD wave 12, exempting bloodlord/
+      engineer/animist; **fb183 (2026-09-15) restated the target in
+      `BALANCE.md`** (§3's "own-kit share >=15% from wave 12" section)
+      **and fb195 (same day) removed the now-redundant clause-(i) describe
+      block from `tests/p6e-class-diversity.test.ts`** (`Row.vsShare`,
+      `KIT_SHARE_TARGET`), but neither went back to SPEC-FINAL.md's own G8
+      row, which still described the retired ≥35% clause — leaving
+      the spec text and the shipped gate test/BALANCE.md target openly
+      contradicting each other. Fixed by editing SPEC-FINAL.md
+      §14's G8 row to drop the retired own-kit-share clause and note it is
+      now measured separately per Q175/Q193, keeping only the pairwise
+      fingerprint-distance (≥0.15/66 pairs) diversity clause the test file
+      actually asserts. G1/G14/G23's rows were re-checked against their live
+      test files (`tests/p10d-run-length.test.ts`, `tests/boss.test.ts`,
+      `tests/p-core-f-gates.test.ts`) and are already correct, no change
+      needed. Verification: `grep` confirms no test parses SPEC-FINAL §14's
+      literal gate text (the three specs-vs-tests pins in
+      `tests/class-spec-numbers.test.ts`/`equip-*-numbers.test.ts` slice only
+      §4/other unrelated sections); `tests/p6e-class-diversity.test.ts` is a
+      >60s suite excluded from the fast tier (`vitest.fast.config.ts`) and,
+      per CLAUDE.md rule 8, not re-run for a doc-only edit with no `/src` or
+      `/data` change — refs: SPEC-FINAL §14 G8, QUESTIONS Q175/Q193, BACKLOG
+      fb195/p12f, BALANCE DIRECTION v2 §D.
 - [x] (p12e) [bug] **DONE 2026-09-07** — `/data`-only re-anchor:
       `data/enemies.json`'s `warden_eater.hp` 365,000 -> 18,250 (exactly
       /`baseHpMul`), so the boss's effective HP nets the roster multiplier
