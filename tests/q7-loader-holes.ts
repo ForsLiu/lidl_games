@@ -676,9 +676,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.budgetBase': ['negative', 'zero', 'fractional'],
   'spawns.budgetGrowthPerMinute': ['negative', 'zero', 'fractional'],
   'spawns.budgetGrowthPerVsWave': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  // fb129: new field, same unguarded shape every other plain `num` field in
-  // spawns.json carries.
-  'spawns.burrowHighGroundBlockCapSeconds': ['negative', 'zero', 'fractional'],
   'spawns.burrowSurfaceDistance': ['negative', 'zero', 'fractional'],
   'spawns.contactInterval': ['negative', 'zero', 'fractional'],
   'spawns.costs.bomber': ['negative', 'zero', 'fractional'],
