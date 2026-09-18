@@ -16,22 +16,28 @@
   full-distance endpoint, so a target just past a rock resolved as legal
   without the line to it ever being checked — the same "dash through a
   mountain" hole fb064b's own reasoning already named, just one hop
-  further along the line. Now marches forward in fixed 0.1-tile steps and
-  stops at the last legal sample. Confirmed a genuine regression test, not
-  an assumed one: reverting only `wardenmove.ts` and rerunning
-  `tests/fb131-warden-terrain-teleport.test.ts`'s dash case fails exactly
-  as predicted. The dash fix rippled into two pinned tests that happened
-  to depend on the old, buggy "cross straight through terrain" behavior —
-  `tests/ui-fb148-dash-range-live.test.ts`'s `dashTravelDistance` (moved
-  to the flat practice arena, since that file measures the multiplier
-  stack, not terrain, and was never meant to be terrain-sensitive) and
-  `tests/fb196-night1-basehpmul.test.ts`'s pyromancer seeds 3/26 (no
-  longer discriminate the `baseHpMul` Night-1 mechanism post-fix — a
-  fresh sweep re-pinned to seeds 19/37, the same "measurement with an
-  expiry date" correction fb199 already applied for an unrelated ripple).
-  `npx tsc --noEmit` clean; `npm run test:fast` green (313 files / 4537
-  passed / 35 skipped / 0 failed — unchanged skip count). Full-tier
-  code-reviewer and qa-playtester run — refs: SPEC-FINAL §10.5,
+  further along the line. Confirmed a genuine regression test, not an
+  assumed one throughout: reverting `wardenmove.ts` alone and rerunning
+  the dash cases fails exactly as predicted at each stage. The dash fix
+  rippled into two pinned tests that happened to depend on the old, buggy
+  "cross straight through terrain" behavior — `tests/ui-fb148-dash-range-
+  live.test.ts`'s `dashTravelDistance` (moved to the flat practice arena,
+  since that file measures the multiplier stack, not terrain) and
+  `tests/fb196-night1-basehpmul.test.ts`'s pyromancer seeds 3/26 (re-swept
+  and re-pinned to seeds 19/37, the same "measurement with an expiry date"
+  correction fb199 already applied for an unrelated ripple). Full-tier
+  code-reviewer and qa-playtester each found a real gap in the first
+  landing (a fixed 0.1-tile forward march): code-reviewer caught
+  `world.ts`'s Warden spawn using the identical unguarded fixed-Core-offset
+  pattern the reform site had, now also snapped; qa-playtester broke the
+  0.1-tile sampling itself (a real repro: a dash chord clipping barely
+  0.024 tile of a rock's corner, falling entirely between two samples —
+  no fixed step short of the tile size closes that class of gap), so
+  `resolveDashTarget` is now an exact grid walk ("supercover line" / DDA)
+  that checks every tile a dash's line actually touches, with no
+  `Math.sqrt` left in the function. `npx tsc --noEmit` clean;
+  `npm run test:fast` green (313 files / 4538 passed / 35 skipped / 0
+  failed). — refs: SPEC-FINAL §10.5,
   BACKLOG-TERRAIN.md fb064b/fb064q Logs, QUESTIONS Q213, BACKLOG.md
   fb130/fb196/fb199.
 

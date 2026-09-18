@@ -4962,29 +4962,40 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       there, so a target on open ground just past a rock resolved as
       legal without the line to it ever being asked about — exactly the
       "dashes through a mountain" hole fb064b's own reasoning already
-      named. Now marches forward from the Warden's current (already-legal)
-      position in fixed 0.1-tile steps and stops at the last legal sample;
-      `tickDashTravel`'s lerp then only ever interpolates between two
-      points already proven mutually reachable. New
-      `tests/fb131-warden-terrain-teleport.test.ts` (10 tests) covers the
+      named. Fixing the dash rippled into two pinned bot-driven balance
+      tests: `tests/ui-fb148-dash-range-live.test.ts`'s `dashTravelDistance`
+      measured against real generated terrain that happened to cross the
+      fixed test line — moved to the flat practice arena it should have
+      used all along, since that file is about the multiplier stack, not
+      terrain; and `tests/fb196-night1-basehpmul.test.ts`'s pyromancer
+      seeds 3/26 no longer discriminate the `baseHpMul` mechanism post-fix
+      (both now clear Night-1 regardless), re-swept and re-pinned to seeds
+      19/37 — same "measurement with an expiry date" playbook fb199
+      already used for an unrelated engine fix's own ripple. Full-tier
+      code-reviewer and qa-playtester run against a first landing (a fixed
+      0.1-tile forward march) and each found a real, distinct gap of the
+      same bug class: code-reviewer caught `world.ts`'s Warden spawn
+      (`cc.x - 3, cc.y`, the run's very first frame) using the identical
+      unguarded fixed-Core-offset pattern the reform site had before this
+      item — now also snapped through `nearestWardenPassable`; qa-playtester
+      broke the 0.1-tile sampling itself with a real repro (rock at
+      (15, 15), a dash chord clipping barely 0.024 tile of its corner,
+      falling entirely between two samples) — no fixed step short of the
+      tile size can close that class of gap, so `resolveDashTarget` is now
+      an exact grid walk ("supercover line" / DDA, the standard raycasting
+      fix for the identical problem): it steps to each tile boundary the
+      segment crosses, in order, checking every tile its interior actually
+      touches, with no distance-based step count and no `Math.sqrt` left in
+      the function. `tickDashTravel`'s lerp still only ever interpolates
+      between two points already proven mutually reachable. New
+      `tests/fb131-warden-terrain-teleport.test.ts` (11 tests) covers the
       helper's determinism and ring search, both teleport sites red-first
-      against a hand-placed rock tile, and the dash line-sample (confirmed
-      to fail against the pre-fix code by a manual revert-and-rerun, not
-      just asserted). Fixing the dash rippled into two pinned
-      bot-driven balance tests: `tests/ui-fb148-dash-range-live.test.ts`'s
-      `dashTravelDistance` measured against real generated terrain that
-      happened to cross the fixed test line — moved to the flat practice
-      arena it should have used all along, since that file is about the
-      multiplier stack, not terrain; and
-      `tests/fb196-night1-basehpmul.test.ts`'s pyromancer seeds 3/26 no
-      longer discriminate the `baseHpMul` mechanism post-fix (both now
-      clear Night-1 regardless), re-swept and re-pinned to seeds 19/37 —
-      same "measurement with an expiry date" playbook fb199 already used
-      for an unrelated engine fix's own ripple. `npx tsc --noEmit` clean;
-      `npm run test:fast` green (313 files / 4537 passed / 35 skipped / 0
-      failed). Full-tier code-reviewer and qa-playtester run — refs:
-      SPEC-FINAL §10.5, BACKLOG-TERRAIN.md fb064b/fb064q Logs, QUESTIONS
-      Q213, BACKLOG.md fb130/fb199.
+      against a hand-placed rock tile, the dash line-sample, and the
+      corner-chord repro — each confirmed to fail against the pre-fix code
+      by a manual revert-and-rerun, not just asserted. `npx tsc --noEmit`
+      clean; `npm run test:fast` green (313 files / 4538 passed / 35
+      skipped / 0 failed) — refs: SPEC-FINAL §10.5, BACKLOG-TERRAIN.md
+      fb064b/fb064q Logs, QUESTIONS Q213, BACKLOG.md fb130/fb199.
 - [ ] (fb132) [polish] no `.gitattributes` and `core.autocrlf=true`: every
       checkout is CRLF, `git diff` is noisy between LF-writing agents and
       CRLF checkouts, and fb064k's byte-exact golden had to be made immune

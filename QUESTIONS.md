@@ -1677,13 +1677,22 @@ Q200 did not collide and are unchanged below).
   much to a dash that passes *through* a mountain to reach a spot no ground
   enemy can otherwise threaten as to one that ends inside the mountain
   itself; accepting the clip as flavor would reopen the exact safe-spot hole
-  fb064b closed, just one hop further along the line. `resolveDashTarget`
-  (`src/sim/wardenmove.ts`) now marches forward from the Warden's own
-  already-legal position in fixed 0.1-tile steps regardless of dash length
-  (fine enough that no rock blob thinner than a tile is skipped between
-  samples) and stops at the last sample still on legal ground, so
-  `tickDashTravel`'s lerp now only ever interpolates between two points
-  already proven mutually reachable in a straight line. — Reason: CLAUDE.md
-  rule 5 (choose, log, continue); BACKLOG.md fb131's own either/or
-  acceptance text. — refs: SPEC-FINAL §10.5, BACKLOG.md fb131,
-  BACKLOG-TERRAIN.md fb064b/fb064q Logs.
+  fb064b closed, just one hop further along the line.
+  **qa-playtester's own verification pass broke the first landing**: a fixed
+  0.1-tile forward march still left a gap no fixed step can close — a chord
+  that clips a blocked tile's corner in under one step (a real repro: rock
+  at (15, 15), a line crossing barely 0.024 tile of it) falls entirely
+  between two samples. `resolveDashTarget` (`src/sim/wardenmove.ts`) is now
+  an exact grid walk instead ("supercover line" / DDA, the standard fix for
+  the identical problem in raycasting): it steps to each tile boundary the
+  segment actually crosses, in order, and checks the tile just entered — so
+  every tile the segment's interior touches is checked, however thin the
+  chord, with no distance-based step count and (a side benefit) no
+  `Math.sqrt` left in the function at all. `tickDashTravel`'s lerp still
+  only ever interpolates between two points already proven mutually
+  reachable in a straight line. — Reason: CLAUDE.md rule 5 (choose, log,
+  continue); BACKLOG.md fb131's own either/or acceptance text; working rule
+  3 (a qa-playtester-confirmed bug gets a regression test before the fix —
+  `tests/fb131-warden-terrain-teleport.test.ts`'s corner-chord case, checked
+  to fail against the fixed-step version before this correction). — refs:
+  SPEC-FINAL §10.5, BACKLOG.md fb131, BACKLOG-TERRAIN.md fb064b/fb064q Logs.

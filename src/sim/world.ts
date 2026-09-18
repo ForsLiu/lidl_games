@@ -815,6 +815,11 @@ export class World {
     this.coreHp = this.coreMaxHp;
 
     const cc = this.grid.coreCenterOf();
+    // fb131 (code review): the same fixed-offset-from-Core pattern the Act I
+    // reform site had before this item's fix — terrain is already applied by
+    // this point in construction, so an unlucky seed can paint rock three
+    // tiles west of the Core, and nothing here checked it.
+    const spawn = this.grid.nearestWardenPassable(Math.round(cc.x - 3), Math.round(cc.y));
     // fb013: an ammo-style Active starts at full charges, read off the class's
     // own `maxCharges` (undefined/1 for every class but Time Lord, for which
     // this is just `1` and the ammo fields go unread — see `tickAmmoRecharge`).
@@ -822,8 +827,8 @@ export class World {
     const active1MaxCharges = startCls ? startCls.active1.maxCharges ?? 1 : 1;
     const active2MaxCharges = startCls ? startCls.active2.maxCharges ?? 1 : 1;
     this.warden = {
-      x: cc.x - 3,
-      y: cc.y,
+      x: spawn.tx,
+      y: spawn.ty,
       hp: this.derived.maxHp,
       dashCooldown: 0,
       dashCharges: this.derived.dashCharges,
@@ -845,8 +850,8 @@ export class World {
       leechAccumulator: 0,
       overloadRemaining: 0,
       standStillTimer: 0,
-      lastStillX: cc.x - 3,
-      lastStillY: cc.y,
+      lastStillX: spawn.tx,
+      lastStillY: spawn.ty,
       wrathStored: 0,
       clarionRemaining: 0,
       active1Ammo: active1MaxCharges,

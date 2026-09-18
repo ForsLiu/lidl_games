@@ -169,4 +169,22 @@ describe('fb131 — a dash samples its whole line, not just the endpoint', () =>
     expect(w.grid.wardenPassable(Math.floor(target.x), Math.floor(target.y))).toBe(true);
     expect(target.x).toBeLessThan(24);
   });
+
+  it('catches a chord that clips a blocked tile corner in under a tenth of a tile (qa-playtester repro)', () => {
+    // A first fix sampled the line at fixed 0.1-tile steps; qa-playtester
+    // found this exact geometry — both endpoints legal, but the segment
+    // between them clips rock (15, 15) for barely 0.024 tile near its
+    // corner — fell entirely between two samples and went undetected. The
+    // grid-walk replacement cannot miss it: it checks every tile the line's
+    // interior touches, not points spaced along it.
+    const w = newWorld();
+    patchTile(w, [[15, 15, TerrainKind.Rock]]);
+    w.warden.x = 11.684882054506854;
+    w.warden.y = 16.50591110615013;
+    const endX = 18.325188345560697;
+    const endY = 13.50950108071072;
+    const target = resolveDashTarget(w, endX - w.warden.x, endY - w.warden.y);
+    expect(target.x === endX && target.y === endY).toBe(false);
+    expect(w.grid.wardenPassable(Math.floor(target.x), Math.floor(target.y))).toBe(true);
+  });
 });
