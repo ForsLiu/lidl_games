@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: BACKLOG fb199 done — `tests/a4-single-type.test.ts`'s
+  live `p12h` regression re-pinned, not reverted; two upstream causes
+  bisected with control runs.** Root-caused with `git worktree` checkouts on
+  both sides of each candidate commit in `2a30281..HEAD` (not inferred from
+  diffs): (1) `4ce6b22` (fb153b's gate-list fix, `GATES.slice(0, 3)` ->
+  `GATES.slice()`, correct and spec-mandated) changed `tools/a4probe.ts`'s
+  practice-mode flat arena via the shared `World.gates` list, dropping
+  `mortar` 4/5 -> 2/5; (2) `14b7b5a` (fb129's high-ground wiring) moved
+  `tesla_coil` 4->3, `mortar` 2->3, `venom_spore` 2->3, despite its own
+  mechanism being verified inert on this probe's arena (a direct scan
+  confirms zero high-ground tiles exist on any practice-mode board, since
+  `Grid.applyTerrain` — the only site that populates `terrainHigh` — is
+  never called on the practice path); the exact path was not pinned further
+  past that and is logged as open in the test file. `frost_obelisk`'s 0/5 is
+  confirmed to predate this window entirely (already 0 at `2a30281`, fb092's
+  own commit) — unrelated to either cause, left open (not filed as a new
+  item; this was a scheduled routine that does not generate new backlog
+  items). Live test re-pinned per-tower to the honest current floor for the
+  six other towers, `frost_obelisk` deliberately excluded from the assertion
+  rather than silently re-pinned to a vacuous `>=0`, matching this file's
+  own `p11d` precedent ("the pin is corrected to the honest current reading
+  rather than re-transcribing the stale one"). Also corrected
+  `tests/p11d-g13-t3-margin.test.ts`'s stale "measured 17/18" docstring/title
+  to the honest current reading (2/18, `defeat_core`) per fb199's own text —
+  its `<18` tolerance assertion was never actually failing, only the prose
+  was stale. Full-tier: code-reviewer APPROVE (two Minor nits, both fixed
+  before commit), qa-playtester PASS (independently re-ran both files full,
+  including the ~1170s live case, and spot-checked the 2/18 reading).
+  `npm run test:fast`: 312 files / 4527 passed / 35 skipped / 0 failed,
+  unchanged — refs: SPEC-FINAL §14 G13, BACKLOG fb092, fb199, p11d, p12h,
+  p12i.
+
 - **2026-09-18 — main lane: BACKLOG fb130 done — Core placement wired live
   (fb064c's main-lane half).** The 2x2 Core no longer sits only at the fixed
   `CORE_X/CORE_Y` (25,9): a new `place_core` sim Command

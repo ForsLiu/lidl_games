@@ -10,17 +10,28 @@
  * qa-playtester's `b072` pass flagged (but never filed) that three of that
  * item's four retuned towers each had one T3 seed landing at 17/18 waves —
  * one wave from actually clearing T3, which would break G13's "no solo
- * build survives T3" invariant outright. Re-measured fresh at p11d (this
+ * build survives T3" invariant outright. Re-measured fresh at p11d (that
  * session, `npx tsx tools/a4probe.ts` cross-checked against a live per-seed
- * scratch run): under HEAD's current `/data` (multiple balance passes have
+ * scratch run): under that session's `/data` (multiple balance passes had
  * landed since b072 — fb025, b080, fb054), that specific three-tower finding
- * no longer reproduces. The one genuine near-miss today is
+ * no longer reproduced. The one genuine near-miss at p11d was
  * `frost_obelisk`, seed 4: 17/18 waves, one wave under the T3 clear line.
- * Every other tower's worst T3 seed sits at 16 or lower (2+ waves of
- * headroom) — see `tests/a4-single-type.test.ts`'s own T1 measurements and
- * this file's own assertion below for the full current picture.
  *
- * This pins `frost_obelisk`'s near-miss seed exactly: if a future buff (to
+ * **fb199 (this session) — re-measured, honestly stale.** `frost_obelisk`
+ * seed 4 now reads **2/18** (`outcome: 'defeat_core'`), not 17/18 — named in
+ * fb199's own filing text as the same drift shape hitting this file too. The
+ * assertion below is a tolerance (`<18`), not an exact pin, so it is not
+ * failing and needed no code change — but the docstring number above and the
+ * test title were badly stale (a genuine "one wave from flipping" near-miss
+ * read as a comfortable 16-wave margin), which is worse than merely out of
+ * date: a reader trusting the old prose would think this pin still carries
+ * near-miss signal when it currently does not. Not re-investigated further
+ * (`tests/a4-single-type.test.ts`'s own fb199 entry has the bisection
+ * methodology this would reuse); left for a future item if `frost_obelisk`'s
+ * T1 identity-probe root cause (also open, same file) turns out to explain
+ * this too.
+ *
+ * This pins `frost_obelisk`'s T3 seed exactly: if a future buff (to
  * `frost_obelisk` itself, or an unrelated wave-curve nudge) pushes it past
  * 17, this test fails loud in `test:fast` on every loop item, not just at
  * the next full-suite run.
@@ -30,12 +41,13 @@ import { describe, expect, it } from 'vitest';
 import { T3_MODS, runSingleType } from '../tools/a4probe';
 
 describe('p11d: G13 T3 near-miss margin stays pinned', () => {
-  it('frost_obelisk seed 4 stays under the T3 clear line (measured 17/18 today)', () => {
+  it('frost_obelisk seed 4 stays under the T3 clear line (measured 2/18 as of fb199, was 17/18 at p11d)', () => {
     const result = runSingleType('frost_obelisk', 3, 4, T3_MODS);
     // A tolerance, not an exact floor pin (unlike a4-single-type.test.ts's
     // T1_EXPECTED_CLEARS convention): the invariant this item cares about is
-    // "never reaches 18," not "stays at exactly today's 17." A future change
-    // that widens the margin (fewer waves) should not have to bump this pin.
+    // "never reaches 18," not "stays at exactly today's reading." A future
+    // change that widens the margin (fewer waves) should not have to bump
+    // this pin.
     expect(result.waves).toBeLessThan(18);
     expect(result.cleared).toBe(false);
   });
