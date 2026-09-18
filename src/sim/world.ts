@@ -216,6 +216,13 @@ export class World {
    */
   readonly terrainFallback: boolean;
   /**
+   * fb129 (SPEC-FINAL §10.5): the config `applyRunTerrain` generated this
+   * run's map from, held so the high-ground rules (`src/sim/terrain/
+   * high-ground.ts`) read the map this run actually has rather than
+   * re-fetching `loadTerrain()`'s process-wide singleton at each call site.
+   */
+  readonly terrainCfg: TerrainConfig;
+  /**
    * SPEC-FINAL §5.5: the resolved Core key, defaulted from content (the one
    * `unlockedByDefault` row, Stone Heart) when `cfg.core` is omitted, so every
    * reader (`hashWorld`, `buildReport`) sees a real key rather than deciding
@@ -566,7 +573,15 @@ export class World {
   private readonly cells: Enemy[][] = Array.from({ length: GRID_W * GRID_H }, () => []);
   private usedCells: number[] = [];
 
-  constructor(cfg: RunConfig, content: Content = loadContent()) {
+  constructor(
+    cfg: RunConfig,
+    content: Content = loadContent(),
+    // fb129: same injection shape as `content` above — a test that needs a
+    // World built against a synthetic high-ground table (e.g. an exempt
+    // family flipped) without touching the process-wide `loadTerrain()`
+    // singleton every other run shares.
+    terrainCfg: TerrainConfig = loadTerrain(),
+  ) {
     this.content = content;
     // p9a (architecture rule 2, Q45): the one deliberate exception to "never
     // touch the caller's shared RunConfig object" below — recording *is*
@@ -629,7 +644,10 @@ export class World {
       this.grid.markDirty();
       this.grid.refresh();
     }
-    this.terrainFallback = this.cfg.practice ? false : applyRunTerrain(this.grid, this.gates, cfg.seed);
+    this.terrainCfg = terrainCfg;
+    this.terrainFallback = this.cfg.practice
+      ? false
+      : applyRunTerrain(this.grid, this.gates, cfg.seed, this.terrainCfg);
 
     this.stats = baseRunStats(content, cfg);
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
