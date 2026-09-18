@@ -402,10 +402,30 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       issued as a sim Command (architecture rule 3). Acceptance: placement
       command validated against the legal set, illegal placements rejected,
       replay of a placed run reproduces the same map + Core.
-- [ ] (fb064d) [feat] high-ground protection rules: ground melee cannot target
+      **Sim-side half shipped by main lane (BACKLOG.md fb130, 2026-09-18):**
+      `place_core` Command + `validateCorePlacement` gate every placement,
+      every `CORE_X/CORE_Y` reader migrated to `grid.coreOrigin()`/
+      `coreCenterOf()`, replay-safe. Re-verified green here
+      (`tests/fb130-core-placement-wiring.test.ts`, 24/24). Left `[ ]`: the
+      "pre-wave-1 placement step with a pre-highlighted default suggestion"
+      is the click-to-place UI flow, which PROGRESS.md's fb130 entry states
+      explicitly was not built ("No UI hookup yet ... fb064c's click-to-place
+      flow is UI-lane scope") — outside both this lane's Scope and fb130's.
+      No terrain-lane file touched by this update.
+- [x] (fb064d) [feat] high-ground protection rules: ground melee cannot target
       or reach a tower on high ground, Burrowers cannot surface on it, while
       Spitters, fliers and boss specials still can. Acceptance: targeted tests
       per enemy family; no change to non-high-ground targeting.
+      **Shipped by main lane (BACKLOG.md fb129, 2026-09-17/18):** all five
+      `src/sim/enemies.ts` sites named in this item's own Log entry (melee
+      breach, Colossus stomp, Spitter ranged, Burrower surfacing, Wraith
+      phase-end) now call fb064i's `canAttackStructureAt`/`canSurfaceAt`.
+      Re-verified green here (`tests/fb129-high-ground-wiring.test.ts`, 7/7;
+      `tests/fb198-groundunreachable-highground.test.ts`, 1/1 — the
+      stall-failsafe regression QA found while verifying fb129). No file
+      inside or outside this lane's Scope touched by this closeout; this
+      lane's own actionable half (fb064i, terrain-side predicates) was
+      already `[x]`.
 - [ ] (fb064e) [feat] *(out of scope — UI lane)* organic terrain rendering
       (marching-squares edges, texture variation) over the square collision
       grid, plus path indicators drawn around terrain.
@@ -5431,3 +5451,20 @@ file next.
   gate-sealing case drifted from a later terrain/gate change — worth checking
   against `fb163`/`fb194`'s own closure notes rather than assumed to be the
   same fb153b fallout recorded already-fixed above.
+- (2026-09-18, scheduled terrain-lane routine) **fb064c/fb064d closeout
+  check.** Neither had any actionable in-scope work left — both were already
+  documented above (2026-09-03/2026-09-07 generation notes) as needing only
+  files outside this lane's Scope (`cores.ts`, `enemies.ts`, `render/
+  canvas.ts`, `ui/selection.ts`), same as fb064e/f. Cross-checked against
+  master (`git log`/`PROGRESS.md`): BACKLOG.md's **fb129** (2026-09-17/18)
+  wired all five `enemies.ts` sites this lane's own fb064i predicates were
+  built for — that closes fb064d in full, flipped `[x]` above. BACKLOG.md's
+  **fb130** (2026-09-18) wired the `place_core` sim Command and migrated
+  every `CORE_X/CORE_Y` reader, but PROGRESS.md's own fb130 entry states the
+  click-to-place UI surfacing is still unbuilt and is UI-lane scope — fb064c
+  stays `[ ]`, annotated rather than closed. Re-ran the relevant tests live
+  rather than trusting the commit messages: `tests/fb129-high-ground-wiring.
+  test.ts` (7/7), `tests/fb198-groundunreachable-highground.test.ts` (1/1),
+  `tests/fb130-core-placement-wiring.test.ts` (24/24), all green. No file in
+  this lane's Scope edited; this entry and the two annotations above are the
+  only changes.
