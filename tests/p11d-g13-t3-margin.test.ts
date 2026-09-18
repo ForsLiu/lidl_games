@@ -35,13 +35,24 @@
  * `frost_obelisk` itself, or an unrelated wave-curve nudge) pushes it past
  * 17, this test fails loud in `test:fast` on every loop item, not just at
  * the next full-suite run.
+ *
+ * fb199 (2026-09-18): re-measured while bisecting a sibling drift in
+ * `tests/a4-single-type.test.ts`'s `p12h` case (QUESTIONS Q212) — this
+ * seed no longer lands anywhere near the line (`waves:2, defeat_core`, not
+ * 17). The `<18`/`cleared:false` tolerance this test asserts was written
+ * to survive exactly this kind of drift without needing an update, and
+ * still holds; only the docstring/title's "17/18" figure is stale. Left
+ * uncorrected to an exact number on purpose — re-pinning to today's "2"
+ * would just repeat the same staleness next time terrain/wave-curve
+ * commands shift this seed's margin, which is precisely what this test's
+ * own tolerance design (see below) already guards against.
  */
 import { describe, expect, it } from 'vitest';
 
 import { T3_MODS, runSingleType } from '../tools/a4probe';
 
 describe('p11d: G13 T3 near-miss margin stays pinned', () => {
-  it('frost_obelisk seed 4 stays under the T3 clear line (measured 2/18 as of fb199, was 17/18 at p11d)', () => {
+  it('frost_obelisk seed 4 stays under the T3 clear line (margin has since widened, fb199)', () => {
     const result = runSingleType('frost_obelisk', 3, 4, T3_MODS);
     // A tolerance, not an exact floor pin (unlike a4-single-type.test.ts's
     // T1_EXPECTED_CLEARS convention): the invariant this item cares about is
