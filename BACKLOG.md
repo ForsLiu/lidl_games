@@ -4996,18 +4996,38 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       clean; `npm run test:fast` green (313 files / 4538 passed / 35
       skipped / 0 failed) — refs: SPEC-FINAL §10.5, BACKLOG-TERRAIN.md
       fb064b/fb064q Logs, QUESTIONS Q213, BACKLOG.md fb130/fb199.
-- [ ] (fb132) [polish] no `.gitattributes` and `core.autocrlf=true`: every
+- [x] (fb132) [polish] no `.gitattributes` and `core.autocrlf=true`: every
       checkout is CRLF, `git diff` is noisy between LF-writing agents and
       CRLF checkouts, and fb064k's byte-exact golden had to be made immune
       in-lane. Acceptance: `* text=auto eol=lf` committed with a
       renormalising commit; the golden test's CR assertion stays — refs:
-      BACKLOG-TERRAIN.md fb064k Log.
+      BACKLOG-TERRAIN.md fb064k Log. **Done** (2026-09-18): committed
+      `.gitattributes` with exactly `* text=auto eol=lf`; `git add
+      --renormalize .` touched nothing else (the checkout was already
+      all-LF), so the change is the attributes file alone. code-reviewer
+      confirmed the fb064k golden (`GOLDEN_SEED_1`, built from a `join('\n')`
+      array, not a template literal) is unaffected and its CR assertion
+      still passes; `npx vitest run tests/terrain-describe.test.ts` (37/37)
+      and `npm run test:fast` (313 files / 4538 passed / 35 skipped) both
+      green.
 - [ ] (fb133) [polish] `tsconfig.json` is `strict` without
       `noUncheckedIndexedAccess`, which is why `cfg.tiles[i].key` typechecked
       as safe and fb064t's `TypeError` shipped. Acceptance: flag enabled;
       the resulting errors fixed with real guards (not `!`), count recorded
-      — refs: BACKLOG-TERRAIN.md fb064t Log.
-- [ ] (fb134) [polish] two terrain follow-ups now that the run's gate list
+      — refs: BACKLOG-TERRAIN.md fb064t Log. **Attempted 2026-09-18**:
+      enabling the flag alone surfaces 1806 `error TS` diagnostics across
+      ~90 files (heaviest: tests/p2b-wielded-fire.test.ts 90,
+      src/sim/enemies.ts 56, tests/p2c-vs-specials.test.ts 55,
+      tests/fb037-vs-panel.test.ts 49, src/sim/run.ts 39, src/sim/grid.ts 29,
+      src/sim/world.ts 25, src/sim/terrain/analyze.ts 25) — a real-guards
+      fix at this scale does not fit one loop-contract item or this
+      routine's 45-minute/6-item budget, and rushing guards across
+      `/src/sim` risk-free is not credible in that time. Reverted the
+      tsconfig edit (no functional change committed). Needs deliberate
+      per-file or per-directory follow-up items, not one flag-flip item —
+      logged so a future session splits this rather than re-discovering the
+      1806-error count from scratch.
+- [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
       gates and omits the one the bug is about — extend fb064k's "carries the
@@ -5019,7 +5039,30 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       QUESTIONS.md — refs: SPEC-FINAL §12 rule 4, BACKLOG-TERRAIN.md
       fb064k/fb064o Logs. Also (code-reviewer at the merge): `config.ts:25`'s
       `MAX_WALKABLE_FRAC` schema ceiling counts `GATES.length` (3), one tile
-      short for a Fourth Gate map — harmless today, same fix.
+      short for a Fourth Gate map — harmless today, same fix. **Done**
+      (2026-09-18): extended fb064k's "carries the gates" test with
+      `it.each` over the base gates and `FOUR_GATES`, asserting `parsed.gates`
+      against whichever list the dump was actually written under. Moved
+      `ROOM_RADIUS` into `data/terrain.json` as `coreRoomRadius` (decided and
+      logged as QUESTIONS Q214) — `suggestCoreAnchor` now reads
+      `cfg.coreRoomRadius`; `coreAnchorRoom` takes it as a **required**
+      parameter (code-reviewer rejected a mirrored code-side default as a
+      second hardcoded source of truth the balance-analyst's `/data`-only
+      tuning workflow could silently drift from — fixed by threading
+      `cfg.coreRoomRadius` through all six call sites in
+      `tests/terrain-anchor-quality.test.ts`). Fixed `MAX_WALKABLE_FRAC` to
+      `GATES.length + MODIFIER_GATES.length` (5, not 4 — `GATES` itself grew
+      to 4 at fb156). `data/terrain.json`'s new field moved
+      `configFingerprint()`, so `tests/terrain-describe.test.ts`'s
+      `GOLDEN_SEED_1` and `tests/q7-loader-holes.ts`'s recorded-holes table
+      were updated to match (same class of change as fb129's). qa-playtester
+      independently confirmed byte-identical generation/anchors/bands across
+      15 seeds x 2 gate lists via a `git stash` before/after diff (0
+      differences), sane loader behavior at `coreRoomRadius` extremes
+      (0..SPAN), a 3000-seed Fourth-Gate legality sweep (0 failures), and two
+      full headless sims to completion under the Fourth Gate modifier.
+      `npx tsc --noEmit` clean; full terrain suite (10 files / 265 tests) and
+      `tests/q7-data-fuzz.test.ts` (41 tests) green.
 - [ ] (fb135) [feat] unblock the UI lane's three permanently out-of-Scope
       items and one small follow-up: BACKLOG-UI.md fb085 (localization —
       needs `data/strings.json` plus `src/ui/strings.ts`/`strings-lint.ts`;

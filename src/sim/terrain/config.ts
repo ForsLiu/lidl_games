@@ -10,7 +10,7 @@
 import { z } from 'zod';
 
 import raw from '../../../data/terrain.json';
-import { GATES, GRID_H, GRID_W } from '../grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES } from '../grid';
 import { Hasher } from '../hash';
 
 /**
@@ -18,13 +18,17 @@ import { Hasher } from '../hash';
  *
  * `SPAN` is the widest a radius can usefully be. `MAX_WALKABLE_FRAC` is the
  * ceiling *any* map can reach: the border is permanently rock, so only the
- * interior plus the gate tiles themselves can ever be walked. On the shipped
- * 56x32 grid (fb166; was 36x20) that is (54*30 + 3) / 1792 = 0.905692 — a
- * `minWalkableFrac` above it is not a strict tuning choice, it is a band no
- * seed can clear.
+ * interior plus the gate tiles themselves can ever be walked. It counts
+ * `GATES.length + MODIFIER_GATES.length` (fb134), not `GATES.length` alone —
+ * a Fourth Gate run generates with the base four gates *and* the modifier's
+ * `south2` gate open (fb153), a fifth border tile the base count alone
+ * undercounts by one. On the shipped 56x32 grid (fb166; was 36x20) that is
+ * (54*30 + 5) / 1792 = 0.906808 — a `minWalkableFrac` above it is not a
+ * strict tuning choice, it is a band no seed can clear.
  */
 const SPAN = Math.max(GRID_W, GRID_H);
-const MAX_WALKABLE_FRAC = ((GRID_W - 2) * (GRID_H - 2) + GATES.length) / (GRID_W * GRID_H);
+const MAX_WALKABLE_FRAC =
+  ((GRID_W - 2) * (GRID_H - 2) + GATES.length + MODIFIER_GATES.length) / (GRID_W * GRID_H);
 
 /** Tiles the scatter can reach at all — the bound on any blob. */
 const INTERIOR_TILES = (GRID_W - 2) * (GRID_H - 2);
@@ -259,6 +263,14 @@ export const TerrainFileSchema = z
     // Clearance is a rejection radius, not a painted one, so it is bounded by
     // the grid rather than by cost: past the span nothing is ever legal.
     coreGateClearance: nonNegInt.max(SPAN),
+    // fb134: was a bare `ROOM_RADIUS = 2` constant in `analyze.ts`. fb064o's
+    // own doc block found this is no longer a pure tie-break — it decides
+    // `maxGateDetour`, which `terrainLegal` reads, so it can refuse a map —
+    // which is exactly the "tuning band" architecture rule 4 puts in `/data`,
+    // not in code. Bounded like the other radii: past the span the 6x6 room
+    // block it sizes covers the whole interior and cannot mean anything
+    // further.
+    coreRoomRadius: nonNegInt.max(SPAN),
     // fb064m: how far an enemy has to be able to *stand* from a high tile for a
     // tower on it to be contestable. High ground is not walkable and — once
     // fb064i's predicates are wired at the merge — ground melee cannot attack
