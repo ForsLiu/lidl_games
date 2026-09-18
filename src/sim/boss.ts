@@ -202,6 +202,12 @@ function canReachWarden(w: World, e: Enemy): boolean {
   return w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
 }
 
+/**
+ * fb129: deliberately not high-ground-guarded — this is the anti-stall
+ * failsafe, not a special. It damages the nearest structure *or else* the
+ * Core, so a guard here would let a boss stalled beside a high-ground tower
+ * deal nothing at all and the failsafe would stop failing safe.
+ */
 function updateUnreachable(w: World, e: Enemy, dt: number): void {
   if (canReachWarden(w, e)) {
     e.bossUnreachableTime = 0;
@@ -329,7 +335,15 @@ function updateCharge(w: World, e: Enemy, dt: number, phase: number): boolean {
   return false; // fall through to the normal chase
 }
 
-/** SPEC 5.5: a charge shatters the petrified terrain it passes through. */
+/**
+ * SPEC 5.5: a charge shatters the petrified terrain it passes through.
+ *
+ * fb129: deliberately not high-ground-guarded — this is a boss *special*,
+ * exempt by SPEC-FINAL §10.5's own wording ("the bosses' special attacks
+ * still can"). There is no `boss` family in `data/terrain.json` on purpose
+ * (see `high-ground.ts`'s header): a blanket exemption there would also
+ * cover boss melee, which must stay guarded.
+ */
 function shatterAlong(w: World, x0: number, y0: number, x1: number, y1: number): void {
   const steps = Math.max(1, Math.ceil(dist(x0, y0, x1, y1) * 2));
   for (let i = 0; i <= steps; i++) {

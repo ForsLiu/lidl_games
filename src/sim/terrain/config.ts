@@ -330,7 +330,15 @@ export const TerrainFileSchema = z
     // its family from the traits it is authored with — no code edit, no list of
     // enemy keys to keep in sync (architecture rule 4).
     highGround: z
-      .object({ families: z.array(highGroundFamilySchema).min(1).max(64) })
+      .object({
+        families: z.array(highGroundFamilySchema).min(1).max(64),
+        // fb129: a burrower stalled against a high tile it cannot surface on
+        // (`surfacesHigh: false`, and `world.ts:760` skips `submerged`
+        // enemies when targeting) would otherwise stay untargetable forever.
+        // Capped at this many seconds after it first wants to surface —
+        // past it, the burrower surfaces anyway, high ground or not.
+        surfaceBlockCap: z.number().finite().min(0),
+      })
       .strict(),
   })
   .strict()

@@ -539,13 +539,6 @@ const SpawnsFileSchema = z.object({
   spawnDistance: num,
   /** How close a Burrower gets before it surfaces. */
   burrowSurfaceDistance: num,
-  /**
-   * fb129 (SPEC-FINAL §10.5, Q171 verdict): a Burrower denied surfacing by
-   * standing on high ground stays submerged (and untargetable) past its
-   * normal surface point — this caps how many extra seconds that can widen
-   * the untargetable window before it is forced to surface anyway.
-   */
-  burrowHighGroundBlockCapSeconds: num,
   contactInterval: num,
   contactPadding: num,
   gemLifetimeSeconds: num,

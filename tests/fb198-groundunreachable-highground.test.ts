@@ -1,5 +1,5 @@
 /**
- * fb136 (qa-playtester, verifying fb129): a pocket sealed only by a
+ * fb198 (qa-playtester, verifying fb129): a pocket sealed only by a
  * high-ground tower stalled forever instead of ghosting free.
  *
  * `updateGroundUnreachable`'s `beelineHitsStructure` (`src/sim/enemies.ts`)
@@ -50,7 +50,7 @@ function findHighPlot(w: World): { tx: number; ty: number; nx: number; ny: numbe
       }
     }
   }
-  throw new Error('fb136 test: no high tile with a walkable neighbor at this seed');
+  throw new Error('fb198 test: no high tile with a walkable neighbor at this seed');
 }
 
 function palisadeId(w: World): number {
@@ -62,11 +62,11 @@ function build(w: World, tx: number, ty: number) {
   w.warden.x = tx + 0.5;
   w.warden.y = ty + 0.5;
   const r = buildTower(w, palisadeId(w), tx, ty);
-  if (!r.ok) throw new Error(`fb136 test: build at (${tx},${ty}) rejected: ${r.reason}`);
+  if (!r.ok) throw new Error(`fb198 test: build at (${tx},${ty}) rejected: ${r.reason}`);
   return r.structure;
 }
 
-describe('fb136 — a pocket sealed only by a high-ground tower ghosts free instead of stalling forever', () => {
+describe('fb198 — a pocket sealed only by a high-ground tower ghosts free instead of stalling forever', () => {
   it('the trapped enemy eventually ghosts through, and the high tower stays undamaged throughout', () => {
     const w = new World(runCfg({ seed: SEED }));
     const high = findHighPlot(w);

@@ -1229,9 +1229,6 @@ export function hashWorld(w: World): string {
     // a replay that disagreed here could go up to `UNREACHABLE_THRESHOLD`
     // seconds before the divergence lands on a field already hashed below.
     h.num(e.bossUnreachableTime);
-    // fb129: gates how many more ticks a high-ground-blocked Burrower stays
-    // submerged (and untargetable) before the cap forces it to surface.
-    h.num(e.surfaceBlockedFor);
     for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps).num(d.accTime).num(d.accDamage).num(d.accScaled).str(d.accSource);
     // fb013: Time Lord's per-enemy mark stage/deferred-slow gate future
     // damage the same way the statuses above do; `posHistory` decides where

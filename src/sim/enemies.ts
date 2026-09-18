@@ -11,7 +11,7 @@ import { clamp, dcos, dist, dist2, dsin, normalize, TAU } from './math';
 import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
 import { tierCoreDamageMul, tierEnemyHpMul } from './tiers';
-import { canAttackStructureAt, canSurfaceAt, familyForDef } from './terrain';
+import { canAttackStructureAt, canSurfaceAt, familyForDef, loadTerrain } from './terrain';
 import { structureArmor } from './upgrades';
 import { tickCooldown, type DotStack, type Enemy, type Structure } from './types';
 import { World } from './world';
@@ -161,7 +161,7 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     phaseCooldown: def.phasePeriod ?? 0,
     ghosting: (flags & TRAIT.burrows) !== 0,
     submerged: (flags & TRAIT.burrows) !== 0,
-    surfaceBlockedFor: 0,
+    highGroundBlockedFor: 0,
     flags,
     sepX: 0,
     sepY: 0,
@@ -1446,57 +1446,60 @@ function updatePhasing(w: World, e: Enemy, def: EnemyDef, dt: number): void {
     const target = w.targetPoint();
     const surfaceAt = w.content.spawns.burrowSurfaceDistance;
     if (e.submerged && dist2(e.x, e.y, target.x, target.y) <= surfaceAt * surfaceAt) {
-      // fb129 (SPEC-FINAL §10.5, Q171 verdict): a Burrower cannot surface on
-      // high ground, but it must not stay submerged (untargetable) forever if
-      // it happens to be tunnelling under a long stretch of it — the anti-stall
-      // failsafe below, not a leak: it keeps tunnelling toward the target every
-      // tick either way (`e.ghosting = e.submerged` at the foot of this branch),
-      // so it normally clears the high tile on its own well inside the cap.
-      const fam = familyForDef(w.terrainCfg, def.id, def.traits);
-      const cap = w.content.spawns.burrowHighGroundBlockCapSeconds;
-      if (canSurfaceAt(w.grid, fam, e.x, e.y) || e.surfaceBlockedFor >= cap) {
+      // fb129: `burrower.surfacesHigh: false` — a Burrower ready to surface
+      // under a high tile stays down, capped at `surfaceBlockCap` seconds
+      // (data/terrain.json) so it cannot stay untargetable forever
+      // (`world.ts` skips `submerged` enemies when targeting).
+      const terrainCfg = loadTerrain();
+      const fam = familyForDef(terrainCfg, def.id, def.traits);
+      if (canSurfaceAt(w.grid, fam, e.x, e.y) || e.highGroundBlockedFor >= terrainCfg.highGround.surfaceBlockCap) {
         e.submerged = false;
         e.ghosting = false;
-        e.surfaceBlockedFor = 0;
+        e.highGroundBlockedFor = 0;
         unstick(w, e);
         w.emit('surface', e.x, e.y, 0, 0);
       } else {
-        e.surfaceBlockedFor += dt;
+        e.highGroundBlockedFor += dt;
       }
     } else {
-      e.surfaceBlockedFor = 0;
+      e.highGroundBlockedFor = 0;
     }
     e.ghosting = e.submerged;
     return;
   }
   if ((e.flags & TRAIT.phases) === 0) return;
-  // fb129: `e.ghosting` alone (not just `phaseRemaining > 0`) keeps this
-  // branch live while a phase-end is held open below by a denied high-ground
-  // surface — otherwise the timer would fall through to the resting/cooldown
-  // branch with `ghosting` still true and never clear it.
-  if (e.phaseRemaining > 0 || e.ghosting) {
-    if (e.phaseRemaining > 0) e.phaseRemaining -= dt;
+  if (e.phaseRemaining > 0) {
+    e.phaseRemaining -= dt;
     e.ghosting = true;
-    if (e.phaseRemaining <= 0) {
-      // fb129 (SPEC-FINAL §10.5, fb064i's merge list): the second surfacing
-      // site — a Wraith cannot end its phase on high ground either. Not a
-      // live leak today (`unstick` below already nudges a phase-ending Wraith
-      // off any blocked tile, including high ground), but the rule needs a
-      // call site or a future author has no way to wire it.
-      const fam = familyForDef(w.terrainCfg, def.id, def.traits);
-      if (canSurfaceAt(w.grid, fam, e.x, e.y)) {
-        e.ghosting = false;
-        e.phaseCooldown = def.phasePeriod ?? 6;
-        // Never surface inside terrain: nudge to the nearest open tile.
-        unstick(w, e);
-      }
+    if (e.phaseRemaining > 0) return; // still mid-phase, nothing else to do
+  }
+  if (e.ghosting) {
+    // fb129: `ground.surfacesHigh: false` covers the Wraith too (no family
+    // names it, so it lands in the catch-all). `phaseRemaining` just hit (or
+    // already was at) 0 while still ghosting — either the phase expired this
+    // tick, or it was denied on an earlier tick and is retrying. Checked
+    // every tick like the Burrower's surfacing site, and capped the same
+    // way: a Wraith with zero motion relative to its target (e.g. parked
+    // exactly on a huntsWarden target sitting on the one high tile) would
+    // otherwise retry forever, since `setNormalized` on a zero vector never
+    // moves it off the tile (qa-playtester found this by reproducing it).
+    const terrainCfg = loadTerrain();
+    const fam = familyForDef(terrainCfg, def.id, def.traits);
+    if (canSurfaceAt(w.grid, fam, e.x, e.y) || e.highGroundBlockedFor >= terrainCfg.highGround.surfaceBlockCap) {
+      e.ghosting = false;
+      e.phaseCooldown = def.phasePeriod ?? 6;
+      e.highGroundBlockedFor = 0;
+      // Never surface inside terrain: nudge to the nearest open tile.
+      unstick(w, e);
+    } else {
+      e.highGroundBlockedFor += dt;
     }
-  } else {
-    e.phaseCooldown -= dt;
-    if (e.phaseCooldown <= 0) {
-      e.phaseRemaining = def.phaseDuration ?? 2;
-      e.ghosting = true;
-    }
+    return;
+  }
+  e.phaseCooldown -= dt;
+  if (e.phaseCooldown <= 0) {
+    e.phaseRemaining = def.phaseDuration ?? 2;
+    e.ghosting = true;
   }
 }
 
@@ -1566,13 +1569,13 @@ function beelineHitsStructure(w: World, e: Enemy, def: EnemyDef, target: { x: nu
     if (w.grid.passable(tx, ty)) continue;
     const s = w.structureAt(tx, ty);
     if (!s) return false;
-    // fb136 (found by qa-playtester verifying fb129): a structure this
+    // fb198 (found by qa-playtester verifying fb129): a structure this
     // enemy's family is denied from attacking by high ground (fb129) is not
     // "something to chew" — it must not rescue the enemy from the
     // unreachable timer below, or a pocket sealed only by a high-ground
     // tower stalls forever (attackingStructure never sets, bossUnreachableTime
     // never accumulates).
-    const fam = familyForDef(w.terrainCfg, def.id, def.traits);
+    const fam = familyForDef(loadTerrain(), def.id, def.traits);
     return canAttackStructureAt(w.grid, fam, tx, ty);
   }
   return false;
@@ -1671,17 +1674,16 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
         // version, written for the old uniform scheme).
         damageWarden(w, def.stompDamage ?? 25);
       }
-      // fb129: the Colossus's stomp is a ground-family AoE, so it leaks the
-      // melee-breach rule above if left unguarded — a stomping Colossus beside
-      // a cliff would chew the high-ground tower the breach rule just denied it.
-      const stompFam = familyForDef(w.terrainCfg, def.id, def.traits);
+      // fb129: high ground — a ground-family stomp (Colossus) cannot reach a
+      // structure standing on a high tile from the low ground beside it.
+      const stompFamily = familyForDef(loadTerrain(), def.id, def.traits);
       for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
         for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
           const s = w.structureAt(Math.floor(e.x) + dx, Math.floor(e.y) + dy);
           if (
             s &&
             dist(e.x, e.y, s.tx + 0.5, s.ty + 0.5) <= r &&
-            canAttackStructureAt(w.grid, stompFam, s.tx, s.ty)
+            canAttackStructureAt(w.grid, stompFamily, s.tx, s.ty)
           ) {
             damageStructure(w, s, (def.stompDamage ?? 25) * 2);
           }
@@ -1723,14 +1725,13 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
         w.emit('spit', e.x, e.y, w.warden.x, w.warden.y);
       } else if (!act2) {
         const s = nearestStructureWithin(w, e.x, e.y, range);
-        // fb129: `ranged` is exempt (`attacksHigh: true` in the shipped
-        // table), so this is a no-op today — wired anyway so a Tuner edit
-        // that revokes the exemption does not read as silence. Post-selection:
-        // `nearestStructureWithin` already picked before this rule applies, so
-        // a denied Spitter idles this tick rather than falling through to the
-        // next-nearest structure (fb064i Log).
-        const fam = familyForDef(w.terrainCfg, def.id, def.traits);
-        if (s && canAttackStructureAt(w.grid, fam, s.tx, s.ty)) {
+        // fb129: the `ranged` family is exempt (`attacksHigh: true`) today, so
+        // this is a no-op while the table says so — wired so a Tuner edit to
+        // `ranged.attacksHigh` isn't silently ignored (BACKLOG-TERRAIN.md
+        // fb064i Log: `nearestStructureWithin` selects before the rule
+        // applies, so a future non-exempt caller would idle here rather than
+        // fall through to the next-nearest structure).
+        if (s && canAttackStructureAt(w.grid, familyForDef(loadTerrain(), def.id, def.traits), s.tx, s.ty)) {
           e.attackCooldown = def.attackInterval ?? 2;
           damageStructure(w, s, def.attackDamage ?? 6);
           w.emit('spit', e.x, e.y, s.tx + 0.5, s.ty + 0.5);
@@ -2010,13 +2011,14 @@ function moveEnemy(
         !aimHadStep ||
         w.grid.occ[cy * GRID_W + cx] !== 0 ||
         (e.flags & TRAIT.structureBreaker) !== 0;
-      // fb129 (SPEC-FINAL §10.5, fb064i's merge list): ground melee cannot
-      // chew a tower standing on high ground across the cliff edge it just
-      // bumped into. This is *the* rule; every other high-ground call site is
-      // a leak path around it. `familyForDef` only inside the `s &&` branch —
-      // this runs for every walker's every blocked-tile bump, most of which
-      // hit plain terrain with no structure to ask about.
-      if (s && breaching && canAttackStructureAt(w.grid, familyForDef(w.terrainCfg, def.id, def.traits), s.tx, s.ty)) {
+      // fb129: high ground (SPEC-FINAL §10.5) — ground melee cannot chew a
+      // structure across the cliff edge. `s.tx/s.ty` is the structure's own
+      // tile, not the enemy's low one beside it.
+      if (
+        s &&
+        breaching &&
+        canAttackStructureAt(w.grid, familyForDef(loadTerrain(), def.id, def.traits), s.tx, s.ty)
+      ) {
         attackStructure(w, e, def, s, dt);
       } else {
         e.attackingStructure = 0;
