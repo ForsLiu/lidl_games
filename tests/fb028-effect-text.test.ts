@@ -31,6 +31,7 @@ import { mountCodex } from '../src/ui/codex';
 import { buildCodexCollections } from '../src/ui/codex-collections';
 import { Hub } from '../src/ui/hub';
 import { defaultSettings } from '../src/ui/settings';
+import { defaultKeyBindings, type KeyBindings } from '../src/ui/keybindings';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -214,6 +215,27 @@ describe('fb028: the Codex — classes and equipment rows expand to full live-fo
     const detail = root.querySelector('.sw-codex-detail')!;
     expect(detail.innerHTML).toBe(classAbilitiesMarkup(swordsmanCls));
     expect(rows[idx].classList.contains('active')).toBe(true);
+  });
+
+  it('fb107: a classes row detail reflects a rebound keyBindings, not always the default Q/E', () => {
+    const root = mount();
+    const rebound: KeyBindings = { ...defaultKeyBindings(), active1: 'j', active2: 'k' };
+    const collections = buildCodexCollections(content, rebound);
+    const handle = mountCodex(root, collections);
+    handle.select('classes');
+
+    const swordsmanCls = content.classByKey.get('swordsman')!;
+    const rows = root.querySelectorAll('.sw-codex-content tbody tr');
+    const idx = content.classes.classes.findIndex((c) => c.key === 'swordsman');
+    (rows[idx] as HTMLElement).click();
+
+    const detail = root.querySelector('.sw-codex-detail')!;
+    expect(detail.innerHTML).toBe(classAbilitiesMarkup(swordsmanCls, { keyBindings: rebound }));
+    expect(detail.innerHTML).toContain('J, Active 1');
+    expect(detail.innerHTML).toContain('K, Active 2');
+    // not vacuous: the default-bound markup uses Q/E, so this proves the
+    // rebind actually reached the Codex detail rather than being ignored.
+    expect(detail.innerHTML).not.toBe(classAbilitiesMarkup(swordsmanCls));
   });
 
   it('an equipment row click renders both class-named conditional branches for a multi-conditional item', () => {

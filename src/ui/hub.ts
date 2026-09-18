@@ -50,6 +50,7 @@ import { modLines, modLinesHtml } from './info-format';
 import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment-info';
 import { STAT_KIND, type StatKey } from '../sim/stats';
 import { mountCodex } from './codex';
+import { buildCodexCollections } from './codex-collections';
 import { hasUnsavedTunerEdits } from './tuner-state';
 import { crashLogEntries, formatCrashReport } from './crashlog';
 import { creditsMarkup } from './credits';
@@ -534,7 +535,9 @@ export class Hub {
    * cleanup, the same way every other tab here works.
    */
   private renderCodex(body: HTMLElement): void {
-    mountCodex(body);
+    // fb107: pass `this.keyBindings` through so the Class detail view's
+    // Active key labels match a rebind, same as Class Select one tab over.
+    mountCodex(body, buildCodexCollections(loadContent(), this.keyBindings));
   }
 
   /* ------------------------------------------------------------ quests tab */

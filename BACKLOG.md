@@ -5063,7 +5063,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       full headless sims to completion under the Fourth Gate modifier.
       `npx tsc --noEmit` clean; full terrain suite (10 files / 265 tests) and
       `tests/q7-data-fuzz.test.ts` (41 tests) green.
-- [ ] (fb135) [feat] unblock the UI lane's three permanently out-of-Scope
+- [x] (fb135) [feat] unblock the UI lane's three permanently out-of-Scope
       items and one small follow-up: BACKLOG-UI.md fb085 (localization —
       needs `data/strings.json` plus `src/ui/strings.ts`/`strings-lint.ts`;
       note from the reverted attempt: the lint must scan string literals
@@ -5077,7 +5077,49 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Select one tab over shows the remapped keys (thread `keyBindings`
       through `CodexCollection.renderDetail`). Acceptance: each UI item's
       own acceptance text, executed from main or with the Scope widened —
-      refs: BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs.
+      refs: BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs. **Done
+      (2026-09-18):** fb093 and fb097 were already DONE in BACKLOG-UI.md
+      (2026-09-07, before this item's own filing went stale) — no work
+      needed, confirmed by reading BACKLOG-UI.md directly rather than
+      trusting this item's own description. Executed the two real remaining
+      pieces: **fb107's gap** — `buildCodexCollections` (`codex-
+      collections.ts`) now takes an optional `keyBindings` param and threads
+      it into the classes collection's `renderDetail` ->
+      `classAbilitiesMarkup(row, { keyBindings })`; `Hub.renderCodex`
+      (`hub.ts`) now calls `buildCodexCollections(loadContent(),
+      this.keyBindings)` instead of the old parameterless default. **fb085's
+      groundwork** — new `data/strings.json` (seeded with the pause card's
+      ~13 strings, not exhaustive per its own acceptance text), a small
+      typed loader `src/ui/strings.ts` (`t(key)`), and `hud.ts`'s
+      `showPause()` converted to pull every visible string through `t(...)`
+      as the first migrated surface. The lint rule
+      (`findReintroducedLiterals`, `src/ui/strings.ts`) is a from-scratch
+      value-based reintroduction guard rather than an AST/text-node scan —
+      checks whether a migrated *value* (not the `t()` key) appears anywhere
+      in a converted method's source as a plain substring, which catches
+      both a bare-text-node revert and a `${...}`-interpolation revert alike
+      (the exact gap the reverted earlier attempt's text-node/`title=`-only
+      scan left open), scoped per-method via a brace-balancing
+      `extractMethodBody` helper in the new
+      `tests/fb085-strings-lint.test.ts` so a short common word like
+      "Cancel"/"Options" doesn't false-positive against hud.ts's other,
+      unconverted UI text. Full-tier code-reviewer (APPROVE; two Minor
+      findings addressed pre-commit — tightened the letter-boundary regex to
+      also exclude digit/underscore neighbors so it can't match inside an
+      identifier like `sw_Back2`, and documented `stripComments`'s known
+      false-negative risk around literal `//` in a migrated value) and
+      qa-playtester (PASS; drove a real rebind through the Settings UI end
+      to end rather than only unit-testing it, confirmed no other test
+      depends on the old hud.ts pause literals by exact-text grep, and
+      adversarially tried to break the lint rule — found two known, logged-
+      not-filed evasions out of this item's scope: a value hoisted to a
+      module-level `const` outside the converted method, and a unicode-
+      escape/HTML-entity encoding of a migrated value — both accepted
+      limitations of a "seeded, not exhaustive" mechanism, not regressions).
+      `npx tsc --noEmit` clean; `npm run test:fast` green (314 files / 4545
+      passed / 35 skipped, up from the 313/4538 baseline by this item's new
+      tests). — refs: QUALITY.md BETA, SPEC-FINAL §11, BACKLOG-UI.md
+      fb085/fb093/fb097/fb107 Logs.
 - [ ] (fb136) [bug] qa-playtester coverage gap from fb129: no regression test
       pins `src/sim/boss.ts`'s two deliberately-unguarded high-ground sites
       (`shatterAlong`, `updateUnreachable`) — BACKLOG-TERRAIN.md fb064i's Log

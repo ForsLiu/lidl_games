@@ -33,6 +33,7 @@ import { devProfileActive, isDevBuild } from '../meta/devprofile';
 import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 import { buildStoreZip, type ZipEntry } from './zip-archive';
 import { fullscreenToggleLabel, subscribeFullscreenChange, toggleFullscreen } from './fullscreen';
+import { t } from './strings';
 
 /**
  * fb102: mirrors of `style.css`'s `.sw-rail`/`.sw-bossbar` box-model numbers,
@@ -1764,20 +1765,16 @@ export class Hud {
       const on = this.autoPickOn;
       this.modal.innerHTML = `
       <div class="sw-card">
-        <h2>Options</h2>
+        <h2>${t('pause.options')}</h2>
         <label class="sw-setting autopick">
-          <span>Auto-pick level-ups</span>
+          <span>${t('pause.autoPickLabel')}</span>
           <input type="checkbox" id="sw-opt-autopick" ${on ? 'checked' : ''} />
         </label>
-        <p class="sw-note">${
-          on
-            ? 'Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered.'
-            : 'Level-ups pause the run for your choice.'
-        }</p>
+        <p class="sw-note">${on ? t('pause.autoPickOnNote') : t('pause.autoPickOffNote')}</p>
         <button class="sw-reroll" id="sw-hud-fullscreen">${fullscreenToggleLabel()}</button>
-        <p class="sw-note">Fullscreen also works from the Hub's Settings tab.</p>
+        <p class="sw-note">${t('pause.fullscreenNote')}</p>
         <div class="sw-pausebuttons">
-          <button class="sw-reroll" data-act="back">Back</button>
+          <button class="sw-reroll" data-act="back">${t('pause.back')}</button>
         </div>
       </div>`;
       this.modal.querySelector('#sw-opt-autopick')?.addEventListener('change', () => this.cb.onToggleAutoPick());
@@ -1796,23 +1793,23 @@ export class Hud {
     this.modal.innerHTML = this.confirmingAbandon
       ? `
       <div class="sw-card">
-        <h2>Abandon run?</h2>
-        <p>This ends the run now and returns to the Hub. Nothing from it is kept.</p>
+        <h2>${t('pause.abandonConfirmTitle')}</h2>
+        <p>${t('pause.abandonConfirmBody')}</p>
         <div class="sw-pausebuttons">
-          <button class="sw-reroll" data-act="cancel">Cancel</button>
-          <button class="sw-go" data-act="confirm">Abandon run</button>
+          <button class="sw-reroll" data-act="cancel">${t('pause.cancel')}</button>
+          <button class="sw-go" data-act="confirm">${t('pause.abandon')}</button>
         </div>
       </div>`
       : `
       <div class="sw-card">
-        <h2>Paused</h2>
-        <p>The Vale holds its breath.</p>
+        <h2>${t('pause.title')}</h2>
+        <p>${t('pause.subtitle')}</p>
         <div class="sw-pausebuttons">
-          <button class="sw-go" data-act="resume">Resume</button>
-          <button class="sw-reroll" data-act="options">Options</button>
-          <button class="sw-reroll" data-act="quit">Abandon run</button>
+          <button class="sw-go" data-act="resume">${t('pause.resume')}</button>
+          <button class="sw-reroll" data-act="options">${t('pause.options')}</button>
+          <button class="sw-reroll" data-act="quit">${t('pause.abandon')}</button>
         </div>
-        <p class="sw-note">Esc resumes · abandoning returns to the Hub and keeps nothing.</p>
+        <p class="sw-note">${t('pause.footer')}</p>
       </div>`;
     if (this.confirmingAbandon) {
       this.modal

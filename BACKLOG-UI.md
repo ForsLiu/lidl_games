@@ -154,28 +154,47 @@ not already expose it) logs that need below instead of reaching into
 
 ### Blocked out of Scope
 
-- [ ] (fb085) [feat] low priority: **BLOCKED out of Scope 2026-09-07 — this
-      item's own acceptance line requires a new `data/strings.json`, and
-      `/data` is not in this lane's Scope (`src/ui/**`, `src/render/**`,
+- [x] (fb085) [feat] low priority: **DONE 2026-09-18 from the main lane**
+      (BACKLOG.md fb135, whose acceptance explicitly authorized executing
+      this "with the Scope widened") — the `/data` blocker below no longer
+      applies. generated 2026-09-04 — localization-readiness groundwork for
+      QUALITY.md BETA's "zero user-facing string literals outside
+      `data/strings.json` (lint rule)" bar, currently entirely unmet (no
+      `data/strings.json` exists; every UI string is a literal in
+      `src/ui/*.ts`). Scoped to standing up the mechanism rather than a
+      single-pass full-repo extraction, which is far larger than one
+      backlog item: acceptance is a new `data/strings.json` (seeded, not
+      necessarily exhaustive), a small typed loader (`src/ui/strings.ts`),
+      and a lint/test rule that fails when a hardcoded user-facing string
+      literal appears in a designated "already converted" file list;
+      convert one representative, self-contained surface (e.g. the
+      pause/results modal text in `hud.ts`) as the first migrated file and
+      the rule's own proof case; a test confirms the rule actually catches
+      a reintroduced literal in that converted file — refs: QUALITY.md
+      BETA, SPEC-FINAL §11. **Shipped:** `data/strings.json` seeded with
+      the pause card's ~13 strings; `src/ui/strings.ts`'s `t(key)` loader
+      plus a `findReintroducedLiterals(source, values)` reintroduction
+      guard (a value-based substring check, not an AST/text-node scan, so
+      it catches a reversion inside a `${...}` interpolation the same as a
+      bare text node — the exact gap this item's own note above named);
+      `hud.ts`'s `showPause()` converted as the first migrated surface;
+      `tests/fb085-strings-lint.test.ts` is the rule's own proof case,
+      scoped to `showPause`'s method body via a brace-balancing
+      `extractMethodBody` helper so a short common word ("Cancel",
+      "Options") already used elsewhere in `hud.ts`'s *unconverted* text
+      doesn't false-positive. Full-tier code-reviewer APPROVE and
+      qa-playtester PASS (see BACKLOG.md's fb135 entry for the full
+      write-up, including two logged-not-filed lint-evasion limitations out
+      of scope: a value hoisted to a module-level `const`, and a
+      unicode-escape/HTML-entity encoding of a migrated value).
+      `hud.ts`'s separate `showResults` modal is not converted — the
+      acceptance text's "e.g." named one representative surface, not both.
+      **BLOCKED-out-of-Scope history (2026-09-07, resolved above):** this
+      item's own acceptance line required a new `data/strings.json`, and
+      `/data` was not in this lane's Scope (`src/ui/**`, `src/render/**`,
       `tests/ui*`, `tests/render*`, this file only); the loader/lint-rule
-      halves are in-scope but depend on the data file existing first, so
-      nothing here is independently completable. Needs a main-lane
-      companion to create/own `data/strings.json` before this lane can build
-      the loader and convert the first surface.** generated 2026-09-04 —
-      localization-readiness groundwork for QUALITY.md BETA's "zero
-      user-facing string literals outside `data/strings.json` (lint rule)"
-      bar, currently entirely unmet (no `data/strings.json` exists; every UI
-      string is a literal in `src/ui/*.ts`). Scoped to standing up the
-      mechanism rather than a single-pass full-repo extraction, which is far
-      larger than one backlog item: acceptance is a new `data/strings.json`
-      (seeded, not necessarily exhaustive), a small typed loader
-      (`src/ui/strings.ts`), and a lint/test rule that fails when a
-      hardcoded user-facing string literal appears in a designated
-      "already converted" file list; convert one representative,
-      self-contained surface (e.g. the pause/results modal text in
-      `hud.ts`) as the first migrated file and the rule's own proof case; a
-      test confirms the rule actually catches a reintroduced literal in
-      that converted file — refs: QUALITY.md BETA, SPEC-FINAL §11.
+      halves were in-scope but depended on the data file existing first, so
+      nothing here was independently completable from this lane alone.
 
 - [ ] (fb151) [bug] **BLOCKED out of Scope 2026-09-07 — the render half is a
       no-op: `canvas.ts`'s `class_active2` case (`case 'class_active':`/

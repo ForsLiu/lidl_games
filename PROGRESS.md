@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-18 — main lane: BACKLOG fb135 done — unblocked fb107's Codex
+  keyBindings gap and shipped fb085's localization-readiness groundwork as
+  the two real remaining pieces (fb093/fb097 were already DONE in
+  BACKLOG-UI.md, confirmed by reading it directly rather than trusting this
+  item's own stale description).** `codex-collections.ts`'s
+  `buildCodexCollections` now takes an optional `keyBindings` param threaded
+  into the classes collection's `renderDetail`, and `Hub.renderCodex`
+  (`hub.ts`) passes `this.keyBindings` through, so the Codex's Class detail
+  view shows a rebound Active1/Active2 key instead of always the default
+  Q/E, matching Class Select one tab over. New `data/strings.json` (seeded
+  with the pause card's ~13 strings) plus a small typed loader
+  `src/ui/strings.ts` (`t(key)`) and its own reintroduction guard,
+  `findReintroducedLiterals` — a value-based substring check rather than an
+  AST/text-node scan, so it catches a reverted literal inside a `${...}`
+  interpolation the same as a bare text node (the exact gap fb135's own
+  filed note said a reverted earlier attempt left open). `hud.ts`'s
+  `showPause()` is the first migrated surface, converted to pull every
+  visible string through `t(...)`. `tests/fb085-strings-lint.test.ts` is the
+  rule's own proof case, scoped to `showPause`'s method body via a
+  brace-balancing `extractMethodBody` helper so a short common word
+  ("Cancel", "Options") already used elsewhere in `hud.ts`'s *unconverted*
+  text doesn't false-positive. Full-tier code-reviewer APPROVE (two Minor
+  findings addressed pre-commit: tightened the letter-boundary regex to
+  also exclude digit/underscore neighbors, documented `stripComments`'s
+  known `//`-inside-a-value false-negative risk) and qa-playtester PASS
+  (drove a real rebind through the Settings UI end to end, confirmed by
+  exact-text grep that nothing else depends on the old hud.ts pause
+  literals, and adversarially tried to break the lint rule — found two
+  logged-not-filed evasions out of this item's scope: a value hoisted to a
+  module-level `const` outside the converted method, and a
+  unicode-escape/HTML-entity encoding of a migrated value, both accepted
+  limitations of a "seeded, not exhaustive" mechanism). `npx tsc --noEmit`
+  clean; `npm run test:fast` green (314 files / 4545 passed / 35 skipped,
+  up from the 313/4538 baseline). fb133 remains open, already logged with
+  its own reason (a real-guards `noUncheckedIndexedAccess` fix surfaces
+  1806 errors across ~90 files — too large for one loop-contract item,
+  needs a deliberate per-file/per-directory split) — not re-attempted this
+  session. — refs: QUALITY.md BETA, SPEC-FINAL §11, BACKLOG.md fb135,
+  BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs.
+
 - **2026-09-18 — main lane: BACKLOG fb131 done — all three Warden
   teleports now respect `wardenPassable`, terrain being live.** New
   `Grid.nearestWardenPassable` (a deterministic expanding-ring search,
