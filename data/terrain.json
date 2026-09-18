@@ -85,6 +85,7 @@
         "attacksHigh": false,
         "surfacesHigh": false
       }
-    ]
+    ],
+    "surfaceBlockCap": 3
   }
 }
