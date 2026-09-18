@@ -46,6 +46,18 @@ export type Command =
   | { k: 'build'; tower: number; tx: number; ty: number }
   | { k: 'upgrade'; tx: number; ty: number }
   | { k: 'sell'; tx: number; ty: number }
+  /**
+   * fb130 (SPEC-FINAL §10.5, fb064c's main-lane half): move the 2x2 Core to
+   * `(tx, ty)` before wave 1 — `placeCoreCommand` (cores.ts) runs
+   * `validateCorePlacement` against the run's own generated map and gate
+   * list, then `Grid.placeCore`. A Command, not a direct World/Grid edit, so
+   * bots and replays place the Core exactly like every other player action
+   * (architecture rule 3). A rejected click (off-grid, not-normal, near-gate,
+   * unreachable, build already started, or past wave 1) is a no-op — see
+   * `PlaceCoreResult` for the reason, surfaced to a caller that wants it the
+   * same way `buildTower`'s `BuildResult` already does for `build`.
+   */
+  | { k: 'place_core'; tx: number; ty: number }
   /** SPEC-FINAL §5.5: buys the Core's next upgrade step (`upgradeCore`, cores.ts). No tx/ty — the Core has one fixed tile. */
   | { k: 'upgrade_core' }
   | { k: 'call' }

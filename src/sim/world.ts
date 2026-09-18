@@ -11,13 +11,20 @@ import {
   Grid,
   GATES,
   MODIFIER_GATES,
-  coreCenter,
   type Field,
   type GateDef,
   type TerrainOverlay,
 } from './grid';
 import { RngSet } from './rng';
-import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
+import {
+  flatTerrain,
+  generateTerrain,
+  loadTerrain,
+  terrainOverlay,
+  verifyTerrainMap,
+  type TerrainConfig,
+  type TerrainMap,
+} from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
 import { equipmentEffectNum } from './equipment';
@@ -86,15 +93,25 @@ function clampCell(v: number, max: number): number {
 }
 
 /**
- * The Warden's Act I spawn tile (`World`'s constructor: `coreCenter().x - 3,
- * coreCenter().y`) — fixed, like `CORE_X/CORE_Y`, but not itself a `GateDef`
- * or a `TileType.Core` tile, so `Grid.applyTerrain` has no reason to force it
- * open the way it already does for Gate/Core tiles. Exported so `World`'s own
- * spawn-position math and `applyRunTerrain`'s clearing stay one source of
- * truth rather than two hand-synced constants.
+ * The Warden's Act I spawn tile (`World`'s constructor: `grid.coreCenterOf().x
+ * - 3, grid.coreCenterOf().y`) — not itself a `GateDef` or a `TileType.Core`
+ * tile, so `Grid.applyTerrain` has no reason to force it open the way it
+ * already does for Gate/Core tiles. Exported so `World`'s own spawn-position
+ * math and `applyRunTerrain`'s clearing stay one source of truth rather than
+ * two hand-synced constants.
+ *
+ * Takes `grid` (fb130 migration, off the stale `CORE_X`/`CORE_Y` constants)
+ * rather than reading the module-level default: every real caller
+ * (`applyRunTerrain`) only ever calls this *before* a Core placement Command
+ * can run — terrain is generated and adopted at `World` construction, and the
+ * `place_core` Command (cores.ts) only ever fires afterward, against a
+ * standing `World` — so `grid.coreOrigin()` here always reads the *default*
+ * anchor a fresh `Grid` starts at, same as the old constants, but through the
+ * live accessor rather than a copy that would go stale the instant a Core
+ * placement flow gained an earlier hook.
  */
-export function wardenSpawnTile(): { tx: number; ty: number } {
-  const cc = coreCenter();
+export function wardenSpawnTile(grid: Grid): { tx: number; ty: number } {
+  const cc = grid.coreCenterOf();
   return { tx: Math.floor(cc.x) - 3, ty: Math.floor(cc.y) };
 }
 
@@ -128,10 +145,10 @@ function clearOverlayBlock(overlay: TerrainOverlay, tx: number, ty: number): voi
 
 /**
  * fb077 (SPEC-FINAL §10.5): generate terrain for `gates`/`seed` and apply it
- * to `grid`, retrying at `seed + 1, seed + 2, ...` when the hardcoded
- * `CORE_X/CORE_Y` Core comes out unreachable (`generateTerrain` itself only
- * retries for *band* legality — it never sees where the Core sits, since
- * fb064c's movable-Core placement Command is separate, out-of-scope work).
+ * to `grid`, retrying at `seed + 1, seed + 2, ...` when the Core's *default*
+ * anchor (`grid.coreOrigin()`, before any `place_core` Command — see
+ * `wardenSpawnTile`) comes out unreachable (`generateTerrain` itself only
+ * retries for *band* legality — it never sees where the Core sits).
  * Exhausting `MAX_CORE_RETRIES` independent attempts is not observed across
  * 5000-seed sweeps and astronomically unlikely; if it ever happens anyway,
  * `grid` is reset to the flat arena (an all-normal overlay reproduces
@@ -143,15 +160,27 @@ function clearOverlayBlock(overlay: TerrainOverlay, tx: number, ty: number): voi
  * A free function, not a `World` method, so a test can drive it against a
  * synthetic `TerrainConfig`/gate list without constructing a real `World`.
  * Returns whether the run fell back to the flat arena.
+ *
+ * `mapOut` (fb130, optional so every pre-existing 4-argument call site is
+ * untouched): when passed, receives the `TerrainMap` that actually ended up
+ * applied to `grid` — the map `World` retains as `terrainMap` for the
+ * `place_core` Command's `validateCorePlacement` call (cores.ts) to validate
+ * a click against, since re-deriving `generateTerrain(seed, ...)` from the
+ * *requested* seed alone would silently disagree with what this function
+ * actually applied on every seed the retry loop or the hand-built flat
+ * fallback below moved off it. `mapOut.map` is always a real `TerrainMap` on
+ * return — `flatTerrain(gates)` for the hand-built flat branch, which has no
+ * `TerrainMap` of its own since nothing generated it.
  */
 export function applyRunTerrain(
   grid: Grid,
   gates: readonly GateDef[],
   seed: number,
   terrainCfg: TerrainConfig = loadTerrain(),
+  mapOut?: { map: TerrainMap },
 ): boolean {
   const MAX_CORE_RETRIES = 16;
-  const { tx: wtx, ty: wty } = wardenSpawnTile();
+  const { tx: wtx, ty: wty } = wardenSpawnTile(grid);
   const applyAt = (s: number): TerrainMap => {
     const attemptMap = generateTerrain(s, terrainCfg, gates);
     const overlay = terrainOverlay(attemptMap, terrainCfg);
@@ -168,6 +197,19 @@ export function applyRunTerrain(
     // the uint32 ceiling must retry, not throw out of the World constructor.
     map = applyAt((seed + tries) >>> 0);
   }
+  // fb130 (item 5): assert the map's own self-consistency at the run boundary
+  // — the one spot every real run's terrain passes through on its way into
+  // `grid` — before it is trusted as `World.terrainMap`. `generateTerrain`
+  // only ever hands back a self-consistent map today, so this can never fire
+  // on a live run; it exists so a future producer (a hand-edited `TerrainMap`,
+  // a corrupted save) fails loudly here rather than shipping a Core-placement
+  // validator silently checking the wrong tiles.
+  const assertVerified = (m: TerrainMap): void => {
+    const verified = verifyTerrainMap(m);
+    if (!verified.ok) {
+      throw new Error(`applyRunTerrain: adopted map failed verifyTerrainMap (${verified.fault})`);
+    }
+  };
   if (map.fallback) {
     // Not a DOM/timing/RNG side effect (architecture rule 1 forbids none of
     // those) — a one-line dev-visible signal so a hostile `/data` edit never
@@ -175,9 +217,15 @@ export function applyRunTerrain(
     console.warn(
       `applyRunTerrain: generation exhausted every band attempt for seed ${seed}; playing on the flat fallback arena.`,
     );
+    assertVerified(map);
+    if (mapOut) mapOut.map = map;
     return true;
   }
-  if (grid.allGatesReachable()) return false;
+  if (grid.allGatesReachable()) {
+    assertVerified(map);
+    if (mapOut) mapOut.map = map;
+    return false;
+  }
   console.warn(
     `applyRunTerrain: every terrain candidate for seed ${seed} left the Core unreachable (${MAX_CORE_RETRIES + 1} attempts); playing on the flat fallback arena.`,
   );
@@ -193,6 +241,11 @@ export function applyRunTerrain(
   };
   grid.applyTerrain(flat);
   grid.refresh();
+  if (mapOut) {
+    const flatMap = flatTerrain(gates);
+    assertVerified(flatMap);
+    mapOut.map = flatMap;
+  }
   return true;
 }
 
@@ -223,6 +276,18 @@ export class World {
    */
   readonly terrainCfg: TerrainConfig;
   /**
+   * fb130 (SPEC-FINAL §10.5): the actual `TerrainMap` `applyRunTerrain`
+   * adopted for this run — not necessarily `generateTerrain(cfg.seed, ...)`,
+   * since the Core-unreachable retry loop may have advanced past the
+   * requested seed, or (rarely) fallen all the way back to `flatTerrain`.
+   * `verifyTerrainMap` (item 5) is asserted against it at the run boundary
+   * before it is stored. Held so the `place_core` Command
+   * (`placeCoreCommand`, cores.ts) validates a click against the map this run
+   * *actually has*, the same "this run's real config, not a re-fetched
+   * default" rule `terrainCfg` already states above.
+   */
+  readonly terrainMap: TerrainMap;
+  /**
    * SPEC-FINAL §5.5: the resolved Core key, defaulted from content (the one
    * `unlockedByDefault` row, Stone Heart) when `cfg.core` is omitted, so every
    * reader (`hashWorld`, `buildReport`) sees a real key rather than deciding
@@ -231,6 +296,20 @@ export class World {
   readonly coreKey: string;
   /** SPEC-FINAL §5.5: steps bought on the current Core's upgrade track (0..`upgrade.count`). Never decreases — a Core cannot be sold. */
   coreStep = 0;
+  /**
+   * fb130 (SPEC-FINAL §10.5, item 4): true forever, from the first structure
+   * this run ever places (`addStructure`) — build, sell, Ice Wall, anything.
+   * Never un-set on a sell, which is exactly the gap a live-occupancy check
+   * alone (the one `Grid.placeCore`/`Grid.applyTerrain` themselves already
+   * run) leaves open: build a tower, sell it, occupancy is back to zero, and
+   * a check keyed on "is anything standing right now" would let Core
+   * placement or a terrain re-apply silently re-open. `placeCoreCommand`
+   * (cores.ts) checks this before ever calling `Grid.placeCore`; it is the
+   * same guard a future Command-driven terrain re-apply would need, since
+   * none exists today (`Grid.applyTerrain` is only ever called from
+   * `applyRunTerrain`, once, before any Command runs).
+   */
+  buildPhaseOpened = false;
   /** The current Core's live numbers, folded from `effects` + steps bought (`p-core-b`, `src/sim/cores.ts`); recomputed by `recomputeCore()` on every purchase. */
   core: CoreState;
   /** Sub-1-gold trickle from Time's step-1 income and Vampire Heart's overheal conversion (`src/sim/cores.ts`), flushed into `gold` once it crosses a whole unit. */
@@ -645,9 +724,27 @@ export class World {
       this.grid.refresh();
     }
     this.terrainCfg = terrainCfg;
+    // fb130: Training Grounds (fb064f) never generates terrain at all, so
+    // there is no `applyRunTerrain` call to hand back a `TerrainMap` —
+    // `flatTerrain(this.gates)` is the map a practice run's untouched `Grid`
+    // actually matches, and is what `placeCoreCommand` validates a practice
+    // click against.
+    const mapOut: { map: TerrainMap } = { map: flatTerrain(this.gates) };
     this.terrainFallback = this.cfg.practice
       ? false
-      : applyRunTerrain(this.grid, this.gates, cfg.seed, this.terrainCfg);
+      : applyRunTerrain(this.grid, this.gates, cfg.seed, this.terrainCfg, mapOut);
+    // fb130 (item 5): practice mode is a second run-construction path that
+    // never goes through `applyRunTerrain`'s own `assertVerified`, so it needs
+    // the same run-boundary check independently — the doc comment on
+    // `terrainMap` below promises this is asserted for every run, not just the
+    // generated-terrain one.
+    if (this.cfg.practice) {
+      const verified = verifyTerrainMap(mapOut.map);
+      if (!verified.ok) {
+        throw new Error(`World: practice map failed verifyTerrainMap (${verified.fault})`);
+      }
+    }
+    this.terrainMap = mapOut.map;
 
     this.stats = baseRunStats(content, cfg);
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
@@ -717,7 +814,7 @@ export class World {
     );
     this.coreHp = this.coreMaxHp;
 
-    const cc = coreCenter();
+    const cc = this.grid.coreCenterOf();
     // fb013: an ammo-style Active starts at full charges, read off the class's
     // own `maxCharges` (undefined/1 for every class but Time Lord, for which
     // this is just `1` and the ammo fields go unread — see `tickAmmoRecharge`).
@@ -785,8 +882,7 @@ export class World {
   /** Where enemies are ultimately heading this tick. */
   targetPoint(): { x: number; y: number } {
     if (this.huntsWarden) return { x: this.warden.x, y: this.warden.y };
-    const c = coreCenter();
-    return c;
+    return this.grid.coreCenterOf();
   }
 
   navFieldFor(ghost: boolean): Field {
@@ -830,6 +926,11 @@ export class World {
   /* -------------------------------------------------------- entity helpers */
 
   addStructure(s: Structure): void {
+    // fb130 (item 4): every structure placement funnels through here, so this
+    // is the one choke point that can set the sticky "build phase opened"
+    // flag once and never touch it again — see `buildPhaseOpened`'s own doc
+    // comment for why a live-occupancy check alone is not enough.
+    this.buildPhaseOpened = true;
     this.structures.push(s);
     this.structureById.set(s.id, s);
     this.grid.setOcc(s.tx, s.ty, s.id);
@@ -1048,7 +1149,6 @@ export class World {
   }
 }
 
-export { coreCenter };
 export function makeStats(): Stats {
   return emptyStats();
 }

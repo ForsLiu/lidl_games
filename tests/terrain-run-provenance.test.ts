@@ -218,7 +218,7 @@ describe('fb065h — a run plays its own seed’s map', () => {
     // is what `clearOverlayBlock` does — and require the run's grid to equal it
     // on **every** tile. That also pins the clearing's *shape*: a 5x5 version
     // would fail here rather than pass unnoticed.
-    const w = wardenSpawnTile();
+    const w = wardenSpawnTile(new Grid());
     const warn = console.warn;
     console.warn = (): void => {};
     try {

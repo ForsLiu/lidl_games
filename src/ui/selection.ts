@@ -15,7 +15,7 @@
 
 import type { Enemy, Structure } from '../sim/types';
 import type { World } from '../sim/world';
-import { CORE_H, CORE_W, CORE_X, CORE_Y } from '../sim/grid';
+import { CORE_H, CORE_W } from '../sim/grid';
 
 export type Selection =
   | { kind: 'tower'; id: number }
@@ -61,12 +61,13 @@ export function pickAt(w: World, x: number, y: number): Selection {
   if (onWarden) return { kind: 'warden' };
   if (enemy) return { kind: 'enemy', id: enemy.id };
   if (tower) return { kind: 'tower', id: tower.id };
-  if (inBounds && isCoreTile(tx, ty)) return { kind: 'core' };
+  if (inBounds && isCoreTile(w, tx, ty)) return { kind: 'core' };
   return null;
 }
 
-function isCoreTile(tx: number, ty: number): boolean {
-  return tx >= CORE_X && tx < CORE_X + CORE_W && ty >= CORE_Y && ty < CORE_Y + CORE_H;
+function isCoreTile(w: World, tx: number, ty: number): boolean {
+  const { tx: ox, ty: oy } = w.grid.coreOrigin();
+  return tx >= ox && tx < ox + CORE_W && ty >= oy && ty < oy + CORE_H;
 }
 
 /**

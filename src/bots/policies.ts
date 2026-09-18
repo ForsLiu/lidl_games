@@ -9,7 +9,7 @@
 import { registerPolicy, type BotPolicy } from './policy';
 import { emptyInput, type TickInput } from '../sim/types';
 import type { World } from '../sim/world';
-import { GRID_H, GRID_W, coreCenter } from '../sim/grid';
+import { GRID_H, GRID_W } from '../sim/grid';
 import { checkBuild, maxLevel, towerCost, upgradeCost } from '../sim/towers';
 import { dist2 } from '../sim/math';
 
@@ -222,7 +222,7 @@ export class BuilderPolicy implements BotPolicy {
       input.cmds.push({ k: 'call' });
     }
     // Sit near the Core and plug leaks by hand.
-    const c = coreCenter();
+    const c = w.grid.coreCenterOf();
     steerTo(input, w, c.x - 2, c.y);
     input.attack = true;
     return input;
@@ -314,7 +314,7 @@ export class BuilderPolicy implements BotPolicy {
   private act2(w: World): TickInput {
     const input = emptyInput();
     if (this.opts.act2 === 'hold') {
-      const c = coreCenter();
+      const c = w.grid.coreCenterOf();
       steerTo(input, w, c.x, c.y);
       return input;
     }
@@ -481,7 +481,7 @@ function walkableAt(w: World, x: number, y: number): boolean {
 
 /** Tiles forming a square ring of the given radius around the Core. */
 export function perimeterTiles(w: World, radius: number): [number, number][] {
-  const c = coreCenter();
+  const c = w.grid.coreCenterOf();
   const cx = Math.floor(c.x);
   const cy = Math.floor(c.y);
   const out: [number, number][] = [];
@@ -505,7 +505,7 @@ export function perimeterTiles(w: World, radius: number): [number, number][] {
  */
 export function rankSites(w: World): Site[] {
   const lanes = laneTiles(w);
-  const core = coreCenter();
+  const core = w.grid.coreCenterOf();
   const seen = new Set<number>();
   const sites: Site[] = [];
   for (const li of lanes) {

@@ -6,7 +6,6 @@ import { Rng } from '../src/sim/rng';
 import { emptyInput, type Command, type RunConfig, type RunReport, type TickInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
-import { coreCenter } from '../src/sim/grid';
 import type { World } from '../src/sim/world';
 
 export function cfg(over: Partial<RunConfig> = {}): RunConfig {
@@ -87,7 +86,7 @@ function aimPoint(w: World): { x: number; y: number } {
   const wd = w.warden;
   const t = w.nearestEnemy(wd.x, wd.y, 40);
   if (t) return { x: t.x, y: t.y };
-  const c = coreCenter();
+  const c = w.grid.coreCenterOf();
   return { x: c.x, y: c.y };
 }
 
@@ -132,7 +131,7 @@ export function scriptClassKit(w: World, input: TickInput): void {
 export function buyCoreUpgrades(w: World, input: TickInput): void {
   const stepCount = w.content.coreByKey.get(w.coreKey)?.upgrade.count ?? 0;
   if ((w.phase === 'act1_build' || w.phase === 'act1_wave') && w.coreStep < stepCount) {
-    const center = coreCenter();
+    const center = w.grid.coreCenterOf();
     w.warden.x = center.x;
     w.warden.y = center.y;
     input.cmds.push({ k: 'upgrade_core' });
@@ -377,7 +376,7 @@ export function buyCoreUpgradesImperfect(
     w.coreStep < stepCount &&
     w.gold >= (def?.upgrade.stepCost ?? Infinity);
   if (reactionReady(w, rng, missChance, state, 'coreReadySince', 'coreDelay', nowReady)) {
-    const center = coreCenter();
+    const center = w.grid.coreCenterOf();
     w.warden.x = center.x;
     w.warden.y = center.y;
     input.cmds.push({ k: 'upgrade_core' });

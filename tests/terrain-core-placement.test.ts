@@ -558,16 +558,19 @@ describe('Grid.placeCore (fb064h)', () => {
   });
 });
 
-describe('the readers that have not migrated off CORE_X/CORE_Y yet (fb064h)', () => {
+describe('the readers that had not migrated off CORE_X/CORE_Y yet (fb064h), now migrated (fb130)', () => {
   it('placeCore moves the Grid and leaves the module-level coreCenter() behind', () => {
     // Not an assertion that this is *right* — it is the shape of the hazard,
-    // written down. `coreCenter()` and the CORE_X/CORE_Y clamps in cores.ts,
+    // written down, and still true after fb130: `coreCenter()`/`CORE_X`/
+    // `CORE_Y` remain a fixed *default*, on purpose (grid.ts's own doc
+    // comments), for the handful of call sites (`wardenSpawnTile`, the
+    // module-level default itself) that genuinely only ever run before any
+    // Core placement Command can fire. Every *live* reader — cores.ts,
     // enemies.ts, world.ts, run.ts, sundering.ts, bots/policies.ts, the
-    // renderer and ui/selection.ts are all outside this lane's Scope, so
-    // fb064c migrates them to `coreCenterOf()` and only then is `placeCore`
-    // safe to call from a run: until it does, the flow field would target the
-    // new Core while every damage and range check clamped to the old one.
-    // This test is what makes that a recorded deferral instead of a surprise.
+    // renderer and ui/selection.ts — migrated to `grid.coreOrigin()`/
+    // `coreCenterOf()` at fb130, which is what makes `placeCore` safe to call
+    // from a run: the flow field, every damage/range check and the placement
+    // Command's own validator now all read the same live Core.
     const g = new Grid();
     g.placeCore(3, 3);
     g.refresh();
@@ -576,15 +579,22 @@ describe('the readers that have not migrated off CORE_X/CORE_Y yet (fb064h)', ()
     // The free function still answers about the default, 22 tiles away.
     expect(coreCenter()).toEqual({ x: CORE_X + CORE_W / 2, y: CORE_Y + CORE_H / 2 });
     expect(coreCenter()).not.toEqual(g.coreCenterOf());
-    // The two agree exactly while the Core has not moved, which is what makes
-    // fb064c's migration a mechanical call-site swap.
+    // The two agree exactly while the Core has not moved, which is what made
+    // fb130's migration a mechanical call-site swap rather than a redesign.
     expect(coreCenter()).toEqual(new Grid().coreCenterOf());
   });
 
-  it('nothing in the shipped sim calls placeCore yet', async () => {
-    // The deferral above is only safe while that is true. Reading the files
-    // rather than trusting the comment: this goes red the moment a call site
-    // appears without the migration, which is the whole risk.
+  it('the only shipped .placeCore( caller outside grid.ts is the fb130 place_core Command', async () => {
+    // fb064h's version of this test pinned the *pre*-migration deferral: zero
+    // callers anywhere, because calling `placeCore` before the migration
+    // would silently desync the flow field from every clamped damage/range
+    // check. fb130 completed that migration and wired the one legitimate
+    // caller — `placeCoreCommand` (`src/sim/cores.ts`), reached only through
+    // the `place_core` sim Command (architecture rule 3) — so the tripwire
+    // now pins the *post*-migration shape instead: exactly that one file, not
+    // zero, and not some other direct `grid.placeCore(...)` mutation that
+    // bypasses the Command surface (a UI-only edit bots/replays could not
+    // reproduce).
     const { readdirSync, readFileSync, statSync } = await import('node:fs');
     const { join, sep } = await import('node:path');
     const hits: string[] = [];
@@ -595,13 +605,13 @@ describe('the readers that have not migrated off CORE_X/CORE_Y yet (fb064h)', ()
         else if (p.endsWith('.ts')) {
           // The declaring file itself is the one legitimate mention.
           if (p.split(sep).join('/').endsWith('src/sim/grid.ts')) continue;
-          if (/\.placeCore\s*\(/.test(readFileSync(p, 'utf8'))) hits.push(p);
+          if (/\.placeCore\s*\(/.test(readFileSync(p, 'utf8'))) hits.push(p.split(sep).join('/'));
         }
       }
     };
     walk('src');
     walk('tools');
-    expect(hits).toEqual([]);
+    expect(hits).toEqual(['src/sim/cores.ts']);
   });
 });
 

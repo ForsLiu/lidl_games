@@ -8,14 +8,13 @@
  * moment its block's VS wave ends.
  */
 
-import { coreCenter } from './grid';
 import { markAuraDirty } from './towers';
 import { applyTerrainPassives } from './weapons';
 import { World } from './world';
 
 export function finishSundering(w: World): void {
   petrify(w);
-  const c = coreCenter();
+  const c = w.grid.coreCenterOf();
   w.heartstoneX = c.x;
   w.heartstoneY = c.y;
   w.warden.x = c.x;
@@ -107,7 +106,7 @@ export function restartVsBlock(w: World): void {
  * guarantees a route exists without physically bulldozing the maze).
  */
 export function petrify(w: World): void {
-  const c = coreCenter();
+  const c = w.grid.coreCenterOf();
   for (const s of w.structures) {
     if (s.dead) continue;
     s.petrified = true;
