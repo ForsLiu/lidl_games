@@ -146,12 +146,13 @@ export function applyDamageSplit(
   // reaches every share, and through `hashWorld` reaches A11 (QUESTIONS Q63).
   const keys = Object.keys(ratio).sort();
   let weight = 0;
-  for (const k of keys) weight += ratio[k];
+  for (const k of keys) weight += ratio[k] ?? 0;
   if (weight <= 0) return 0;
   let dealt = 0;
   for (const k of keys) {
-    if (ratio[k] <= 0) continue;
-    dealt += applyDamageType(w, e, k, (amount * ratio[k]) / weight, source, opts);
+    const share = ratio[k] ?? 0;
+    if (share <= 0) continue;
+    dealt += applyDamageType(w, e, k, (amount * share) / weight, source, opts);
   }
   return dealt;
 }

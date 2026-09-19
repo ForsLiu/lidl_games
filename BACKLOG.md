@@ -5074,6 +5074,32 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Fixed: detect `err.killed`/`err.signal`, retry up to 3 attempts at
       90s each, and throw a distinguishable error instead of trusting
       partial output on final failure.
+    - **Ratchet shrunk further 2026-09-19**: fixed 8 more files with real
+      guards — `src/sim/damagetypes.ts` (`applyDamageSplit`'s weighted-share
+      loop, `?? 0` on each ratio read), `src/sim/terrain/generate.ts`
+      (`scatter`'s frontier-pick destructure, `sealPockets`'s tile lookup,
+      `terrainHash`'s per-tile fold — all `?? 0`/optional-chaining guards on
+      indices already proven in-range by their loop bounds),
+      `src/sim/terrain/overlay.ts` (`terrainOverlay` now checks `k ===
+      undefined` explicitly alongside its existing out-of-range check),
+      `src/sim/tiers.ts` (`modifierDraft`/`autoDraft`/`hardestDraft`: throw
+      on an option-pool index that the surrounding invariant already rules
+      out, rather than assuming it), `src/ui/audit-hook.ts`
+      (`forceStatusShowcase`'s dev status-showcase hook skips a status
+      application if its picked target is undefined — mathematically never
+      true given the preceding `live.length === 0` guard), `src/ui/codex.ts`
+      (row-click wiring and initial-collection selection skip/continue on an
+      undefined row/collection), `src/ui/dps-panel.ts` (`totalOf`/`rows`:
+      `?? 0` defaults reading a `byKey` record), `src/ui/tuner-fields.ts`
+      (`renderObjectFields` skips an undefined shape entry,
+      `applyFieldChange` breaks/no-ops on an undefined path segment).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 8; `npx tsc --noEmit` (main config) stays clean;
+      `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped; `npm run sim -- --seed 1 --policy hybrid` gives the identical
+      `endHash` (`d6452f98`) before and after, confirming no behavior
+      drift. 218 → **210 files remain** on the allowlist. code-reviewer/
+      qa-playtester passes queued; outcome to follow in a post-review note.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

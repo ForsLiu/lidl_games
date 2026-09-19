@@ -91,18 +91,21 @@ function sourceLabel(w: World, key: string): string {
 
 function totalOf(byKey: Record<string, number>): number {
   let total = 0;
-  for (const k of Object.keys(byKey)) total += byKey[k];
+  for (const k of Object.keys(byKey)) total += byKey[k] ?? 0;
   return total;
 }
 
 function rows(w: World, byKey: Record<string, number>, seconds: number): DpsRow[] {
   return Object.keys(byKey)
-    .map((key) => ({
-      key,
-      label: sourceLabel(w, key),
-      damage: byKey[key],
-      dps: seconds > 0 ? byKey[key] / seconds : 0,
-    }))
+    .map((key) => {
+      const damage = byKey[key] ?? 0;
+      return {
+        key,
+        label: sourceLabel(w, key),
+        damage,
+        dps: seconds > 0 ? damage / seconds : 0,
+      };
+    })
     .sort((a, b) => b.damage - a.damage || a.key.localeCompare(b.key));
 }
 

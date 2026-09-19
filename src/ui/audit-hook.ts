@@ -164,12 +164,18 @@ export function installAuditHook(bridge: AuditBridge): void {
       if (live.length === 0) return;
       const pick = (i: number) => live[i % live.length];
       const LONG = 30;
-      applyDot(w, pick(0), 'bleeding', 20, LONG, 'audit');
-      applyDot(w, pick(1), 'poison', 20, LONG, 'audit');
-      applyDot(w, pick(2), 'toxic', 20, LONG, 'audit');
-      applyDot(w, pick(3), 'burning', 20, LONG, 'audit');
-      applyFrost(w, pick(4));
-      applyFrozen(w, pick(5));
+      const bleedTarget = pick(0);
+      const poisonTarget = pick(1);
+      const toxicTarget = pick(2);
+      const burnTarget = pick(3);
+      const frostTarget = pick(4);
+      const frozenTarget = pick(5);
+      if (bleedTarget) applyDot(w, bleedTarget, 'bleeding', 20, LONG, 'audit');
+      if (poisonTarget) applyDot(w, poisonTarget, 'poison', 20, LONG, 'audit');
+      if (toxicTarget) applyDot(w, toxicTarget, 'toxic', 20, LONG, 'audit');
+      if (burnTarget) applyDot(w, burnTarget, 'burning', 20, LONG, 'audit');
+      if (frostTarget) applyFrost(w, frostTarget);
+      if (frozenTarget) applyFrozen(w, frozenTarget);
     },
     forceDefeat(_kind) {
       const w = bridge.world();

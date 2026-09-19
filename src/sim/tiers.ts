@@ -72,6 +72,7 @@ export function modifierDraft(content: Content, seed: number, tier: number): Dra
   for (let slot = 0; slot < slots && pool.length >= 2; slot++) {
     const a = pool.splice(rng.int(pool.length), 1)[0];
     const b = pool.splice(rng.int(pool.length), 1)[0];
+    if (!a || !b) throw new Error('modifierDraft: pool exhausted unexpectedly');
     offers.push({ slot, options: [a, b] });
   }
   return offers;
@@ -80,13 +81,19 @@ export function modifierDraft(content: Content, seed: number, tier: number): Dra
 /** What an unattended bot takes: one option per slot, chosen on the same stream. */
 export function autoDraft(content: Content, seed: number, tier: number): string[] {
   const rng = new Rng(fnv1a(`${DRAFT_PICK_STREAM}:${tier}`, seed >>> 0));
-  return modifierDraft(content, seed, tier).map((o) => o.options[rng.int(o.options.length)].key);
+  return modifierDraft(content, seed, tier).map((o) => {
+    const pick = o.options[rng.int(o.options.length)];
+    if (!pick) throw new Error('modifierDraft returned an empty options slot');
+    return pick.key;
+  });
 }
 
 /** The harshest option in each slot — used to check the top of the ladder. */
 export function hardestDraft(content: Content, seed: number, tier: number): string[] {
   return modifierDraft(content, seed, tier).map((o) => {
-    let worst = o.options[0];
+    const first = o.options[0];
+    if (!first) throw new Error('modifierDraft returned an empty options slot');
+    let worst = first;
     for (const m of o.options) if (severity(m) > severity(worst)) worst = m;
     return worst.key;
   });
