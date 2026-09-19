@@ -93,7 +93,9 @@ function renderObjectFields(
   group.className = 'sw-tuner-field-group';
   let any = false;
   for (const key of Object.keys(shape)) {
-    const field = renderField(shape[key], obj[key], [...path, key], key, onChange);
+    const fieldSchema = shape[key];
+    if (!fieldSchema) continue;
+    const field = renderField(fieldSchema, obj[key], [...path, key], key, onChange);
     if (field) {
       group.appendChild(field);
       any = true;
@@ -241,11 +243,13 @@ export function applyFieldChange(doc: unknown, path: FieldPath, value: unknown):
   let cursor: Record<string | number, unknown> = clone;
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i];
+    if (key === undefined) break; // unreachable: i < path.length - 1
     if (cursor[key] === undefined || cursor[key] === null) {
       cursor[key] = typeof path[i + 1] === 'number' ? [] : {};
     }
     cursor = cursor[key] as Record<string | number, unknown>;
   }
-  cursor[path[path.length - 1]] = value;
+  const lastKey = path[path.length - 1];
+  if (lastKey !== undefined) cursor[lastKey] = value;
   return clone;
 }

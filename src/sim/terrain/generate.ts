@@ -182,8 +182,11 @@ function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): U
       let grown = 0;
       while (frontier.length > 0 && grown < size && placed < target) {
         const pick = rng.int(frontier.length);
-        const [x, y] = frontier[pick];
-        frontier[pick] = frontier[frontier.length - 1];
+        const cell = frontier[pick];
+        if (!cell) break; // unreachable: pick is drawn in [0, frontier.length)
+        const [x, y] = cell;
+        const last = frontier[frontier.length - 1];
+        if (last) frontier[pick] = last; // unreachable: frontier.length > 0 here
         frontier.pop();
         if (!free(x, y)) continue;
         kind[y * GRID_W + x] = value;
@@ -289,7 +292,12 @@ function sealPockets(kind: Uint8Array, cfg: TerrainConfig, gates: readonly GateD
   const view: TerrainGrid = { w: GRID_W, h: GRID_H, kind };
   const seen = walkableFlood(view, cfg, gateIndices(view, gates));
   for (let i = 0; i < kind.length; i++) {
-    if (!seen[i] && cfg.tiles[kind[i]].walkable) kind[i] = TerrainKind.Rock;
+    // An out-of-range tile value reads as not-walkable, matching config.ts's own
+    // isWalkable/isBuildable/isHighGround convention (cfg.tiles[kind]?.flag) —
+    // unlike overlay.ts's loader-boundary throw, this runs on kind values this
+    // same generator just wrote, never on externally-supplied data.
+    const tile = cfg.tiles[kind[i] ?? TerrainKind.Normal];
+    if (!seen[i] && tile?.walkable) kind[i] = TerrainKind.Rock;
   }
 }
 
@@ -298,7 +306,7 @@ export function terrainHash(seed: number, kind: Uint8Array): string {
   const h = new Hasher();
   h.int(seed | 0);
   h.int(GRID_W).int(GRID_H);
-  for (let i = 0; i < kind.length; i++) h.int(kind[i]);
+  for (let i = 0; i < kind.length; i++) h.int(kind[i] ?? 0);
   return h.hex();
 }
 

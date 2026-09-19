@@ -5,6 +5,16 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-19 (scheduled routine) — fb133 ratchet shrunk 218 → 210.** Fixed
+  8 more files with real guards (`src/sim/damagetypes.ts`,
+  `src/sim/terrain/generate.ts`, `src/sim/terrain/overlay.ts`,
+  `src/sim/tiers.ts`, `src/ui/audit-hook.ts`, `src/ui/codex.ts`,
+  `src/ui/dps-panel.ts`, `src/ui/tuner-fields.ts`) and removed them from
+  `KNOWN_UNCHECKED_ACCESS_FILES`; details in BACKLOG.md's fb133 entry.
+  `npx tsc --noEmit` (main config) clean, `npm run test:fast` unchanged at
+  315/4548 green, `npm run sim -- --seed 1 --policy hybrid` endHash
+  unchanged (`d6452f98`) confirming no behavior drift. code-reviewer/
+  qa-playtester dispatched; outcome recorded in a follow-up commit.
 - **2026-09-19 (later) — main lane: fb133's "hard blocker" broken — a
   ratchet, not a flag flip, was the way through.** The wall documented in
   the entry directly below (and the two before it) was real for a *global*

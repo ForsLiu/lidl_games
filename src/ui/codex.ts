@@ -168,11 +168,14 @@ export function mountCodex(
       if (bodyRows) {
         for (let i = 0; i < bodyRows.length; i++) {
           const tr = bodyRows[i];
+          if (!tr) continue;
           tr.classList.add('sw-codex-row-clickable');
           tr.addEventListener('click', () => {
+            const row = collection.rows[i];
+            if (!row) return;
             for (const other of bodyRows) other.classList.remove('active');
             tr.classList.add('active');
-            detail.innerHTML = collection.renderDetail!(collection.rows[i]);
+            detail.innerHTML = collection.renderDetail!(row);
           });
         }
       }
@@ -198,7 +201,8 @@ export function mountCodex(
   root.appendChild(nav);
   root.appendChild(content);
 
-  if (collections.length > 0) show(collections[0]);
+  const firstCollection = collections[0];
+  if (firstCollection) show(firstCollection);
 
   return {
     // QA-filed: post-destroy, `nav`/`content` are detached from `root` but the

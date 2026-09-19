@@ -29,7 +29,7 @@ export function terrainOverlay(map: TerrainGrid, cfg: TerrainConfig): TerrainOve
   const charBlock = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
     const k = map.kind[i];
-    if (k >= cfg.tiles.length) {
+    if (k === undefined || k >= cfg.tiles.length) {
       throw new Error(`terrainOverlay: tile ${i} has kind ${k}, no such tile in data/terrain.json`);
     }
     kind[i] = k;

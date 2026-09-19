@@ -18,12 +18,15 @@
  *     must remove its own entry here, so the list can only shrink on
  *     purpose, never drift stale.
  *
- * 18 files (23 sites) were fixed with real guards in the same commit that
- * added this test (`??` defaults, `.charAt(0)` instead of `s[0]`, narrowing
- * checks before a lookup) — see PROGRESS.md/BACKLOG.md fb133 for the list.
- * The remaining 218 are exactly the flag's current honest floor; shrink this
- * list as they're fixed, do not add to it without a reason logged in
- * BACKLOG.md.
+ * 18 files (23 sites) were fixed with real guards in the commit that added
+ * this test, then 8 more (`src/sim/damagetypes.ts`, `src/sim/terrain/
+ * generate.ts`, `src/sim/terrain/overlay.ts`, `src/sim/tiers.ts`,
+ * `src/ui/audit-hook.ts`, `src/ui/codex.ts`, `src/ui/dps-panel.ts`,
+ * `src/ui/tuner-fields.ts`) in a follow-up session (`??` defaults,
+ * pre-checked guards before a lookup, `.charAt(0)` instead of `s[0]`) — see
+ * PROGRESS.md/BACKLOG.md fb133 for the lists. The remaining 210 are exactly
+ * the flag's current honest floor; shrink this list as they're fixed, do
+ * not add to it without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +42,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/render/theme.ts',
   'src/sim/act2.ts',
   'src/sim/classes.ts',
-  'src/sim/damagetypes.ts',
   'src/sim/enemies.ts',
   'src/sim/grid.ts',
   'src/sim/rng.ts',
@@ -48,16 +50,9 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/terrain/analyze.ts',
   'src/sim/terrain/config.ts',
   'src/sim/terrain/describe.ts',
-  'src/sim/terrain/generate.ts',
-  'src/sim/terrain/overlay.ts',
   'src/sim/terrain/path.ts',
-  'src/sim/tiers.ts',
   'src/sim/world.ts',
-  'src/ui/audit-hook.ts',
   'src/ui/character-panel.ts',
-  'src/ui/codex.ts',
-  'src/ui/dps-panel.ts',
-  'src/ui/tuner-fields.ts',
   'tests/a1-run-length.test.ts',
   'tests/a4-single-type.test.ts',
   'tests/a7-turtle-check.test.ts',
