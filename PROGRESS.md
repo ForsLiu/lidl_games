@@ -5,7 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-19 (scheduled routine, later) — fb133 ratchet shrunk 210 → 203.**
+- **2026-09-19 (scheduled routine, later) — fb133 ratchet shrunk 210 → 205.**
+  Fixed the remaining `noUncheckedIndexedAccess` errors in 5 more files with
+  real guards and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`:
+  `src/ui/character-panel.ts` (`?? ''` defaults on a `source.split(':')`
+  segment used as a map key across `class`/`boon`/`core`/`equipment` source
+  labels, `?? 0` on a boon's rank read), `src/sim/rng.ts` (`pick`/`shuffle`/
+  `sample` now throw on an index a bounded loop already guarantees is
+  in-range instead of assuming it — qa-playtester confirmed this also closes
+  a real latent gap: `pick` on an empty array previously returned `undefined`
+  silently), `src/render/canvas.ts` (a `TerrainKind.Normal` default for an
+  out-of-range terrain-kind read that matches the grid's own zero-fill, plus
+  unreachable-by-construction guards in `drawPathIndicators`), `src/render/
+  colorblind-sim.ts` (retyped `CVD_MATRIX` from `Record<CvdMode, readonly
+  [number,number,number][]>` to a real 3-tuple-of-3-tuples so each row/column
+  index keeps its static type instead of widening to `|undefined` — no
+  runtime guard needed, code-reviewer confirmed this is the correct fix, not
+  just a checker-silencer), `src/render/theme.ts` (new `classVfx()` helper,
+  throws if `CLASS_VFX[key]` is missing for one of the 9 classes `STYLES`
+  keys off — matches `src/sim/tiers.ts`'s already-landed "throw on an
+  invariant the code already guarantees" pattern from the same fb133
+  effort). Full-tier code-reviewer APPROVE (two Minor/Nit: a `parseInt(m[1]
+  ?? '', 16)` fallback in `colorblind-sim.ts`/`theme.ts` was inconsistent
+  with this batch's own throw/return-default convention for an unreachable
+  regex-capture-group miss — fixed to an explicit `m[1] === undefined` check
+  before commit; a `character-panel.ts` degenerate-input nit left as-is,
+  unreachable in practice and arguably an improvement over printing the
+  literal string "undefined"). qa-playtester PASS — independently confirmed
+  via `git stash` that `npm run sim -- --seed 1 --policy hybrid` gives the
+  identical `endHash` (`d6452f98`) before and after, grepped every real
+  `pick`/`shuffle`/`sample` call site in `/src` and `/tools` for a reachable
+  empty-array case (none found), and confirmed all 9 `STYLES` class keys
+  exist in `CLASS_VFX`. `npx tsc --noEmit` (main config) clean; `npm run
+  test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped. 210 →
+  **205 files remain** on the allowlist. — refs: BACKLOG.md fb133 Log.
+- **2026-09-19 (scheduled routine, later, independently) — fb133 ratchet
+  shrunk 210 → 203.**
   Fixed 7 more files with real guards (not `!`): `src/sim/rng.ts` (`pick`/
   `shuffle`/`sample`/`weightedIndex` — throw on a truly-unreachable empty-
   array pick or shuffle swap, `?? NaN`/`continue` where a loop bound already
@@ -45,6 +80,14 @@
   hardcoded-not-data-driven `REQUIRED_FLAGS`/`TERRAIN_KEYS`, a live
   Contagious Flame sim scenario) — no bugs filed. — refs: BACKLOG.md fb133
   Log.
+- **2026-09-19 (integrator merge reconcile) — fb133 ratchet shrunk 210 →
+  202.** The two entries above ran as concurrent sessions that overlapped on
+  4 files (`rng.ts`, `character-panel.ts`, `canvas.ts`, `theme.ts`, both
+  functionally equivalent fixes); merged keeping the 203-floor session's
+  style for those plus its 3 exclusive fixes, and keeping the 205-floor
+  session's exclusive fix (`colorblind-sim.ts`, not touched by the other
+  session). Union of both leaves 202 files on the allowlist — see
+  BACKLOG.md fb133 Log.
 - **2026-09-19 (scheduled routine) — fb133 ratchet shrunk 218 → 210.** Fixed
   8 more files with real guards (`src/sim/damagetypes.ts`,
   `src/sim/terrain/generate.ts`, `src/sim/terrain/overlay.ts`,

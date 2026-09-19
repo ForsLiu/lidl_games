@@ -2256,7 +2256,7 @@ export class Renderer {
       if (path.length < 2) continue;
       // gi % GATE_PATH_COLORS.length is always a valid index (theme.ts's own invariant);
       // the fallback below is unreachable.
-      const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length] ?? '#7ecbff';
+      const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length] ?? PALETTE.pathBreach;
       ctx.setLineDash([6, 5]);
       for (let i = 1; i < path.length; i++) {
         // i is bounded by the loop condition, so both path indices are valid.

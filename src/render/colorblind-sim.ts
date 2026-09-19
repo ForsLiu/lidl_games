@@ -23,7 +23,12 @@
 export const CVD_MODES = ['protanopia', 'deuteranopia', 'tritanopia'] as const;
 export type CvdMode = (typeof CVD_MODES)[number];
 
-const CVD_MATRIX: Record<CvdMode, readonly [number, number, number][]> = {
+type CvdRow = readonly [number, number, number];
+type CvdMatrix = readonly [CvdRow, CvdRow, CvdRow];
+
+// A 3-tuple of 3-tuples (not `readonly number[][]`) so each row/column index
+// below stays statically in range instead of widening to `| undefined`.
+const CVD_MATRIX: Record<CvdMode, CvdMatrix> = {
   protanopia: [
     [0.56667, 0.43333, 0],
     [0.55833, 0.44167, 0],
@@ -53,7 +58,7 @@ function linearToSrgb(v: number): number {
 
 export function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!m) throw new Error(`not a #rrggbb color: "${hex}"`);
+  if (!m || m[1] === undefined) throw new Error(`not a #rrggbb color: "${hex}"`);
   const n = parseInt(m[1], 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
@@ -65,7 +70,10 @@ function rgbToHex([r, g, b]: readonly [number, number, number]): string {
 
 /** Simulates how `hex` would appear to a viewer with the given deficiency. */
 export function simulateCvd(hex: string, mode: CvdMode): string {
-  const [r, g, b] = hexToRgb(hex).map(srgbToLinear);
+  const rgb = hexToRgb(hex);
+  const r = srgbToLinear(rgb[0]);
+  const g = srgbToLinear(rgb[1]);
+  const b = srgbToLinear(rgb[2]);
   const m = CVD_MATRIX[mode];
   const out: [number, number, number] = [
     m[0][0] * r + m[0][1] * g + m[0][2] * b,
@@ -99,10 +107,14 @@ export function auditDistinguishability(
 ): DistinguishabilityViolation[] {
   const violations: DistinguishabilityViolation[] = [];
   for (let i = 0; i < colors.length; i++) {
+    const a = colors[i];
+    if (!a) continue;
     for (let j = i + 1; j < colors.length; j++) {
-      const distance = colorDistance(colors[i].color, colors[j].color);
+      const b = colors[j];
+      if (!b) continue;
+      const distance = colorDistance(a.color, b.color);
       if (distance < minDistance) {
-        violations.push({ keyA: colors[i].key, keyB: colors[j].key, distance });
+        violations.push({ keyA: a.key, keyB: b.key, distance });
       }
     }
   }
