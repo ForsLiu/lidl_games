@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-19 — main lane: routine exit, hard blocker persists — fb133 is
+  still BACKLOG.md's sole open owner-directed item, re-confirmed
+  unattemptable within the loop contract.** feedback/ is empty (nothing new
+  to process). Re-measured fresh rather than trusting yesterday's number
+  (measurement rules: re-measure a deferral before inheriting it): after
+  `npm ci` (node_modules was absent in this container), temporarily flipped
+  `noUncheckedIndexedAccess` on in `tsconfig.json` and ran `npx tsc
+  --noEmit` — identical **1806** `error TS` diagnostics across the same
+  files (`tests/p2b-wielded-fire.test.ts` 90, `src/sim/enemies.ts` 56,
+  `tests/p2c-vs-specials.test.ts` 55, `tests/fb037-vs-panel.test.ts` 49,
+  `src/sim/run.ts` 39, `src/sim/grid.ts` 29, `src/sim/world.ts` 25,
+  `src/sim/terrain/analyze.ts` 25, plus others not previously listed).
+  Reverted the tsconfig edit immediately after measuring (`git diff` clean).
+  Confirms this is a genuine, stable hard blocker, not a stale measurement:
+  a real-guards fix at this scale still does not fit one loop-contract
+  item's 45-minute/6-item budget, and this routine's standing instruction
+  ("never generate new backlog items while owner-directed ones exist") still
+  forbids splitting fb133 into the scoped per-file/per-directory follow-ups
+  its own Log entry says it needs. Checked all four backlog files per the
+  routine's completion-check rule: BACKLOG-CONTENT.md (fb056/fb057/fb059/
+  fb061), BACKLOG-TERRAIN.md (fb064c/fb064e/fb064f) and BACKLOG-UI.md
+  (fb151/fb160) each still carry open owner-directed items too, all already
+  logged as blocked/out-of-scope for their own lanes — so the "all owner
+  feedback complete" notification condition does not hold either. Made no
+  code changes; this is the second consecutive day this exact wall has been
+  hit with zero forward progress possible under current constraints — owner
+  notified. — refs: BACKLOG.md fb133 Log.
+
 - **2026-09-18 — main lane: routine exit, hard blocker — no workable
   owner-directed item in BACKLOG.md.** fb133 is the sole open `- [ ]` item
   in BACKLOG.md's main lane; it was already attempted and reverted twice
