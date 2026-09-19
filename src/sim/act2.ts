@@ -44,6 +44,7 @@ export function timeHpScale(w: World): number {
 function weightsFor(w: World, minute: number): Record<string, number> {
   const rows = w.content.spawns.weightsByMinute;
   let chosen = rows[0];
+  if (chosen === undefined) throw new Error('weightsFor: weightsByMinute is empty');
   for (const r of rows) if (r.minute <= minute) chosen = r;
   const out: Record<string, number> = { ...chosen.weights };
   // Unseen Ways: the burrow/phase enemies get much more common.
@@ -106,6 +107,7 @@ function gateSpawn(w: World): { x: number; y: number } | null {
   for (const requireDistance of [true, false]) {
     for (let i = 0; i < gates.length; i++) {
       const gate = gates[((w.vsGateCursor | 0) + i) % gates.length];
+      if (gate === undefined) throw new Error('gateSpawn: gate index out of range');
       if (requireDistance && dist2(gate.tx + 0.5, gate.ty + 0.5, w.warden.x, w.warden.y) < minDist * minDist) {
         continue;
       }
@@ -209,7 +211,10 @@ export function updateDirector(w: World, dt: number): void {
   }
 
   const riftTimes = expandedRiftTimes(w);
-  while (w.riftIndex < riftTimes.length && w.act2Time >= riftTimes[w.riftIndex]) {
+  while (w.riftIndex < riftTimes.length) {
+    const t = riftTimes[w.riftIndex];
+    if (t === undefined) throw new Error('act2: rift index out of range');
+    if (w.act2Time < t) break;
     w.riftIndex++;
     // A Rift is a burst by design: a collapsed gate tears open (SPEC 5.1).
     spendBudget(w, budgetFor(w) * sp.riftBudgetMultiplier);
@@ -259,9 +264,11 @@ export function expandedRiftTimes(w: World): number[] {
   if (w.mods.riftMul <= 1) return base;
   const out: number[] = [];
   for (let i = 0; i < base.length; i++) {
-    out.push(base[i]);
-    const prev = i === 0 ? 0 : base[i - 1];
-    out.push(Math.round((prev + base[i]) / 2));
+    const b = base[i];
+    if (b === undefined) throw new Error('expandedRiftTimes: index out of range');
+    out.push(b);
+    const prev = i === 0 ? 0 : (base[i - 1] ?? 0);
+    out.push(Math.round((prev + b) / 2));
   }
   out.sort((a, b) => a - b);
   return out;
@@ -274,7 +281,7 @@ function spendBudget(w: World, budget: number): number {
   const weights = weightsFor(w, minute);
   const keys = Object.keys(weights).sort();
   if (keys.length === 0) return budget;
-  const wArr = keys.map((k) => weights[k]);
+  const wArr = keys.map((k) => weights[k] ?? 0);
   const hpMul = timeHpScale(w);
   let cheapest = Infinity;
   for (const k of keys) cheapest = Math.min(cheapest, sp.costs[k] ?? 5);
@@ -285,6 +292,7 @@ function spendBudget(w: World, budget: number): number {
     if (w.enemies.length >= sp.aliveCap) return 0;
     const idx = w.rng.spawns.weightedIndex(wArr);
     let key = keys[idx];
+    if (key === undefined) throw new Error('spendBudget: weightedIndex out of range');
     if ((sp.costs[key] ?? 5) > left) {
       // Too expensive right now: fall back to the cheapest affordable option.
       let alt: string | null = null;
@@ -311,9 +319,11 @@ function spawnElite(w: World): void {
   const weights = w.content.spawns.eliteWeights;
   const keys = Object.keys(weights).sort();
   if (keys.length === 0) return;
-  const idx = w.rng.spawns.weightedIndex(keys.map((k) => weights[k]));
-  const p = pickSpawnPoint(w, keys[idx]);
-  spawnEnemy(w, keys[idx], p.x, p.y, { hpMul: timeHpScale(w), elite: true, overlay: true });
+  const idx = w.rng.spawns.weightedIndex(keys.map((k) => weights[k] ?? 0));
+  const key = keys[idx];
+  if (key === undefined) throw new Error('spawnElite: weightedIndex out of range');
+  const p = pickSpawnPoint(w, key);
+  spawnEnemy(w, key, p.x, p.y, { hpMul: timeHpScale(w), elite: true, overlay: true });
   w.emit('elite', p.x, p.y, 0, 0);
 }
 

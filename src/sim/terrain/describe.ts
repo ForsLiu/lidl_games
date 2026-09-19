@@ -279,10 +279,10 @@ export function describeTerrain(
     // `JSON.parse`d grid can arrive with a plain array that does, and both
     // failure modes are silent: `0.5` writes the string `undefined` into a row,
     // `-1` dumps a histogram of all zeroes.
-    if (!Number.isInteger(k) || k < 0 || k >= GLYPH_BY_KIND.length) {
+    if (k === undefined || !Number.isInteger(k) || k < 0 || k >= GLYPH_BY_KIND.length) {
       throw new Error(`describeTerrain: tile ${i} has kind ${k}, no such tile kind`);
     }
-    counts[k]++;
+    counts[k] = (counts[k] ?? 0) + 1;
   }
 
   const m = measureTerrain(map, cfg, gates);
@@ -318,7 +318,12 @@ export function describeTerrain(
   lines.push('map');
   for (let y = 0; y < map.h; y++) {
     let row = '';
-    for (let x = 0; x < map.w; x++) row += GLYPH_BY_KIND[map.kind[y * map.w + x]];
+    for (let x = 0; x < map.w; x++) {
+      const tk = map.kind[y * map.w + x];
+      const glyph = tk === undefined ? undefined : GLYPH_BY_KIND[tk];
+      if (glyph === undefined) throw new Error(`describeTerrain: tile ${y * map.w + x} out of range`);
+      row += glyph;
+    }
     lines.push(row);
   }
   return `${lines.join('\n')}\n`;
@@ -427,12 +432,14 @@ function fields(line: string | undefined, head: HeaderName): Map<string, string>
   let prevAt = -1;
   let prevKey = '';
   for (let i = 1; i < parts.length; i++) {
-    const eq = parts[i].indexOf('=');
+    const part = parts[i];
+    if (part === undefined) fail(`malformed field at index ${i} on the "${head}" line`);
+    const eq = part.indexOf('=');
     // `eq <= 0` rejects both `attempts` (no `=`, index -1) and `=5` (empty key,
     // index 0). An empty key would otherwise become a real map entry that no
     // reader looks up, which is a silent way to carry garbage.
-    if (eq <= 0) fail(`malformed field "${parts[i]}" on the "${head}" line`);
-    const key = parts[i].slice(0, eq);
+    if (eq <= 0) fail(`malformed field "${part}" on the "${head}" line`);
+    const key = part.slice(0, eq);
     const at = allowed.indexOf(key);
     // Checked before the duplicate rule so that `bogus=1 bogus=2` reports the
     // real problem (the key is not part of the format) rather than the
@@ -458,7 +465,7 @@ function fields(line: string | undefined, head: HeaderName): Map<string, string>
     }
     prevAt = at;
     prevKey = key;
-    out.set(key, parts[i].slice(eq + 1));
+    out.set(key, part.slice(eq + 1));
   }
   return out;
 }
@@ -566,8 +573,9 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
 
   // `''.split()` yields `['']`, so `lines[0]` is always a string and the header
   // regex is what rejects an empty dump.
-  const dims = /^terrain (\d+)x(\d+)$/.exec(lines[0]);
-  if (dims === null) fail(`expected a "terrain WxH" header, got "${lines[0]}"`);
+  const header = lines[0] ?? '';
+  const dims = /^terrain (\d+)x(\d+)$/.exec(header);
+  if (dims === null) fail(`expected a "terrain WxH" header, got "${header}"`);
   const w = Number(dims[1]);
   const h = Number(dims[2]);
   if (w <= 0 || h <= 0) fail(`degenerate dimensions ${w}x${h}`);
@@ -798,17 +806,22 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
   // one-glyph row used to allocate 4.3 GB and only then discover the row was
   // the wrong length. The rows are the cheap evidence; use them first.
   for (let y = 0; y < h; y++) {
-    if (rows[y].length !== w) fail(`row ${y} is ${rows[y].length} glyphs, header says ${w}`);
+    const row = rows[y];
+    if (row === undefined) fail(`missing row ${y}`);
+    if (row.length !== w) fail(`row ${y} is ${row.length} glyphs, header says ${w}`);
   }
   const kind = new Uint8Array(w * h);
   const seen = new Array<number>(GLYPH_BY_KIND.length).fill(0);
   for (let y = 0; y < h; y++) {
     const row = rows[y];
+    if (row === undefined) fail(`missing row ${y}`);
     for (let x = 0; x < w; x++) {
-      const k = KIND_BY_GLYPH.get(row[x]);
-      if (k === undefined) fail(`row ${y} column ${x} has unknown glyph "${row[x]}"`);
+      const glyph = row[x];
+      if (glyph === undefined) fail(`row ${y} column ${x} is missing`);
+      const k = KIND_BY_GLYPH.get(glyph);
+      if (k === undefined) fail(`row ${y} column ${x} has unknown glyph "${glyph}"`);
       kind[y * w + x] = k;
-      seen[k]++;
+      seen[k] = (seen[k] ?? 0) + 1;
     }
   }
 

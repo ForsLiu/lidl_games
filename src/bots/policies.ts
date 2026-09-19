@@ -153,6 +153,7 @@ export class BuilderPolicy implements BotPolicy {
     // Prune anything that became illegal (someone else took the tile).
     while (this.plan.length > 0) {
       const p = this.plan[0];
+      if (p === undefined) throw new Error('act1: plan[0] read after a length check');
       if (w.grid.buildable(p.tx, p.ty)) break;
       this.plan.shift();
     }
@@ -174,6 +175,7 @@ export class BuilderPolicy implements BotPolicy {
 
     if (this.plan.length > 0) {
       const p = this.plan[0];
+      if (p === undefined) throw new Error('act1: plan[0] read after a length check');
       const def = w.content.towerById.get(p.towerId)!;
       if (w.gold >= towerCost(w, def)) {
         const reason = checkBuild(w, p.towerId, p.tx, p.ty);
@@ -276,7 +278,10 @@ export class BuilderPolicy implements BotPolicy {
       }
       for (let i = 0; i < lead && siteIndex < sites.length; i++) {
         const site = sites[siteIndex++];
-        const def = w.content.towerByKey.get(keys[i % keys.length])!;
+        if (site === undefined) throw new Error('replan: site index out of range');
+        const key = keys[i % keys.length];
+        if (key === undefined) throw new Error('replan: key index out of range');
+        const def = w.content.towerByKey.get(key)!;
         this.plan.push({ towerId: def.id, tx: site.tx, ty: site.ty });
       }
       for (const [tx, ty] of perimeterTiles(w, this.opts.perimeterRadius)) {
@@ -291,14 +296,27 @@ export class BuilderPolicy implements BotPolicy {
     const haveSprouts = w.towersByKey['harvest_sprout'] ?? 0;
     for (let i = haveSprouts; i < this.opts.openingSprouts && siteIndex < sites.length; i++) {
       const s = sites[siteIndex++];
+      if (s === undefined) throw new Error('replan: sprout site index out of range');
       this.plan.push({ towerId: sprout.id, tx: s.tx, ty: s.ty });
     }
 
     let ki = 0;
     for (let i = siteIndex; i < sites.length && this.plan.length < budget; i++) {
       const s = sites[i];
+      if (s === undefined) throw new Error('replan: fill site index out of range');
       const useWall = this.opts.wallRatio > 0 && i % Math.max(2, Math.round(1 / this.opts.wallRatio)) === 0;
-      const def = useWall ? palisade : w.content.towerByKey.get(keys[ki++ % keys.length])!;
+      // `ki` only advances on a non-wall pick, exactly as the original
+      // `useWall ? palisade : ...keys[ki++...]` ternary short-circuited it —
+      // hoisting the `keys[ki++ % keys.length]` read above the ternary would
+      // advance `ki` on wall picks too and desync which key each site gets.
+      let def: { id: number };
+      if (useWall) {
+        def = palisade;
+      } else {
+        const key = keys[ki++ % keys.length];
+        if (key === undefined) throw new Error('replan: fill key index out of range');
+        def = w.content.towerByKey.get(key)!;
+      }
       this.plan.push({ towerId: def.id, tx: s.tx, ty: s.ty });
     }
   }
@@ -392,7 +410,11 @@ export function kiteInput(w: World, state: KiteState = newKiteState()): TickInpu
   const all = w.enemiesInRadius(wd.x, wd.y, THREAT_RADIUS);
   const near: typeof all = [];
   const stride = all.length > 40 ? Math.ceil(all.length / 40) : 1;
-  for (let i = 0; i < all.length; i += stride) near.push(all[i]);
+  for (let i = 0; i < all.length; i += stride) {
+    const e = all[i];
+    if (e === undefined) throw new Error('kiteInput: near index out of range');
+    near.push(e);
+  }
 
   let closest = Infinity;
   for (const e of near) {

@@ -40,14 +40,10 @@ import { describe, expect, it } from 'vitest';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
-  'src/bots/policies.ts',
-  'src/sim/act2.ts',
   'src/sim/enemies.ts',
   'src/sim/grid.ts',
   'src/sim/run.ts',
   'src/sim/terrain/analyze.ts',
-  'src/sim/terrain/describe.ts',
-  'src/sim/terrain/path.ts',
   'src/sim/world.ts',
   'tests/a1-run-length.test.ts',
   'tests/a4-single-type.test.ts',
