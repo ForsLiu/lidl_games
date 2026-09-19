@@ -92,12 +92,12 @@ export function approachField(
     live++;
   };
   const walkable = (x: number, y: number): boolean =>
-    x >= 0 && y >= 0 && x < map.w && y < map.h && isWalkable(cfg, map.kind[y * map.w + x]);
+    x >= 0 && y >= 0 && x < map.w && y < map.h && isWalkable(cfg, map.kind[y * map.w + x] ?? -1);
 
   for (const s of sources) {
     if (!Number.isInteger(s) || s < 0 || s >= n) continue;
     if (dist[s] === 0) continue;
-    if (!isWalkable(cfg, map.kind[s])) continue;
+    if (!isWalkable(cfg, map.kind[s] ?? -1)) continue;
     dist[s] = 0;
     push(0, s);
   }
@@ -112,8 +112,9 @@ export function approachField(
       const x = i % map.w;
       const y = (i / map.w) | 0;
       for (let k = 0; k < NEIGHBORS.length; k++) {
-        const dx = NEIGHBORS[k][0];
-        const dy = NEIGHBORS[k][1];
+        const nb = NEIGHBORS[k];
+        if (nb === undefined) throw new Error('bfsDistance: neighbor index out of range');
+        const [dx, dy, cost] = nb;
         const nx = x + dx;
         const ny = y + dy;
         if (!walkable(nx, ny)) continue;
@@ -122,8 +123,10 @@ export function approachField(
         // actually take rather than a squeeze between two rock corners.
         if (dx !== 0 && dy !== 0 && (!walkable(nx, y) || !walkable(x, ny))) continue;
         const ni = ny * map.w + nx;
-        const nc = c + NEIGHBORS[k][2];
-        if (dist[ni] >= 0 && dist[ni] <= nc) continue;
+        const nc = c + cost;
+        const d = dist[ni];
+        if (d === undefined) throw new Error('bfsDistance: ni out of range');
+        if (d >= 0 && d <= nc) continue;
         dist[ni] = nc;
         push(nc, ni);
       }
@@ -206,15 +209,17 @@ export function measureApproach(
   const dist = approachField(map, cfg, sources);
   const perGate = gates.map((g) => {
     const gi = g.ty * map.w + g.tx;
-    return gi >= 0 && gi < dist.length ? dist[gi] : -1;
+    return gi >= 0 && gi < dist.length ? (dist[gi] ?? -1) : -1;
   });
   const reached = perGate.filter((d) => d >= 0);
   const allReachable = gates.length > 0 && reached.length === gates.length;
   if (!allReachable) {
     return { anchor, perGate, allReachable, min: -1, mean: -1, max: -1, spread: -1 };
   }
-  let min = reached[0];
-  let max = reached[0];
+  const first = reached[0];
+  if (first === undefined) throw new Error('approachMeasure: reached is empty after allReachable check');
+  let min = first;
+  let max = first;
   let sum = 0;
   for (const d of reached) {
     if (d < min) min = d;
@@ -308,13 +313,17 @@ export function maxGateDetour(
   if (!m.allReachable) return -1;
   let worst = -1;
   for (let g = 0; g < gates.length; g++) {
-    const free = freeApproachCost(gates[g].tx, gates[g].ty, anchor, map.w, coreW, coreH);
+    const gate = gates[g];
+    if (gate === undefined) throw new Error('maxGateDetour: gate index out of range');
+    const free = freeApproachCost(gate.tx, gate.ty, anchor, map.w, coreW, coreH);
     // `<= 0` catches a gate standing on the Core footprint (a zero divisor);
     // `!isFinite` catches both `NaN` (off-grid anchor) and `Infinity` (an empty
     // footprint), the second of which a bare `free > 0` waves through and then
     // reports as a ratio of 0 — below the `>= 1` invariant `types.ts` states.
     if (!Number.isFinite(free) || free <= 0) return -1;
-    const ratio = m.perGate[g] / free;
+    const pg = m.perGate[g];
+    if (pg === undefined) throw new Error('maxGateDetour: perGate index out of range');
+    const ratio = pg / free;
     if (ratio > worst) worst = ratio;
   }
   return worst;

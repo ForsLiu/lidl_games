@@ -5224,6 +5224,46 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       bounding invariant (including reading `rng.ts`'s `weightedIndex`) and
       found none realistically reachable with real `/data` content. No bugs
       filed.
+    - **Ratchet shrunk further 2026-09-19 (routine, later)**: fixed 2 more
+      files — `src/bots/policies.ts` (`act1`'s `plan[0]` prune/build reads,
+      `replan`'s `sites[siteIndex++]`/`keys[i % keys.length]` reads across its
+      perimeter/sprout/fill loops, and `kiteInput`'s `all[i]` stride-sample
+      read all throw on an index a preceding length check or loop bound
+      already guarantees in range) and `src/sim/terrain/path.ts`
+      (`approachField`'s `map.kind[...]` reads default `?? -1`, a value
+      `isWalkable` already treats as "no such tile" via its own
+      `cfg.tiles[kind]?.walkable` optional-chain, so the fallback is exactly
+      as safe as an in-range miss; `NEIGHBORS[k]`/`dist[ni]` reads in its BFS
+      inner loop, `reached[0]` in `measureApproach`, and `gates[g]`/
+      `m.perGate[g]` in `maxGateDetour` all throw on invariant-guaranteed
+      indices). **Self-caught regression, not shipped**: the first pass on
+      `replan`'s fill loop hoisted `keys[ki++ % keys.length]` out from under
+      its `useWall ? palisade : ...` ternary — the original only advanced
+      `ki` in the ternary's else-branch (JS short-circuit), so the hoist made
+      `ki` advance on wall picks too, desyncing which tower key each site
+      gets whenever `wallRatio > 0`. Caught before commit by a `git stash`
+      before/after `npm run sim -- --seed 1 --policy hybrid` diff (endHash
+      `d6452f98`/victory/56 towers regressed to `57445d01`/defeat_core/19
+      towers under the bug); fixed by keeping the `ki++` strictly inside an
+      `if (useWall) {...} else { keys[ki++...] }` block matching the
+      original's evaluation order, re-verified back to `d6452f98`. Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags either
+      file; `npx tsc --noEmit` (main config) clean; `npm run test:fast`
+      green, unchanged at 315 files / 4548 passed / 35 skipped; `npm run sim`
+      endHash unchanged at seed 1 hybrid, and qa-playtester independently
+      byte-diffed 6 more seed/policy combos (including `turtle`/`walloff`,
+      the highest-`wallRatio` policies and the exact code path the bug lived
+      in) against a `git stash` baseline — all identical. 200 → **198 files
+      remain** on the allowlist. code-reviewer APPROVE (one Nit: the
+      `kiteInput` guard used `continue` instead of `throw`, inconsistent with
+      every other guard in the diff — fixed to `throw` before commit) after
+      independently re-verifying the `ki` fix's evaluation order and
+      re-auditing every other guard in both files for the same
+      side-effect-reordering bug class; found none. qa-playtester PASS —
+      independently re-scanned both files for the same bug class, ran 6 of
+      its own seed/policy combos against a `git stash` baseline (byte
+      identical on every field including `endHash`), and confirmed every new
+      throw's bounding invariant with zero thrown errors across all runs.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

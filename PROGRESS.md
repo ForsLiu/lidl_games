@@ -5,7 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 202 → 200.**
+- **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 200 → 198.**
+  Fixed `src/bots/policies.ts` and `src/sim/terrain/path.ts` with real guards
+  and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`. **Caught and fixed a
+  real regression before it shipped**: the first pass on `replan`'s fill loop
+  hoisted `keys[ki++ % keys.length]` out from under its
+  `useWall ? palisade : ...` ternary, so `ki` started advancing on wall
+  picks too (the original only advanced it in the ternary's else-branch) —
+  desyncing which tower key each site gets whenever `wallRatio > 0`. Caught
+  via a `git stash` before/after `npm run sim -- --seed 1 --policy hybrid`
+  diff (endHash `d6452f98`/victory/56 towers regressed to
+  `57445d01`/defeat_core/19 towers under the bug), fixed by keeping the
+  increment strictly inside an `if (useWall) {...} else { keys[ki++...] }`
+  block matching the original's evaluation order. `npx tsc --noEmit` (main
+  config) clean; `npm run test:fast` green, unchanged at 315 files / 4548
+  passed / 35 skipped; endHash re-verified unchanged. code-reviewer APPROVE
+  (one Nit: a `kiteInput` guard used `continue` instead of `throw`,
+  inconsistent with the diff's own convention — fixed before commit) after
+  independently re-verifying the `ki` fix and auditing both files for the
+  same side-effect-reordering bug class. qa-playtester PASS — independently
+  ran 6 more seed/policy combos (including the highest-`wallRatio` policies,
+  `turtle`/`walloff`, the exact code path the bug lived in) against a
+  `git stash` baseline, byte-identical on every field. — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-19 (scheduled routine) — fb133 ratchet shrunk 202 → 200.**
   Fixed the remaining `noUncheckedIndexedAccess` errors in 2 more files with
   real guards and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`:
   `src/sim/terrain/describe.ts` (the tile-kind validation loop and the
