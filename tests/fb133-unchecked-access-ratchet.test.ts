@@ -23,8 +23,11 @@
  * generate.ts`, `src/sim/terrain/overlay.ts`, `src/sim/tiers.ts`,
  * `src/ui/audit-hook.ts`, `src/ui/codex.ts`, `src/ui/dps-panel.ts`,
  * `src/ui/tuner-fields.ts`) in a follow-up session (`??` defaults,
- * pre-checked guards before a lookup, `.charAt(0)` instead of `s[0]`) — see
- * PROGRESS.md/BACKLOG.md fb133 for the lists. The remaining 210 are exactly
+ * pre-checked guards before a lookup, `.charAt(0)` instead of `s[0]`), then 7
+ * more (`src/sim/rng.ts`, `src/ui/character-panel.ts`, `src/render/canvas.ts`,
+ * `src/sim/classes.ts`, `src/render/theme.ts`, `src/sim/sundering.ts`,
+ * `src/sim/terrain/config.ts`) in a third session — see PROGRESS.md/
+ * BACKLOG.md fb133 for the lists. The remaining 203 are exactly
  * the flag's current honest floor; shrink this list as they're fixed, do
  * not add to it without a reason logged in BACKLOG.md.
  */
@@ -37,22 +40,15 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/bots/policies.ts',
-  'src/render/canvas.ts',
   'src/render/colorblind-sim.ts',
-  'src/render/theme.ts',
   'src/sim/act2.ts',
-  'src/sim/classes.ts',
   'src/sim/enemies.ts',
   'src/sim/grid.ts',
-  'src/sim/rng.ts',
   'src/sim/run.ts',
-  'src/sim/sundering.ts',
   'src/sim/terrain/analyze.ts',
-  'src/sim/terrain/config.ts',
   'src/sim/terrain/describe.ts',
   'src/sim/terrain/path.ts',
   'src/sim/world.ts',
-  'src/ui/character-panel.ts',
   'tests/a1-run-length.test.ts',
   'tests/a4-single-type.test.ts',
   'tests/a7-turtle-check.test.ts',
