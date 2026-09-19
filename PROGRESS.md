@@ -5,6 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 202 → 200.**
+  Fixed the remaining `noUncheckedIndexedAccess` errors in 2 more files with
+  real guards and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`:
+  `src/sim/terrain/describe.ts` (the tile-kind validation loop and the
+  row-glyph render loop now guard `map.kind[i]`/`GLYPH_BY_KIND[...]` reads
+  explicitly instead of assuming range; `counts[k]`/`seen[k]` increments
+  changed to `(arr[k] ?? 0) + 1`; `parseTerrainDump`'s field parser reads
+  each `parts[i]` once into a checked local instead of three unchecked
+  re-reads; the header-line regex takes a `lines[0] ?? ''` local; the row/
+  glyph decode loop guards `rows[y]`/`row[x]` explicitly before use) and
+  `src/sim/act2.ts` (`weightsFor`'s initial `rows[0]` pick, `gateSpawn`'s
+  round-robin gate read, the Rift-time trigger loop, `expandedRiftTimes`,
+  and `spendBudget`/`spawnElite`'s weighted-index spawn-key picks all throw
+  on an index a preceding loop bound or invariant already guarantees is in
+  range). code-reviewer APPROVE (two Nits: one dead-code `?? 0` fallback on
+  an already-validated index, and a redundant-but-harmless duplicate bounds
+  check — both left as-is, consistent with the files' existing style).
+  qa-playtester PASS — fuzzed `parseTerrainDump` with six malformed-dump
+  shapes, all still rejected with the original messages; traced every new
+  throw against its bounding invariant and found none realistically
+  reachable with real `/data` content; confirmed unchanged `endHash`
+  (`d6452f98`) via `git stash` at seed 1 plus a clean seed 2 `--policy
+  maxbuild` run. `npx tsc --noEmit` (main config) clean; `npm run test:fast`
+  green, unchanged at 315 files / 4548 passed / 35 skipped. — refs:
+  BACKLOG.md fb133 Log.
 - **2026-09-19 (scheduled routine, later) — fb133 ratchet shrunk 210 → 205.**
   Fixed the remaining `noUncheckedIndexedAccess` errors in 5 more files with
   real guards and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`:

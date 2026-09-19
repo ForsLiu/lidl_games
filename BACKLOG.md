@@ -5183,6 +5183,47 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       (`classes.ts`, `sundering.ts`, `terrain/config.ts`), and kept the
       5-file session's exclusive fix (`colorblind-sim.ts`). Union of both:
       210 → **202 files remain** on the allowlist.
+    - **Ratchet shrunk further 2026-09-19 (routine)**: fixed 2 more files —
+      `src/sim/terrain/describe.ts` (`describeTerrain`'s tile-kind validation
+      loop: `k === undefined` added to the existing integrality/range check
+      before it's used as a `counts` index; `counts[k]`/`seen[k]` increments
+      changed to `(arr[k] ?? 0) + 1` since a proven-in-range read still types
+      as possibly-`undefined`; the row-glyph render loop guards the
+      `map.kind`/`GLYPH_BY_KIND` reads the same way; `parseTerrainDump`'s
+      `fields()` field-parser now reads `parts[i]` once into a checked local
+      instead of three unchecked re-reads; the header-line regex takes a
+      `lines[0] ?? ''` local (comment already explained why it's always a
+      string); the row/glyph decode loop guards `rows[y]` and `row[x]` with
+      explicit `undefined` checks before use), `src/sim/act2.ts`
+      (`weightsFor`'s `rows[0]` initial-pick throws if the weight table is
+      empty; `gateSpawn`'s round-robin `gates[...]` read throws on an index
+      the surrounding `i < gates.length` loop already guarantees in range;
+      the Rift-time trigger loop and `expandedRiftTimes` restructured from a
+      compound `while`/`for` condition that read a possibly-out-of-range
+      index into an explicit per-iteration guard; `spendBudget`/
+      `spawnElite`'s weighted-index spawn-key picks (`keys[idx]`) throw on an
+      index `rng.weightedIndex` already guarantees in range given a
+      preceding `keys.length === 0` early return, with `?? 0` defaults on
+      the `weights[k]` reads feeding the weighted-index array since `k` is
+      always one of `weights`'s own keys). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags either file; `npx tsc
+      --noEmit` (main config) clean; `npm run test:fast` green, unchanged at
+      315 files / 4548 passed / 35 skipped; `npm run sim -- --seed 1
+      --policy hybrid` endHash unchanged (`d6452f98`, independently
+      reconfirmed by qa-playtester via `git stash`, plus a clean seed 2
+      `--policy maxbuild` run). 202 → **200 files remain** on the allowlist.
+      code-reviewer APPROVE (two Nits: an `expandedRiftTimes` `?? 0`
+      fallback on an already-validated-in-the-prior-iteration index is dead
+      code, and `describe.ts`'s two `rows[y] === undefined` checks share one
+      already-validated bound — both left as-is, consistent with the file's
+      existing "explicit check every time" style, not worth a special case).
+      qa-playtester PASS — fuzzed `parseTerrainDump` with six malformed-dump
+      shapes (missing row, short row, unknown glyph, malformed field,
+      reordered fields, degenerate dims), all still rejected with the
+      original messages; independently traced every new throw against its
+      bounding invariant (including reading `rng.ts`'s `weightedIndex`) and
+      found none realistically reachable with real `/data` content. No bugs
+      filed.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
