@@ -32,9 +32,19 @@
   stale entries beyond the 7 removed; `npm run test:fast` unchanged at
   315 files / 4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy
   hybrid` gives the identical `endHash` (`d6452f98`), confirming no
-  behavior drift. code-reviewer and qa-playtester dispatched; outcome to
-  follow in a post-review commit per this repo's established pattern. —
-  refs: BACKLOG.md fb133 Log.
+  behavior drift. **code-reviewer APPROVE** (one Minor: `classBasicColor`'s
+  doc comment cited the wrong test, `content-complete.test.ts` instead of
+  `tests/fb016-vfx-registry.test.ts` — fixed same-day; two Nits on
+  `terrain/config.ts`'s `continue`-vs-throw guard style left as-is, since
+  `continue` matches that same function's own pre-existing convention one
+  loop above from fb064t). **qa-playtester PASS** — independently re-ran
+  the typecheck, the ratchet test, `test:fast` and the sim endHash check,
+  plus adversarially traced every guard's "unreachable" claim against real
+  call sites (`Rng.pick`/`shuffle`/`sample`'s only real callers, a live
+  `data/classes.json` vs. `CLASS_VFX` cross-check, `terrain/config.ts`'s
+  hardcoded-not-data-driven `REQUIRED_FLAGS`/`TERRAIN_KEYS`, a live
+  Contagious Flame sim scenario) — no bugs filed. — refs: BACKLOG.md fb133
+  Log.
 - **2026-09-19 (scheduled routine) — fb133 ratchet shrunk 218 → 210.** Fixed
   8 more files with real guards (`src/sim/damagetypes.ts`,
   `src/sim/terrain/generate.ts`, `src/sim/terrain/overlay.ts`,

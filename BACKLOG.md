@@ -5136,8 +5136,14 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       --noEmit` (main config) clean, `npm run test:fast` unchanged at 315
       files / 4548 passed / 35 skipped, `npm run sim -- --seed 1 --policy
       hybrid` endHash unchanged (`d6452f98`). 210 → **203 files remain** on
-      the allowlist. code-reviewer and qa-playtester dispatched; outcome to
-      follow in a post-review commit.
+      the allowlist. code-reviewer APPROVE (one Minor: `classBasicColor`'s
+      doc comment fixed to cite `tests/fb016-vfx-registry.test.ts` instead
+      of the wrong `content-complete.test.ts`; two Nits on
+      `terrain/config.ts`'s `continue` style left as-is, matching that
+      function's own pre-existing convention). qa-playtester PASS —
+      independently re-verified typecheck/ratchet-test/test:fast/endHash
+      and adversarially traced every guard's unreachability against real
+      call sites and a live sim scenario; no bugs filed.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
