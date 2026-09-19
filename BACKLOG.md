@@ -5098,8 +5098,20 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
       skipped; `npm run sim -- --seed 1 --policy hybrid` gives the identical
       `endHash` (`d6452f98`) before and after, confirming no behavior
-      drift. 218 → **210 files remain** on the allowlist. code-reviewer/
-      qa-playtester passes queued; outcome to follow in a post-review note.
+      drift. 218 → **210 files remain** on the allowlist. code-reviewer
+      APPROVE (two Minor/Nit: a missing "unreachable" comment on the
+      `scatter` swap-remove, and `sealPockets`'s silent-no-op-on-unknown-
+      tile reads as inconsistent with `overlay.ts`'s throw — both fixed
+      same-day with explanatory comments rather than a behavior change,
+      since qa-playtester independently confirmed the silent-optional-
+      chain form already matches `config.ts`'s own `isWalkable`/
+      `isBuildable`/`isHighGround` convention). qa-playtester PASS —
+      independently traced all 8 files' guards to the invariant that makes
+      each unreachable (including a hostile-`/data`-modifier-count probe on
+      `tiers.ts` and a `<6`-live-enemy probe on `audit-hook.ts`), reran
+      `test:fast` and a set of targeted terrain/codex/tuner suites, and
+      diffed `endHash` across a real `git worktree` at the pre-fix commit —
+      byte-identical. No bugs filed.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
