@@ -454,7 +454,17 @@ export class Hub {
       this.show();
     });
     const beginRun = (practiceOverride?: boolean): void => {
-      const modifiers = draft.map((slot, i) => slot.options[this.picks[i] ?? 0].key);
+      // fb133 code review: a stale/out-of-range this.picks[i] (e.g. picks not
+      // yet reset after a slot-count change) previously crashed here; now it
+      // recovers to the slot's first option instead — a deliberate behavior
+      // change, not just a type-safety no-op, consistent with the
+      // belt-and-suspenders fallbacks below. The throw only fires if a slot
+      // has zero options at all, which modifierDraft (tiers.ts) never produces.
+      const modifiers = draft.map((slot, i) => {
+        const chosen = slot.options[this.picks[i] ?? 0] ?? slot.options[0];
+        if (!chosen) throw new Error('hub: modifier slot has no options');
+        return chosen.key;
+      });
       // Belt-and-suspenders against a locked core reaching RunConfig at all
       // (e.g. `unlockedCores` shrinking between render and click): fall back
       // to whatever the account actually has unlocked, not the content-wide
@@ -470,7 +480,9 @@ export class Hub {
       // reachable from something other than a direct unlocked-card click.
       const classKey = this.meta.unlockedClasses.includes(this.classKey)
         ? this.classKey
-        : (this.meta.unlockedClasses[0] ?? content.classes.classes[0].key);
+        : // last-resort only: content.classes.classes is never actually empty,
+          // so this never really reintroduces the locked classKey it's meant to avoid.
+          (this.meta.unlockedClasses[0] ?? content.classes.classes[0]?.key ?? this.classKey);
       this.cb.onStart({
         seed: this.seed,
         classKey,

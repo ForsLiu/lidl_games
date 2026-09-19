@@ -90,7 +90,7 @@ function rowsFor(obj: Record<string, unknown>, overrides: Record<string, number>
       continue;
     }
     if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
-    const value = key in overrides ? overrides[key] : raw;
+    const value = overrides[key] ?? raw;
     if (value === 0) continue;
     rows.push({ key, text: `${fieldLabel(key)}: ${fieldValueText(key, value)}` });
   }

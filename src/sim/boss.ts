@@ -199,7 +199,7 @@ function canReachWarden(w: World, e: Enemy): boolean {
   const ty = Math.floor(e.y);
   if (!w.grid.inBounds(tx, ty)) return true;
   if (tx === Math.floor(wd.x) && ty === Math.floor(wd.y)) return true;
-  return w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
+  return (w.navFieldFor(false).next[ty * GRID_W + tx] ?? -1) >= 0;
 }
 
 /**

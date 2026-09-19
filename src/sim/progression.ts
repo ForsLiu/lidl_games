@@ -108,7 +108,8 @@ export function openLevelUpIfPending(w: World): void {
       w.pendingLevelUps--;
       const offers = rollOffers(w);
       if (offers.length === 0) continue;
-      applyOffer(w, offers[pickAutoOfferIndex(w, offers)]);
+      const offer = offers[pickAutoOfferIndex(w, offers)];
+      if (offer) applyOffer(w, offer);
     }
     w.offers = [];
     w.rerollsLeft = w.content.boons.rerollsPerLevel;
@@ -317,8 +318,11 @@ export function rollOffers(w: World): Offer[] {
   for (let i = 0; i < OFFER_COUNT && remaining.length > 0; i++) {
     const weights = remaining.map((o) => o.weight * (1 + luckBias * o.value));
     const idx = rng.weightedIndex(weights);
-    picked.push(remaining[idx].offer);
-    remaining.splice(idx, 1);
+    const item = remaining[idx];
+    if (item) {
+      picked.push(item.offer);
+      remaining.splice(idx, 1);
+    }
   }
   return picked;
 }

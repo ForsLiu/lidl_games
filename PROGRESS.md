@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-19 (later) — main lane: fb133's "hard blocker" broken — a
+  ratchet, not a flag flip, was the way through.** The wall documented in
+  the entry directly below (and the two before it) was real for a *global*
+  flag flip, but fb133 doesn't require one: added `tsconfig.unchecked.json`
+  (`extends` `tsconfig.json`, `noUncheckedIndexedAccess` on) as the flag's
+  own ground truth, kept `tsconfig.json` itself untouched, and added
+  `tests/fb133-unchecked-access-ratchet.test.ts` to pin the exact set of
+  files it still fails on (`KNOWN_UNCHECKED_ACCESS_FILES`) — new offender or
+  stale (fixed-but-still-listed) entry both fail the test, so the list can
+  only shrink on purpose, same shape as fb118's `KNOWN_PREEXISTING_COLLISIONS`.
+  Fixed 18 of the 236 files (23 sites) with real guards this session — `??`
+  defaults on indices already proven in-range by a preceding bounds check,
+  two `s[0]` → `.charAt(0)` swaps, one genuine (and code-reviewer-flagged,
+  now commented) behavior change in `hub.ts`'s modifier pick (recovers to
+  the slot's first option instead of crashing on a stale pick). **236 → 218
+  files remain** on the allowlist. Also corrected a standing error in the
+  last three entries below: "~90 files" was always a top-N heaviest-files
+  list, not the actual file count — the real count, unchanged across every
+  re-measurement including this one, is 236. code-reviewer APPROVE;
+  qa-playtester PASS, having filed and this commit having fixed one bug in
+  the new ratchet test itself (a killed/timed-out `tsc` subprocess under
+  host contention had its partial output silently treated as a real
+  diagnostic result — now detected, retried up to 3x, and fails loudly
+  instead on genuine exhaustion). `npm run test:fast`: 315 files / 4548
+  passed / 35 skipped, green. Shrinking the remaining 218-file list is now
+  ordinary, boundable follow-up work (touch a handful of files, remove them
+  from the allowlist, repeat) rather than a one-shot all-or-nothing flag
+  flip — refs: BACKLOG.md fb133 Log.
 - **2026-09-19 — main lane: routine exit, hard blocker persists — fb133 is
   still BACKLOG.md's sole open owner-directed item, re-confirmed
   unattemptable within the loop contract.** feedback/ is empty (nothing new

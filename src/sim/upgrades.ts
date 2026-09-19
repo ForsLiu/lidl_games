@@ -151,7 +151,7 @@ export function attackProfile(def: Pick<TowerDef, 'attack' | 'upgrades'>, level:
 export function damageShare(ratio: Readonly<Record<string, number>> | null, type: string): number {
   if (!ratio) return type === 'normal' ? 1 : 0;
   let total = 0;
-  for (const k of Object.keys(ratio).sort()) total += ratio[k];
+  for (const k of Object.keys(ratio).sort()) total += ratio[k] ?? 0;
   return total > 0 ? (ratio[type] ?? 0) / total : 0;
 }
 

@@ -5026,7 +5026,54 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       tsconfig edit (no functional change committed). Needs deliberate
       per-file or per-directory follow-up items, not one flag-flip item —
       logged so a future session splits this rather than re-discovering the
-      1806-error count from scratch.
+      1806-error count from scratch. **Attempted 2026-09-19** (2nd/3rd
+      re-measurements, same day, both no-op): re-confirmed the identical 1806/
+      ~90-file finding twice more; still too large for one loop-contract item,
+      routine forbade generating new backlog items to split it. **Ratchet
+      landed 2026-09-19**: a direct global flag flip is still too large for
+      one item, but the item does not require one — added
+      `tsconfig.unchecked.json` (`extends` tsconfig.json, flag on) as the
+      flag's own ground truth, plus `tests/fb133-unchecked-access-ratchet.test.ts`,
+      which runs `tsc -p tsconfig.unchecked.json` and pins the exact file set
+      it still fails on in `KNOWN_UNCHECKED_ACCESS_FILES` — fails on any new
+      offender (regression) and on any listed file that's since gone clean
+      (forces the list to shrink on purpose, matching fb118's
+      `KNOWN_PREEXISTING_COLLISIONS` precedent). A fresh measurement against
+      this container's actual dependency tree (`npm ci` — node_modules was
+      absent) found **1806 errors across 236 files**, not ~90 as prior notes
+      said (that number was always a top-N "heaviest files" list, not a file
+      count — corrected here). Fixed 18 of those 236 files (23 individual
+      error sites) with real guards this session: `src/meta/stash.ts`,
+      `src/sim/boss.ts`, `src/sim/combat.ts`, `src/sim/content.ts`,
+      `src/sim/progression.ts`, `src/sim/stats.ts`,
+      `src/sim/terrain/character.ts`, `src/sim/upgrades.ts`,
+      `src/sim/vswield.ts`, `src/ui/class-info.ts`, `src/ui/core-info.ts`,
+      `src/ui/hub.ts`, `src/ui/info-format.ts`, `src/ui/pacer.ts`,
+      `src/ui/quests.ts`, `src/ui/tower-info.ts`, `src/ui/vs-panel.ts`,
+      `src/ui/zip-archive.ts` — mostly `??` defaults on indices already
+      proven in-range by a preceding bounds/length check, plus two
+      `.charAt(0)` swaps for `s[0]`. `src/ui/hub.ts`'s `beginRun` modifier
+      pick is the one real behavior change (recovers to the slot's first
+      option instead of crashing on a stale out-of-range pick — code-reviewer
+      flagged this as worth calling out explicitly rather than folding into
+      "pure guards"). code-reviewer APPROVE (one Major: update BACKLOG/
+      PROGRESS before commit, done here; two Minor/Nit on hub.ts, addressed
+      with comments). qa-playtester PASS — verified `npx tsc --noEmit`
+      (main config) stays clean, the ratchet test's own arithmetic and every
+      fixed site's unreachability by direct trace plus live sim runs
+      (`npm run sim`, seed 1, hybrid, endHash unchanged vs. `git stash`),
+      and filed one bug against the ratchet test itself (below), fixed in
+      the same commit. 236 → **218 files remain** on the allowlist; shrink
+      it incrementally in future items rather than re-flipping the flag
+      globally in one shot. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - Sub-bug (qa-playtester, fixed same commit): `runUncheckedTsc`'s
+      `execFileSync` catch treated a SIGTERM-killed (contention-timeout)
+      `tsc` subprocess's partial stdout as a genuine diagnostic result,
+      which under heavy host load reported already-fixed files as fresh
+      regressions (observed once in a contended `npm run test:fast` run).
+      Fixed: detect `err.killed`/`err.signal`, retry up to 3 attempts at
+      90s each, and throw a distinguishable error instead of trusting
+      partial output on final failure.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

@@ -208,7 +208,7 @@ export function numericFieldRows(
       continue;
     }
     if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
-    const value = key in overrides ? overrides[key] : raw;
+    const value = overrides[key] ?? raw;
     if (value === 0) continue;
     rows.push({ key, label: fieldLabel(key), value, text: fieldValueText(key, value) });
   }

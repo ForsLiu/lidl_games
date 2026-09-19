@@ -144,7 +144,10 @@ function sampleCandidates(list: readonly Enemy[]): Enemy[] {
   if (list.length <= MAX_CANDIDATES) return list as Enemy[];
   const stride = Math.ceil(list.length / MAX_CANDIDATES);
   const out: Enemy[] = [];
-  for (let i = 0; i < list.length; i += stride) out.push(list[i]);
+  for (let i = 0; i < list.length; i += stride) {
+    const e = list[i];
+    if (e) out.push(e);
+  }
   return out;
 }
 

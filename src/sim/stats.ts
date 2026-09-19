@@ -89,8 +89,9 @@ export class Stats {
   /** Bulk-add a `{stat: value}` record, ignoring keys that are not stats. */
   addAll(source: StatSource, src: Record<string, number>): void {
     for (const key of Object.keys(src)) {
-      if ((STAT_KEYS as readonly string[]).includes(key)) {
-        this.add(source, key as StatKey, src[key]);
+      const value = src[key];
+      if (value !== undefined && (STAT_KEYS as readonly string[]).includes(key)) {
+        this.add(source, key as StatKey, value);
       }
     }
   }

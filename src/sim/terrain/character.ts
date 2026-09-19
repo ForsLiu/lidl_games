@@ -93,5 +93,7 @@ export function canCharacterEnter(
   const tx = Math.floor(x);
   const ty = Math.floor(y);
   if (!(tx >= 0 && ty >= 0 && tx < map.w && ty < map.h)) return true;
-  return canCharacterEnterKind(cfg, map.kind[ty * map.w + tx]);
+  const k = map.kind[ty * map.w + tx];
+  if (k === undefined) return true;
+  return canCharacterEnterKind(cfg, k);
 }

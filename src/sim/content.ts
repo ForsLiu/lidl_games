@@ -2621,6 +2621,7 @@ export function isScaledClassPath(path: readonly string[]): boolean {
   const leaf = path[path.length - 1];
   const parent = path[path.length - 2];
   const grandparent = path[path.length - 3];
+  if (leaf === undefined) return false;
   if (parent === 'basicAttack') return leaf === 'dps';
   if (parent === 'passive') return (CLASS_PASSIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
   if (parent === 'active1' || parent === 'active2') {

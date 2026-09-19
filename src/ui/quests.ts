@@ -23,7 +23,7 @@ export function rewardLabel(content: Content, reward: QuestDef['reward']): strin
   if (reward.kind === 'core') {
     return `Core: ${content.coreByKey.get(reward.value)?.name ?? reward.value}`;
   }
-  return `${reward.kind[0].toUpperCase()}${reward.kind.slice(1)}: ${reward.value.replace(/_/g, ' ')}`;
+  return `${reward.kind.charAt(0).toUpperCase()}${reward.kind.slice(1)}: ${reward.value.replace(/_/g, ' ')}`;
 }
 
 /** Clamped 0-100, direction-aware for `compare: 'lte'` quests (progress is "how low have we gotten", not "how high"). */
