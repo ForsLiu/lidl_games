@@ -20,7 +20,7 @@ import type { MetaState } from '../sim/types';
 export function equipItem(meta: MetaState, slot: string, itemKey: string | null): MetaState {
   if (!(slot in meta.equippedEquipment)) return meta;
   if (itemKey !== null) {
-    if (!(meta.equipmentStash[itemKey] > 0)) return meta;
+    if (!((meta.equipmentStash[itemKey] ?? 0) > 0)) return meta;
     // code review, fb015: mirrors `equip`'s own `relic.slot !== slot` guard —
     // the only caller today (hub.ts) always passes the item's own slot, but
     // nothing else stopped a future caller from writing an item into a slot

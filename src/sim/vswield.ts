@@ -340,7 +340,7 @@ function nearestEnemies(w: World, x: number, y: number, range: number, n: number
   for (const e of list) {
     const key = dist2(x, y, e.x, e.y);
     let i = picked.length;
-    while (i > 0 && keys[i - 1] > key) i--;
+    while (i > 0 && (keys[i - 1] ?? -Infinity) > key) i--;
     if (i >= n) continue;
     picked.splice(i, 0, e);
     keys.splice(i, 0, key);

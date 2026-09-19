@@ -28,7 +28,7 @@ export class Pacer {
   private speedIndex = DEFAULT_SPEED_INDEX;
 
   get speed(): number {
-    return SPEEDS[this.speedIndex];
+    return SPEEDS[this.speedIndex] ?? 1;
   }
 
   get label(): string {

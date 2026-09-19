@@ -146,7 +146,7 @@ const KIND_TEXT: Record<string, (a: TowerAttack, p: AttackProfile) => string> = 
 function ratioText(w: World, ratio: Readonly<Record<string, number>>): string {
   return Object.keys(ratio)
     .sort()
-    .filter((k) => ratio[k] > 0)
+    .filter((k) => (ratio[k] ?? 0) > 0)
     .map((k) => `${w.content.damageTypeByKey.get(k)?.name ?? k} ${Math.round(damageShare(ratio, k) * 100)}%`)
     .join(' · ');
 }

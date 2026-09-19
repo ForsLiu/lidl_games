@@ -66,7 +66,8 @@ export function damageTypeText(w: World, ratio: Readonly<Record<string, number>>
   }
   if (entries.length === 0) return '100% Normal';
   const sum = entries.reduce((a, e) => a + e.pct, 0);
-  entries[entries.length - 1].pct += 100 - sum;
+  const last = entries[entries.length - 1];
+  if (last) last.pct += 100 - sum;
   return entries.map((e) => `${e.pct}% ${e.name}`).join(', ');
 }
 
