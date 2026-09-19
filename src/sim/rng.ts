@@ -76,7 +76,11 @@ export class Rng {
   }
 
   pick<T>(arr: readonly T[]): T {
-    return arr[this.int(arr.length)];
+    if (arr.length === 0) throw new Error('Rng.pick: empty array');
+    const v = arr[this.int(arr.length)];
+    // int(arr.length) with arr.length > 0 is always a valid index.
+    if (v === undefined) throw new Error('Rng.pick: index out of range (unreachable)');
+    return v;
   }
 
   /**
@@ -93,13 +97,13 @@ export class Rng {
   weightedIndex(weights: readonly number[]): number {
     let total = 0;
     for (let i = 0; i < weights.length; i++) {
-      const w = weights[i];
+      const w = weights[i] ?? NaN;
       if (Number.isFinite(w) && w > 0) total += w;
     }
     if (total <= 0) return 0;
     let r = this.float() * total;
     for (let i = 0; i < weights.length; i++) {
-      const w = weights[i];
+      const w = weights[i] ?? NaN;
       if (!Number.isFinite(w) || w <= 0) continue;
       r -= w;
       if (r < 0) return i;
@@ -111,9 +115,14 @@ export class Rng {
   shuffle<T>(arr: T[]): T[] {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = this.int(i + 1);
-      const t = arr[i];
-      arr[i] = arr[j];
-      arr[j] = t;
+      const ai = arr[i];
+      const aj = arr[j];
+      // i is a valid index by the loop bound; j = int(i + 1) is in [0, i], also valid.
+      if (ai === undefined || aj === undefined) {
+        throw new Error('Rng.shuffle: index out of range (unreachable)');
+      }
+      arr[i] = aj;
+      arr[j] = ai;
     }
     return arr;
   }
@@ -122,7 +131,12 @@ export class Rng {
   sample<T>(arr: readonly T[], k: number): T[] {
     const idx = this.shuffle(arr.map((_, i) => i)).slice(0, Math.min(k, arr.length));
     idx.sort((a, b) => a - b);
-    return idx.map((i) => arr[i]);
+    return idx.map((i) => {
+      const v = arr[i];
+      // idx holds only indices drawn from arr's own index range, always valid.
+      if (v === undefined) throw new Error('Rng.sample: index out of range (unreachable)');
+      return v;
+    });
   }
 
   getState(): number {

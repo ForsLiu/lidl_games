@@ -158,6 +158,15 @@ export interface ProjectileStyle {
 
 const DEFAULT_STYLE: ProjectileStyle = { color: '#ffe9a8', shape: 'dart', size: 3, trail: 1.6 };
 
+/** `CLASS_VFX[key].basic.color` for a class known to have a registry entry — content-complete.test.ts
+ * guarantees every class key resolves; a miss here means the registry itself is broken, not a
+ * missing-data case to fall back on silently. */
+function classBasicColor(key: string): string {
+  const entry = CLASS_VFX[key];
+  if (!entry) throw new Error(`theme.ts STYLES: CLASS_VFX has no entry for class '${key}'`);
+  return entry.basic.color;
+}
+
 /** One entry per damage source that can put something on screen. */
 const STYLES: Record<string, ProjectileStyle> = {
   // Act I: keyed by tower.
@@ -178,15 +187,15 @@ const STYLES: Record<string, ProjectileStyle> = {
   // registry stays the one place a class's basic-attack color is authored —
   // code-reviewer flagged the earlier hardcoded duplicates as a
   // could-silently-drift dead field.
-  plaguebringer: { color: CLASS_VFX.plaguebringer.basic.color, shape: 'glob', size: 4, trail: 1 },
-  engineer: { color: CLASS_VFX.engineer.basic.color, shape: 'bolt', size: 5, trail: 1.8 },
-  pyromancer: { color: CLASS_VFX.pyromancer.basic.color, shape: 'orb', size: 4, trail: 1.6 },
-  archer: { color: CLASS_VFX.archer.basic.color, shape: 'dart', size: 3, trail: 2.4 },
-  necromancer: { color: CLASS_VFX.necromancer.basic.color, shape: 'orb', size: 4, trail: 1 },
-  cryomancer: { color: CLASS_VFX.cryomancer.basic.color, shape: 'orb', size: 4, trail: 0 },
-  stormcaller: { color: CLASS_VFX.stormcaller.basic.color, shape: 'spark', size: 3, trail: 0.6 },
-  animist: { color: CLASS_VFX.animist.basic.color, shape: 'dart', size: 3, trail: 1.4 },
-  time_lord: { color: CLASS_VFX.time_lord.basic.color, shape: 'orb', size: 4, trail: 1.2 },
+  plaguebringer: { color: classBasicColor('plaguebringer'), shape: 'glob', size: 4, trail: 1 },
+  engineer: { color: classBasicColor('engineer'), shape: 'bolt', size: 5, trail: 1.8 },
+  pyromancer: { color: classBasicColor('pyromancer'), shape: 'orb', size: 4, trail: 1.6 },
+  archer: { color: classBasicColor('archer'), shape: 'dart', size: 3, trail: 2.4 },
+  necromancer: { color: classBasicColor('necromancer'), shape: 'orb', size: 4, trail: 1 },
+  cryomancer: { color: classBasicColor('cryomancer'), shape: 'orb', size: 4, trail: 0 },
+  stormcaller: { color: classBasicColor('stormcaller'), shape: 'spark', size: 3, trail: 0.6 },
+  animist: { color: classBasicColor('animist'), shape: 'dart', size: 3, trail: 1.4 },
+  time_lord: { color: classBasicColor('time_lord'), shape: 'orb', size: 4, trail: 1.2 },
 };
 
 /**
@@ -254,7 +263,8 @@ export const TERRAIN_JITTER = 0.12;
 function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
   if (!m) return [128, 128, 128];
-  const n = parseInt(m[1], 16);
+  // The regex's sole capture group always matches when the overall match succeeds.
+  const n = parseInt(m[1] ?? '000000', 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
