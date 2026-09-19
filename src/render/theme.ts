@@ -158,9 +158,10 @@ export interface ProjectileStyle {
 
 const DEFAULT_STYLE: ProjectileStyle = { color: '#ffe9a8', shape: 'dart', size: 3, trail: 1.6 };
 
-/** `CLASS_VFX[key].basic.color` for a class known to have a registry entry — content-complete.test.ts
- * guarantees every class key resolves; a miss here means the registry itself is broken, not a
- * missing-data case to fall back on silently. */
+/** `CLASS_VFX[key].basic.color` for a class known to have a registry entry —
+ * `tests/fb016-vfx-registry.test.ts`'s `missingVfxCoverage` check guarantees every real class key
+ * resolves; a miss here means the registry itself is broken, not a missing-data case to fall back
+ * on silently. */
 function classBasicColor(key: string): string {
   const entry = CLASS_VFX[key];
   if (!entry) throw new Error(`theme.ts STYLES: CLASS_VFX has no entry for class '${key}'`);
