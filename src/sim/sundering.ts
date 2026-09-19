@@ -150,23 +150,31 @@ export function linkSpires(w: World): void {
     s.links = [];
   }
   if (spires.length < 2) return;
-  const def = w.content.towerById.get(spires[0].towerId)!;
+  const first = spires[0];
+  if (!first) return; // unreachable: spires.length >= 2 was just checked.
+  const def = w.content.towerById.get(first.towerId)!;
   const range = def.terrain.linkRange!;
   const maxLinks = def.terrain.maxLinks! + w.derived.teslaLinkBonus;
 
   const pairs: { a: number; b: number; d: number }[] = [];
   for (let i = 0; i < spires.length; i++) {
     for (let j = i + 1; j < spires.length; j++) {
-      const dx = spires[i].tx - spires[j].tx;
-      const dy = spires[i].ty - spires[j].ty;
+      // i and j are both bounded by the loop conditions, always valid indices.
+      const si = spires[i];
+      const sj = spires[j];
+      if (!si || !sj) continue;
+      const dx = si.tx - sj.tx;
+      const dy = si.ty - sj.ty;
       const d = Math.sqrt(dx * dx + dy * dy);
       if (d <= range) pairs.push({ a: i, b: j, d });
     }
   }
   pairs.sort((p, q) => p.d - q.d || p.a - q.a || p.b - q.b);
   for (const p of pairs) {
+    // p.a/p.b came from the loop above, always valid spires indices.
     const A = spires[p.a];
     const B = spires[p.b];
+    if (!A || !B) continue;
     if (A.links.length >= maxLinks || B.links.length >= maxLinks) continue;
     A.links.push(B.id);
     B.links.push(A.id);

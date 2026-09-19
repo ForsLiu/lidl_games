@@ -5143,6 +5143,46 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       real `pick`/`shuffle`/`sample` call site in `/src` and `/tools` for a
       reachable empty-array case (none found) and confirmed all 9 `STYLES`
       class keys exist in `CLASS_VFX`. No bugs filed.
+    - **Ratchet shrunk further 2026-09-19 (later, independently)**: a
+      concurrent session fixed 7 more files —
+      `src/sim/rng.ts` (`pick`/`shuffle`/`sample`/`weightedIndex`: throw on
+      a truly-unreachable empty-array pick or shuffle swap, `?? NaN`/
+      `continue` where a loop bound already proves the index in range),
+      `src/ui/character-panel.ts` (colon-split `parts[N]` reads default to
+      `?? ''`; boons' `rank` defaults `?? 0`, already proven `> 0` by a
+      preceding `.filter()`), `src/render/canvas.ts` (`drawPathIndicators`'s
+      gate/path reads guarded with `if (!x) continue`; a
+      `GATE_PATH_COLORS[...]` read and a `terrainKind[idx]` read given
+      in-range-proven fallbacks), `src/sim/classes.ts`
+      (`updateContagiousFlame`'s enemy-list reads guarded with
+      `if (!x) continue`), `src/render/theme.ts` (new `classBasicColor(key)`
+      helper throws if `CLASS_VFX` has no entry for a class key, used for
+      the 9 per-class `STYLES` rows; a regex capture-group read defaults
+      `?? '000000'`), `src/sim/sundering.ts` (`linkSpires`'s `spires[...]`
+      reads guarded with early-return/`continue` on undefined, all proven
+      in range), `src/sim/terrain/config.ts` (`REQUIRED_FLAGS[i]`/
+      `families[i]` guarded with `continue` — `REQUIRED_FLAGS` is parallel
+      to `TERRAIN_KEYS`, same length — and `families[first].key` changed to
+      `families[first]?.key`). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 7, `npx tsc
+      --noEmit` (main config) clean, `npm run test:fast` unchanged at 315
+      files / 4548 passed / 35 skipped, `npm run sim -- --seed 1 --policy
+      hybrid` endHash unchanged (`d6452f98`). 210 → **203 files remain** on
+      the allowlist. code-reviewer APPROVE (one Minor: `classBasicColor`'s
+      doc comment fixed to cite `tests/fb016-vfx-registry.test.ts` instead
+      of the wrong `content-complete.test.ts`; two Nits on
+      `terrain/config.ts`'s `continue` style left as-is, matching that
+      function's own pre-existing convention). qa-playtester PASS —
+      independently re-verified typecheck/ratchet-test/test:fast/endHash
+      and adversarially traced every guard's unreachability against real
+      call sites and a live sim scenario; no bugs filed.
+    - **Merge reconcile (integrator, 2026-09-19)**: the two sessions above
+      overlapped on 4 files (`rng.ts`, `character-panel.ts`, `canvas.ts`,
+      `theme.ts`) — kept the 7-file session's implementation for those on
+      merge (functionally equivalent, one style) plus its 3 exclusive fixes
+      (`classes.ts`, `sundering.ts`, `terrain/config.ts`), and kept the
+      5-file session's exclusive fix (`colorblind-sim.ts`). Union of both:
+      210 → **202 files remain** on the allowlist.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

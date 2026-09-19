@@ -1460,8 +1460,9 @@ function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
   // are born.
   const n = w.enemies.length;
   for (let i = 0; i < n; i++) {
+    // i < n <= w.enemies.length (enemies are only ever appended, never removed, mid-loop).
     const e = w.enemies[i];
-    if (e.dead) continue;
+    if (!e || e.dead) continue;
     let burning = false;
     for (const d of e.dots) {
       if (d.type === 'burning') {
@@ -1472,8 +1473,9 @@ function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
     if (!burning) continue;
     const list = w.enemiesInRadius(e.x, e.y, radius, flameScratch);
     for (let j = 0; j < list.length; j++) {
+      // j is bounded by the loop condition, always a valid list index.
       const other = list[j];
-      if (other === e || other.dead) continue;
+      if (!other || other === e || other.dead) continue;
       damageEnemy(w, other, tick, 'class_passive', { pure: true, dot: true });
       // fb016: `dot: true` above deliberately suppresses `damageEnemy`'s own
       // 'hit' spark (same reasoning as `updateCorpseExecute`'s 'execute'

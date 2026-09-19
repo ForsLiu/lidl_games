@@ -76,8 +76,10 @@ export class Rng {
   }
 
   pick<T>(arr: readonly T[]): T {
+    if (arr.length === 0) throw new Error('Rng.pick: empty array');
     const v = arr[this.int(arr.length)];
-    if (v === undefined) throw new Error('rng.pick: called on an empty array');
+    // int(arr.length) with arr.length > 0 is always a valid index.
+    if (v === undefined) throw new Error('Rng.pick: index out of range (unreachable)');
     return v;
   }
 
@@ -95,13 +97,13 @@ export class Rng {
   weightedIndex(weights: readonly number[]): number {
     let total = 0;
     for (let i = 0; i < weights.length; i++) {
-      const w = weights[i] ?? 0;
+      const w = weights[i] ?? NaN;
       if (Number.isFinite(w) && w > 0) total += w;
     }
     if (total <= 0) return 0;
     let r = this.float() * total;
     for (let i = 0; i < weights.length; i++) {
-      const w = weights[i] ?? 0;
+      const w = weights[i] ?? NaN;
       if (!Number.isFinite(w) || w <= 0) continue;
       r -= w;
       if (r < 0) return i;
@@ -115,7 +117,10 @@ export class Rng {
       const j = this.int(i + 1);
       const ai = arr[i];
       const aj = arr[j];
-      if (ai === undefined || aj === undefined) throw new Error('rng.shuffle: index out of range');
+      // i is a valid index by the loop bound; j = int(i + 1) is in [0, i], also valid.
+      if (ai === undefined || aj === undefined) {
+        throw new Error('Rng.shuffle: index out of range (unreachable)');
+      }
       arr[i] = aj;
       arr[j] = ai;
     }
@@ -128,7 +133,8 @@ export class Rng {
     idx.sort((a, b) => a - b);
     return idx.map((i) => {
       const v = arr[i];
-      if (v === undefined) throw new Error('rng.sample: index out of range');
+      // idx holds only indices drawn from arr's own index range, always valid.
+      if (v === undefined) throw new Error('Rng.sample: index out of range (unreachable)');
       return v;
     });
   }

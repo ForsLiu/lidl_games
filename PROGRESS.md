@@ -39,6 +39,55 @@
   exist in `CLASS_VFX`. `npx tsc --noEmit` (main config) clean; `npm run
   test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped. 210 →
   **205 files remain** on the allowlist. — refs: BACKLOG.md fb133 Log.
+- **2026-09-19 (scheduled routine, later, independently) — fb133 ratchet
+  shrunk 210 → 203.**
+  Fixed 7 more files with real guards (not `!`): `src/sim/rng.ts` (`pick`/
+  `shuffle`/`sample`/`weightedIndex` — throw on a truly-unreachable empty-
+  array pick or shuffle swap, `?? NaN`/`continue` where a loop bound already
+  proves the index in range), `src/ui/character-panel.ts` (`sourceLabel`'s
+  colon-split `parts[N]` reads default to `?? ''`; the boons map's `rank`
+  defaults `?? 0`, already proven `> 0` by a preceding `.filter()`),
+  `src/render/canvas.ts` (`drawPathIndicators`'s gate/path reads guarded
+  with `if (!x) continue`; a `GATE_PATH_COLORS[...]` read and a
+  `terrainKind[idx]` read given in-range-proven fallbacks), `src/sim/
+  classes.ts` (`updateContagiousFlame`'s enemy-list reads guarded with
+  `if (!x) continue`), `src/render/theme.ts` (new `classBasicColor(key)`
+  helper throws if `CLASS_VFX` has no entry for a class key, used for the 9
+  per-class `STYLES` rows; a regex capture-group read defaults `?? '000000'`
+  — its capture group always matches when the overall match succeeds),
+  `src/sim/sundering.ts` (`linkSpires`'s `spires[...]` reads guarded with
+  early-return/`continue` on undefined, all proven in range by the
+  preceding `spires.length` check or loop bounds), `src/sim/terrain/
+  config.ts` (`REQUIRED_FLAGS[i]`/`families[i]` guarded with `continue` on
+  undefined — `REQUIRED_FLAGS` is parallel to `TERRAIN_KEYS`, same length —
+  and a `families[first].key` read changed to `families[first]?.key`).
+  Verified: `npx tsc --noEmit` (main config) clean; `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 7, and a fresh diff
+  against `KNOWN_UNCHECKED_ACCESS_FILES` found no new offenders and no
+  stale entries beyond the 7 removed; `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy
+  hybrid` gives the identical `endHash` (`d6452f98`), confirming no
+  behavior drift. **code-reviewer APPROVE** (one Minor: `classBasicColor`'s
+  doc comment cited the wrong test, `content-complete.test.ts` instead of
+  `tests/fb016-vfx-registry.test.ts` — fixed same-day; two Nits on
+  `terrain/config.ts`'s `continue`-vs-throw guard style left as-is, since
+  `continue` matches that same function's own pre-existing convention one
+  loop above from fb064t). **qa-playtester PASS** — independently re-ran
+  the typecheck, the ratchet test, `test:fast` and the sim endHash check,
+  plus adversarially traced every guard's "unreachable" claim against real
+  call sites (`Rng.pick`/`shuffle`/`sample`'s only real callers, a live
+  `data/classes.json` vs. `CLASS_VFX` cross-check, `terrain/config.ts`'s
+  hardcoded-not-data-driven `REQUIRED_FLAGS`/`TERRAIN_KEYS`, a live
+  Contagious Flame sim scenario) — no bugs filed. — refs: BACKLOG.md fb133
+  Log.
+- **2026-09-19 (integrator merge reconcile) — fb133 ratchet shrunk 210 →
+  202.** The two entries above ran as concurrent sessions that overlapped on
+  4 files (`rng.ts`, `character-panel.ts`, `canvas.ts`, `theme.ts`, both
+  functionally equivalent fixes); merged keeping the 203-floor session's
+  style for those plus its 3 exclusive fixes, and keeping the 205-floor
+  session's exclusive fix (`colorblind-sim.ts`, not touched by the other
+  session). Union of both leaves 202 files on the allowlist — see
+  BACKLOG.md fb133 Log.
 - **2026-09-19 (scheduled routine) — fb133 ratchet shrunk 218 → 210.** Fixed
   8 more files with real guards (`src/sim/damagetypes.ts`,
   `src/sim/terrain/generate.ts`, `src/sim/terrain/overlay.ts`,

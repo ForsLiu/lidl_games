@@ -2249,13 +2249,17 @@ export class Renderer {
     const ctx = this.ctx;
     ctx.lineWidth = 2;
     for (let gi = 0; gi < w.gates.length; gi++) {
+      // gi is bounded by the loop condition, always a valid w.gates index.
       const gate = w.gates[gi];
       if (!gate) continue;
       const path = w.grid.gatePath(gate);
       if (path.length < 2) continue;
+      // gi % GATE_PATH_COLORS.length is always a valid index (theme.ts's own invariant);
+      // the fallback below is unreachable.
       const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length] ?? PALETTE.pathBreach;
       ctx.setLineDash([6, 5]);
       for (let i = 1; i < path.length; i++) {
+        // i is bounded by the loop condition, so both path indices are valid.
         const a = path[i - 1];
         const b = path[i];
         if (!a || !b) continue;

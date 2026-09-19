@@ -400,7 +400,9 @@ export const TerrainFileSchema = z
       // into a no-op *and* makes the border walkable; `normal.walkable: false`
       // makes every seed degenerate and ships the fallback forever. Colours,
       // densities and bands stay freely editable.
+      // REQUIRED_FLAGS is parallel to TERRAIN_KEYS (both length 4); i is always in range.
       const want = REQUIRED_FLAGS[i];
+      if (want === undefined) continue;
       for (const flag of ['walkable', 'buildable', 'highGround'] as const) {
         if (tile[flag] !== want[flag]) {
           ctx.addIssue({
@@ -547,7 +549,9 @@ function checkHighGround(
   const seenKeys = new Set<string>();
   const seenTraits = new Map<string, number>();
   for (let i = 0; i < families.length; i++) {
+    // i is bounded by the loop condition, always a valid families index.
     const f = families[i];
+    if (!f) continue;
     if (seenKeys.has(f.key)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -572,7 +576,9 @@ function checkHighGround(
           message:
             first === i
               ? `family "${f.key}" lists trait "${t}" twice`
-              : `trait "${t}" is already claimed by family "${families[first].key}" — first match ` +
+              : // `first` was recorded as a valid loop index in an earlier iteration, so it's
+                // always in range here.
+                `trait "${t}" is already claimed by family "${families[first]?.key}" — first match ` +
                 `wins, so this entry could never apply to any enemy`,
         });
       }

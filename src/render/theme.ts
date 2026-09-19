@@ -1,16 +1,6 @@
 /** Palette and small drawing constants. Render-side only. */
 
-import { CLASS_VFX, type ClassVfxEntry } from './vfx-registry';
-
-/** `CLASS_VFX[key]` for one of the nine real classes defined right above in
- * that file — always present by construction, so a miss means the registry
- * itself is out of sync with this file's `STYLES` table, not a runtime edge
- * case to swallow. */
-function classVfx(key: string): ClassVfxEntry {
-  const v = CLASS_VFX[key];
-  if (!v) throw new Error(`theme.ts: no CLASS_VFX entry for class "${key}"`);
-  return v;
-}
+import { CLASS_VFX } from './vfx-registry';
 
 export const PALETTE = {
   bgDay: '#1b2028',
@@ -168,6 +158,16 @@ export interface ProjectileStyle {
 
 const DEFAULT_STYLE: ProjectileStyle = { color: '#ffe9a8', shape: 'dart', size: 3, trail: 1.6 };
 
+/** `CLASS_VFX[key].basic.color` for a class known to have a registry entry —
+ * `tests/fb016-vfx-registry.test.ts`'s `missingVfxCoverage` check guarantees every real class key
+ * resolves; a miss here means the registry itself is broken, not a missing-data case to fall back
+ * on silently. */
+function classBasicColor(key: string): string {
+  const entry = CLASS_VFX[key];
+  if (!entry) throw new Error(`theme.ts STYLES: CLASS_VFX has no entry for class '${key}'`);
+  return entry.basic.color;
+}
+
 /** One entry per damage source that can put something on screen. */
 const STYLES: Record<string, ProjectileStyle> = {
   // Act I: keyed by tower.
@@ -188,15 +188,15 @@ const STYLES: Record<string, ProjectileStyle> = {
   // registry stays the one place a class's basic-attack color is authored —
   // code-reviewer flagged the earlier hardcoded duplicates as a
   // could-silently-drift dead field.
-  plaguebringer: { color: classVfx('plaguebringer').basic.color, shape: 'glob', size: 4, trail: 1 },
-  engineer: { color: classVfx('engineer').basic.color, shape: 'bolt', size: 5, trail: 1.8 },
-  pyromancer: { color: classVfx('pyromancer').basic.color, shape: 'orb', size: 4, trail: 1.6 },
-  archer: { color: classVfx('archer').basic.color, shape: 'dart', size: 3, trail: 2.4 },
-  necromancer: { color: classVfx('necromancer').basic.color, shape: 'orb', size: 4, trail: 1 },
-  cryomancer: { color: classVfx('cryomancer').basic.color, shape: 'orb', size: 4, trail: 0 },
-  stormcaller: { color: classVfx('stormcaller').basic.color, shape: 'spark', size: 3, trail: 0.6 },
-  animist: { color: classVfx('animist').basic.color, shape: 'dart', size: 3, trail: 1.4 },
-  time_lord: { color: classVfx('time_lord').basic.color, shape: 'orb', size: 4, trail: 1.2 },
+  plaguebringer: { color: classBasicColor('plaguebringer'), shape: 'glob', size: 4, trail: 1 },
+  engineer: { color: classBasicColor('engineer'), shape: 'bolt', size: 5, trail: 1.8 },
+  pyromancer: { color: classBasicColor('pyromancer'), shape: 'orb', size: 4, trail: 1.6 },
+  archer: { color: classBasicColor('archer'), shape: 'dart', size: 3, trail: 2.4 },
+  necromancer: { color: classBasicColor('necromancer'), shape: 'orb', size: 4, trail: 1 },
+  cryomancer: { color: classBasicColor('cryomancer'), shape: 'orb', size: 4, trail: 0 },
+  stormcaller: { color: classBasicColor('stormcaller'), shape: 'spark', size: 3, trail: 0.6 },
+  animist: { color: classBasicColor('animist'), shape: 'dart', size: 3, trail: 1.4 },
+  time_lord: { color: classBasicColor('time_lord'), shape: 'orb', size: 4, trail: 1.2 },
 };
 
 /**
@@ -263,8 +263,9 @@ export const TERRAIN_JITTER = 0.12;
 /** `#rrggbb` -> `[r, g, b]`, each 0-255. Malformed input (missing `data/terrain.json` color) falls back to mid-grey rather than throwing mid-frame. */
 function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m || m[1] === undefined) return [128, 128, 128];
-  const n = parseInt(m[1], 16);
+  if (!m) return [128, 128, 128];
+  // The regex's sole capture group always matches when the overall match succeeds.
+  const n = parseInt(m[1] ?? '000000', 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 

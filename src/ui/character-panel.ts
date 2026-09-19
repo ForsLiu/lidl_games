@@ -140,8 +140,9 @@ function sourceLabel(w: World, source: StatSource): string {
   const prefix = parts[0];
   switch (prefix) {
     case 'class': {
-      const cls = w.content.classByKey.get(parts[1] ?? '');
-      const name = cls?.name ?? parts[1] ?? '';
+      const id = parts[1] ?? '';
+      const cls = w.content.classByKey.get(id);
+      const name = cls?.name ?? id;
       if (parts[2] === 'passive') return `${name} (Passive)`;
       if (parts[2] === 'towerPassive') return `${name} (Tower Passive)`;
       if (parts[2] === 'bands') return `${name} (Move Band)`;
@@ -153,13 +154,15 @@ function sourceLabel(w: World, source: StatSource): string {
       return node ? `Constellation: ${node.name}` : `Constellation node ${parts[1]}`;
     }
     case 'boon': {
-      const def = w.content.boonByKey.get(parts[1] ?? '');
-      const rank = w.boonRanks[parts[1] ?? ''] ?? 0;
-      return `Boon: ${def?.name ?? parts[1] ?? ''} (rank ${rank})`;
+      const id = parts[1] ?? '';
+      const def = w.content.boonByKey.get(id);
+      const rank = w.boonRanks[id] ?? 0;
+      return `Boon: ${def?.name ?? id} (rank ${rank})`;
     }
     case 'core': {
-      const def = w.content.coreByKey.get(parts[1] ?? '');
-      const name = def?.name ?? parts[1] ?? '';
+      const id = parts[1] ?? '';
+      const def = w.content.coreByKey.get(id);
+      const name = def?.name ?? id;
       return parts[2] ? `Core: ${name} (${parts[2]})` : `Core: ${name}`;
     }
     case 'equipment': {
@@ -168,8 +171,9 @@ function sourceLabel(w: World, source: StatSource): string {
       // source string (e.g. "equipment:greatsword") instead of a label,
       // silently undercutting fb015's own "shows item sources in stat
       // breakdowns" acceptance line despite the source being present.
-      const item = w.content.equipmentByKey.get(parts[1] ?? '');
-      const name = item?.name ?? parts[1] ?? '';
+      const id = parts[1] ?? '';
+      const item = w.content.equipmentByKey.get(id);
+      const name = item?.name ?? id;
       if (parts[2] === 'fallback') {
         const notClass = item?.classFallback?.notClassKey;
         const notClassName = notClass ? w.content.classByKey.get(notClass)?.name ?? notClass : null;
@@ -209,6 +213,7 @@ export function characterPanelData(w: World): CharacterPanelData {
     .sort()
     .map((key) => {
       const def = w.content.boonByKey.get(key);
+      // The preceding .filter() already proved w.boonRanks[key] > 0.
       const rank = w.boonRanks[key] ?? 0;
       const stat = (def?.stat ?? '') as StatKey;
       const src = w.stats.contributions(stat).find(([s]) => s === `boon:${key}`);
