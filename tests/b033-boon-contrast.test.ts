@@ -35,8 +35,9 @@ function mount(): void {
 /** Resolves a possibly-`var(--name)` computed value to an `[r,g,b]` triple via `:root`. */
 function resolveColor(raw: string): Rgb {
   const varMatch = raw.trim().match(/^var\((--[\w-]+)\)$/);
-  const value = varMatch
-    ? getComputedStyle(document.documentElement).getPropertyValue(varMatch[1]).trim()
+  const varName = varMatch?.[1];
+  const value = varName
+    ? getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
     : raw.trim();
   const rgbMatch = value.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
   if (rgbMatch) return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];

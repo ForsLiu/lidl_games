@@ -233,7 +233,9 @@ function freshWorld(classKey: string, wavesCleared: number): World {
 }
 
 function dummy(w: World, x: number, y: number, hp = 1e6): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const firstEnemy = content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('no enemies in content');
+  const e = spawnEnemy(w, firstEnemy.key, x, y)!;
   e.hp = hp;
   e.maxHp = hp;
   e.speed = 0;

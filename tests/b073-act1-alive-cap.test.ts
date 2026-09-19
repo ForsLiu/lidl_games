@@ -78,7 +78,11 @@ describe('b073: Act I wave spawning respects aliveCap', () => {
     expect(w.spawnQueue.length).toBe(queued);
 
     // Free up exactly `queued` slots, then the paused entries should drain.
-    for (let i = 0; i < queued; i++) w.enemies[i].dead = true;
+    for (let i = 0; i < queued; i++) {
+      const enemy = w.enemies[i];
+      if (!enemy) throw new Error(`expected ${queued} enemies at cap, only found ${i}`);
+      enemy.dead = true;
+    }
     w.compact();
 
     for (let i = 0; i < 60 * 5 && w.spawnQueue.length > 0; i++) run.step(emptyInput());

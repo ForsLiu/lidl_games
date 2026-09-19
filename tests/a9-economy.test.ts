@@ -18,7 +18,9 @@ const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 function median(xs: number[]): number {
   const s = xs.slice().sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+  const mid = s[Math.floor(s.length / 2)];
+  if (mid === undefined) throw new Error('median of empty array');
+  return mid;
 }
 
 /**

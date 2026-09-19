@@ -48,7 +48,9 @@ describe.skip('A7 mazing is strong, never absolute', () => {
   const runs = SEEDS.map(wave9);
 
   it('wave 9 is built from enemies a wall cannot stop', () => {
-    const groups = loadContent().waves.waves[8].groups;
+    const wave9Data = loadContent().waves.waves[8];
+    if (!wave9Data) throw new Error('wave 9 missing from content');
+    const groups = wave9Data.groups;
     const keys = groups.map((g) => g.enemy);
     expect(keys).toContain('burrower');
     expect(keys).toContain('wraith');

@@ -371,9 +371,9 @@ describe('A4 every tower type is viable, none is dominant', () => {
       result[key] = n;
     }
     for (const key of SOUL_TOWERS) {
-      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(
-        T1_IDENTITY_FLOOR[key],
-      );
+      const floor = T1_IDENTITY_FLOOR[key];
+      if (floor === undefined) throw new Error(`no T1_IDENTITY_FLOOR entry for ${key}`);
+      expect(result[key], `${key}: ${JSON.stringify(result)}`).toBeGreaterThanOrEqual(floor);
     }
   }, 600_000); // measured 500-900s depending on host contention: 35 full 18-wave sim runs (7 towers x 5 seeds)
 

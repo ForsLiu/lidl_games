@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 198 → 187.**
+  Fixed 11 more test files with real guards, all one-error-each and none
+  touching `/src`: `tests/a4-single-type.test.ts` (`T1_IDENTITY_FLOOR[key]`
+  throws if a `SOUL_TOWERS` key has no entry — proven impossible, the map's 7
+  keys are exactly `SOUL_TOWERS`), `tests/a7-turtle-check.test.ts` (a new
+  local renamed `wave9Data` to avoid shadowing the file's own `wave9(seed)`
+  helper, throws if wave 9 is missing from content; the file stays
+  `describe.skip`'d, no behavior change), `tests/a9-economy.test.ts`
+  (`median()` throws on an empty array, unreachable for its only caller),
+  `tests/b026-clarion-taunt-duration.test.ts` /
+  `tests/class-kit-liveness.test.ts` / `tests/class-kit-power-reach.test.ts` /
+  `tests/class-kit-whiff.test.ts` / `tests/class-wide-grove-reach.test.ts`
+  (all five share a `dummy()`/setup helper whose `content.enemies.enemies[0]`
+  read now throws if the enemy roster is ever empty),
+  `tests/b033-boon-contrast.test.ts` (`varMatch?.[1]` optional-chains a
+  regex capture group that's mandatory once the outer match succeeds),
+  `tests/b073-act1-alive-cap.test.ts` (the cap-draining loop throws if
+  `w.enemies[i]` is missing before `fillToCap` should have populated it),
+  `tests/class-board-windows.test.ts` (`EXPECTED[w.site]?.[name]` throws if a
+  window/origin pair has no recorded expectation). Verified: `npx tsc
+  --noEmit -p tsconfig.unchecked.json` no longer flags any of the 11; `npx
+  tsc --noEmit` (main config) clean; targeted `npx vitest run` on all 11
+  files plus the ratchet test green (251 passed, 5 skipped); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer
+  APPROVE (one Minor: `class-board-windows.test.ts`'s guard throws at
+  `describe`-body collection time, not inside an `it`, widening a future
+  missing-entry's blast radius to the whole file — currently moot since all
+  15 window/origin pairs have entries, left as-is; one Nit: `a9-economy.test
+  .ts`'s empty-array guard is unreachable today, fine as defensive typing).
+  Light tier (item is `[polish]`, no `/src` touched) — no qa-playtester
+  dispatch, per the tiered-QA rule. — refs: BACKLOG.md fb133 Log.
 - **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 200 → 198.**
   Fixed `src/bots/policies.ts` and `src/sim/terrain/path.ts` with real guards
   and removed them from `KNOWN_UNCHECKED_ACCESS_FILES`. **Caught and fixed a

@@ -182,7 +182,8 @@ describe('c029: board-relative windows the static EAST_REACH scan cannot see', (
   for (const w of WINDOWS) {
     describe(`${w.file} — ${w.site}`, () => {
       for (const { name, origin } of ORIGINS) {
-        const expected = EXPECTED[w.site][name];
+        const expected = EXPECTED[w.site]?.[name];
+        if (expected === undefined) throw new Error(`no EXPECTED entry for ${w.site} / ${name}`);
         it(`origin ${name}: ${expected ? 'survives' : 'reddens — a declared dependency, not silence'}`, () => {
           const b = probeBoard(origin);
           const x = w.reachX(b);
