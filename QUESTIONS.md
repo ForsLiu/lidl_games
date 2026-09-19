@@ -1753,3 +1753,22 @@ Q200 did not collide and are unchanged below).
   log, continue) rather than re-deferring a decision fb064o already framed
   as binary. — refs: SPEC-FINAL §12 rule 4, BACKLOG.md fb134,
   BACKLOG-TERRAIN.md fb064k/fb064o Logs.
+
+- **2026-09-19 (scheduled routine, flagged not fixed) — `tests/a4-single-
+  type.test.ts`'s `p12h` `T1_IDENTITY_FLOOR.mortar` pin (fb199/Q212) has
+  drifted red again since its 2026-09-18 close.** A code-reviewer dispatch
+  for this session's unrelated fb133 batch independently ran `mortar`'s 5
+  seeds against unmodified `src/sim/content.ts`/`tools/a4probe.ts` and got a
+  reproducible `2/5` clears against the pinned floor of `3` (identical on two
+  separate runs — deterministic, not host-contention flake). Not touched by
+  this session's diff (the only change to that file was extracting the
+  lookup into a checked local, refs BACKLOG.md fb133 Log) and outside this
+  routine's scope (no owner-directed item names it, and this routine may not
+  generate new backlog items). `a4-single-type.test.ts` is excluded from
+  `test:fast` (500-900s), so this won't fail per-push CI, but it will surface
+  at the next nightly full-suite run or the next `npm run sim`-driven
+  re-measurement. Logged rather than fixed so a future session with room for
+  a full re-measurement (same shape as fb197's own re-pin) can pick it up as
+  a new backlog item — likely another baseHpMul/gate-position-class
+  interaction rather than a fresh regression, given the pattern of fb153b/
+  fb197/fb199 before it. — refs: BACKLOG.md fb133 Log, fb197/fb199, Q212.
