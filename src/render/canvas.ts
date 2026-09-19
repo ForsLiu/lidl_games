@@ -1195,7 +1195,7 @@ export class Renderer {
         if (t === TileType.Border) color = PALETTE.border;
         else if (t === TileType.Gate) color = PALETTE.gate;
         else {
-          const kind = w.grid.terrainKind[idx];
+          const kind = w.grid.terrainKind[idx] ?? TerrainKind.Normal;
           if (kind !== TerrainKind.Normal) color = terrainTileFill(terrainCfg.tiles[kind]?.color ?? color, x, y);
         }
         ctx.fillStyle = color;
@@ -2249,13 +2249,16 @@ export class Renderer {
     const ctx = this.ctx;
     ctx.lineWidth = 2;
     for (let gi = 0; gi < w.gates.length; gi++) {
-      const path = w.grid.gatePath(w.gates[gi]);
+      const gate = w.gates[gi];
+      if (!gate) continue;
+      const path = w.grid.gatePath(gate);
       if (path.length < 2) continue;
-      const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length];
+      const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length] ?? PALETTE.pathBreach;
       ctx.setLineDash([6, 5]);
       for (let i = 1; i < path.length; i++) {
         const a = path[i - 1];
         const b = path[i];
+        if (!a || !b) continue;
         ctx.strokeStyle = b.breach ? PALETTE.pathBreach : color;
         ctx.globalAlpha = b.breach ? 0.85 : 0.55;
         ctx.beginPath();

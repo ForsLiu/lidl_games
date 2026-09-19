@@ -5112,6 +5112,37 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `test:fast` and a set of targeted terrain/codex/tuner suites, and
       diffed `endHash` across a real `git worktree` at the pre-fix commit —
       byte-identical. No bugs filed.
+    - **Ratchet shrunk further 2026-09-19 (later)**: fixed the remaining 5
+      files with real guards — `src/ui/character-panel.ts` (`?? ''`
+      defaults on a `source.split(':')` segment used as a lookup key,
+      `?? 0` on a boon's rank read), `src/sim/rng.ts` (`pick`/`shuffle`/
+      `sample` throw on an index a bounded loop already guarantees is
+      in-range — also closes a real latent gap: `pick` on an empty array
+      previously returned `undefined` silently instead of erroring),
+      `src/render/canvas.ts` (`?? TerrainKind.Normal` default matching the
+      terrain grid's own zero-fill; unreachable-by-construction guards in
+      `drawPathIndicators`), `src/render/colorblind-sim.ts` (retyped
+      `CVD_MATRIX` to a real 3-tuple-of-3-tuples so per-index types stay
+      static instead of widening under the flag — the correct fix, not a
+      checker-silencer), `src/render/theme.ts` (new `classVfx()` helper,
+      throws on a missing `CLASS_VFX` entry, matching `tiers.ts`'s
+      "throw on an already-guaranteed invariant" pattern). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of
+      the 5; `npx tsc --noEmit` (main config) clean; `npm run test:fast`
+      green, unchanged at 315 files / 4548 passed / 35 skipped; `npm run
+      sim -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`,
+      independently re-confirmed by qa-playtester via `git stash`). 210 →
+      **205 files remain** on the allowlist. code-reviewer APPROVE (two
+      Minor/Nit: a `parseInt(m[1] ?? '', 16)` fallback in two files'
+      `hexToRgb` was inconsistent with this batch's own throw/return-default
+      convention for an unreachable regex-capture miss, fixed to an explicit
+      `m[1] === undefined` check before commit; a `character-panel.ts`
+      degenerate-input nit — `parts[1] ?? ''` prints an empty label instead
+      of the literal string "undefined" for a malformed source string — left
+      as-is, unreachable in practice). qa-playtester PASS — grepped every
+      real `pick`/`shuffle`/`sample` call site in `/src` and `/tools` for a
+      reachable empty-array case (none found) and confirmed all 9 `STYLES`
+      class keys exist in `CLASS_VFX`. No bugs filed.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
