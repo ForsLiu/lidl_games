@@ -134,7 +134,8 @@ const ROSTER_MIN_REACH = Math.min(...ROSTER_REACHES);
 function exposedHigh(map: TerrainGrid, radius: number): number[] {
   const walkable: Array<[number, number]> = [];
   for (let i = 0; i < map.kind.length; i++) {
-    if (isWalkable(cfg, map.kind[i])) walkable.push([i % map.w, (i / map.w) | 0]);
+    const kind = map.kind[i];
+    if (kind !== undefined && isWalkable(cfg, kind)) walkable.push([i % map.w, (i / map.w) | 0]);
   }
   const out: number[] = [];
   const r2 = radius * radius;

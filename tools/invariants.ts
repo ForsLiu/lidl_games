@@ -192,7 +192,11 @@ export function scanWorld(w: World): string[] {
   for (const [k, v] of Object.entries(w.boonRanks)) nonNeg(`boonRanks.${k}`, v);
 
   // `reroll` and `pick` rewrite the offer list wholesale.
-  for (let i = 0; i < w.offers.length; i++) nonNeg(`offers[${i}].toLevel`, w.offers[i].toLevel);
+  for (let i = 0; i < w.offers.length; i++) {
+    const offer = w.offers[i];
+    if (!offer) throw new Error(`offers[${i}] missing within its own length bound`);
+    nonNeg(`offers[${i}].toLevel`, offer.toLevel);
+  }
 
   for (const s of w.structures) {
     finite(`structure#${s.id}.hp`, s.hp);

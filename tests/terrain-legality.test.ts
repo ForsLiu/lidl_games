@@ -288,8 +288,10 @@ describe('fb064v — a band the mirror does not know about cannot land green', (
     // constant and a live read give different answers.
     for (const [band, thr] of FLOOR_BANDS) {
       if (thr <= 0) continue;
+      const field = FLOOR_FIELD[band];
+      if (field === undefined) throw new Error(`no FLOOR_FIELD entry for ${band}`);
       const raw = JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>;
-      (raw.constraints as Record<string, number>)[FLOOR_FIELD[band]] = 0;
+      (raw.constraints as Record<string, number>)[field] = 0;
       const moved = parseTerrain(raw);
       const probe = { ...base, [band]: under(thr) };
       expect(legalMeasure(probe, cfg), `${band} shipped`).toBe(terrainLegal(probe, cfg));

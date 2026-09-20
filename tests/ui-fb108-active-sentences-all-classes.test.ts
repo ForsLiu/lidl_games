@@ -96,8 +96,10 @@ describe('fb108: every class Active resolves to a sentence, not the bare fallbac
     const chainCount = cls.active1.chainCount!;
     // More candidates than chainCount so the loop is limited by chainCount, not by enemy supply.
     const enemies = [];
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
     for (let i = 0; i < chainCount + 4; i++) {
-      const e = spawnEnemy(w, w.content.enemies.enemies[0].key, 5 + i * 2, 10)!;
+      const e = spawnEnemy(w, firstEnemy.key, 5 + i * 2, 10)!;
       e.hp = 1e6;
       e.maxHp = 1e6;
       e.speed = 0;

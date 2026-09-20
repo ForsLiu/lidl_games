@@ -5,7 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 171 → 161.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 161 → 147.**
+  Fixed 14 more files, all one-error-each, none touching `/src`/`/data`:
+  `tests/terrain-gates-dump.test.ts`, `tests/terrain-grid-gates.test.ts`,
+  `tests/terrain-headroom.test.ts`, `tests/terrain-high-contest.test.ts`,
+  `tests/terrain-legality.test.ts` (guards `FLOOR_FIELD[band]`, unreachable
+  given `FLOOR_BANDS`' own key set), `tests/tower-info.test.ts`,
+  `tests/ui-fb094-screenshot-export.test.ts` / `tests/ui-fb097-frame-
+  capture.test.ts` (guard `spy.mock.calls[0]` right after a
+  `toHaveBeenCalledTimes` proves it exists), `tests/ui-fb108-active-
+  sentences-all-classes.test.ts` (the fb025/fb084 `enemies[0]` pattern),
+  `tests/ui-fb175-single-falloff-clause.test.ts`, `tools/a5probe.ts`
+  (`damageByWeapon[key]` provably non-undefined inside its own
+  `Object.keys` loop — pure type-safety no-op), `tools/handoff-metrics.ts`
+  (its `median()` already early-returns on empty, the indexed read now
+  falls back `?? 0`), `tools/invariants.ts` (a bounded offers loop now
+  throws naming the index instead of indexing twice), `tools/soak.ts`
+  (a modulo index guarded, unreachable given the function's own earlier
+  non-empty check). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+  no longer flags any of the 14; main tsconfig clean; targeted `npx vitest
+  run` on all touched files plus the ratchet test green (127 passed);
+  `tests/p10g-armor-shred-liveness.test.ts` (exercises the exact
+  `damageByWeapon` loop) passes directly; a standalone `scanWorld` smoke
+  call confirms `tools/invariants.ts` still runs clean; `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor — an inconsistent silent-skip guard, fixed to throw before
+  commit; one Nit, unrelated pre-existing `!`, left as-is). Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 171 → 161.**
   Fixed 10 more test files with real guards, all one-error-each:
   `tests/p9e-levelup-idle.test.ts` (`w.offers[0]` guarded), `tests/q13-perf-
   ratio.test.ts` / `tests/q13-perf-sensitivity.test.ts` (`median()` throws on
