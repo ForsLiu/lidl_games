@@ -5,7 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 111 → 101.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 101 → 96.**
+  Fixed 5 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper
+  guarding `rows[0]`, reused at 3 call sites), `tests/ui-fb115-fb173-area-
+  scaled-effects.test.ts` (guards a reverse-loop `w.fx[i]` read plus a
+  `firstEnemyKey()` helper), `tests/ui-fb146-dash-width-units-guard.test.ts`
+  (`?? ''` on a `.split('//')[0]` read), `tools/perf-ratio.ts` (a generic
+  `pickFrom<T>(pool, n)` helper replacing three modulo-indexed array reads),
+  `tools/sweep.ts` (the `--policies`/`--class` CLI flags now throw a named
+  error on a missing value instead of a raw `TypeError`; also guards
+  `median()`'s indexed read). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 5; main `tsc --noEmit`
+  clean; targeted `npx vitest run` on all 5 plus the perf/sweep-consuming
+  tests and the ratchet test, all green; `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no Critical/
+  Major findings. Light tier (`[polish]`, no `/src`/`/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 111 → 101.**
   Fixed 10 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/q15-command-domain-fuzz.test.ts` (a `firstFieldSpec()`
   helper reused at both call sites, plus a guarded

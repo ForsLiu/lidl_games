@@ -5561,6 +5561,37 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       not caused by this batch). Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 5 more files with real guards, none touching `/src`/`/data`:
+      `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper
+      guarding `rows[0]`, reused at 3 call sites),
+      `tests/ui-fb115-fb173-area-scaled-effects.test.ts` (guards a
+      reverse-loop `w.fx[i]` read in `lastFxRadius`, plus a
+      `firstEnemyKey()` helper guarding `content.enemies.enemies[0]`),
+      `tests/ui-fb146-dash-width-units-guard.test.ts` (`?? ''` on a
+      `.split('//')[0]` read, matching the `ui-fb148-dash-range-
+      live.test.ts` precedent), `tools/perf-ratio.ts` (a generic
+      `pickFrom<T>(pool, n)` helper replacing three separate modulo-indexed
+      array reads — `keys[]`, `HORDE_POOL[]` x2 — preserving exact pick
+      order including the `i++` post-increment site), `tools/sweep.ts` (the
+      `--policies`/`--class` CLI flags now throw a named error on a missing
+      value instead of crashing with a raw `TypeError` on `.split`, a
+      genuine input-validation guard since a user really can omit the
+      value; also guards `median()`'s indexed read, dead-code-safe given
+      the existing empty-array early return). Verified: `npx tsc --noEmit
+      -p tsconfig.unchecked.json` no longer flags any of the 5; main `tsc
+      --noEmit` clean; targeted `npx vitest run` on all 5 plus
+      `tests/q13-perf-ratio.test.ts`, `tests/q13-perf-
+      sensitivity.test.ts`, `tests/q26-perf-ratio-interleave.test.ts`,
+      `tests/fb047-sweep-tier-modifiers.test.ts` and the ratchet test, all
+      green; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+      skipped. 101 → **96 files remain** on the allowlist. code-reviewer
+      APPROVE, no Critical/Major findings (one informational Nit: a
+      pre-existing, out-of-scope `Map.get(...)!` on the same line as one of
+      the new `pickFrom` calls in `perf-ratio.ts`, unrelated to
+      `noUncheckedIndexedAccess`, left as-is). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

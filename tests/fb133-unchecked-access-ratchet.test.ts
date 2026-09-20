@@ -125,10 +125,7 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/ui-fb091-crash-log.test.ts',
   'tests/ui-fb096-save-slots.test.ts',
   'tests/ui-fb097-zip-archive.test.ts',
-  'tests/ui-fb105-codex-search.test.ts',
-  'tests/ui-fb115-fb173-area-scaled-effects.test.ts',
   'tests/ui-fb117-core-select.test.ts',
-  'tests/ui-fb146-dash-width-units-guard.test.ts',
   'tests/ui-fb149-falloff-wording.test.ts',
   'tests/ui-fb174-measured-falloff-guard.test.ts',
   'tests/ui-input.test.ts',
@@ -137,10 +134,8 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tools/fuzz-data.ts',
   'tools/fuzz-weapon-boundary.ts',
   'tools/gate-audit.ts',
-  'tools/perf-ratio.ts',
   'tools/sim.ts',
   'tools/status.ts',
-  'tools/sweep.ts',
   'tools/ui-audit.ts',
 ];
 

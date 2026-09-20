@@ -44,6 +44,12 @@ import { cfg } from '../tests/helpers';
  */
 const HORDE_POOL = ['husk', 'sprinter', 'bulwark', 'spitter', 'wraith', 'bomber', 'charger', 'shellback'];
 
+function pickFrom<T>(pool: readonly T[], n: number): T {
+  const v = pool[n % pool.length];
+  if (v === undefined) throw new Error('pickFrom: pool is empty');
+  return v;
+}
+
 /**
  * A worst-case Act II frame: the alive cap, a full wielded attack set, and a
  * field of petrified terrain — with the horde **scattered evenly** across the
@@ -104,7 +110,7 @@ function buildWorstCaseBoard(w: World): void {
     for (let x = 3; x < GRID_W - 6; x += 2) {
       w.warden.x = x + 0.5;
       w.warden.y = y + 0.5;
-      const def = w.content.towerByKey.get(keys[i++ % keys.length])!;
+      const def = w.content.towerByKey.get(pickFrom(keys, i++))!;
       buildTower(w, def.id, x, y);
     }
   }
@@ -125,7 +131,7 @@ function fillScattered(w: World): void {
     for (let k = 0; k < 40 && n < cap; k++) {
       const x = 1.5 + ((ring * 7 + k * 3) % (GRID_W - 3));
       const y = 1.5 + ((ring * 3 + k * 5) % (GRID_H - 3));
-      if (spawnEnemy(w, HORDE_POOL[n % HORDE_POOL.length], x, y, { overlay: true })) n++;
+      if (spawnEnemy(w, pickFrom(HORDE_POOL, n), x, y, { overlay: true })) n++;
     }
   }
 }
@@ -160,7 +166,7 @@ function fillFromSpawnPoints(w: World): void {
   w.warden.y = GRID_H / 2;
   let n = 0;
   for (let attempt = 0; attempt < cap * 8 && n < cap; attempt++) {
-    const key = HORDE_POOL[n % HORDE_POOL.length];
+    const key = pickFrom(HORDE_POOL, n);
     const p = pickSpawnPoint(w, key);
     if (spawnEnemy(w, key, p.x, p.y, { overlay: true })) n++;
   }
