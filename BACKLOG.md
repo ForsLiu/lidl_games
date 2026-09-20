@@ -5356,93 +5356,117 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       reasoning is sound). Light tier per this item's `[polish]` tag and no
       `/src`/`/data` changes — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
-    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still)**:
-      fixed 8 more one-error-each test files with real guards —
-      `tests/p9e-levelup-idle.test.ts` (a `w.offers[0]` read throws if no
-      offer rolled, proven impossible immediately after
-      `openLevelUpIfPending`), `tests/q13-perf-ratio.test.ts` and
-      `tests/q13-perf-sensitivity.test.ts` (both: a local `median()` helper
-      throws on an empty input array, matching `tests/a9-economy.test.ts`'s
-      and `tests/p10e-perf-budget.test.ts`'s own identical helper),
-      `tests/q28-cli-error-handling.test.ts` (`warn.mock.calls[0]` throws if
-      missing, unreachable given the immediately preceding
-      `toHaveBeenCalledTimes(1)` assertion), `tests/render-fb067-dot-number-
-      budget.test.ts`, `tests/render-fb068-dot-density-hysteresis.test.ts`,
-      `tests/render-fb069-dot-accum-stale-cleanup.test.ts`,
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 10 more files, all one-error-each — `tests/p9e-levelup-idle.test.ts`
+      (`w.offers[0]` guarded, throws on an exhausted offer pool),
+      `tests/q13-perf-ratio.test.ts` and `tests/q13-perf-sensitivity.test.ts`
+      (`median()` now throws on an empty array, matching
+      `tests/a9-economy.test.ts`'s own identical helper — same fix already
+      applied to `p10e-perf-budget.test.ts` last item), `tests/q28-cli-error-
+      handling.test.ts` (`warn.mock.calls[0]` guarded, immediately after
+      `expect(warn).toHaveBeenCalledTimes(1)` already proves it exists),
+      `tests/render-fb067-dot-number-budget.test.ts`,
+      `tests/render-fb068-dot-density-hysteresis.test.ts`,
+      `tests/render-fb069-dot-accum-stale-cleanup.test.ts` and
       `tests/render-fb070-dot-toggle-off-stale-cleanup.test.ts` (all four:
-      the shared `content.enemies.enemies[0]` spawn-helper pattern throws if
-      the roster is empty, matching `fb084-summon-cap-stat.test.ts`'s and
-      `fb025-enemy-hp-bars.test.ts`'s own `firstEnemy` convention — the
-      roster always has 20 entries per `tests/fb155-enemy-attack-registry
-      .test.ts`). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
-      longer flags any of the 8; `npx tsc --noEmit` (main config) clean;
-      targeted `npx vitest run` on the ratchet test plus all 8 files green
-      (9 files / 38 tests), including `q13-perf-sensitivity.test.ts` run
-      separately under `vitest.perf.config.ts` as its header requires;
-      `npm run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
-      171 → **163 files remain** on the allowlist. code-reviewer APPROVE (no
-      findings; independently confirmed every guard's unreachability,
-      including the enemy-roster count and the q28 assertion ordering).
-      Light tier per this item's `[polish]` tag and no `/src`/`/data`
-      changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      guard `w.content.enemies.enemies[0]` before use, matching the same
+      pattern already used in fb025-enemy-hp-bars/fb084-summon-cap-stat),
+      `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]` guarded,
+      immediately after `expect(violations).toHaveLength(1)` already proves
+      it exists), `tests/t1-range-indicators.test.ts` (destructures
+      `[countOff, countOn]` from the fixed 2-element `.map` result instead of
+      indexing `counts[0]`/`counts[1]`, both guarded for `undefined`).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 10; `npx tsc --noEmit` (main config) clean; targeted `npx
+      vitest run` on all 10 plus the ratchet test green (60 passed); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 171 →
+      **161 files remain** on the allowlist. code-reviewer APPROVE (no
+      findings). Light tier per this item's `[polish]` tag and no `/src`/
+      `/data` changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
-    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still 2)**:
-      fixed 8 more one-error-each test files with real guards —
-      `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]` throws,
-      proven by the preceding `toHaveLength(1)`), `tests/t1-range-
-      indicators.test.ts` (`counts` destructured into `off`/`on` with a
-      guard, always length 2 from `[false, true].map(...)`),
-      `tests/terrain-gates-dump.test.ts` (a `bands()` helper's
-      `dump.split('\n')[3]` throws if missing, `describeTerrain` always
-      emits at least 8 lines), `tests/terrain-grid-gates.test.ts`
-      (`nudged[nudged.length - 1]` read into a checked local before being
-      spread, `GATES` is always non-empty), `tests/terrain-headroom.test.ts`
-      (an `at()` helper's array-index read throws if out of range),
-      `tests/terrain-high-contest.test.ts` (a `map.kind[i]` read inside a
-      `for (i < map.kind.length)` loop throws, in-range by the loop bound),
-      `tests/terrain-legality.test.ts` (`FLOOR_FIELD[band]` throws before
-      use as an object key, `FLOOR_FIELD` and `FLOOR_BANDS` share the same
-      4-key set), `tests/tower-info.test.ts` (`def.upgrades.specials[0]`
-      throws, confirmed against `data/towers.json`'s `tesla_coil` milestone).
-      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
-      flags any of the 8; `npx tsc --noEmit` (main config) clean; targeted
-      `npx vitest run` on the ratchet test plus all 8 files green (9 files /
-      106 tests); `npm run test:fast` unchanged at 315 files / 4548 passed /
-      35 skipped. 163 → **155 files remain** on the allowlist. code-reviewer
-      APPROVE (no findings; independently verified each guard's
-      unreachability, including reading `src/sim/terrain/describe.ts` and
-      `data/towers.json` directly). Light tier per this item's `[polish]`
-      tag and no `/src`/`/data` changes — no qa-playtester dispatch. —
-      refs: BACKLOG-TERRAIN.md fb064t Log.
-    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still 3)**:
-      fixed 8 more files with real guards, all test-only — `tests/ui-fb094-
-      screenshot-export.test.ts` and `tests/ui-fb097-frame-capture.test.ts`
-      (both: a `.mock.calls[0]` read throws if missing, unreachable given
-      the preceding `toHaveBeenCalledTimes(1)`), `tests/ui-fb108-active-
-      sentences-all-classes.test.ts` (`content.enemies.enemies[0]` hoisted
-      out of a loop with a throw guard), `tests/ui-fb175-single-falloff-
-      clause.test.ts` and `tests/b030-autopick-pause-toggle.test.ts` (both:
-      a destructure guarded, unreachable given a preceding `toHaveLength`),
-      `tests/class-roster-size.test.ts` (`doc.classes[0]` and
-      `boonsDoc.skillCards[sourceKey]` each guarded before use — real
-      shipped content, never empty), `tests/fb155-enemy-attack-
-      registry.test.ts` (`doc.enemies[0]` guarded before a `delete`, and a
-      `Record<string, number>`-cast index read guarded before
-      `toBeCloseTo` — `noUncheckedIndexedAccess` types an index-signature
-      read as possibly-`undefined` regardless of an explicit cast, which is
-      the flag's documented behavior, not a bug), `tests/p9h-armour-floor-
-      display.test.ts` (`[...enemyByKey.values()][0]` guarded, twice, same
-      pattern in two `it` blocks). Verified: `npx tsc --noEmit -p
-      tsconfig.unchecked.json` no longer flags any of the 8; `npx tsc
-      --noEmit` (main config) clean; targeted `npx vitest run` on the
-      ratchet test plus all 8 files green (9 files / 65 tests); `npm run
-      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 155 →
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 14 more files, all one-error-each, none touching `/src`/`/data` —
+      `tests/terrain-gates-dump.test.ts` (a `dump.split('\n')[3]` read inside
+      a local helper, guarded and throws if the line is missing),
+      `tests/terrain-grid-gates.test.ts` (guards `nudged[nudged.length-1]`
+      before spreading it), `tests/terrain-headroom.test.ts` (a
+      `xs[Math.floor(...)]` percentile helper, throws on empty array),
+      `tests/terrain-high-contest.test.ts` (guards `map.kind[i]` with an
+      explicit undefined check before passing it to `isWalkable`),
+      `tests/terrain-legality.test.ts` (guards `FLOOR_FIELD[band]` — a lookup
+      table keyed by a 4-member subset of a 5-member string-literal union —
+      with a throw; `FLOOR_BANDS` only ever iterates the 4 keys `FLOOR_FIELD`
+      defines, so the throw is unreachable), `tests/tower-info.test.ts`
+      (guards `def.upgrades.specials[0]` with a throw before reading `.at`),
+      `tests/ui-fb094-screenshot-export.test.ts` and `tests/ui-fb097-frame-
+      capture.test.ts` (guard `someSpy.mock.calls[0]`, right after an
+      `expect(...).toHaveBeenCalledTimes(...)` already proves the call
+      exists — same pattern as this item's earlier q28 fix),
+      `tests/ui-fb108-active-sentences-all-classes.test.ts` (guards
+      `w.content.enemies.enemies[0]`, matching the fb025/fb084/render-fb06x
+      precedent), `tests/ui-fb175-single-falloff-clause.test.ts` (destructures
+      `[primaryDamage, carriedDamage] = struck` after
+      `expect(struck).toHaveLength(2)`, guards both for `undefined`),
+      `tools/a5probe.ts` (`w.damageByWeapon[key] - (prev[key] ?? 0)` ->
+      `(w.damageByWeapon[key] ?? 0) - (prev[key] ?? 0)` — the loop already
+      iterates `Object.keys(w.damageByWeapon)` itself, so the left side can
+      never actually be undefined at runtime, a pure type-safety no-op),
+      `tools/handoff-metrics.ts` (its `median()` already early-returns 0 for
+      an empty array; the indexed read now falls back `?? 0`, provably
+      unreachable past that early return), `tools/invariants.ts` (a bounded
+      `for (i < w.offers.length)` loop now guards `w.offers[i]` with a throw
+      naming the index, instead of indexing twice), `tools/soak.ts`
+      (`policies[i % policies.length]` guarded with a throw; the function's
+      own earlier `policies.length === 0` throw makes this one unreachable).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 14; `npx tsc --noEmit` (main config) clean; targeted `npx
+      vitest run` on all touched test files plus the ratchet test green (127
+      passed); `tests/p10g-armor-shred-liveness.test.ts` (exercises
+      `tools/a5probe.ts`'s `runBuild`, including the exact `damageByWeapon`
+      loop touched) passes directly; a standalone `scanWorld` smoke call
+      confirms `tools/invariants.ts` still runs clean on a fresh world; `npm
+      run test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 161 →
       **147 files remain** on the allowlist. code-reviewer APPROVE (one
-      Nit: the destructure-or-throw idiom recurs across the batch, worth a
-      shared `tests/helpers.ts` assertion only if a future batch repeats it
-      at larger scale — no action taken). Light tier per this item's
-      `[polish]` tag and no `/src`/`/data` changes — no qa-playtester
-      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+      Minor — the `tools/invariants.ts` guard originally skipped silently
+      instead of throwing, inconsistent with this batch's other guards —
+      fixed to throw before commit; one Nit noting a pre-existing unrelated
+      `!` in `ui-fb108`, out of this item's scope, left as-is). Light tier
+      per this item's `[polish]` tag and no `/src`/`/data` changes (the
+      `tools/*.ts` files are scripts, not `/src`) — no qa-playtester dispatch.
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 10 more files, all two-error-each, all tests, none touching
+      `/src`/`/data` — `tests/b030-autopick-pause-toggle.test.ts` (guards
+      `autopickCmds[0]`/`[1]` via destructure right after
+      `expect(...).toHaveLength(2)`), `tests/class-poison-barrel-
+      mechanic.test.ts` (two occurrences of the established `content.enemies.
+      enemies[0]` guard pattern), `tests/class-roster-size.test.ts` (guards
+      `doc.classes[0]` before use, and guards the `boonsDoc.skillCards`
+      lookup by that class's own key before `.map`),
+      `tests/class-tower-passive-liveness.test.ts` (the enemies[0] pattern,
+      plus a `before[i]` read inside a `.filter` callback now throws if
+      undefined — `before = [a.hp, b.hp]`, `i` only ever 0 or 1),
+      `tests/fb047-sweep-tier-modifiers.test.ts` and `tests/fb081-linehit-
+      broadphase.test.ts` (each extracted a small `firstModifierKey()`/
+      `firstEnemyKey()` helper reused at both call sites instead of inlining
+      the guard twice), `tests/fb130-core-placement-wiring.test.ts` (guards
+      `GATES[0]` before reading `.tx`/`.ty`),
+      `tests/fb155-enemy-attack-registry.test.ts` (guards `doc.enemies[0]`
+      before a `delete`, and guards a dynamic-field `Record<string, number>`
+      read before `toBeCloseTo`), `tests/p12a-kit-power.test.ts` (two
+      occurrences guarding `w.damageByWeapon[...]` before `toBeCloseTo`),
+      `tests/p1a-sealing.test.ts` (guards several `g.breach[g.idx(...)]`
+      reads before `toBeGreaterThan`). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 10; `npx tsc
+      --noEmit` (main config) clean; targeted `npx vitest run` on all 10 plus
+      the ratchet test green (137 passed, 3 pre-existing skips); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 147 →
+      **137 files remain** on the allowlist. code-reviewer APPROVE (no
+      findings; one Nit noting a pre-existing unrelated `!` on
+      `spawnEnemy(...)!`'s own return, out of this item's scope, left as-is).
+      Light tier per this item's `[polish]` tag and no `/src`/`/data`
+      changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t
+      Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

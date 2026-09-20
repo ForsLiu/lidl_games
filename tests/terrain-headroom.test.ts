@@ -197,7 +197,7 @@ function runSweep(): Sweep {
 
 function at(xs: readonly number[], q: number): number {
   const v = xs[Math.floor(q * (xs.length - 1))];
-  if (v === undefined) throw new Error('at(): index out of range');
+  if (v === undefined) throw new Error('at() called on an empty array');
   return v;
 }
 

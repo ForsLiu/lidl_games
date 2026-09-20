@@ -123,6 +123,7 @@ describe('fb130 — place_core Command wiring', () => {
     const w = practiceWorld();
     const before = w.grid.coreOrigin();
     const gate = GATES[0];
+    if (!gate) throw new Error('expected at least one gate in GATES');
     const result = placeCoreCommand(w, gate.tx + 1, gate.ty);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(['near-gate', 'off-grid', 'not-normal']).toContain(result.reason);

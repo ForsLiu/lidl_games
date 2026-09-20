@@ -82,7 +82,7 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const truth = measureTerrain(map, cfg, FOUR);
     const bands = (dump: string): string => {
       const line = dump.split('\n')[3];
-      if (line === undefined) throw new Error('expected describeTerrain to emit a 4th line');
+      if (line === undefined) throw new Error('expected a 4th line in the dump');
       return line;
     };
 

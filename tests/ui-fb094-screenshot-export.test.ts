@@ -100,9 +100,9 @@ describe('fb094: dev-profile screenshot export', () => {
     root.querySelector<HTMLButtonElement>('#sw-screenshot')?.click();
 
     expect(toBlobSpy).toHaveBeenCalledTimes(1);
-    const toBlobCall = toBlobSpy.mock.calls[0];
-    if (!toBlobCall) throw new Error('expected toBlob to have been called');
-    expect(toBlobCall[1]).toBe('image/png');
+    const toBlobCall0 = toBlobSpy.mock.calls[0];
+    if (!toBlobCall0) throw new Error('expected toBlob to have been called');
+    expect(toBlobCall0[1]).toBe('image/png');
     expect(createObjectURL).toHaveBeenCalledWith(fakeBlob);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-url');

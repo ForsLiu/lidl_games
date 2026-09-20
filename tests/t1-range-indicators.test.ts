@@ -247,15 +247,14 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
 
 describe('T1: showRanges changes what is drawn', () => {
   it('draws more circles with the toggle on than off', () => {
-    const counts = [false, true].map((showRanges) => {
+    const [countOff, countOn] = [false, true].map((showRanges) => {
       const { w } = skewedWorld();
       const { canvas, arcs } = recordingCanvas();
       new Renderer(canvas).draw(w, view({ showRanges }));
       return arcs.length;
     });
-    const [off, on] = counts;
-    if (off === undefined || on === undefined) throw new Error('expected both toggle states measured');
-    expect(on, 'showRanges must draw something').toBeGreaterThan(off);
+    if (countOff === undefined || countOn === undefined) throw new Error('expected two counts');
+    expect(countOn, 'showRanges must draw something').toBeGreaterThan(countOff);
   });
 
   it('rings a built tower at its effective range, not its authored range', () => {

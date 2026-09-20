@@ -39,7 +39,7 @@ function runOne(policy: string, seed: number, tier: number, classKey = 'engineer
 function median(xs: number[]): number {
   if (xs.length === 0) return 0;
   const s = xs.slice().sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+  return s[Math.floor(s.length / 2)] ?? 0;
 }
 
 function round(v: number, dp = 2): number {

@@ -27,15 +27,15 @@ describe('c038: roster size is read live, not pinned to a stale literal', () => 
     const boonsDoc = JSON.parse(JSON.stringify(raw.raw.boons)) as {
       skillCards: Record<string, { key: string; effect: string }[]>;
     };
-    const sourceClass = doc.classes[0];
-    if (!sourceClass) throw new Error('expected at least one shipped class');
-    const sourceKey = sourceClass.key;
-    const clone = JSON.parse(JSON.stringify(sourceClass)) as { key: string };
+    const firstClass = doc.classes[0];
+    if (!firstClass) throw new Error('expected at least one class in content');
+    const sourceKey = firstClass.key;
+    const clone = JSON.parse(JSON.stringify(firstClass)) as { key: string };
     clone.key = 'c038_synthetic_13th';
     doc.classes.push(clone);
-    const sourceSkillCards = boonsDoc.skillCards[sourceKey];
-    if (!sourceSkillCards) throw new Error(`expected skillCards for ${sourceKey}`);
-    boonsDoc.skillCards[clone.key] = sourceSkillCards.map((card) => ({
+    const sourceCards = boonsDoc.skillCards[sourceKey];
+    if (!sourceCards) throw new Error(`expected skillCards for ${sourceKey}`);
+    boonsDoc.skillCards[clone.key] = sourceCards.map((card) => ({
       ...card,
       key: `${clone.key}_${card.effect}`,
     }));

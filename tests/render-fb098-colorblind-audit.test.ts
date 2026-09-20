@@ -156,8 +156,8 @@ describe('fb098: colorblind-safe palette distinguishability on real rendered con
     const simulated = broken.map((c) => ({ key: c.key, color: simulateCvd(c.color, 'protanopia') }));
     const violations = auditDistinguishability(simulated, MIN_DISTANCE);
     expect(violations).toHaveLength(1);
-    const violation = violations[0];
-    if (!violation) throw new Error('expected a violation');
-    expect(violation.distance).toBeLessThan(MIN_DISTANCE);
+    const violation0 = violations[0];
+    if (!violation0) throw new Error('expected a violation');
+    expect(violation0.distance).toBeLessThan(MIN_DISTANCE);
   });
 });

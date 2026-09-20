@@ -94,10 +94,9 @@ describe('fb177 — Grid(gates) accepts a custom gate list', () => {
     // value-equal copy with one entry nudged off-border is caught, which the
     // reference-only exemption on the literal default would never observe.
     const nudged = [...GATES];
-    const lastIdx = nudged.length - 1;
-    const last = nudged[lastIdx];
-    if (!last) throw new Error('expected GATES to be non-empty');
-    nudged[lastIdx] = { ...last, tx: 12, ty: 10 };
+    const lastGate = nudged[nudged.length - 1];
+    if (!lastGate) throw new Error('expected GATES to be non-empty');
+    nudged[nudged.length - 1] = { ...lastGate, tx: 12, ty: 10 };
     expect(() => new Grid(nudged)).toThrow(/not a border tile/);
   });
 

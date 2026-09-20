@@ -32,6 +32,12 @@ import '../src/bots';
 const content = loadContent();
 const MAX_TICKS = 60 * 60 * 45;
 
+function firstModifierKey(): string {
+  const first = content.modifiers.modifiers[0];
+  if (!first) throw new Error('no modifiers in content');
+  return first.key;
+}
+
 function options(over: Partial<Options> = {}): Options {
   return {
     seeds: 1,
@@ -63,7 +69,7 @@ describe('fb047: resolveModifiers', () => {
   });
 
   it('an explicit --mods list always wins, at any tier', () => {
-    const explicit = [content.modifiers.modifiers[0].key];
+    const explicit = [firstModifierKey()];
     expect(resolveModifiers(content, 1, 3, explicit)).toEqual(explicit);
     expect(resolveModifiers(content, 1, 1, explicit)).toEqual(explicit);
   });
@@ -78,7 +84,7 @@ describe('fb047: tools/sweep.ts buildRunConfig actually reaches World difficulty
   });
 
   it('an explicit --mods flag survives buildRunConfig regardless of --tier', () => {
-    const explicit = [content.modifiers.modifiers[0].key];
+    const explicit = [firstModifierKey()];
     const built = buildRunConfig(options({ tier: 3, modifiers: explicit }), content, 1);
     expect(built.modifiers).toEqual(explicit);
   });

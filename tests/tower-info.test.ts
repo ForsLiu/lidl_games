@@ -192,7 +192,7 @@ describe('tower info model', () => {
     expect(maxed, 'the milestone is described where it lands').toMatch(/electric half then arcs/);
     expect(maxed).not.toMatch(/per tier/);
     const milestone = def.upgrades.specials[0];
-    if (!milestone) throw new Error('expected this coil tower to have a milestone special');
+    if (!milestone) throw new Error('expected a milestone special on this tower');
     const below = towerInfo(w, def, { ...w.structureAt(tx, ty)!, tier: milestone.at }).attackText;
     expect(below, 'and not one step early').toBe(level1);
   });

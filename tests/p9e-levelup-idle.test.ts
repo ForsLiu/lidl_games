@@ -93,9 +93,9 @@ describe('levelup idle auto-resolve (p9e, G18)', () => {
     w.updateNav(true);
     addXp(w, xpToReach(2));
     openLevelUpIfPending(w);
-    const firstOffer = w.offers[0];
-    if (!firstOffer) throw new Error('expected a level-up offer after openLevelUpIfPending');
-    const offeredKey = firstOffer.key;
+    const offered = w.offers[0];
+    if (!offered) throw new Error('expected an offer to be queued');
+    const offeredKey = offered.key;
     for (let i = 0; i < 30; i++) run.step(emptyInput());
     expect(w.phase).toBe('levelup');
     run.step({ ...emptyInput(), cmds: [{ k: 'pick', index: 0 }] });
