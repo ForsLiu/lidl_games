@@ -94,7 +94,10 @@ describe('p8a wave content (SPEC-FINAL §9, §1.1)', () => {
     for (let wave = 1; wave <= w.waveCount; wave++) {
       w.wave = wave - 1;
       startWave(w);
-      const hasGatebreaker = w.spawnQueue.some(([defId]) => w.content.enemyById.get(defId)?.key === 'gatebreaker');
+      const hasGatebreaker = w.spawnQueue.some(([defId]) => {
+        if (defId === undefined) throw new Error('spawn queue entry missing defId');
+        return w.content.enemyById.get(defId)?.key === 'gatebreaker';
+      });
       expect(hasGatebreaker, `wave ${wave}`).toBe(wave === 18);
     }
   });

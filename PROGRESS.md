@@ -5,7 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 187 → 179.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 179 → 171.**
+  Fixed 8 more test files with real guards, all one-error-each:
+  `tests/fb153a-number-scale.test.ts` (regex capture read hoisted and
+  guarded), `tests/p-core-d-corpse.test.ts` (module-scope data-constant read
+  throws if the corpse Core's third upgrade step is missing),
+  `tests/p10c-weapon-share.test.ts` (guard added inside an `it.skip(...)`
+  body — never executes at runtime, verified only via the tsc check plus
+  that reasoning since this file is its own `vitest.fast.config.ts`
+  exclusion — 12 builds × 5 seeds × cycles:6 full VS-combat runs, minutes
+  long — and did not fit this routine's time budget to run directly),
+  `tests/p10e-perf-budget.test.ts` (`median()` throws on empty array,
+  matching `tests/a9-economy.test.ts`'s identical helper),
+  `tests/p12c-margin.test.ts` (median-index read defaults `?? NaN`, the same
+  sentinel already used for the empty case), `tests/p3a-run-shape.test.ts` /
+  `tests/p8a-wave-content.test.ts` (both: a destructured `spawnQueue` entry's
+  `defId` throws if missing), `tests/p5d-projectile-damage-credit.test.ts`
+  (`hpBefore[i]` defaults `?? e.hp`, provably a no-op given matching array
+  lengths). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+  flags any of the 8; `npx tsc --noEmit` (main config) clean; 7 of 8 files
+  run directly via `npx vitest run` (all green); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE,
+  no findings — independently confirmed the p10c-weapon-share verification
+  reasoning is sound. Light tier (item is `[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 187 → 179.**
   Fixed 8 more test files with real guards, all one-error-each and none
   touching `/src`: `tests/equip-effectkey-reach.test.ts`,
   `tests/fb025-enemy-hp-bars.test.ts`, `tests/fb084-summon-cap-stat.test.ts`

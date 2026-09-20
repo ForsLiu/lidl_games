@@ -301,7 +301,8 @@ for (const [name, authored, loaded] of FILES) leaves(authored, loaded, name, ALL
 function statKeyOf(path: string): StatKey | undefined {
   for (const re of STAT_RECORD_PATHS) {
     const m = re.exec(path);
-    if (m && (STAT_KEYS as readonly string[]).includes(m[1])) return m[1] as StatKey;
+    const key = m?.[1];
+    if (key && (STAT_KEYS as readonly string[]).includes(key)) return key as StatKey;
   }
   return undefined;
 }

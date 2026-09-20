@@ -5326,6 +5326,36 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       ordering is stylistically unusual but correct, left as-is). Light tier
       per this item's `[polish]` tag and no `/src`/`/data` changes — no
       qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later)**: fixed
+      8 more files with real guards, all one-error-each —
+      `tests/fb153a-number-scale.test.ts` (a regex capture-group read hoisted
+      to a local and guarded before use, instead of assuming the match),
+      `tests/p-core-d-corpse.test.ts` (a module-scope `CORPSE.upgrade.steps![2]`
+      data-constant read throws if the corpse Core is missing its third
+      upgrade step), `tests/p10c-weapon-share.test.ts` (a guard added inside
+      an `it.skip(...)` body — never executes at runtime, so behaviorally
+      inert; verified only via the tsc check plus that reasoning, since this
+      file is its own `vitest.fast.config.ts` exclusion — 12 builds x 5 seeds
+      x cycles:6 full VS-combat runs, minutes long, unrelated to this change
+      — and did not fit this routine's time budget to run directly),
+      `tests/p10e-perf-budget.test.ts` (`median()` now throws on an empty
+      array, matching `tests/a9-economy.test.ts`'s own identical helper),
+      `tests/p12c-margin.test.ts` (a median-index read defaults `?? NaN`,
+      the same sentinel already used for the empty-array branch),
+      `tests/p3a-run-shape.test.ts` and `tests/p8a-wave-content.test.ts`
+      (both: a destructured `spawnQueue` entry's `defId` — `number[][]` per
+      `src/sim/world.ts:359` — throws if missing), `tests/p5d-projectile-
+      damage-credit.test.ts` (a `hpBefore[i]` read defaults `?? e.hp`,
+      provably a no-op given `hpBefore` and `targets` share length by
+      construction). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+      no longer flags any of the 8; `npx tsc --noEmit` (main config) clean;
+      7 of the 8 files run directly via `npx vitest run` (all green); `npm
+      run test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 179 →
+      **171 files remain** on the allowlist. code-reviewer APPROVE (no
+      findings; independently confirmed the p10c-weapon-share verification
+      reasoning is sound). Light tier per this item's `[polish]` tag and no
+      `/src`/`/data` changes — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
