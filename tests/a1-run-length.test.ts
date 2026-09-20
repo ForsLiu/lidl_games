@@ -35,9 +35,11 @@ describe.skip('A1 run length', () => {
 
   it('has a median victorious run of 24-28 minutes', () => {
     const minutes = victories.map((r) => r.totalSeconds / 60).sort((a, b) => a - b);
-    const median = minutes[Math.floor(minutes.length / 2)];
+    // `describe.skip`: this body never executes, so the guards below are
+    // purely to satisfy noUncheckedIndexedAccess, not a live correctness claim.
+    const median = minutes[Math.floor(minutes.length / 2)] ?? 0;
     const detail = `median ${median.toFixed(2)} min over ${minutes.length} wins ` +
-      `(${minutes[0].toFixed(1)}-${minutes[minutes.length - 1].toFixed(1)})`;
+      `(${(minutes[0] ?? 0).toFixed(1)}-${(minutes[minutes.length - 1] ?? 0).toFixed(1)})`;
     expect(median, detail).toBeGreaterThanOrEqual(24);
     expect(median, detail).toBeLessThanOrEqual(28);
   });

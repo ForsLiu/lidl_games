@@ -262,7 +262,9 @@ describe('C4 — the real stat pipeline carries sources', () => {
       (k) => (STAT_KEYS as readonly string[]).includes(k) && STAT_KIND[k as StatKey] === 'mul',
     ) as StatKey | undefined;
     expect(stat, 'the engineer should grant at least one multiplicative stat').toBeTruthy();
-    expect(w.stats.contributions(stat!)[0][0]).toBe('class:engineer:passive');
+    const contribution = w.stats.contributions(stat!)[0];
+    if (!contribution) throw new Error('expected a class:engineer:passive contribution');
+    expect(contribution[0]).toBe('class:engineer:passive');
   });
 
   it('petrified terrain is one source however many Sunderings ran', () => {
@@ -287,7 +289,9 @@ describe('C4 — the real stat pipeline carries sources', () => {
 
     const terrain = w.stats.contributions('attackSpeed').filter((c) => c[0] === 'terrain');
     expect(terrain).toHaveLength(1);
-    expect(terrain[0][1]).toBeCloseTo(afterOne * 2, 12);
+    const terrainContribution = terrain[0];
+    if (!terrainContribution) throw new Error('expected a terrain contribution');
+    expect(terrainContribution[1]).toBeCloseTo(afterOne * 2, 12);
     expect(w.stats.contributions('armor').filter((c) => c[0] === 'terrain')).toHaveLength(1);
 
     if (boon) {
@@ -296,7 +300,7 @@ describe('C4 — the real stat pipeline carries sources', () => {
       const names = w.stats.contributions('attackSpeed').map((c) => c[0]);
       expect(names).toContain(`boon:${boon.key}`);
       expect(w.derived.attackSpeedMul).toBeCloseTo(
-        (1 + terrain[0][1]) * (1 + boon.perRank),
+        (1 + terrainContribution[1]) * (1 + boon.perRank),
         12,
       );
     }

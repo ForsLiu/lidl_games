@@ -5502,6 +5502,36 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       pre-existing, out-of-scope `!` left as-is). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 10 more files with real guards, none touching `/src`/`/data`:
+      `tests/a1-run-length.test.ts` (dead code inside `describe.skip` — `??
+      0` guards purely compile-time), `tests/b076-midrun-equip-effect.test.ts`
+      / `tests/class-area-stat.test.ts` / `tests/equip-effect-
+      behaviour.test.ts` (each extracted its own `firstEnemyKey()` helper
+      reused at 2-3 call sites), `tests/c4-stacking.test.ts` (guards a
+      stats-contribution tuple, reused at both usage sites),
+      `tests/class-area-stat.test.ts` (also guards a reverse-loop `w.fx[i]`
+      read), `tests/class-spec-numbers.test.ts` (guards a regex-derived
+      `leaf` key before indexing), `tests/equip-effect-behaviour.test.ts`
+      (also guards `w.structures[0]`), `tests/fb118-backlog-id-
+      uniqueness.test.ts` (guards both `ITEM_BULLET` capture groups with an
+      early `return`, unreachable given the pattern's non-optional groups),
+      `tests/m20c-roster-tracks.test.ts` (`?? 0` on three `Record<string,
+      number>` reads, proven present by an earlier `toEqual` pin in the
+      same file), `tests/p12b-tier-ladder.test.ts` (guards `w.structures[0]`
+      after a successful `buildTower`), `tests/p9c-tuner-hub-flag.test.ts`
+      (a `firstStartConfig(onStart)` helper guarding `mock.calls[0]`, reused
+      at 3 call sites — code-reviewer's Minor on the helper's generic not
+      actually being enforced fixed before commit via a new typed
+      `startMock()` helper). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 10; main `tsc
+      --noEmit` clean; targeted `npx vitest run` on all 10 plus the ratchet
+      test green (222 passed, 4 skipped — expected); `npm run test:fast`
+      unchanged at 315 files / 4548 passed / 35 skipped. 121 → **111 files
+      remain** on the allowlist. code-reviewer APPROVE (one Minor fixed
+      before commit; one Nit left as informational). Light tier (`[polish]`,
+      no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

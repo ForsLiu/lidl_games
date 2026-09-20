@@ -1873,6 +1873,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       expect(row, `${id(target)}: no such class row`).toBeDefined();
       const parent = walk(row, target.path!.slice(0, -1)) as Record<string, unknown> | undefined;
       const leaf = target.path![target.path!.length - 1];
+      if (leaf === undefined) throw new Error(`${id(target)}: empty path`);
       expect(parent, `${id(target)}: path ${target.path!.join('.')} has no parent object`).toBeTypeOf('object');
       expect(typeof parent![leaf], `${id(target)}: nothing authored at ${target.path!.join('.')}`).toBe('number');
 

@@ -29,9 +29,9 @@
  * `src/sim/sundering.ts`, `src/sim/terrain/config.ts`) and, independently,
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
- * in similar batches since (155, then 147, then 137, then 121 files
- * remaining as of the latest). Shrink this list as files are fixed; do not
- * add to it without a reason logged in BACKLOG.md.
+ * in similar batches since (155, then 147, then 137, then 121, then 111
+ * files remaining as of the latest). Shrink this list as files are fixed;
+ * do not add to it without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -46,13 +46,9 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/run.ts',
   'src/sim/terrain/analyze.ts',
   'src/sim/world.ts',
-  'tests/a1-run-length.test.ts',
-  'tests/b076-midrun-equip-effect.test.ts',
-  'tests/c4-stacking.test.ts',
   'tests/character-panel.test.ts',
   'tests/class-active1-potency.test.ts',
   'tests/class-active2-cdr.test.ts',
-  'tests/class-area-stat.test.ts',
   'tests/class-board.test.ts',
   'tests/class-deeper-draw.test.ts',
   'tests/class-descriptions.test.ts',
@@ -61,11 +57,9 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/class-p6d-agreement.ts',
   'tests/class-passive-liveness.test.ts',
   'tests/class-passive-magnitudes.test.ts',
-  'tests/class-spec-numbers.test.ts',
   'tests/codex.test.ts',
   'tests/content-complete.test.ts',
   'tests/dps-panel.test.ts',
-  'tests/equip-effect-behaviour.test.ts',
   'tests/equip-hasequipment-roster.test.ts',
   'tests/equip-spec-ledger.test.ts',
   'tests/equip-spec-ledger.ts',
@@ -83,7 +77,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/fb038-status.test.ts',
   'tests/fb044-tuner-per-field.test.ts',
   'tests/fb085-enablers.test.ts',
-  'tests/fb118-backlog-id-uniqueness.test.ts',
   'tests/fb152-dot-tick-cadence.test.ts',
   'tests/fb154-vs-gate-spawns.test.ts',
   'tests/fb158-enemy-attack-indicators.test.ts',
@@ -93,12 +86,10 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/grid.test.ts',
   'tests/m19c-damage-types.test.ts',
   'tests/m20b-owner-towers.test.ts',
-  'tests/m20c-roster-tracks.test.ts',
   'tests/meta.test.ts',
   'tests/p-core-b-effects.test.ts',
   'tests/p-core-c-plant.test.ts',
   'tests/p-core-e-time-decay.test.ts',
-  'tests/p12b-tier-ladder.test.ts',
   'tests/p2a-vs-wielding.test.ts',
   'tests/p2b-wielded-fire.test.ts',
   'tests/p2c-vs-specials.test.ts',
@@ -108,7 +99,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p6c-plaguebringer.test.ts',
   'tests/p6d-nine-classes.test.ts',
   'tests/p6e-class-diversity.test.ts',
-  'tests/p9c-tuner-hub-flag.test.ts',
   'tests/p9c-tuner-save.test.ts',
   'tests/q120-order1-taunt.test.ts',
   'tests/q15-command-domain-fuzz.test.ts',

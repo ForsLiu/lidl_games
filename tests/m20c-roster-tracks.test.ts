@@ -281,9 +281,9 @@ describe('m20c — §4’s defense words are three bands, and they are live dama
     // makes that a pathing cost), so the pair below is the whole claim: a
     // banded tower takes less, a `none` tower takes exactly what it is dealt.
     const cases: [string, number][] = [
-      ['ballista', FILE.defenseBands.medium],
-      ['mortar', FILE.defenseBands.low],
-      ['palisade', FILE.defenseBands.none],
+      ['ballista', FILE.defenseBands.medium ?? 0],
+      ['mortar', FILE.defenseBands.low ?? 0],
+      ['palisade', FILE.defenseBands.none ?? 0],
     ];
     for (const [key, band] of cases) {
       const { w, tx, ty } = place(key);

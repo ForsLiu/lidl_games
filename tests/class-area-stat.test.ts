@@ -72,13 +72,20 @@ function idle(over: Partial<TickInput> = {}): TickInput {
 /** The `a` field of the last emitted `k` event — every self-centered Active reports its own radius there. */
 function lastFxRadius(w: World, k: string): number {
   for (let i = w.fx.length - 1; i >= 0; i--) {
-    if (w.fx[i].k === k) return w.fx[i].a;
+    const ev = w.fx[i];
+    if (ev && ev.k === k) return ev.a;
   }
   throw new Error(`no "${k}" event was emitted`);
 }
 
+function firstEnemyKey(): string {
+  const def = content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 function spawnAt(w: World, x: number, y: number): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(), x, y)!;
   e.hp = 1e6;
   e.maxHp = 1e6;
   e.speed = 0;

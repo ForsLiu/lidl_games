@@ -122,6 +122,7 @@ describe('p12b — the rungs are live in the sim, not just in the accessor', () 
       const built = buildTower(w, content.towerByKey.get('palisade')!.id, 10, 11);
       expect(built.ok, JSON.stringify(built)).toBe(true);
       const s = w.structures[0];
+      if (!s) throw new Error('expected the just-built palisade to exist');
       const e = spawnEnemy(w, 'husk', 10, 12)!;
       const before = s.hp;
       attackStructure(w, e, e.def as EnemyDef, s, 1);
