@@ -55,9 +55,16 @@ function makeRun(over = {}): Run {
   return run;
 }
 
+// data/enemies.json always authors at least one enemy.
+function firstEnemyKey(w: World): string {
+  const key = w.content.enemies.enemies[0]?.key;
+  if (key === undefined) throw new Error('expected at least one enemy in content');
+  return key;
+}
+
 function makeTarget(run: Run, dx = 1): Enemy {
   const w = run.world;
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + dx, w.warden.y)!;
+  const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + dx, w.warden.y)!;
   e.hp = 1e6;
   e.maxHp = 1e6;
   e.speed = 0; // stays put unless the test itself moves it
@@ -472,6 +479,7 @@ describe('fb013: Passive *Time Flow* — damage taken becomes a 4 s DoT after on
     expect(w.warden.hp).toBe(hpBefore); // not reduced yet
     expect(w.warden.dots.length).toBe(1);
     const installed = w.warden.dots[0];
+    if (installed === undefined) throw new Error('unreachable: dots.length was just asserted to be 1');
     expect(installed.remaining).toBeCloseTo(4, 5);
 
     for (let t = 0; t < Math.round(4.1 / DT); t++) run.step(idleInput());
@@ -581,7 +589,7 @@ describe('fb013: replay-hash determinism with Time, Time Lock and Time Flow all 
     const a = new Run(cfg({ classKey: 'time_lord' }));
     a.world.gold = 1e6;
     a.world.phase = 'act1_wave';
-    const eA = spawnEnemy(a.world, a.world.content.enemies.enemies[0].key, 5, 5)!;
+    const eA = spawnEnemy(a.world, firstEnemyKey(a.world), 5, 5)!;
     eA.hp = 1e6;
     eA.maxHp = 1e6;
     for (const input of log) a.step(input);
@@ -589,7 +597,7 @@ describe('fb013: replay-hash determinism with Time, Time Lock and Time Flow all 
     const b = new Run(cfg({ classKey: 'time_lord' }));
     b.world.gold = 1e6;
     b.world.phase = 'act1_wave';
-    const eB = spawnEnemy(b.world, b.world.content.enemies.enemies[0].key, 5, 5)!;
+    const eB = spawnEnemy(b.world, firstEnemyKey(b.world), 5, 5)!;
     eB.hp = 1e6;
     eB.maxHp = 1e6;
     for (const input of log) b.step(input);

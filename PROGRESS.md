@@ -5,7 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 101 → 96.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 96 → 90
+  (reconcile).** An unrelated orphan branch (`claude/dreamy-hopper-wlu4w0`,
+  no open PR, last pushed >60 min before this routine started) had
+  independently continued this ratchet from the same 111-file ancestor down
+  to 92, fixing 6 files this branch's own 111 → 96 chain hadn't touched:
+  `tests/class-board.test.ts`, `tests/equip-hasequipment-roster.test.ts`,
+  `tests/fb013-timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts`,
+  `tests/p-core-c-plant.test.ts` (real guards) and
+  `tests/equip-spec-ledger.test.ts` (fixed for free via a type-narrowing in
+  `tests/equip-spec-ledger.ts`). Cherry-picked those 6 files' diffs from the
+  orphan branch's tip commit rather than redoing the work, wrote this
+  BACKLOG/PROGRESS log fresh, and independently re-verified before
+  committing: `npx tsc --noEmit -p tsconfig.unchecked.json` clean on all 6;
+  main `tsc --noEmit` clean; targeted `npx vitest run` on all 6 plus the
+  ratchet test green (152 tests); `npm run test:fast` unchanged at 315
+  files / 4548 passed / 35 skipped. code-reviewer independently re-reviewed
+  every ported guard's reasoning — APPROVE, no Critical/Major findings
+  (three informational Nits, none requiring a fix). Light tier (`[polish]`,
+  no `/src`/`/data` touched). — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 101 → 96.**
   Fixed 5 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper
   guarding `rows[0]`, reused at 3 call sites), `tests/ui-fb115-fb173-area-

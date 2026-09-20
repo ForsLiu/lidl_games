@@ -230,11 +230,13 @@ describe('p-core-c — VS poison volley', () => {
     tickPlant(w, 1.5);
     expect(e.hp).toBe(baseHp - bulletDmg); // normal component; poison hasn't ticked yet
     expect(e.dots.length).toBe(1);
-    expect(e.dots[0].type).toBe('poison');
+    const dot = e.dots[0];
+    if (dot === undefined) throw new Error('unreachable: dots.length was just asserted to be 1');
+    expect(dot.type).toBe('poison');
     // poison.json's own ratio/duration (out of cores.json's scope) trigger off
     // the bullet's own flat damage, independent of the target's own HP/overlay.
-    expect(e.dots[0].dps).toBeCloseTo((1.2 * bulletDmg) / 3, 9);
-    expect(e.dots[0].remaining).toBeCloseTo(3, 1);
+    expect(dot.dps).toBeCloseTo((1.2 * bulletDmg) / 3, 9);
+    expect(dot.remaining).toBeCloseTo(3, 1);
   });
 
   it('is perf-capped at poisonVolleyCap bullets even with far more Digestion than that needs', () => {
@@ -244,7 +246,12 @@ describe('p-core-c — VS poison volley', () => {
     const enemies = Array.from({ length: 15 }, (_, i) => spawnEnemy(w, 'husk', NEAR_X - i * 0.1, CORE_Y + i * 0.1)!);
     const baseHp = enemies.map((e) => e.hp);
     tickPlant(w, 1.5);
-    const hitCount = enemies.filter((e, i) => e.hp < baseHp[i]).length;
+    // i is always in range: baseHp is enemies.map(...), same length.
+    const hitCount = enemies.filter((e, i) => {
+      const before = baseHp[i];
+      if (before === undefined) throw new Error('unreachable: baseHp has one entry per enemy');
+      return e.hp < before;
+    }).length;
     expect(hitCount).toBe(PLANT_EFFECTS.poisonVolleyCap);
   });
 

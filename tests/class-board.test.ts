@@ -166,12 +166,16 @@ function code(name: string): string {
 function placerNames(src: string): string[] {
   const names = new Set(['buildTower']);
   for (const m of src.matchAll(/function\s+(\w+)\s*\(([^)]*)\)/g)) {
-    const params = m[2]
+    // Both groups are non-optional in the pattern, so a successful match
+    // always populates them (an empty param list still captures '').
+    const [, fnName, paramList] = m;
+    if (fnName === undefined || paramList === undefined) continue;
+    const params = paramList
       .split(',')
       .map((a) => a.trim())
       .filter(Boolean);
     const tail = params.slice(-2).join(', ');
-    if (/^tx:\s*number,\s*ty:\s*number$/.test(tail)) names.add(m[1]);
+    if (/^tx:\s*number,\s*ty:\s*number$/.test(tail)) names.add(fnName);
   }
   return [...names];
 }
@@ -195,7 +199,11 @@ function buildCallTiles(src: string): string[] {
   const out: string[] = [];
   const name = new RegExp(`(^|[^A-Za-z0-9_$])(${placerNames(src).join('|')})\\s*\\(`, 'g');
   for (const m of src.matchAll(name)) {
-    const before = src.slice(Math.max(0, m.index! - 12), m.index! + m[1].length);
+    // Group 1 is non-optional in the pattern, so a successful match always
+    // populates it (possibly with an empty string at the start-of-string branch).
+    const prefix = m[1];
+    if (prefix === undefined) continue;
+    const before = src.slice(Math.max(0, m.index! - 12), m.index! + prefix.length);
     if (/\bfunction\s*$/.test(before)) continue;
     // Walk from the opening paren to its match, tracking nesting so inner
     // calls, generics and array literals stay inside one argument.
@@ -606,7 +614,13 @@ describe('c014: no importer pins the board privately again', () => {
 
         it('parks the Warden on the shared spot — every warden.x/y write is WX/WY', () => {
           // The sink a rename cannot escape. `w.warden.x = PARK.tx` fails here.
-          const writes = [...src.matchAll(/w\.warden\.(x|y)\s*=\s*([^;\n]+)/g)].map((m) => [m[1], m[2].trim()]);
+          // Both groups are non-optional in the pattern, so a successful
+          // match always populates them.
+          const writes = [...src.matchAll(/w\.warden\.(x|y)\s*=\s*([^;\n]+)/g)].map((m) => {
+            const [, axis, value] = m;
+            if (axis === undefined || value === undefined) throw new Error('unreachable: both groups are required');
+            return [axis, value.trim()];
+          });
           expect(writes.length, 'the parking probe found no warden.x/y write to check').toBeGreaterThan(0);
           for (const [axis, value] of writes) {
             const want = axis === 'x' ? ['WX', 'BUILD_TX + 0.5'] : ['WY', 'BUILD_TY + 0.5'];

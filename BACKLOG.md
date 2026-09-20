@@ -5592,6 +5592,43 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `noUncheckedIndexedAccess`, left as-is). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, reconcile)**:
+      an unrelated orphan branch (`claude/dreamy-hopper-wlu4w0`, no open PR,
+      last pushed >60 min before this routine started so not treated as
+      in-progress work) had independently continued this same ratchet from
+      the shared 111-file ancestor down to 92, fixing 6 files this branch's
+      own 111 → 96 chain hadn't touched: `tests/class-board.test.ts`,
+      `tests/equip-hasequipment-roster.test.ts`,
+      `tests/fb013-timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts`,
+      `tests/p-core-c-plant.test.ts` (real guards — throw on an
+      already-proven-safe invariant, matching this ratchet's convention)
+      and `tests/equip-spec-ledger.test.ts` (fixed for free by narrowing
+      `tests/equip-spec-ledger.ts`'s `defaultReads` return type from
+      `readonly RegExp[]` to `readonly [RegExp, RegExp]`, since it always
+      returns a 2-element literal). Rather than redoing that work, cherry-
+      picked just those 6 files' diffs from the orphan branch's tip commit
+      onto this branch (its `BACKLOG.md`/`PROGRESS.md` hunks excluded,
+      written fresh here instead) and independently re-verified before
+      committing: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 6 (and confirms `equip-spec-ledger.ts` itself,
+      correctly still allowlisted, is untouched); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on all 6 plus the ratchet test green
+      (7 files / 152 tests); `npm run test:fast` unchanged at 315 files /
+      4548 passed / 35 skipped. 96 → **90 files remain** on the allowlist.
+      code-reviewer independently re-reviewed every ported guard's
+      unreachability reasoning against the surrounding code rather than
+      trusting the orphan branch's own prior approval — APPROVE, no
+      Critical/Major findings (three informational Nits: several regex-
+      capture-group guards in `class-board.test.ts`/`equip-hasequipment-
+      roster.test.ts` are unreachable by construction since every group
+      involved is non-optional in its pattern, correct but worth a
+      "the pattern guarantees this" comment for a future reader; a
+      `.split('\n', 1)[0] ?? ''` in the latter is similarly dead code since
+      `split(sep, 1)` always returns one element; one guard on a markdown
+      table row's first cell is a genuine content-shape invariant rather
+      than a tautology, correctly left as a throw instead of `!`). Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
