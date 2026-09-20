@@ -64,7 +64,9 @@ describe('fb084: summonCap stat key', () => {
     necro.warden.y = 10;
     const necroBaseCap = content.classByKey.get('necromancer')!.active1.summonCap!;
     for (let i = 0; i < necroBaseCap + 6; i++) {
-      const e = spawnEnemy(necro, necro.content.enemies.enemies[0].key, 9 + (i % 4) * 0.4, 9 + Math.floor(i / 4) * 0.4)!;
+      const firstEnemy = necro.content.enemies.enemies[0];
+      if (!firstEnemy) throw new Error('test content has no enemies');
+      const e = spawnEnemy(necro, firstEnemy.key, 9 + (i % 4) * 0.4, 9 + Math.floor(i / 4) * 0.4)!;
       necro.rebuildBuckets();
       killEnemy(necro, e, 'test');
     }

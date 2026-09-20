@@ -82,7 +82,11 @@ describe('fb140 — the CI workflow', () => {
   });
 
   it('every npm script it invokes exists in package.json', () => {
-    const invoked = [...text.matchAll(/npm run ([a-z:]+)/g)].map((m) => m[1]);
+    const invoked = [...text.matchAll(/npm run ([a-z:]+)/g)].map((m) => {
+      const script = m[1];
+      if (script === undefined) throw new Error('capture group 1 is mandatory once the regex matches');
+      return script;
+    });
     expect(invoked.length, 'the workflow invokes no npm scripts').toBeGreaterThan(2);
     for (const s of new Set(invoked)) {
       expect(pkg.scripts[s], `the workflow runs "npm run ${s}", which package.json does not define`).toBeTypeOf(

@@ -5297,6 +5297,40 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       caller, fine as defensive typing). Light tier per this item's `[polish]`
       tag and no `/src` changes — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 10
+      more files with real guards, all one-error-each — `tests/equip-
+      effectkey-reach.test.ts`, `tests/fb025-enemy-hp-bars.test.ts`,
+      `tests/fb084-summon-cap-stat.test.ts` (three separate
+      `content.enemies.enemies[0]` reads, each given a local `firstEnemy`
+      guard that throws if the test content has no enemies), `tests/fb019-
+      training-grounds.test.ts` (a `select.options[0]` read guarded the same
+      way), `tests/fb028-effect-text.test.ts` (a NodeList `rows[idx]` access
+      guarded once, the local reused for both the click and the later
+      `classList` assertion), `tests/fb077-terrain-wiring.test.ts`
+      (`STRANDED_CORE_SEEDS` retyped `as const` so indexing the fixed 4-seed
+      array yields literal types instead of `number | undefined` — matches
+      `theme.ts`'s `CVD_MATRIX` retype precedent, not a checker-silencer),
+      `tests/fb140-ci-workflow.test.ts` and `tests/fb153a-number-scale.test.ts`
+      (regex capture-group reads guarded with `=== undefined` checks before
+      use), `tests/p-core-d-corpse.test.ts` (`CORPSE.upgrade.steps![2]`
+      guarded before reading `.autoFireInterval`), `tests/p10c-weapon-
+      share.test.ts` (a `shares[0]` guard inside an `it.skip` body that never
+      executes — compile-only). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 10; `npx tsc
+      --noEmit` (main config) clean; targeted `npx vitest run` on the ratchet
+      test plus all 10 fixed files green (10 files / 128 tests) —
+      `p10c-weapon-share.test.ts` deliberately not executed directly (excluded
+      from `test:fast` for its own genuine ~700-900s simulation sweep at
+      describe-level; its fix sits inside a never-executed `it.skip` body,
+      verified via `tsc` only); full `npm run test:fast` re-run afterward,
+      unchanged at 315 files / 4548 passed / 35 skipped. 187 → **177 files
+      remain** on the allowlist. code-reviewer APPROVE (two Nits, both left
+      as-is: a `firstEnemy` guard re-evaluated per loop iteration in
+      `fb084-summon-cap-stat.test.ts` — harmless; `fb140-ci-workflow.test.ts`'s
+      guard is technically redundant since the regex group is non-optional,
+      but documents the invariant for the ratchet compiler). Light tier per
+      this item's `[polish]` tag and no `/src` changes — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
