@@ -33,15 +33,6 @@ import { runInPhase } from '../tools/fuzz-input';
 import { buildTower } from '../src/sim/towers';
 import { ALIAS_HOLES, HOLES } from './q15-command-domain-holes';
 
-// FIELD_SPECS/FAMILIES are fixed, non-empty literal arrays (line 89 below
-// asserts FAMILIES.length === 5) — [0] is unreachable-undefined, not a real
-// missing-data case, so this throws rather than silently defaulting.
-function first<T>(arr: readonly T[]): T {
-  const v = arr[0];
-  if (v === undefined) throw new Error('expected a non-empty array');
-  return v;
-}
-
 /**
  * Every numeric `Command` field this file fuzzes. `equip.relic` is
  * deliberately absent — see the header comment in
@@ -67,6 +58,12 @@ const EXPECTED_FIELD_KEYS = [
   'dev.xp.amount',
   'dev.fast_forward.amount',
 ] as const;
+
+function firstFieldSpec() {
+  const spec = FIELD_SPECS[0];
+  if (!spec) throw new Error('FIELD_SPECS is empty');
+  return spec;
+}
 
 /**
  * fb119 filed this whole suite `.skip`-ed after root-causing a real
@@ -208,8 +205,8 @@ describe('q15 command-argument domain fuzz', () => {
       // Keyed on the target combo's own fieldKey/family, not on call order —
       // `runCensus`'s iteration order is an implementation detail this test
       // should not depend on.
-      const targetKey = first(FIELD_SPECS).key;
-      const targetFamily = first(FAMILIES);
+      const targetKey = firstFieldSpec().key;
+      const targetFamily = FAMILIES[0];
       let targetCalls = 0;
       const fakeProber = async (fieldKey: string, family: Family) => {
         if (fieldKey === targetKey && family === targetFamily) {
@@ -234,8 +231,8 @@ describe('q15 command-argument domain fuzz', () => {
       // The motivating scenario: one combo times out (load contention) while
       // several others, sharing the same `mapLimit` concurrency pool, resolve
       // normally at the same time.
-      const targetKey = first(FIELD_SPECS).key;
-      const targetFamily = first(FAMILIES);
+      const targetKey = firstFieldSpec().key;
+      const targetFamily = FAMILIES[0];
       let targetCalls = 0;
       const fakeProber = async (fieldKey: string, family: Family) => {
         if (fieldKey === targetKey && family === targetFamily) {
@@ -345,7 +342,9 @@ describe('q15 command-argument domain fuzz', () => {
       w.gold = 1e9;
       w.derived.buildRange = 1e6;
       const before = digest(w);
-      const built = buildTower(w, first(w.content.towers.towers).id, 1, 1);
+      const firstTower = w.content.towers.towers[0];
+      if (!firstTower) throw new Error('content.towers.towers is empty');
+      const built = buildTower(w, firstTower.id, 1, 1);
       expect(built.ok).toBe(true);
       expect(digest(w)).not.toBe(before);
     });

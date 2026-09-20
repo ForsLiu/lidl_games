@@ -120,7 +120,7 @@ describe('fb058: selecting a class fills the bottom panel with band/number stats
     const { root } = openHub();
     const swordsman = content.classByKey.get('swordsman')!;
     const bands = CLASS_BANDS.swordsman;
-    if (bands === undefined) throw new Error('missing CLASS_BANDS.swordsman entry');
+    if (!bands) throw new Error('CLASS_BANDS.swordsman is missing');
     const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(bands.range); // 'low'
     expect(detail).toContain(bands.dmg); // 'high'
@@ -138,7 +138,7 @@ describe('fb058: selecting a class fills the bottom panel with band/number stats
     const detail = classDetail(root).textContent ?? '';
     expect(detail).toContain(`${plaguebringer.basicAttack.range} tiles`);
     const plaguebringerBands = CLASS_BANDS.plaguebringer;
-    if (plaguebringerBands === undefined) throw new Error('missing CLASS_BANDS.plaguebringer entry');
+    if (!plaguebringerBands) throw new Error('CLASS_BANDS.plaguebringer is missing');
     expect(detail).toContain(plaguebringerBands.range);
   });
 });

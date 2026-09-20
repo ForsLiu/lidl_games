@@ -37,8 +37,6 @@ import { trimNum } from '../src/ui/info-format';
 import { cfg } from './helpers';
 
 const content = loadContent();
-const firstEnemyKey = content.enemies.enemies[0]?.key;
-if (firstEnemyKey === undefined) throw new Error('expected at least one enemy in content');
 
 /** +100% Area as its own `Stats` source, the same convention `class-area-stat.test.ts` uses. */
 function areaWorld(classKey: string, area: number): World {
@@ -56,10 +54,16 @@ function idle(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
 }
 
+function firstEnemyKey(): string {
+  const enemy = content.enemies.enemies[0];
+  if (!enemy) throw new Error('content.enemies.enemies is empty');
+  return enemy.key;
+}
+
 function lastFxRadius(w: World, k: string): number {
   for (let i = w.fx.length - 1; i >= 0; i--) {
     const fx = w.fx[i];
-    if (fx !== undefined && fx.k === k) return fx.a;
+    if (fx && fx.k === k) return fx.a;
   }
   throw new Error(`no "${k}" event was emitted`);
 }
@@ -129,7 +133,7 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
       setup: (w) => {
         // `fireTimeMark`'s emit (and the CASE's own fx observation) requires
         // catching something, but the sentence prints the radius unconditionally.
-        const e = spawnEnemy(w, firstEnemyKey, w.warden.x + 0.5, w.warden.y)!;
+        const e = spawnEnemy(w, firstEnemyKey(), w.warden.x + 0.5, w.warden.y)!;
         e.hp = 1e6;
         e.maxHp = 1e6;
         e.speed = 0;

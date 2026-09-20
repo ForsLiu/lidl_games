@@ -23,10 +23,9 @@ function visibleBodyRows(root: HTMLElement): HTMLTableRowElement[] {
   return rows.filter((tr) => !tr.classList.contains('sw-codex-row-hidden'));
 }
 
-// Only called right after asserting the rows array has at least one entry.
 function firstRow(rows: HTMLTableRowElement[]): HTMLTableRowElement {
   const row = rows[0];
-  if (row === undefined) throw new Error('expected at least one visible row');
+  if (!row) throw new Error('no visible rows');
   return row;
 }
 

@@ -86,7 +86,6 @@ function bareDashWidthReads(source: string): string[] {
   source.split('\n').forEach((line, i) => {
     const trimmed = line.trimStart();
     if (trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('//')) return;
-    // .split() always returns at least one element.
     const code = line.replace(/\/\*.*?\*\//g, '').split('//')[0] ?? '';
     for (let at = code.indexOf(READ); at !== -1; at = code.indexOf(READ, at + READ.length)) {
       if (!isDoubled(code.slice(0, at))) out.push(`${i + 1}: ${line.trim()}`);

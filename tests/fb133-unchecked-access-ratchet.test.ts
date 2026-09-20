@@ -129,10 +129,8 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tools/fuzz-data.ts',
   'tools/fuzz-weapon-boundary.ts',
   'tools/gate-audit.ts',
-  'tools/perf-ratio.ts',
   'tools/sim.ts',
   'tools/status.ts',
-  'tools/sweep.ts',
   'tools/ui-audit.ts',
 ];
 

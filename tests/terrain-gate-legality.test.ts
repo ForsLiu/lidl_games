@@ -35,14 +35,6 @@ import { describe, expect, it } from 'vitest';
 
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 
-// GATES (src/sim/grid.ts) is a fixed 4-element literal array — an index
-// literal here is unreachable-undefined, not a real missing-gate case.
-function gateAt(arr: readonly GateDef[], i: number): GateDef {
-  const v = arr[i];
-  if (v === undefined) throw new Error(`expected a gate at index ${i}`);
-  return v;
-}
-
 /** The position-legality subset of `openGate`'s rules, re-derived locally. */
 function isLegalGatePosition(tx: number, ty: number): boolean {
   if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
@@ -88,12 +80,12 @@ describe('fb181 — GATES and MODIFIER_GATES sit on the current border', () => {
     // whatever `src/sim/grid.ts` exports today.
     const staleGatesEast: GateDef = { key: 'east', tx: 35, ty: 17 };
     expect(isLegalGatePosition(staleGatesEast.tx, staleGatesEast.ty)).toBe(false);
-    const staleGates: readonly GateDef[] = [
-      gateAt(GATES, 0),
-      gateAt(GATES, 1),
-      staleGatesEast,
-      gateAt(GATES, 3),
-    ];
+    const gateAt = (i: number): GateDef => {
+      const g = GATES[i];
+      if (!g) throw new Error(`GATES has no entry at index ${i}`);
+      return g;
+    };
+    const staleGates: readonly GateDef[] = [gateAt(0), gateAt(1), staleGatesEast, gateAt(3)];
     expect(describeAll(staleGates)).toEqual(['east (35,17)']);
 
     // A second, synthetic case per the acceptance's own three named defects

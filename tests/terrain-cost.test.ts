@@ -113,9 +113,9 @@ describe('fb064z — the cost of a generated map, sampled across the seed domain
     expect([...byAttempts.values()].reduce((a, b) => a + b, 0)).toBe(SAMPLE_N);
     // The comb must not run off the top of the domain and be silently filtered
     // away, which would leave a smaller sample wearing the same name.
-    const firstComb = SAMPLE[0];
-    if (firstComb === undefined) throw new Error('SAMPLE must be non-empty');
-    expect(firstComb.start + (firstComb.n - 1) * firstComb.step).toBeLessThanOrEqual(
+    const firstBand = SAMPLE[0];
+    if (!firstBand) throw new Error('SAMPLE is empty');
+    expect(firstBand.start + (firstBand.n - 1) * firstBand.step).toBeLessThanOrEqual(
       MAX_TERRAIN_SEED,
     );
     // A fallback map is the cheap-but-illegal outcome, and it would make every
