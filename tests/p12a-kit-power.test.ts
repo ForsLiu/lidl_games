@@ -215,7 +215,9 @@ describe('p12a — damageByWeaponVs isolates the VS half', () => {
     w.phase = 'act2';
     const e = husk(w);
     damageEnemy(w, e, 100, 'class_basic');
-    expect(w.damageByWeaponVs['class_basic']).toBeCloseTo(w.damageByWeapon['class_basic'], 6);
+    const basicDamage = w.damageByWeapon['class_basic'];
+    if (basicDamage === undefined) throw new Error('expected class_basic damage to be recorded');
+    expect(w.damageByWeaponVs['class_basic']).toBeCloseTo(basicDamage, 6);
   });
 
   it('it sums across VS blocks rather than resetting, unlike a single snapshot', () => {
@@ -240,7 +242,9 @@ describe('p12a — damageByWeaponVs isolates the VS half', () => {
     w.phase = 'levelup';
     const e = husk(w);
     damageEnemy(w, e, 100, 'class_active');
-    expect(w.damageByWeaponVs['class_active']).toBeCloseTo(w.damageByWeapon['class_active'], 6);
+    const activeDamage = w.damageByWeapon['class_active'];
+    if (activeDamage === undefined) throw new Error('expected class_active damage to be recorded');
+    expect(w.damageByWeaponVs['class_active']).toBeCloseTo(activeDamage, 6);
   });
 
   it('a wielded-weapon (tower-key) source is counted too — it is the character in VS', () => {

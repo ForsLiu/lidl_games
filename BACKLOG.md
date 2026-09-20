@@ -5434,6 +5434,39 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       per this item's `[polish]` tag and no `/src`/`/data` changes (the
       `tools/*.ts` files are scripts, not `/src`) — no qa-playtester dispatch.
       — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 10 more files, all two-error-each, all tests, none touching
+      `/src`/`/data` — `tests/b030-autopick-pause-toggle.test.ts` (guards
+      `autopickCmds[0]`/`[1]` via destructure right after
+      `expect(...).toHaveLength(2)`), `tests/class-poison-barrel-
+      mechanic.test.ts` (two occurrences of the established `content.enemies.
+      enemies[0]` guard pattern), `tests/class-roster-size.test.ts` (guards
+      `doc.classes[0]` before use, and guards the `boonsDoc.skillCards`
+      lookup by that class's own key before `.map`),
+      `tests/class-tower-passive-liveness.test.ts` (the enemies[0] pattern,
+      plus a `before[i]` read inside a `.filter` callback now throws if
+      undefined — `before = [a.hp, b.hp]`, `i` only ever 0 or 1),
+      `tests/fb047-sweep-tier-modifiers.test.ts` and `tests/fb081-linehit-
+      broadphase.test.ts` (each extracted a small `firstModifierKey()`/
+      `firstEnemyKey()` helper reused at both call sites instead of inlining
+      the guard twice), `tests/fb130-core-placement-wiring.test.ts` (guards
+      `GATES[0]` before reading `.tx`/`.ty`),
+      `tests/fb155-enemy-attack-registry.test.ts` (guards `doc.enemies[0]`
+      before a `delete`, and guards a dynamic-field `Record<string, number>`
+      read before `toBeCloseTo`), `tests/p12a-kit-power.test.ts` (two
+      occurrences guarding `w.damageByWeapon[...]` before `toBeCloseTo`),
+      `tests/p1a-sealing.test.ts` (guards several `g.breach[g.idx(...)]`
+      reads before `toBeGreaterThan`). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 10; `npx tsc
+      --noEmit` (main config) clean; targeted `npx vitest run` on all 10 plus
+      the ratchet test green (137 passed, 3 pre-existing skips); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 147 →
+      **137 files remain** on the allowlist. code-reviewer APPROVE (no
+      findings; one Nit noting a pre-existing unrelated `!` on
+      `spawnEnemy(...)!`'s own return, out of this item's scope, left as-is).
+      Light tier per this item's `[polish]` tag and no `/src`/`/data`
+      changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t
+      Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

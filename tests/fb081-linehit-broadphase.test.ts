@@ -43,6 +43,12 @@ import { cfg } from './helpers';
 const content = loadContent();
 const DT = 1 / 60;
 
+function firstEnemyKey(): string {
+  const first = content.enemies.enemies[0];
+  if (!first) throw new Error('no enemies in content');
+  return first.key;
+}
+
 function areaWorld(classKey: string, area: number): World {
   const w = new World(cfg({ classKey }), content);
   w.gold = 1e6;
@@ -56,7 +62,7 @@ function areaWorld(classKey: string, area: number): World {
 }
 
 function spawnAt(w: World, x: number, y: number): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(), x, y)!;
   e.hp = 1e6;
   e.maxHp = 1e6;
   e.speed = 0;
@@ -109,7 +115,7 @@ describe('fb081: lineHit broadphase margin covers a wide, Area-scaled half-width
     // dashRange, perp near halfWidth) — exactly the region the old circular
     // broadphase undershoots. At range=5/halfWidth=4 this corner sits at
     // distance ~4.66 from the query center, past the old margin of 4.5.
-    const e = spawnEnemy(w, content.enemies.enemies[0].key, w.warden.x + dashRange * 0.99, w.warden.y + halfWidth * 0.99)!;
+    const e = spawnEnemy(w, firstEnemyKey(), w.warden.x + dashRange * 0.99, w.warden.y + halfWidth * 0.99)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     e.speed = 0;
