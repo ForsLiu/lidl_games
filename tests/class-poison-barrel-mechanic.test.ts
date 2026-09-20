@@ -53,7 +53,9 @@ function castOnPinnedEnemy() {
   run.world.gold = 1e6;
   run.world.phase = 'act1_wave'; // updateEnemies (and so tickDots) only runs here / act2
   run.world.warden.attackCooldown = 1e9; // suppress the basic attack — only the zone may deal damage
-  const e = spawnEnemy(run.world, run.world.content.enemies.enemies[0].key, run.world.warden.x + 1, run.world.warden.y)!;
+  const firstEnemy = run.world.content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('no enemies in content');
+  const e = spawnEnemy(run.world, firstEnemy.key, run.world.warden.x + 1, run.world.warden.y)!;
   e.hp = 1e9;
   e.maxHp = 1e9;
   e.speed = 0;
@@ -88,7 +90,9 @@ describe('fb062: Poison Barrel applications are seeded at §3\'s 120%-of-damage-
     run.world.gold = 1e6;
     run.world.phase = 'act1_wave';
     run.world.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(run.world, run.world.content.enemies.enemies[0].key, run.world.warden.x + 1, run.world.warden.y)!;
+    const firstEnemy = run.world.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const e = spawnEnemy(run.world, firstEnemy.key, run.world.warden.x + 1, run.world.warden.y)!;
     e.hp = 1e9;
     e.maxHp = 1e9;
     e.speed = 0;

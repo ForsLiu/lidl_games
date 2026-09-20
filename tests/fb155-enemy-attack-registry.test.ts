@@ -41,7 +41,9 @@ describe('fb155 — the enemy attack registry', () => {
   it('the loader refuses a row missing either field', () => {
     for (const field of ['attackKind', 'attackRange']) {
       const doc = JSON.parse(JSON.stringify(content.raw.enemies)) as { enemies: Record<string, unknown>[] };
-      delete doc.enemies[0][field];
+      const firstRow = doc.enemies[0];
+      if (!firstRow) throw new Error('expected at least one enemy row');
+      delete firstRow[field];
       expect(() => loadContent({ enemies: doc }), `a row without ${field} loaded`).toThrow();
     }
   });
@@ -102,7 +104,11 @@ describe('fb155 — the enemy attack registry', () => {
     for (const [key, field] of Object.entries(withSpecial)) {
       const def = content.enemyByKey.get(key)!;
       expect(def.specialRange, `${key} publishes no special reach`).toBeGreaterThan(0);
-      if (field) expect(def.specialRange).toBeCloseTo((def as unknown as Record<string, number>)[field], 6);
+      if (field) {
+        const fieldValue = (def as unknown as Record<string, number>)[field];
+        if (fieldValue === undefined) throw new Error(`expected ${key}.${field} to be set`);
+        expect(def.specialRange).toBeCloseTo(fieldValue, 6);
+      }
     }
     // ...and the Warden-Eater's is measured, not re-typed: grow a real ring and
     // read how far it gets. qa-playtester caught the first version publishing

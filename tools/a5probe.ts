@@ -197,7 +197,7 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
     if (w.stackDepth > maxStackDepth) maxStackDepth = w.stackDepth;
     if (w.phase === 'act2') {
       for (const key of Object.keys(w.damageByWeapon)) {
-        const delta = w.damageByWeapon[key] - (prev[key] ?? 0);
+        const delta = (w.damageByWeapon[key] ?? 0) - (prev[key] ?? 0);
         if (delta > 0) vsDamage[key] = (vsDamage[key] ?? 0) + delta;
       }
     }

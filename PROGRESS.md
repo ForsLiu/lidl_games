@@ -5,7 +5,76 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 179 → 171.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 147 → 137.**
+  Fixed 10 more two-error-each test files, none touching `/src`/`/data`:
+  `tests/b030-autopick-pause-toggle.test.ts` (destructure-guards
+  `autopickCmds[0]`/`[1]`), `tests/class-poison-barrel-mechanic.test.ts`
+  (the `content.enemies.enemies[0]` pattern, twice), `tests/class-roster-
+  size.test.ts` (guards `doc.classes[0]` and the derived `skillCards`
+  lookup), `tests/class-tower-passive-liveness.test.ts` (enemies[0], plus a
+  `before[i]` filter-callback throw), `tests/fb047-sweep-tier-
+  modifiers.test.ts` / `tests/fb081-linehit-broadphase.test.ts` (each
+  extracted a small `firstModifierKey()`/`firstEnemyKey()` helper reused
+  twice instead of inlining), `tests/fb130-core-placement-
+  wiring.test.ts` (guards `GATES[0]`), `tests/fb155-enemy-attack-
+  registry.test.ts` (guards `doc.enemies[0]` and a dynamic-field record
+  read), `tests/p12a-kit-power.test.ts` (guards two `damageByWeapon[...]`
+  reads), `tests/p1a-sealing.test.ts` (guards several `g.breach[...]`
+  reads). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the 10; main tsconfig clean; targeted `npx vitest
+  run` on all 10 plus the ratchet test green (137 passed, 3 pre-existing
+  skips); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer APPROVE (no findings; one Nit, unrelated
+  pre-existing `!`, left as-is). Light tier (`[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 161 → 147.**
+  Fixed 14 more files, all one-error-each, none touching `/src`/`/data`:
+  `tests/terrain-gates-dump.test.ts`, `tests/terrain-grid-gates.test.ts`,
+  `tests/terrain-headroom.test.ts`, `tests/terrain-high-contest.test.ts`,
+  `tests/terrain-legality.test.ts` (guards `FLOOR_FIELD[band]`, unreachable
+  given `FLOOR_BANDS`' own key set), `tests/tower-info.test.ts`,
+  `tests/ui-fb094-screenshot-export.test.ts` / `tests/ui-fb097-frame-
+  capture.test.ts` (guard `spy.mock.calls[0]` right after a
+  `toHaveBeenCalledTimes` proves it exists), `tests/ui-fb108-active-
+  sentences-all-classes.test.ts` (the fb025/fb084 `enemies[0]` pattern),
+  `tests/ui-fb175-single-falloff-clause.test.ts`, `tools/a5probe.ts`
+  (`damageByWeapon[key]` provably non-undefined inside its own
+  `Object.keys` loop — pure type-safety no-op), `tools/handoff-metrics.ts`
+  (its `median()` already early-returns on empty, the indexed read now
+  falls back `?? 0`), `tools/invariants.ts` (a bounded offers loop now
+  throws naming the index instead of indexing twice), `tools/soak.ts`
+  (a modulo index guarded, unreachable given the function's own earlier
+  non-empty check). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+  no longer flags any of the 14; main tsconfig clean; targeted `npx vitest
+  run` on all touched files plus the ratchet test green (127 passed);
+  `tests/p10g-armor-shred-liveness.test.ts` (exercises the exact
+  `damageByWeapon` loop) passes directly; a standalone `scanWorld` smoke
+  call confirms `tools/invariants.ts` still runs clean; `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor — an inconsistent silent-skip guard, fixed to throw before
+  commit; one Nit, unrelated pre-existing `!`, left as-is). Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 171 → 161.**
+  Fixed 10 more test files with real guards, all one-error-each:
+  `tests/p9e-levelup-idle.test.ts` (`w.offers[0]` guarded), `tests/q13-perf-
+  ratio.test.ts` / `tests/q13-perf-sensitivity.test.ts` (`median()` throws on
+  empty array, matching `tests/a9-economy.test.ts`'s identical helper),
+  `tests/q28-cli-error-handling.test.ts` (`warn.mock.calls[0]` guarded right
+  after `toHaveBeenCalledTimes(1)` proves it exists),
+  `tests/render-fb067/68/69/70-*.test.ts` (all four: guard
+  `w.content.enemies.enemies[0]` before use, matching the fb025/fb084
+  precedent), `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]`
+  guarded right after `toHaveLength(1)` proves it exists),
+  `tests/t1-range-indicators.test.ts` (destructures `[countOff, countOn]`
+  from the fixed 2-element `.map` result instead of indexing). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+  10; `npx tsc --noEmit` (main config) clean; targeted `npx vitest run` on
+  all 10 plus the ratchet test green (60 passed); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE,
+  no findings. Light tier (item is `[polish]`, no `/src`/`/data` touched) —
+  no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 179 → 171.**
   Fixed 8 more test files with real guards, all one-error-each:
   `tests/fb153a-number-scale.test.ts` (regex capture read hoisted and
   guarded), `tests/p-core-d-corpse.test.ts` (module-scope data-constant read

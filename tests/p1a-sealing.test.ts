@@ -106,12 +106,18 @@ describe('p1a §10: a structure tile costs breach.base + perEhp × effective HP'
     const g = w.grid;
     // Palisade: 300 HP, defense 0 → ehp 300. Arrow Spire: 120 HP, defense 10
     // → ehp 133⅓. The wall is the dearer chew despite being "just a wall".
-    expect(g.breach[g.idx(12, 10)]).toBeGreaterThan(g.breach[g.idx(10, 10)]);
+    const wallBreach = g.breach[g.idx(12, 10)];
+    const spireBreach = g.breach[g.idx(10, 10)];
+    if (wallBreach === undefined || spireBreach === undefined) throw new Error('expected breach values');
+    expect(wallBreach).toBeGreaterThan(spireBreach);
     // An upgrade buys HP and Defense, so the tile gets dearer with it.
     const before = g.breach[g.idx(10, 10)];
+    if (before === undefined) throw new Error('expected a breach value');
     w.gold = 100000;
     expect(upgradeTower(w, 10, 10)).toBe(true);
-    expect(g.breach[g.idx(10, 10)]).toBeGreaterThan(before);
+    const after = g.breach[g.idx(10, 10)];
+    if (after === undefined) throw new Error('expected a breach value');
+    expect(after).toBeGreaterThan(before);
     // Death clears the surcharge with the occupancy.
     w.removeStructure(spire);
     w.removeStructure(wall);

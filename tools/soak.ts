@@ -171,7 +171,9 @@ export function soak(n: number, policies: string[], seedStart = 1): SoakResult[]
   if (policies.length === 0) throw new Error('soak: policies must be non-empty');
   const out: SoakResult[] = [];
   for (let i = 0; i < n; i++) {
-    out.push(soakOne(seedStart + i, policies[i % policies.length]));
+    const policy = policies[i % policies.length];
+    if (policy === undefined) throw new Error('soak: policy index out of range');
+    out.push(soakOne(seedStart + i, policy));
   }
   return out;
 }

@@ -79,7 +79,9 @@ describe('fb068: a boundary-hugging enemy under the density cutoff still surface
   it('does not reset the accumulator every tick it drifts just past the near radius', () => {
     const w = new World(cfg());
     w.warden.attackCooldown = 1e9;
-    const key = w.content.enemies.enemies[0].key;
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const key = firstEnemy.key;
     const farX = w.warden.x < GRID_W / 2 ? GRID_W - 2 : 1;
     const farY = w.warden.y < GRID_H / 2 ? GRID_H - 2 : 1;
 

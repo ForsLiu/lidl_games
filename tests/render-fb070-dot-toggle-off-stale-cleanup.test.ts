@@ -78,7 +78,9 @@ describe('fb070: the dotNumbers toggle being off must not block stale-accumulato
   it('does not mix stale pending seconds into a later re-application across an off/on flip', () => {
     const w = new World(cfg());
     w.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const e = spawnEnemy(w, firstEnemy.key, w.warden.x + 10, w.warden.y)!;
     // Frozen in place: the >4s this test ticks through is otherwise enough
     // for a default-speed enemy to walk onto the core tile and leak (marking
     // it dead, which would trivially — and irrelevantly — clear `dotAccum`

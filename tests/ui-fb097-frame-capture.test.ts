@@ -129,7 +129,9 @@ describe('fb097: dev-profile frame capture', () => {
     expect(toBlobSpy).toHaveBeenCalledTimes(FRAME_COUNT);
     // Exactly one archive downloaded, not one per frame.
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    const zipBlob = createObjectURL.mock.calls[0][0] as Blob;
+    const createObjectURLCall0 = createObjectURL.mock.calls[0];
+    if (!createObjectURLCall0) throw new Error('expected createObjectURL to have been called');
+    const zipBlob = createObjectURLCall0[0] as Blob;
     expect(zipBlob.type).toBe('application/zip');
     const zipBytes = new Uint8Array(await zipBlob.arrayBuffer());
     // Local file header signature — a real ZIP, not an empty/placeholder Blob.

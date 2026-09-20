@@ -186,7 +186,9 @@ function place(w: World, key: string, tx: number, ty: number): Structure {
 function dummy(w: World, x: number, y: number, hp = 1e7): Enemy {
   // `w.content`, not the module-level `content`: a row built from a
   // `contentWithout` rebuild must spawn from *its* Content (c006's convention).
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  const firstEnemy = w.content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('no enemies in content');
+  const e = spawnEnemy(w, firstEnemy.key, x, y)!;
   e.hp = hp;
   e.maxHp = Math.max(hp, e.maxHp);
   e.speed = 0;
@@ -602,7 +604,11 @@ describe('c009: every class tower passive measurably changes a built tower', () 
       const b = dummy(w, WX + 2 + gap, WY);
       const before = [a.hp, b.hp];
       fireOnce(w, s);
-      return [a, b].filter((e, i) => e.hp < before[i]).length;
+      return [a, b].filter((e, i) => {
+        const hpBefore = before[i];
+        if (hpBefore === undefined) throw new Error(`missing before[${i}]`);
+        return e.hp < hpBefore;
+      }).length;
     };
     expect(struck(CONTROL)).toBe(1);
     expect(struck('animist')).toBe(2);
