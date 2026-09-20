@@ -210,12 +210,12 @@ describe('fb028: the Codex — classes and equipment rows expand to full live-fo
     const swordsmanCls = content.classByKey.get('swordsman')!;
     const rows = root.querySelectorAll('.sw-codex-content tbody tr');
     const idx = content.classes.classes.findIndex((c) => c.key === 'swordsman');
-    const row = rows[idx];
-    if (!row) throw new Error('no codex row for swordsman');
-    (row as HTMLElement).click();
+    (rows[idx] as HTMLElement).click();
 
     const detail = root.querySelector('.sw-codex-detail')!;
     expect(detail.innerHTML).toBe(classAbilitiesMarkup(swordsmanCls));
+    const row = rows[idx];
+    if (!row) throw new Error('swordsman row not found');
     expect(row.classList.contains('active')).toBe(true);
   });
 

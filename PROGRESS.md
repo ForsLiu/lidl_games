@@ -5,39 +5,58 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 187 → 177.**
-  Fixed 10 more files with real guards, all one-error-each: `tests/equip-
-  effectkey-reach.test.ts`, `tests/fb025-enemy-hp-bars.test.ts`, `tests/fb084-
-  summon-cap-stat.test.ts` (three separate `content.enemies.enemies[0]`
-  reads, each given a local `firstEnemy` guard that throws if test content
-  has no enemies — proven impossible today, but a real guard rather than
-  `!`), `tests/fb019-training-grounds.test.ts` (a `select.options[0]` read
-  guarded the same way), `tests/fb028-effect-text.test.ts` (a NodeList
-  `rows[idx]` access guarded once and the local reused for both the click
-  and the later `classList` assertion), `tests/fb077-terrain-wiring.test.ts`
-  (`STRANDED_CORE_SEEDS` retyped `as const` so indexing the fixed 4-seed
-  array yields literal types instead of `number | undefined` — the correct
-  fix, not a checker-silencer, matching `theme.ts`'s `CVD_MATRIX` precedent),
-  `tests/fb140-ci-workflow.test.ts` and `tests/fb153a-number-scale.test.ts`
-  (regex capture-group reads guarded with `=== undefined` checks before use,
-  matching `m[1]`'s "mandatory once matched" idiom already used elsewhere in
-  the ratchet), `tests/p-core-d-corpse.test.ts` (`CORPSE.upgrade.steps![2]`
-  guarded before reading `.autoFireInterval`), `tests/p10c-weapon-share.test.ts`
-  (a `shares[0]` guard inside an `it.skip` body that never executes — a
-  compile-only fix). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
-  no longer flags any of the 10; `npx tsc --noEmit` (main config) clean;
-  targeted `npx vitest run` on the ratchet test plus all 10 fixed files green
-  (10 files / 128 tests) — `p10c-weapon-share.test.ts` deliberately not
-  executed directly (it's excluded from `test:fast` for its own genuine
-  ~700-900s simulation sweep at describe-level; its own fix is inside a
-  never-executed `it.skip` body, verified via `tsc` only); full `npm run
-  test:fast` re-run afterward, unchanged at 315 files / 4548 passed / 35
-  skipped. code-reviewer APPROVE (two Nits, both left as-is: a `firstEnemy`
-  guard re-evaluated per loop iteration in `fb084` — harmless; `fb140`'s
-  guard is technically redundant since the regex group is non-optional, but
-  documents the invariant for the ratchet compiler). Light tier (item is
-  `[polish]`, no `/src` touched) — no qa-playtester dispatch, per the
-  tiered-QA rule. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 179 → 171.**
+  Fixed 8 more test files with real guards, all one-error-each:
+  `tests/fb153a-number-scale.test.ts` (regex capture read hoisted and
+  guarded), `tests/p-core-d-corpse.test.ts` (module-scope data-constant read
+  throws if the corpse Core's third upgrade step is missing),
+  `tests/p10c-weapon-share.test.ts` (guard added inside an `it.skip(...)`
+  body — never executes at runtime, verified only via the tsc check plus
+  that reasoning since this file is its own `vitest.fast.config.ts`
+  exclusion — 12 builds × 5 seeds × cycles:6 full VS-combat runs, minutes
+  long — and did not fit this routine's time budget to run directly),
+  `tests/p10e-perf-budget.test.ts` (`median()` throws on empty array,
+  matching `tests/a9-economy.test.ts`'s identical helper),
+  `tests/p12c-margin.test.ts` (median-index read defaults `?? NaN`, the same
+  sentinel already used for the empty case), `tests/p3a-run-shape.test.ts` /
+  `tests/p8a-wave-content.test.ts` (both: a destructured `spawnQueue` entry's
+  `defId` throws if missing), `tests/p5d-projectile-damage-credit.test.ts`
+  (`hpBefore[i]` defaults `?? e.hp`, provably a no-op given matching array
+  lengths). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+  flags any of the 8; `npx tsc --noEmit` (main config) clean; 7 of 8 files
+  run directly via `npx vitest run` (all green); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE,
+  no findings — independently confirmed the p10c-weapon-share verification
+  reasoning is sound. Light tier (item is `[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 187 → 179.**
+  Fixed 8 more test files with real guards, all one-error-each and none
+  touching `/src`: `tests/equip-effectkey-reach.test.ts`,
+  `tests/fb025-enemy-hp-bars.test.ts`, `tests/fb084-summon-cap-stat.test.ts`
+  (all three share the `content.enemies.enemies[0].key` spawn-helper
+  pattern, now throwing if the roster is empty, matching
+  `class-kit-liveness.test.ts`'s `dummy()` convention),
+  `tests/fb019-training-grounds.test.ts` (a rendered `<select>` option read
+  throws if no option rendered, already proven impossible by a preceding
+  `options.length > 0` assertion), `tests/fb028-effect-text.test.ts` (a
+  `NodeList` row read by an already-found `findIndex` throws if the row is
+  missing), `tests/fb077-terrain-wiring.test.ts` (`STRANDED_CORE_SEEDS[0] ??
+  2722`, a literal-array default matching the array's own first element),
+  `tests/fb086-blood-tithe-lifesteal.test.ts` (a `damageByWeapon` record read
+  throws if undefined, unreachable given the immediately preceding
+  `toBeGreaterThan(0)` assertion), `tests/fb140-ci-workflow.test.ts` (a regex
+  capture-group read throws instead of assuming the match). Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the 8; `npx
+  tsc --noEmit` (main config) clean; targeted `npx vitest run` on all 8 plus
+  the ratchet test green (97 passed); `npm run test:fast` unchanged at 315
+  files / 4548 passed / 35 skipped. code-reviewer APPROVE (one Minor: fb019's
+  `options[0] ?? ''` empty-string fallback was inconsistent with the batch's
+  own throw-guard convention and could mask a real failure as a confusing
+  `false` instead of a clear error — fixed to a `throw` guard before commit;
+  one Nit: fb086's guard-after-assert ordering is stylistically unusual but
+  correct, left as-is). Light tier (item is `[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch, per the tiered-QA rule. — refs:
+  BACKLOG.md fb133 Log.
 - **2026-09-19 (scheduled routine, latest) — fb133 ratchet shrunk 198 → 187.**
   Fixed 11 more test files with real guards, all one-error-each and none
   touching `/src`: `tests/a4-single-type.test.ts` (`T1_IDENTITY_FLOOR[key]`

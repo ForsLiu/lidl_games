@@ -121,7 +121,7 @@ describe('fb019 Training Grounds: the HUD spawn panel', () => {
     const options = [...select.options].map((o) => o.value);
     expect(options).toContain('husk');
     const firstOption = options[0];
-    if (firstOption === undefined) throw new Error('the enemy select has no options');
+    if (!firstOption) throw new Error('no spawn options rendered');
     expect(world.content.enemyByKey.has(firstOption)).toBe(true);
 
     select.value = 'husk';

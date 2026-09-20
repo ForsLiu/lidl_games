@@ -91,7 +91,7 @@ describe('p5d — pierce/lob-kind towers credit Structure.damageDealt', () => {
     const targets = [dummy(w, x + 1.5, y), dummy(w, x + 2.5, y), dummy(w, x + 3.5, y)];
     const hpBefore = targets.map((e) => e.hp);
     fireUntilCredited(w, s);
-    const hpLost = targets.reduce((sum, e, i) => sum + (hpBefore[i] - e.hp), 0);
+    const hpLost = targets.reduce((sum, e, i) => sum + ((hpBefore[i] ?? e.hp) - e.hp), 0);
     expect(hpLost, 'the bolt really did land on all three').toBeGreaterThan(0);
     expect(s.damageDealt).toBeCloseTo(hpLost, 6);
   });

@@ -91,7 +91,7 @@ function measure(): Margins {
   return {
     winRate: wins.length / reports.length,
     closeWinShare: closeWins / reports.length,
-    medianCoreHpAtVictory: fracs.length > 0 ? fracs[Math.floor(fracs.length / 2)] : NaN,
+    medianCoreHpAtVictory: fracs.length > 0 ? (fracs[Math.floor(fracs.length / 2)] ?? NaN) : NaN,
     detail: `T${TIER} n=${SEED_COUNT} cap=${CAP_MIN}m: ${wins.length}/${SEED_COUNT} wins — ${summarizeMargins(reports)}`,
   };
 }

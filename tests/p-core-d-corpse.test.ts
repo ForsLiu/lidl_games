@@ -33,7 +33,7 @@ const storeRatioAfter = (n: number): number =>
   CORPSE.upgrade.steps!.slice(0, n).reduce((r, st) => (st.storeRatio !== undefined ? st.storeRatio : r), CORPSE_EFFECTS.corpseStoreRatio);
 const STEP1_RATIO = storeRatioAfter(1);
 const CORPSE_STEP3 = CORPSE.upgrade.steps![2];
-if (!CORPSE_STEP3) throw new Error('corpse core has fewer than 3 upgrade steps');
+if (!CORPSE_STEP3) throw new Error('corpse core missing upgrade step 3');
 const STEP3_AUTOFIRE = CORPSE_STEP3.autoFireInterval;
 
 function corpseWorld(): World {

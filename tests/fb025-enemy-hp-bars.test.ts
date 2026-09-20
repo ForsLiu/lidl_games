@@ -129,7 +129,7 @@ describe('fb025: Enemy HP bars toggle', () => {
   it('off: legacy behavior survives — a damaged elite still shows its bar', () => {
     const w = new World(cfg());
     const firstEnemy = w.content.enemies.enemies[0];
-    if (!firstEnemy) throw new Error('test content has no enemies');
+    if (!firstEnemy) throw new Error('no enemies in content');
     const e = spawnEnemy(w, firstEnemy.key, w.warden.x + 1, w.warden.y)!;
     e.elite = true;
     e.hp = e.maxHp * 0.5;

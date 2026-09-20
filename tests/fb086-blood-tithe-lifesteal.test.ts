@@ -77,6 +77,7 @@ describe('fb086: a tithed tower heals the Warden for its own VS-phase damage', (
 
     const dealt = w.damageByWeapon['arrow_spire'];
     expect(dealt).toBeGreaterThan(0);
+    if (dealt === undefined) throw new Error('unreachable: just asserted dealt > 0');
     expect(w.warden.hp).toBeCloseTo(1 + dealt * TITHE_PCT, 9);
   });
 

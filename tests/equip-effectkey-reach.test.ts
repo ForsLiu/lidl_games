@@ -270,7 +270,7 @@ function armorBoostedRelease(c: Content, equipment: string[]): number {
   const cls = c.classByKey.get('swordsman')!;
   const aim = { aimX: w.warden.x + 2, aimY: w.warden.y };
   const firstEnemy = c.enemies.enemies[0];
-  if (!firstEnemy) throw new Error('test content has no enemies');
+  if (!firstEnemy) throw new Error('no enemies in content');
   const e = spawnEnemy(w, firstEnemy.key, w.warden.x + 1, w.warden.y)!;
   e.hp = 1e7;
   e.maxHp = 1e7;
