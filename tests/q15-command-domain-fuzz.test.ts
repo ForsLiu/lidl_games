@@ -59,6 +59,12 @@ const EXPECTED_FIELD_KEYS = [
   'dev.fast_forward.amount',
 ] as const;
 
+function firstFieldSpec() {
+  const spec = FIELD_SPECS[0];
+  if (!spec) throw new Error('FIELD_SPECS is empty');
+  return spec;
+}
+
 /**
  * fb119 filed this whole suite `.skip`-ed after root-causing a real
  * `ERR_MODULE_NOT_FOUND` in the worker (a `worker_threads.Worker`'s
@@ -199,7 +205,7 @@ describe('q15 command-argument domain fuzz', () => {
       // Keyed on the target combo's own fieldKey/family, not on call order —
       // `runCensus`'s iteration order is an implementation detail this test
       // should not depend on.
-      const targetKey = FIELD_SPECS[0].key;
+      const targetKey = firstFieldSpec().key;
       const targetFamily = FAMILIES[0];
       let targetCalls = 0;
       const fakeProber = async (fieldKey: string, family: Family) => {
@@ -225,7 +231,7 @@ describe('q15 command-argument domain fuzz', () => {
       // The motivating scenario: one combo times out (load contention) while
       // several others, sharing the same `mapLimit` concurrency pool, resolve
       // normally at the same time.
-      const targetKey = FIELD_SPECS[0].key;
+      const targetKey = firstFieldSpec().key;
       const targetFamily = FAMILIES[0];
       let targetCalls = 0;
       const fakeProber = async (fieldKey: string, family: Family) => {
@@ -336,7 +342,9 @@ describe('q15 command-argument domain fuzz', () => {
       w.gold = 1e9;
       w.derived.buildRange = 1e6;
       const before = digest(w);
-      const built = buildTower(w, w.content.towers.towers[0].id, 1, 1);
+      const firstTower = w.content.towers.towers[0];
+      if (!firstTower) throw new Error('content.towers.towers is empty');
+      const built = buildTower(w, firstTower.id, 1, 1);
       expect(built.ok).toBe(true);
       expect(digest(w)).not.toBe(before);
     });

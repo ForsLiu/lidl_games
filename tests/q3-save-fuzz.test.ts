@@ -209,6 +209,7 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
   it.each(FAMILIES)('family %s still changes what loads', (family: Family) => {
     const floor = FLOOR[family] ?? 0.85;
     const s = fuzzSaves(11, 1_500, family).byFamily[family];
+    if (!s) throw new Error(`no census entry for family ${family}`);
     expect(s.total).toBe(1_500);
     expect(s.changed / s.total, `${family} effectiveness`).toBeGreaterThanOrEqual(floor);
   });

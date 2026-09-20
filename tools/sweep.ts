@@ -48,8 +48,16 @@ function parse(argv: string[]): Options {
     switch (argv[i]) {
       case '--seeds': o.seeds = Number(v); i++; break;
       case '--seed-start': o.seedStart = Number(v); i++; break;
-      case '--policies': o.policies = v.split(','); i++; break;
-      case '--class': o.classKey = v; i++; break;
+      case '--policies':
+        if (v === undefined) throw new Error('--policies requires a value');
+        o.policies = v.split(',');
+        i++;
+        break;
+      case '--class':
+        if (v === undefined) throw new Error('--class requires a value');
+        o.classKey = v;
+        i++;
+        break;
       case '--tier': o.tier = Number(v); i++; break;
       case '--mods': o.modifiers = v ? v.split(',').filter(Boolean) : []; i++; break;
       case '--tree': o.allocated = v === 'none' ? [] : v ? v.split(',').map(Number) : []; i++; break;
@@ -120,7 +128,9 @@ export function buildRunConfig(o: Options, content: Content, seed: number): RunC
 function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const s = arr.slice().sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+  const v = s[Math.floor(s.length / 2)];
+  if (v === undefined) throw new Error('median: index out of range');
+  return v;
 }
 
 function main(): void {

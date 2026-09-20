@@ -123,6 +123,7 @@ describe('fb098: the TOWER_VFX registry covers every real tower', () => {
     for (const key of realTowerKeys) {
       const entry = TOWER_VFX[key];
       expect(entry, key).toBeDefined();
+      if (!entry) throw new Error(`no TOWER_VFX entry for ${key}`);
       expect(entry.fire.length, `${key}.fire`).toBeGreaterThan(0);
       expect(entry.travel.length, `${key}.travel`).toBeGreaterThan(0);
       expect(entry.impact.length, `${key}.impact`).toBeGreaterThan(0);

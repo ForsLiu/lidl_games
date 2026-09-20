@@ -71,6 +71,7 @@ describe('q9 — phase-reachability census', () => {
     const row = byPolicy.get(policy);
     expect(row).toBeDefined();
     const floor = RECORDED_FLOOR[policy];
+    if (!floor) throw new Error(`no RECORDED_FLOOR entry for policy ${policy}`);
     expect(isSuperset(row!.reached, floor)).toBe(true);
   });
 
@@ -132,6 +133,7 @@ describe('q9 — phase-reachability census', () => {
       unreached: ['levelup'],
     };
     const floor = RECORDED_FLOOR.hybrid;
+    if (!floor) throw new Error('no RECORDED_FLOOR entry for policy hybrid');
     expect(isSuperset(missingLevelup.reached, floor)).toBe(false);
     // And the honest case still passes, so the guard isn't just always-false.
     expect(isSuperset(ALL_PHASES.slice(), floor)).toBe(true);
