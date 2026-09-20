@@ -5,7 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 90 → 86.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 86 → 84.**
+  Fixed 2 more files with real guards, none touching `/src`/`/data`:
+  `tests/dps-panel.test.ts` (6 `Object.keys(record)` + `record[key]` sites
+  fixed with `record[key] ?? 0`, matching the exact pattern already used in
+  production at `src/sim/enemies.ts`/`run.ts`'s `damageSince`),
+  `tests/fb005-damage-colors.test.ts` (a new `typeAt(dt, i)` helper throws
+  on a missing damage-type index — §13 pins 6 types, so indices 0/1 always
+  exist — plus a loop guard on a fixed 6-element literal array). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` clean on both; main `tsc
+  --noEmit` clean; targeted `npx vitest run` green (25 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE, no Critical/Major findings (one informational
+  Minor on a doc-comment's wording, two informational Nits, none requiring
+  a fix). Light tier (`[polish]`, no `/src`/`/data` touched). — refs:
+  BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 90 → 86.**
   Fixed 4 more files with real guards, none touching `/src`/`/data`:
   `tests/class-passive-liveness.test.ts` (a `dummy()` first-enemy guard, a
   per-index `before[i]` throw in `longDrawPierce`, and a destructured

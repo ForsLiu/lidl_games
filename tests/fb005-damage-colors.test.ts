@@ -79,6 +79,13 @@ function baseDamageTypes(): DamageTypesFile {
   return JSON.parse(JSON.stringify(content.damageTypes)) as DamageTypesFile;
 }
 
+/** §13 authors 6 damage types; every caller here needs at least the first two. */
+function typeAt(dt: DamageTypesFile, i: number): DamageTypesFile['types'][number] {
+  const t = dt.types[i];
+  if (t === undefined) throw new Error(`expected a damage type at index ${i}`);
+  return t;
+}
+
 describe('fb005: the /data mapping is well-formed', () => {
   it('the real data/damagetypes.json gives every type + status its own color, in both palettes', () => {
     const keys = [...content.damageTypes.types.map((d) => d.key), 'frost', 'frozen'];
@@ -97,19 +104,19 @@ describe('fb005: the /data mapping is well-formed', () => {
 
   it('rejects two damage types sharing the same normal color', () => {
     const dt = baseDamageTypes();
-    dt.types[1].color = dt.types[0].color;
+    typeAt(dt, 1).color = typeAt(dt, 0).color;
     expect(() => validateDamageStyleColors(dt)).toThrow(/share color/);
   });
 
   it('rejects two damage types sharing the same colorblind color', () => {
     const dt = baseDamageTypes();
-    dt.types[1].colorblindColor = dt.types[0].colorblindColor;
+    typeAt(dt, 1).colorblindColor = typeAt(dt, 0).colorblindColor;
     expect(() => validateDamageStyleColors(dt)).toThrow(/share colorblindColor/);
   });
 
   it('rejects a status colliding with a damage type', () => {
     const dt = baseDamageTypes();
-    dt.statuses.frost.color = dt.types[0].color;
+    dt.statuses.frost.color = typeAt(dt, 0).color;
     expect(() => validateDamageStyleColors(dt)).toThrow(/share color/);
   });
 
@@ -211,7 +218,9 @@ describe('fb005: the renderer actually colors floating numbers by type', () => {
     expect(new Set(colors).size).toBe(types.length);
     // And it matches the authored mapping exactly, not just "some" distinct color.
     for (let i = 0; i < types.length; i++) {
-      expect(colors[i]).toBe(damageStyleColor(w, types[i], false));
+      const key = types[i];
+      if (key === undefined) throw new Error(`expected a damage-type key at index ${i}`);
+      expect(colors[i]).toBe(damageStyleColor(w, key, false));
     }
   });
 

@@ -5670,6 +5670,34 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       undercounted pierce hits instead of failing loudly). Light tier
       (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
       — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still)**:
+      fixed 2 more files with real guards, none touching `/src`/`/data` —
+      `tests/dps-panel.test.ts` (6 sites of `for (const key of
+      Object.keys(someRecord)) { ... someRecord[key] ... }` — `key` is
+      always one of `someRecord`'s own keys by construction — fixed with
+      `someRecord[key] ?? 0`, matching the exact `?? 0`-on-a-`Record`-read
+      pattern already used in production at `src/sim/enemies.ts:465` and
+      `src/sim/run.ts`'s `damageSince`), `tests/fb005-damage-colors.test.ts`
+      (a new `typeAt(dt, i)` helper throws if `dt.types[i]` is missing —
+      `dt` is a fresh clone of the real `content.damageTypes`, which §13
+      pins at 6 damage types, so indices 0/1 always exist — used at 3 call
+      sites; a `for (i < types.length)` loop over a fixed 6-element literal
+      array guards `types[i]` into a local before use). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags either file;
+      main `npx tsc --noEmit` clean; targeted `npx vitest run` on both plus
+      the ratchet test green (25 tests); `npm run test:fast` unchanged at
+      315 files / 4548 passed / 35 skipped. 86 → **84 files remain** on the
+      allowlist. code-reviewer APPROVE, no Critical/Major findings (one
+      Minor: `typeAt`'s doc comment described caller behavior rather than
+      stating the underlying §13-pinned-count invariant directly, left
+      as-is, informational; two Nits: an already-unguarded `types[i]`
+      string-interpolation a few lines above the new guard in the same
+      loop is harmless and outside the ratchet's flagged diagnostics; the
+      6 repeated one-line comments in `dps-panel.test.ts` could have been
+      DRY'd into a shared helper but match this ratchet's established
+      one-comment-per-site convention). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
