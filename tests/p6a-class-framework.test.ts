@@ -25,6 +25,12 @@ import { cfg } from './helpers';
 
 const content = loadContent();
 
+function firstEnemyKey(c: Content): string {
+  const first = c.enemies.enemies[0];
+  if (first === undefined) throw new Error('content.enemies.enemies is empty');
+  return first.key;
+}
+
 const FIXTURE: ClassDef = {
   key: 'test_framework',
   name: 'Test Framework',
@@ -89,7 +95,7 @@ describe('p6a: the loader rejects a class missing any of the four slots', () => 
 describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim Commands', () => {
   it('class_active fires Active1, deals damage, and starts only active1Cooldown', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w.content), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
 
@@ -102,7 +108,7 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
 
   it('class_active2 fires Active2 independently, with its own cooldown and effect', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w.content), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
 
@@ -118,7 +124,7 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
     applyCommand(w, { k: 'class_active' });
     expect(w.warden.active1Cooldown).toBeGreaterThan(0);
 
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w.content), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     applyCommand(w, { k: 'class_active2' }); // fires even though Active1 is still cooling down
@@ -162,7 +168,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     run.world.gold = 1e6;
     const e = spawnEnemy(
       run.world,
-      run.world.content.enemies.enemies[0].key,
+      firstEnemyKey(run.world.content),
       run.world.warden.x + 3,
       run.world.warden.y,
     )!;
@@ -178,7 +184,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     run.world.gold = 1e6;
     const e = spawnEnemy(
       run.world,
-      run.world.content.enemies.enemies[0].key,
+      firstEnemyKey(run.world.content),
       run.world.warden.x + FIXTURE.basicAttack.range + 5,
       run.world.warden.y,
     )!;
@@ -193,7 +199,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     const w = worldWith();
     w.phase = 'act2';
     expect(w.huntsWarden).toBe(true);
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w.content), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     const input: TickInput = { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] };
@@ -214,12 +220,12 @@ describe('p6a: replay-hash determinism with Active1/Active2 and the auto basic a
 
     const a = new Run(cfg({ classKey: FIXTURE.key }), FIXTURE_CONTENT);
     a.world.gold = 1e6;
-    spawnEnemy(a.world, a.world.content.enemies.enemies[0].key, a.world.warden.x + 3, a.world.warden.y);
+    spawnEnemy(a.world, firstEnemyKey(a.world.content), a.world.warden.x + 3, a.world.warden.y);
     for (const input of log) a.step(input);
 
     const b = new Run(cfg({ classKey: FIXTURE.key }), FIXTURE_CONTENT);
     b.world.gold = 1e6;
-    spawnEnemy(b.world, b.world.content.enemies.enemies[0].key, b.world.warden.x + 3, b.world.warden.y);
+    spawnEnemy(b.world, firstEnemyKey(b.world.content), b.world.warden.x + 3, b.world.warden.y);
     for (const input of log) b.step(input);
 
     expect(a.hash()).toBe(b.hash());

@@ -5940,6 +5940,30 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       code-reviewer APPROVE, no findings. 67 → **61 files remain** on the
       allowlist. Light tier (`[polish]`, no `/src`/`/data` touched). —
       refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 4 more files with real guards (never `!`): `tests/p6a-class-
+      framework.test.ts` (a new `firstEnemyKey(c: Content)` helper
+      replacing 8 `X.content.enemies.enemies[0].key` reads across several
+      `it()` blocks), `tests/q21-weapon-boundary-fuzz.test.ts` (a guard on
+      `w.offers[0]` right after a `w.offers.length === 3` assertion, two
+      `wieldedAttacks(w)[0]` throw-guards replacing array-destructure
+      `const [arrow] = wieldedAttacks(w)`, and a `list[0]` guard after a
+      `list.length === 1` assertion), `tests/render-fb055-basic-attack-vfx.
+      test.ts` (a local `classVfx(key)` helper throwing on a missing
+      `CLASS_VFX[key]` entry, replacing direct `CLASS_VFX.swordsman`/
+      `.plaguebringer`/`.time_lord`/`.pyromancer` property reads —
+      matching `src/render/theme.ts`'s own existing `classBasicColor`
+      precedent), `tests/ui-audit-checks.test.ts` (a throw guard on
+      `entries[i]`/`entries[j]` inside a nested pairwise-comparison loop,
+      both indices always in bounds by the loop's own bounds). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of
+      the 4, no new offenders (61 → 56, exact match via the ratchet test);
+      main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 4
+      plus the ratchet test green (80 tests); `npm run test:fast`
+      unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer
+      APPROVE, no findings. 61 → **56 files remain** on the allowlist.
+      Light tier (`[polish]`, no `/src`/`/data` touched). — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

@@ -5,7 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 67 → 61.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 61 → 56.**
+  Fixed 4 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/p6a-class-framework.test.ts` (a new `firstEnemyKey(c:
+  Content)` helper replacing 8 `X.content.enemies.enemies[0].key` reads
+  across several `it()` blocks), `tests/q21-weapon-boundary-fuzz.test.ts`
+  (a guard on `w.offers[0]` right after a `w.offers.length === 3`
+  assertion, two `wieldedAttacks(w)[0]` throw-guards replacing array-
+  destructure `const [arrow] = wieldedAttacks(w)`, and a `list[0]` guard
+  after a `list.length === 1` assertion), `tests/render-fb055-basic-
+  attack-vfx.test.ts` (a local `classVfx(key)` helper throwing on a
+  missing `CLASS_VFX[key]` entry, replacing direct `CLASS_VFX.swordsman`/
+  `.plaguebringer`/`.time_lord`/`.pyromancer` property reads — these
+  resolve through `CLASS_VFX`'s index signature so `noUncheckedIndexedAccess`
+  flags them same as bracket access, matching `src/render/theme.ts`'s own
+  existing `classBasicColor` precedent), `tests/ui-audit-checks.test.ts`
+  (a throw guard on `entries[i]`/`entries[j]` inside a nested pairwise-
+  comparison loop, both indices always in bounds by the loop's own
+  bounds). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the 4, no new offenders (61 → 56, exact match via
+  the ratchet test); main `npx tsc --noEmit` clean; targeted `npx vitest
+  run` on all 4 plus the ratchet test green (80 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE, no findings. Light tier (`[polish]`, no `/src`/
+  `/data` touched). — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 67 → 61.**
   Fixed 6 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/ui-fb174-measured-falloff-guard.test.ts` (throw guards in
   `hasFalloff`'s adjacent-pair loop and the chain_lightning/dash_volley

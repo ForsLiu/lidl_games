@@ -22,6 +22,12 @@ import { TILE } from '../src/sim/grid';
 import { defaultSettings } from '../src/ui/settings';
 import { cfg as cfgWithTerrain } from './helpers';
 
+function classVfx(key: string): NonNullable<(typeof CLASS_VFX)[string]> {
+  const entry = CLASS_VFX[key];
+  if (!entry) throw new Error(`CLASS_VFX has no entry for class '${key}'`);
+  return entry;
+}
+
 // fb116: this file's basic-attack VFX assertions have nothing to do with
 // terrain (the same reasoning tests/fb016-vfx-registry.test.ts's own local
 // `cfg()` wrapper already states for the identical reason) — every `cfg()`
@@ -94,15 +100,15 @@ function view(over: Partial<ViewState> = {}): ViewState {
 
 describe('fb055: the VFX registry gives the three visible classes distinct basic-attack impacts', () => {
   it('registers a distinct impact kind for each of Swordsman/Plaguebringer/Time Lord', () => {
-    expect(CLASS_VFX.swordsman.basic.impact).toBe('slash');
-    expect(CLASS_VFX.plaguebringer.basic.impact).toBe('splash');
-    expect(CLASS_VFX.time_lord.basic.impact).toBe('ripple');
-    const kinds = [CLASS_VFX.swordsman.basic.impact, CLASS_VFX.plaguebringer.basic.impact, CLASS_VFX.time_lord.basic.impact];
+    expect(classVfx('swordsman').basic.impact).toBe('slash');
+    expect(classVfx('plaguebringer').basic.impact).toBe('splash');
+    expect(classVfx('time_lord').basic.impact).toBe('ripple');
+    const kinds = [classVfx('swordsman').basic.impact, classVfx('plaguebringer').basic.impact, classVfx('time_lord').basic.impact];
     expect(new Set(kinds).size).toBe(3); // three distinct kind strings, not one shape recolored
   });
 
   it('a hidden class (e.g. Pyromancer) registers no impact kind, unchanged by fb055', () => {
-    expect(CLASS_VFX.pyromancer.basic.impact).toBeUndefined();
+    expect(classVfx('pyromancer').basic.impact).toBeUndefined();
   });
 });
 
@@ -118,7 +124,7 @@ describe('fb055: firing a basic attack actually draws the distinct shapes', () =
     // The existing straight-line swing (fb021/fb016) still lands exactly at the target.
     const straightLine = lines.find((p) => Math.abs(p.x - 9 * TILE) < 0.01 && Math.abs(p.y - 6 * TILE) < 0.01);
     expect(straightLine, 'the swing line must still draw to the target').toBeDefined();
-    expect(straightLine!.color).toBe(CLASS_VFX.swordsman.basic.color);
+    expect(straightLine!.color).toBe(classVfx('swordsman').basic.color);
     // The new arc sweep draws via ctx.arc (a curved wedge), on top of the line — a genuinely different primitive, not a recolor.
     expect(arcs.length, 'the sword-swing-arc sweep must add at least one arc').toBeGreaterThan(arcsBefore);
   });

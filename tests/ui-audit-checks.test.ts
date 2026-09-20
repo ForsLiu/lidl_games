@@ -139,6 +139,7 @@ describe('fb018 ui-audit checks: real damagetypes.json palette', () => {
       for (let j = i + 1; j < entries.length; j++) {
         const a = entries[i];
         const b = entries[j];
+        if (a === undefined || b === undefined) throw new Error(`index ${i}/${j} out of range`);
         const dColor = colorDistance(hexToRgb(a.color), hexToRgb(b.color));
         if (dColor < COLOR_DISTANCE_MIN) offenders.push(`${a.key} vs ${b.key} (color): ${dColor.toFixed(1)}`);
         const dCb = colorDistance(hexToRgb(a.colorblindColor), hexToRgb(b.colorblindColor));
