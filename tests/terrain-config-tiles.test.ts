@@ -29,6 +29,13 @@ function tilesOf(doc: Record<string, unknown>): Array<Record<string, unknown>> {
   return doc.tiles as Array<Record<string, unknown>>;
 }
 
+/** `tiles` is positional and every caller here indexes a slot the shipped/cloned data always has. */
+function tileAt(tiles: Array<Record<string, unknown>>, index: number): Record<string, unknown> {
+  const tile = tiles[index];
+  if (tile === undefined) throw new Error(`expected a tile at index ${index}`);
+  return tile;
+}
+
 /** Parse and hand back the thrown error, or fail loudly if it was accepted. */
 function refusalOf(doc: unknown): unknown {
   try {
@@ -63,10 +70,12 @@ describe('fb064t — parseTerrain refuses a mis-sized tiles array as data, not a
       const issues = (err as ZodError).issues;
       const onTiles = issues.filter((i) => i.path[0] === 'tiles' && i.path.length === 1);
       expect(onTiles.length, JSON.stringify(issues)).toBeGreaterThan(0);
+      const [firstOnTiles] = onTiles;
+      if (firstOnTiles === undefined) throw new Error('expected at least one issue on "tiles"');
       // Pin the issue *shape*, not zod's wording: "Array must contain exactly 4
       // element(s)" is library-internal text, and a zod minor that rewords it
       // is not a regression in this loader.
-      expect(onTiles[0].code).toMatch(/^too_(small|big)$/);
+      expect(firstOnTiles.code).toMatch(/^too_(small|big)$/);
       // A caller printing `err.message` must see the field name, which is what
       // the `TypeError` never carried.
       expect((err as ZodError).message).toMatch(/"tiles"/);
@@ -149,15 +158,18 @@ describe('fb064t — parseTerrain refuses a mis-sized tiles array as data, not a
   it('every existing refusal message is unchanged by the guard', () => {
     const reorder = clone();
     const t = tilesOf(reorder);
-    [t[1], t[2]] = [t[2], t[1]];
+    const tileOne = tileAt(t, 1);
+    const tileTwo = tileAt(t, 2);
+    // Swap: t[1] <- old t[2], t[2] <- old t[1] (equivalent to `[t[1], t[2]] = [t[2], t[1]]`).
+    [t[1], t[2]] = [tileTwo, tileOne];
     expect(() => parseTerrain(reorder)).toThrow(/order is load-bearing/);
 
     const flag = clone();
-    tilesOf(flag)[TerrainKind.Rock].walkable = true;
+    tileAt(tilesOf(flag), TerrainKind.Rock).walkable = true;
     expect(() => parseTerrain(flag)).toThrow(/rock.*must have walkable: false/);
 
     const character = clone();
-    tilesOf(character)[TerrainKind.Normal].blocksCharacter = true;
+    tileAt(tilesOf(character), TerrainKind.Normal).blocksCharacter = true;
     expect(() => parseTerrain(character)).toThrow(/normal.*must have blocksCharacter: false/);
 
     // And the shipped file still loads.

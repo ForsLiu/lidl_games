@@ -5,7 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 96 → 90
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 90 → 86.**
+  Fixed 4 more files with real guards, none touching `/src`/`/data`:
+  `tests/class-passive-liveness.test.ts` (a `dummy()` first-enemy guard, a
+  per-index `before[i]` throw in `longDrawPierce`, and a destructured
+  `[firstDealt, secondDealt]` guard replacing direct `dealt[0]`/`dealt[1]`
+  indexing in `conduction`), `tests/p9c-tuner-save.test.ts` (a new
+  `firstError(result)` helper replacing 5 `result.errors![0].message`-style
+  call sites), `tests/terrain-config-tiles.test.ts` (a new `tileAt(tiles,
+  index)` helper replacing direct positional-tile indexing and a swap
+  rewritten to guard both slots first, verified functionally identical),
+  `tests/ui-fb117-core-select.test.ts` (a new generic `nth<T>(arr, i,
+  what)` helper replacing 5 direct-index call sites). Verified: `npx tsc
+  --noEmit -p tsconfig.unchecked.json` clean on all 4; main `tsc --noEmit`
+  clean; targeted `npx vitest run` green (71 tests); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor — a confusing swap-variable naming, fixed with a clarifying
+  comment; one Nit — an inconsistent `?? default` vs. throw convention for
+  an identical invariant, fixed to throw for consistency). Light tier
+  (`[polish]`, no `/src`/`/data` touched). — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 96 → 90
   (reconcile).** An unrelated orphan branch (`claude/dreamy-hopper-wlu4w0`,
   no open PR, last pushed >60 min before this routine started) had
   independently continued this ratchet from the same 111-file ancestor down

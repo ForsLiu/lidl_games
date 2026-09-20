@@ -5629,6 +5629,47 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       than a tautology, correctly left as a throw instead of `!`). Light
       tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
       dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later)**: fixed
+      4 more files with real guards, none touching `/src`/`/data` —
+      `tests/class-passive-liveness.test.ts` (`dummy()`'s
+      `content.enemies.enemies[0]` guarded via the established
+      `firstEnemyKey`-style throw; `longDrawPierce`'s per-index `before[i]`
+      read — `before = line.map(...)`, same length as `line` by construction
+      — throws instead of falling back, matching this file's own
+      `conduction` case a few lines below; `conduction`'s `dealt` array —
+      `chain.map(...)`, same length as the fixed 3-enemy `chain` — is now
+      destructured into `[firstDealt, secondDealt]` with a throw-guard
+      before use, replacing direct `dealt[0]`/`dealt[1]` indexing),
+      `tests/p9c-tuner-save.test.ts` (a new `firstError(result)` helper
+      throws if `saveTunerFile`'s `errors` array is empty, replacing 5
+      `result.errors![0].message`-style call sites — the pre-existing `!`
+      on `.errors` itself is untouched, only the `[0]` indexing was this
+      ratchet's error), `tests/terrain-config-tiles.test.ts` (a new
+      `tileAt(tiles, index)` helper throws on a missing positional tile,
+      replacing two direct `tilesOf(doc)[TerrainKind.X]` indexes and a
+      `[t[1], t[2]] = [t[2], t[1]]` swap — rewritten to guard both slots
+      into locals first, functionally identical, confirmed by code-reviewer
+      tracing the new assignment against the original one-liner; an
+      `onTiles[0]` read is destructured with a throw-guard right after an
+      `expect(onTiles.length).toBeGreaterThan(0)` already proves it
+      non-empty), `tests/ui-fb117-core-select.test.ts` (a new generic
+      `nth<T>(arr, i, what)` helper throws a descriptive error on a missing
+      index, replacing direct `entries[0]/[1]/[2]` and
+      `def.upgrade.steps![i]` indexing at 5 call sites). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 4;
+      main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 4 plus
+      the ratchet test green (71 tests); `npm run test:fast` unchanged at
+      315 files / 4548 passed / 35 skipped. 90 → **86 files remain** on the
+      allowlist. code-reviewer APPROVE (one Minor: the terrain-config-tiles
+      swap's crossed variable names read confusingly at a glance — fixed
+      with an inline comment spelling out the equivalence before commit;
+      one Nit: `longDrawPierce`'s original `?? e.hp` fallback used a
+      different convention than `conduction`'s throw for the same
+      same-length-by-construction invariant — changed to throw for
+      consistency, since a silent `false` there would have quietly
+      undercounted pierce hits instead of failing loudly). Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
