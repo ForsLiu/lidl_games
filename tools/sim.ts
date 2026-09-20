@@ -65,6 +65,12 @@ function assertValidSeed(seed: number, raw: string | undefined, flag: string): n
   return seed;
 }
 
+/** A flag at the very end of argv with no following value used to silently write `undefined` past its typed field. */
+function requireValue(v: string | undefined, flag: string): string {
+  if (v === undefined) throw new Error(`${flag}: missing value`);
+  return v;
+}
+
 export interface Args {
   seeds: number[];
   policy: string;
@@ -101,6 +107,7 @@ export function parseArgs(argv: string[]): Args {
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
+    if (k === undefined) break; // unreachable — i < argv.length
     const v = argv[i + 1];
     switch (k) {
       case '--seed':
@@ -122,11 +129,11 @@ export function parseArgs(argv: string[]): Args {
         break;
       }
       case '--policy':
-        a.policy = v;
+        a.policy = requireValue(v, '--policy');
         i++;
         break;
       case '--class':
-        a.classKey = v;
+        a.classKey = requireValue(v, '--class');
         i++;
         break;
       case '--tier':
@@ -142,11 +149,11 @@ export function parseArgs(argv: string[]): Args {
         i++;
         break;
       case '--build':
-        a.build = v;
+        a.build = requireValue(v, '--build');
         i++;
         break;
       case '--until':
-        a.until = v;
+        a.until = requireValue(v, '--until');
         i++;
         break;
       case '--max-ticks':
@@ -275,7 +282,7 @@ export function summarize(reports: RunReport[]): Record<string, unknown> {
   const byOutcome: Record<string, number> = {};
   for (const r of reports) byOutcome[r.outcome] = (byOutcome[r.outcome] ?? 0) + 1;
   const nums = (f: (r: RunReport) => number) => reports.map(f).sort((a, b) => a - b);
-  const median = (arr: number[]) => (arr.length === 0 ? 0 : arr[Math.floor(arr.length / 2)]);
+  const median = (arr: number[]) => (arr.length === 0 ? 0 : (arr[Math.floor(arr.length / 2)] ?? 0));
   const mean = (arr: number[]) => (arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length);
   return {
     runs: n,

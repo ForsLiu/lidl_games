@@ -5,7 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 84 → 74.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 74 → 67.**
+  Fixed 7 more files with real guards, none touching `/src`/`/data`:
+  `tests/content-complete.test.ts`, `tests/fb006-dot-hp-indicator.test.ts`,
+  `tests/fb038-status.test.ts`, `tests/m19c-damage-types.test.ts`,
+  `tests/p-core-b-effects.test.ts`, `tests/terrain-approach.test.ts`,
+  `tools/sim.ts` — mostly throw-on-invariant guards and a couple of new
+  helpers (a generalized `coreStep(core, n)` in p-core-b, a `first(arr)` in
+  fb038-status), plus one real latent-bug fix in `tools/sim.ts`: a CLI flag
+  with no following value used to silently write `undefined` into a typed
+  field instead of erroring — now throws, matching the file's existing
+  `assertValidSeed` convention. `tests/p6e-class-diversity.test.ts` was
+  drafted, typed clean, then reverted and left on the allowlist: running it
+  directly (it's excluded from `test:fast` for being ~50+ min of real sim)
+  surfaced its `beforeAll`-measured fingerprint-distance pin (28, set
+  2026-09-16 by fb197) now reading 44 against current content — a
+  pre-existing staleness unrelated to the reverted diff (confirmed: the
+  revert was a pure local-capture refactor with identical control flow),
+  out of this `[polish]` item's scope to fix. Flagging for a future
+  balance-analyst item rather than silently leaving it undiscovered.
+  Verified (7 committed files): `npx tsc --noEmit -p tsconfig.unchecked.json`
+  clean on all 7, no new offenders; main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` green (196 tests); `npm run sim -- --seed 1 --policy
+  hybrid` gives the identical `endHash` (`d6452f98`); `npm run test:fast`
+  green. Light tier (`[polish]`, no `/src`/`/data` touched). — refs:
+  BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 84 → 74.**
   Fixed 10 more files with real guards, none touching `/src`/`/data`:
   `tests/class-p6d-agreement.ts`, `tests/fb152-dot-tick-cadence.test.ts`,
   `tests/fb154-vs-gate-spawns.test.ts`, `tests/fb159-damage-font-scaling.test.ts`,

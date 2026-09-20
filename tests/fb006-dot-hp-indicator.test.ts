@@ -30,6 +30,13 @@ function worldWith(over = {}): World {
   return w;
 }
 
+/** `data/enemies.json` is never empty, so index 0 always exists. */
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (def === undefined) throw new Error('unreachable — data/enemies.json is never empty');
+  return def.key;
+}
+
 function view(over: Partial<ViewState> = {}): ViewState {
   return {
     selectedTower: 0,
@@ -98,7 +105,7 @@ function barRects(rects: Rect[], e: Enemy): Rect[] {
 describe('fb006: unfinished-DoT HP bar segment', () => {
   it('applying poison shows a hpDot segment sized to dotOutstanding / maxHp', () => {
     const w = new World(cfg());
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.elite = true; // force the HP bar to draw regardless of radius/damage
     damageEnemy(w, e, e.maxHp * 0.5, 'test', { pure: true });
     applyDot(w, e, 'poison', 4, 3, 'test');
@@ -131,7 +138,7 @@ describe('fb006: unfinished-DoT HP bar segment', () => {
 
   it('shows the bar and segment for a full-hp enemy hit only by a DoT (no direct damage yet)', () => {
     const w = new World(cfg());
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.elite = true;
     expect(e.hp).toBe(e.maxHp); // no direct hit — the poison field ticks before any hp loss
     applyDot(w, e, 'poison', 4, 3, 'test');
@@ -162,7 +169,7 @@ describe('fb006: unfinished-DoT HP bar segment', () => {
     const w = new World(cfg());
     // Far from the Warden so a second of ticking can't let it leak/die before
     // the assertions below run — only the DoT's own decay matters here.
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 10, w.warden.y)!;
     e.elite = true;
     applyDot(w, e, 'poison', 4, 3, 'test');
     const before = dotOutstanding(e);
@@ -190,7 +197,7 @@ describe('fb006: unfinished-DoT HP bar segment', () => {
 
   it('no segment when there is no live DoT', () => {
     const w = new World(cfg());
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.elite = true;
     damageEnemy(w, e, e.maxHp * 0.3, 'test', { pure: true });
 
@@ -207,7 +214,7 @@ describe('fb006: unfinished-DoT HP bar segment', () => {
 
   it('caps the segment at the live front when outstanding damage exceeds current hp', () => {
     const w = new World(cfg());
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.elite = true;
     damageEnemy(w, e, e.maxHp * 0.9, 'test', { pure: true }); // 10% hp left
     // A lot more unfinished damage than remains — the enemy is doomed to die
@@ -229,11 +236,11 @@ describe('fb006: unfinished-DoT HP bar segment', () => {
 
   it('Spreading Plague transfer (p6c): the target takes flat damage, not a new DoT, so no hpDot segment appears for it', () => {
     const w = worldWith();
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     // Offset in y so the two enemies' HP bars don't land on the same row —
     // barRects/barGeometry key off `py - r - 6`, and same key/elite/x-ish
     // enemies at the same y would otherwise share that row.
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y + 3)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y + 3)!;
     dying.elite = true;
     nearest.elite = true;
     nearest.hp = 1e6;

@@ -100,7 +100,11 @@ function tick(w: World, e: Enemy, seconds: number): number {
 function tickAll(w: World, es: readonly Enemy[], seconds: number): number[] {
   const before = es.map((e) => e.hp);
   run(w, seconds);
-  return es.map((e, i) => before[i] - e.hp);
+  return es.map((e, i) => {
+    const b = before[i];
+    if (b === undefined) throw new Error('unreachable — before was built from the same es array');
+    return b - e.hp;
+  });
 }
 
 const content = loadContent();
@@ -965,6 +969,7 @@ describe('§3 — regressions from the m19c review', () => {
     const crowd: Enemy[] = [];
     for (let i = 0; i < 20; i++) crowd.push(dummy(w, 10, 10));
     const target = crowd[crowd.length - 1];
+    if (target === undefined) throw new Error('unreachable — the loop above just pushed 20 enemies');
     const before = target.hp;
     applyDamageType(w, target, 'electric', 100, 'test');
     expect(before - target.hp).toBeCloseTo(100, 6);
@@ -1214,8 +1219,10 @@ describe('§3 — regressions from the m19c review', () => {
     applyDot(w, e, 'burning', 1, 30, 'weak-long');
     applyDot(w, e, 'burning', 50, 0.1, 'strong-short');
     expect(dotStacks(e, 'burning')).toBe(1);
-    expect(e.dots[0].dps).toBe(50);
-    expect(e.dots[0].remaining).toBeCloseTo(30, 6);
+    const firstDot = e.dots[0];
+    if (firstDot === undefined) throw new Error('unreachable — dotStacks just confirmed one');
+    expect(firstDot.dps).toBe(50);
+    expect(firstDot.remaining).toBeCloseTo(30, 6);
   });
 
   it('ailment ticks do not spend the frame fx budget (review)', () => {
@@ -1231,7 +1238,9 @@ describe('§3 — regressions from the m19c review', () => {
     // `hit:electric`, …) rather than a bare 'hit' — match on the prefix.
     expect(w.fx.filter((f) => f.k.startsWith('hit:')).length).toBe(0);
     // A normal hit still sparks — this is about dots, not about the buffer.
-    damageEnemy(w, es[0], 5, 'test');
+    const first = es[0];
+    if (first === undefined) throw new Error('unreachable — es is a fixed 3-element literal');
+    damageEnemy(w, first, 5, 'test');
     expect(w.fx.filter((f) => f.k === 'hit:normal').length).toBe(1);
   });
 });
