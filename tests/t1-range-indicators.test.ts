@@ -253,7 +253,9 @@ describe('T1: showRanges changes what is drawn', () => {
       new Renderer(canvas).draw(w, view({ showRanges }));
       return arcs.length;
     });
-    expect(counts[1], 'showRanges must draw something').toBeGreaterThan(counts[0]);
+    const [off, on] = counts;
+    if (off === undefined || on === undefined) throw new Error('expected both toggle states measured');
+    expect(on, 'showRanges must draw something').toBeGreaterThan(off);
   });
 
   it('rings a built tower at its effective range, not its authored range', () => {

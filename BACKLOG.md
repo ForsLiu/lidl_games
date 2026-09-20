@@ -5386,6 +5386,34 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Light tier per this item's `[polish]` tag and no `/src`/`/data`
       changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still 2)**:
+      fixed 8 more one-error-each test files with real guards —
+      `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]` throws,
+      proven by the preceding `toHaveLength(1)`), `tests/t1-range-
+      indicators.test.ts` (`counts` destructured into `off`/`on` with a
+      guard, always length 2 from `[false, true].map(...)`),
+      `tests/terrain-gates-dump.test.ts` (a `bands()` helper's
+      `dump.split('\n')[3]` throws if missing, `describeTerrain` always
+      emits at least 8 lines), `tests/terrain-grid-gates.test.ts`
+      (`nudged[nudged.length - 1]` read into a checked local before being
+      spread, `GATES` is always non-empty), `tests/terrain-headroom.test.ts`
+      (an `at()` helper's array-index read throws if out of range),
+      `tests/terrain-high-contest.test.ts` (a `map.kind[i]` read inside a
+      `for (i < map.kind.length)` loop throws, in-range by the loop bound),
+      `tests/terrain-legality.test.ts` (`FLOOR_FIELD[band]` throws before
+      use as an object key, `FLOOR_FIELD` and `FLOOR_BANDS` share the same
+      4-key set), `tests/tower-info.test.ts` (`def.upgrades.specials[0]`
+      throws, confirmed against `data/towers.json`'s `tesla_coil` milestone).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 8; `npx tsc --noEmit` (main config) clean; targeted
+      `npx vitest run` on the ratchet test plus all 8 files green (9 files /
+      106 tests); `npm run test:fast` unchanged at 315 files / 4548 passed /
+      35 skipped. 163 → **155 files remain** on the allowlist. code-reviewer
+      APPROVE (no findings; independently verified each guard's
+      unreachability, including reading `src/sim/terrain/describe.ts` and
+      `data/towers.json` directly). Light tier per this item's `[polish]`
+      tag and no `/src`/`/data` changes — no qa-playtester dispatch. —
+      refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

@@ -196,7 +196,9 @@ function runSweep(): Sweep {
 }
 
 function at(xs: readonly number[], q: number): number {
-  return xs[Math.floor(q * (xs.length - 1))];
+  const v = xs[Math.floor(q * (xs.length - 1))];
+  if (v === undefined) throw new Error('at(): index out of range');
+  return v;
 }
 
 function fixed(v: number): string {

@@ -5,7 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 171 → 163.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 163 → 155.**
+  Fixed 8 more one-error-each test files with real guards, none touching
+  `/src`: `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]`
+  proven by a preceding `toHaveLength(1)`), `tests/t1-range-
+  indicators.test.ts` (`counts` destructured with a guard, always length 2),
+  `tests/terrain-gates-dump.test.ts` (a `bands()` helper's `split('\n')[3]`
+  throws if missing), `tests/terrain-grid-gates.test.ts` (`nudged[nudged
+  .length - 1]` checked before spreading, `GATES` always non-empty),
+  `tests/terrain-headroom.test.ts` (an `at()` helper's index read throws out
+  of range), `tests/terrain-high-contest.test.ts` (`map.kind[i]` throws
+  inside a loop already bounded by `map.kind.length`), `tests/terrain-
+  legality.test.ts` (`FLOOR_FIELD[band]` throws before use as an object key,
+  same 4-key set as `FLOOR_BANDS`), `tests/tower-info.test.ts`
+  (`def.upgrades.specials[0]` throws, confirmed against `data/towers.json`'s
+  `tesla_coil` milestone). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 8; `npx tsc --noEmit`
+  (main config) clean; targeted `npx vitest run` on the ratchet test plus
+  all 8 files green (9 files / 106 tests); `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings.
+  Light tier (item is `[polish]`, no `/src`/`/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 171 → 163.**
   Fixed 8 more one-error-each test files with real guards, none touching
   `/src`: `tests/p9e-levelup-idle.test.ts` (`w.offers[0]` throws if no offer
   rolled, unreachable right after `openLevelUpIfPending`),

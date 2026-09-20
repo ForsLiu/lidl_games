@@ -80,7 +80,11 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     // defect this test exists to show; seed 40 still does.
     const map = generateTerrain(40, cfg, FOUR);
     const truth = measureTerrain(map, cfg, FOUR);
-    const bands = (dump: string): string => dump.split('\n')[3];
+    const bands = (dump: string): string => {
+      const line = dump.split('\n')[3];
+      if (line === undefined) throw new Error('expected describeTerrain to emit a 4th line');
+      return line;
+    };
 
     const withGates = bands(describeTerrain(map, cfg, FOUR));
     expect(withGates).toContain(`gateDetour=${truth.maxGateDetour.toFixed(6)}`);
