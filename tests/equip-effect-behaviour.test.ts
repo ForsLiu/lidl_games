@@ -70,6 +70,12 @@ function idle(): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] };
 }
 
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 describe('c022 (§7) Swordsman Armor classFallback: a non-Swordsman gets attackSpeed ×1.5 instead', () => {
   it('the fallback contributes to the attackSpeed stat for a non-Swordsman, and to nothing for the Swordsman', () => {
     const wOther = new World(cfg({ classKey: 'engineer', equipment: ['swordsman_armor'] }));
@@ -130,7 +136,7 @@ describe('c022 (§7) Bleeding Ring: +0.1% lifesteal (loaded — authored 0.01%)'
   it('the healed amount is the damage dealt times the leech stat', () => {
     const w = worldWith({ equipment: ['bleeding_ring'] });
     w.phase = 'act2'; // huntsWarden, so the Warden is the leech beneficiary
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -166,7 +172,7 @@ describe('c022 (§7) Bleeding Ring: the bleedLifesteal flag is what routes Bleed
       if (flag) w.stats.add('test', 'bleedLifesteal', 1);
       w.recomputeDerived();
       expect(w.derived.bleedLifesteal).toBe(flag);
-      const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+      const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
       e.hp = 1e6;
       e.maxHp = 1e6;
       w.rebuildBuckets();
@@ -234,7 +240,9 @@ describe("c022 (§7) Builder's Necklace: all towers +1 flat attack", () => {
       w.warden.y = WY;
       const def = content.towers.towers.find((t) => t.attack)!;
       expect(buildTower(w, def.id, BUILD_TX, BUILD_TY).ok).toBe(true);
-      return towerDamage(w, w.structures[0], def.attack!.damage);
+      const structure = w.structures[0];
+      if (!structure) throw new Error('expected the just-built tower to exist');
+      return towerDamage(w, structure, def.attack!.damage);
     }
     expect(built(['builders_necklace'])).toBeGreaterThan(built([]));
   });

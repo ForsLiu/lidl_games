@@ -116,8 +116,10 @@ describe('fb142: a devicePixelRatio change resizes the canvas without any window
 
     const resolutionQueries = queries.filter((q) => q.media.includes('resolution'));
     expect(resolutionQueries).toHaveLength(1);
-    expect(resolutionQueries[0].media).toBe('(resolution: 1dppx)');
-    expect(resolutionQueries[0].listeners).toHaveLength(1);
+    const resolutionQuery = resolutionQueries[0];
+    if (!resolutionQuery) throw new Error('expected a resolution media query');
+    expect(resolutionQuery.media).toBe('(resolution: 1dppx)');
+    expect(resolutionQuery.listeners).toHaveLength(1);
   });
 
   it('re-runs Renderer.resize() on a DPR change with no window resize event at all', () => {

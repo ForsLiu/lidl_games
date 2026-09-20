@@ -31,6 +31,12 @@ function swordsmanWorld(ownedEquipment: Record<string, number>): World {
   return w;
 }
 
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 describe('b076: circleSlashChargeRate reads the live loadout, not the frozen starting one', () => {
   it('equipping Swordsman Armor mid-run (before holding) speeds up charge accumulation vs. never equipping it', () => {
     const wBase = swordsmanWorld({ swordsman_armor: 1 });
@@ -51,7 +57,7 @@ describe('b076: circleSlashChargeRate reads the live loadout, not the frozen sta
 describe('b076: tickClassCharge\'s Sleeve Sword branch reads the live loadout', () => {
   it('a mid-run equip makes the very next Active1 press start already charging at max, and fire on release', () => {
     const w = swordsmanWorld({ sleeve_sword: 1 });
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1.2, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -85,7 +91,7 @@ describe("b076: fireDashSlash's dashRange doubling reads the live loadout", () =
     const w = swordsmanWorld({ swordsman_shoes: 1 });
     // Base dashRange is 5 (see tests/p6b-swordsman.test.ts); doubled is 10.
     // Place the target at 7: unreachable un-doubled, reachable doubled.
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 7, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 7, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -99,7 +105,7 @@ describe("b076: fireDashSlash's dashRange doubling reads the live loadout", () =
 
   it('without the mid-run equip, the same press falls short of a target at that distance (control)', () => {
     const w = swordsmanWorld({ swordsman_shoes: 1 });
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 7, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 7, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();

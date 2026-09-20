@@ -70,14 +70,17 @@ function run(w: World, seconds: number): void {
 
 /** Damage a DoT actually pays over `seconds`, read off the enemy's HP. */
 function paid(w: World, e: Enemy, seconds: number): number {
-  return paidBoth(w, [e], seconds)[0];
+  return paidBoth(w, [e], seconds)[0] ?? 0;
 }
 
 /** The same for several enemies sharing one world, over a single run. */
 function paidBoth(w: World, es: Enemy[], seconds: number): number[] {
   const before = es.map((e) => e.hp);
   run(w, seconds);
-  return es.map((e, i) => before[i] - e.hp);
+  // `before[i]` defaults to `e.hp` (a no-op, zero damage paid) purely to satisfy
+  // noUncheckedIndexedAccess; `before` is mapped 1:1 from `es`, so the index is
+  // always in range.
+  return es.map((e, i) => (before[i] ?? e.hp) - e.hp);
 }
 
 function row(w: World, key: string) {

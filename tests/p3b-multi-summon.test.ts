@@ -76,8 +76,8 @@ describe('p3b: multi-summon (gate G6 stacking half)', () => {
     expect(w.stackDepth).toBe(0);
     // Each of the three cleared waves banked its own clear bonus, so the
     // ledger is strictly increasing across waves 1, 2, 3.
-    expect(w.goldEarnedByWave[1]).toBeLessThan(w.goldEarnedByWave[2]);
-    expect(w.goldEarnedByWave[2]).toBeLessThan(w.goldEarnedByWave[3]);
+    expect(w.goldEarnedByWave[1] ?? 0).toBeLessThan(w.goldEarnedByWave[2] ?? 0);
+    expect(w.goldEarnedByWave[2] ?? 0).toBeLessThan(w.goldEarnedByWave[3] ?? 0);
     // Wave 3 is this block's last (tdWavesPerVsWave = 3): clearing it, even
     // via a stack, ends the block exactly like clearing it one at a time —
     // and immediately (p3d deleted the Dusk wait), landing straight in 'act2'.

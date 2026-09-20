@@ -150,10 +150,13 @@ describe.skipIf(!hasChromium)('fb093: ui-audit-equivalent hud-overlap/offscreen-
         const failures: string[] = [];
         for (let i = 0; i < present.length; i++) {
           for (let j = i + 1; j < present.length; j++) {
-            const a = rects[present[i]]!;
-            const b = rects[present[j]]!;
+            const selA = present[i];
+            const selB = present[j];
+            if (!selA || !selB) throw new Error('expected both selectors to be present');
+            const a = rects[selA]!;
+            const b = rects[selB]!;
             if (rectsOverlap(a, b)) {
-              failures.push(`${present[i]} vs ${present[j]}: overlap area ${overlapArea(a, b).toFixed(0)}px^2`);
+              failures.push(`${selA} vs ${selB}: overlap area ${overlapArea(a, b).toFixed(0)}px^2`);
             }
           }
         }

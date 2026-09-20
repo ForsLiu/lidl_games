@@ -61,7 +61,9 @@ describe('run progress', () => {
 
     const boss = p.markers.filter((m) => m.kind === 'boss');
     expect(boss.length).toBe(1);
-    expect(boss[0].at).toBe(1);
+    const bossMarker = boss[0];
+    if (!bossMarker) throw new Error('expected a boss marker');
+    expect(bossMarker.at).toBe(1);
 
     const rifts = p.markers.filter((m) => m.kind === 'rift').map((m) => m.at * sp.bossTimeSeconds);
     expect(rifts).toEqual(sp.riftTimes.filter((t) => t < sp.bossTimeSeconds));
@@ -75,7 +77,7 @@ describe('run progress', () => {
     const w = world();
     w.sundered = true;
     w.phase = 'act2';
-    w.act2Time = w.content.spawns.riftTimes[0] + 1;
+    w.act2Time = (w.content.spawns.riftTimes[0] ?? 0) + 1;
     const p = runProgress(w);
     const firstRift = p.markers.find((m) => m.kind === 'rift')!;
     expect(firstRift.done).toBe(true);

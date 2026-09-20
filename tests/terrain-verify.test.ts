@@ -217,7 +217,9 @@ describe('fb064p — a patched tile is caught', () => {
     expect(a).toBeGreaterThanOrEqual(0);
     expect(b).toBeGreaterThanOrEqual(0);
     const ka = map.kind[a];
-    map.kind[a] = map.kind[b];
+    const kb = map.kind[b];
+    if (ka === undefined || kb === undefined) throw new Error('expected both swapped tiles to exist');
+    map.kind[a] = kb;
     map.kind[b] = ka;
     const res = verifyTerrainMap(map);
     expect(res.ok ? 'missed' : res.fault).toBe('hash');

@@ -62,7 +62,12 @@ function scanBacklogItems(): Map<string, ItemOccurrence[]> {
       const m = ITEM_BULLET.exec(line);
       if (!m) return;
       const id = m[1];
-      const occ: ItemOccurrence = { file, line: i + 1, title: m[3] };
+      const title = m[3];
+      // Both capture groups are required by ITEM_BULLET's own pattern (no `?`
+      // on either group), so a match with either missing can't happen — the
+      // guard is here only to satisfy noUncheckedIndexedAccess.
+      if (id === undefined || title === undefined) return;
+      const occ: ItemOccurrence = { file, line: i + 1, title };
       const list = byId.get(id);
       if (list) list.push(occ);
       else byId.set(id, [occ]);

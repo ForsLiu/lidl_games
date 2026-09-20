@@ -249,8 +249,10 @@ describe('p5c — Mortar: shells leave a burning patch for 2s @3', () => {
     expect(e2.hp).toBeLessThan(1e9);
     const patches = milestoned.w.areas.filter((a) => a.type === 'burn');
     expect(patches).toHaveLength(1);
-    expect(patches[0].remaining).toBeCloseTo(2, 1);
-    expect(patches[0].radius).toBeCloseTo((MORTAR.attack!.aoe ?? 1.5), 5);
+    const patch = patches[0];
+    if (!patch) throw new Error('expected a burn patch');
+    expect(patch.remaining).toBeCloseTo(2, 1);
+    expect(patch.radius).toBeCloseTo((MORTAR.attack!.aoe ?? 1.5), 5);
   });
 });
 

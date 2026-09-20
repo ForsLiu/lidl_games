@@ -179,7 +179,8 @@ describe('T2: picking what is under a click', () => {
 
   it('survives an off-board or NaN point', () => {
     const w = new World(cfg());
-    for (const [x, y] of [[-5, -5], [999, 999], [Number.NaN, 3]]) {
+    const points: [number, number][] = [[-5, -5], [999, 999], [Number.NaN, 3]];
+    for (const [x, y] of points) {
       expect(() => pickAt(w, x, y)).not.toThrow();
       expect(pickAt(w, x, y)).toBeNull();
     }

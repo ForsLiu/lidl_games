@@ -260,7 +260,7 @@ describe('fb148: the source-level rule keeping dashRange live-resolved', () => {
     source.split('\n').forEach((line, i) => {
       const trimmed = line.trimStart();
       if (trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('//')) return;
-      const code = line.replace(/\/\*.*?\*\//g, '').split('//')[0];
+      const code = line.replace(/\/\*.*?\*\//g, '').split('//')[0] ?? '';
       if (!RAW_READ.test(code)) return;
       // The one place the field may be read raw is inside `liveDashRange`,
       // which is what applies the multiplier.

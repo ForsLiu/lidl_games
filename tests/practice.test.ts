@@ -78,7 +78,9 @@ describe('practice tool', () => {
     dev(w, 'kill_all');
     const alive = w.enemies.filter((e) => !e.dead);
     expect(alive.length).toBe(1);
-    expect(alive[0].boss).toBe(true);
+    const survivor = alive[0];
+    if (!survivor) throw new Error('expected one surviving enemy');
+    expect(survivor.boss).toBe(true);
   });
 
   it('heal tops up both the Warden and the Core', () => {
@@ -143,7 +145,9 @@ describe('practice tool', () => {
     // run — which since p12c means the authored `hp` times the roster-wide
     // `baseHpMul`, read from content rather than pinned, so a re-anchor moves
     // the fixture with the game instead of reddening this case.
-    expect(alive[alive.length - 1].maxHp).toBeCloseTo(def.hp * w.content.enemies.baseHpMul, 6);
+    const spawned = alive[alive.length - 1];
+    if (!spawned) throw new Error('expected the spawned enemy to be alive');
+    expect(spawned.maxHp).toBeCloseTo(def.hp * w.content.enemies.baseHpMul, 6);
   });
 
   it('spawn respects the requested count, clamped to a sane range', () => {

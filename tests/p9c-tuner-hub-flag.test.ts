@@ -32,16 +32,27 @@ function openHub(onStart: (cfg: RunConfig) => void): Hub {
   return hub;
 }
 
+/** The `RunConfig` passed to the mock's first call — the click just above always makes one. */
+function firstStartConfig(onStart: ReturnType<typeof vi.fn<(cfg: RunConfig) => void>>): RunConfig {
+  const call = onStart.mock.calls[0];
+  if (!call) throw new Error('expected onStart to have been called');
+  return call[0];
+}
+
+function startMock(): ReturnType<typeof vi.fn<(cfg: RunConfig) => void>> {
+  return vi.fn<(cfg: RunConfig) => void>();
+}
+
 describe('Hub: unsaved Tuner edits flag a run like practice (p9c, G15)', () => {
   afterEach(() => clearAllTunerDirty());
 
   it('forces practice on when a Tuner edit is unsaved', () => {
     setTunerDirty('towers', true);
-    const onStart = vi.fn();
+    const onStart = startMock();
     openHub(onStart);
     (document.getElementById('sw-start') as HTMLButtonElement).click();
     expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onStart.mock.calls[0][0].practice).toBe(true);
+    expect(firstStartConfig(onStart).practice).toBe(true);
   });
 
   it('shows a note explaining why the run will be a practice run', () => {
@@ -53,18 +64,18 @@ describe('Hub: unsaved Tuner edits flag a run like practice (p9c, G15)', () => {
 
   it('does not force practice when there are no unsaved edits', () => {
     clearAllTunerDirty();
-    const onStart = vi.fn();
+    const onStart = startMock();
     openHub(onStart);
     (document.getElementById('sw-start') as HTMLButtonElement).click();
-    expect(onStart.mock.calls[0][0].practice).toBe(false);
+    expect(firstStartConfig(onStart).practice).toBe(false);
   });
 
   it('a save clearing the dirty flag lets the next render offer a real run again', () => {
     setTunerDirty('towers', true);
     setTunerDirty('towers', false);
-    const onStart = vi.fn();
+    const onStart = startMock();
     openHub(onStart);
     (document.getElementById('sw-start') as HTMLButtonElement).click();
-    expect(onStart.mock.calls[0][0].practice).toBe(false);
+    expect(firstStartConfig(onStart).practice).toBe(false);
   });
 });

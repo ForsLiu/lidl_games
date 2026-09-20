@@ -5,7 +5,74 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 147 → 137.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 121 → 111.**
+  Fixed 10 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/a1-run-length.test.ts` (dead code inside a `describe.skip`
+  block — `?? 0` guards are purely compile-time, matching the earlier
+  `it.skip` precedent), `tests/b076-midrun-equip-effect.test.ts` /
+  `tests/class-area-stat.test.ts` / `tests/equip-effect-behaviour.test.ts`
+  (each extracted its own `firstEnemyKey()` helper reused at 2-3 call sites,
+  replacing `w.content.enemies.enemies[0].key`), `tests/c4-stacking.test.ts`
+  (guards a stats-contribution tuple before indexing, reused at both usage
+  sites), `tests/class-area-stat.test.ts` (also guards a reverse-loop
+  `w.fx[i]` read), `tests/class-spec-numbers.test.ts` (guards a
+  regex-derived `leaf` key before using it as an index), `tests/equip-
+  effect-behaviour.test.ts` (also guards `w.structures[0]`),
+  `tests/fb118-backlog-id-uniqueness.test.ts` (guards both `ITEM_BULLET`
+  capture groups with an early `return`, unreachable given the pattern's
+  non-optional groups), `tests/m20c-roster-tracks.test.ts` (`?? 0` on three
+  `Record<string, number>` reads, proven present by an earlier `toEqual`
+  pin in the same file), `tests/p12b-tier-ladder.test.ts` (guards
+  `w.structures[0]` after a successful `buildTower`), `tests/p9c-tuner-hub-
+  flag.test.ts` (a `firstStartConfig(onStart)` helper guarding
+  `mock.calls[0]`, reused at 3 call sites — code-reviewer's Minor on the
+  helper's generic not actually being enforced was fixed before commit by
+  typing the three `vi.fn()` call sites through a new `startMock()` helper
+  instead of leaving them untyped). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 10; main `tsc
+  --noEmit` clean; targeted `npx vitest run` on all 10 plus the ratchet
+  test green (222 passed, 4 skipped — 3 expected `describe.skip` skips in
+  `a1-run-length.test.ts`, 1 pre-existing unrelated skip in `p12b-tier-
+  ladder.test.ts`); `npm run test:fast` unchanged at 315 files / 4548
+  passed / 35 skipped. code-reviewer APPROVE (one Minor fixed before
+  commit; one Nit — `m20c-roster-tracks.test.ts`'s `?? 0` defaults depend
+  on a pin in a different `it` block staying in sync — left as informational).
+  Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+  dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 137 → 121.**
+  Fixed 16 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/p3b-multi-summon.test.ts` / `tests/render-fb096-combo-
+  indicator.test.ts` (`?? 0` on ledger/geometry reads proven present by the
+  surrounding loop), `tests/p5c-milestone-specials.test.ts` (guards
+  `patches[0]` before use), `tests/p9b-codex-hub.test.ts` (guards
+  `collections[0]`, twice), `tests/p9h-armour-floor-display.test.ts` (guards
+  `[...enemyByKey.values()][0]`, twice), `tests/practice.test.ts` (guards
+  `alive[0]` and `alive[alive.length - 1]`), `tests/progress.test.ts`
+  (guards `boss[0]`, `?? 0` on `riftTimes[0]` arithmetic), `tests/q2-input-
+  fuzz.test.ts` (`?? ''` on a regex capture group before `.matchAll`, twice),
+  `tests/t2-selection.test.ts` (a variable-level `[number, number][]`
+  tuple annotation instead of an `as`-cast, on code-reviewer's Minor),
+  `tests/terrain-verify.test.ts` (guards both swapped tile reads before the
+  swap), `tests/ui-fb093-ultrawide-narrow-audit.test.ts` (guards
+  `present[i]`/`present[j]` before indexing `rects`), `tests/ui-fb142-dpr-
+  change.test.ts` (guards `resolutionQueries[0]`), `tests/ui-fb148-dash-
+  range-live.test.ts` (`?? ''` on a `.split('//')[0]` read), `tests/x001-
+  dot-stack-caps.test.ts` (`?? e.hp`/`?? 0` on reads proven in-range by a
+  1:1 array map), `tools/fuzz-save.ts` (`setAt`/`delAt` guard their path-tail
+  key before indexing, both dead branches given the preceding `path.length
+  === 0` early return), `tools/m20d-swarm.ts` (a `[number, number]` tuple
+  annotation on `levels`). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 16; main `tsc
+  --noEmit` clean; targeted `npx vitest run` on all 16 plus the ratchet test
+  green (two pre-existing `tests/q2-input-fuzz.test.ts` failures — a missing
+  `place_core` Command-union member and a seed-2 tick-count flake —
+  confirmed present on unmodified HEAD via `git stash`, not regressions);
+  `npm run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE (one Minor fixed before commit: `t2-selection.test.ts`'s
+  `as`-cast swapped for a checked tuple annotation; one Nit on pre-existing,
+  out-of-scope `!` left as-is). Light tier (`[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 147 → 137.**
   Fixed 10 more two-error-each test files, none touching `/src`/`/data`:
   `tests/b030-autopick-pause-toggle.test.ts` (destructure-guards
   `autopickCmds[0]`/`[1]`), `tests/class-poison-barrel-mechanic.test.ts`
