@@ -68,15 +68,7 @@ function stubStageSize(root: HTMLElement, w: number, h: number): void {
   Object.defineProperty(stage, 'clientHeight', { value: h, configurable: true });
 }
 
-interface CvVars {
-  left: string;
-  right: string;
-  top: string;
-  bottom: string;
-  cx: string;
-}
-
-function cvVars(root: HTMLElement): CvVars {
+function cvVars(root: HTMLElement): { left: string; right: string; top: string; bottom: string; cx: string } {
   const stage = root.querySelector('.sw-stage') as HTMLElement;
   return {
     left: stage.style.getPropertyValue('--cv-left'),

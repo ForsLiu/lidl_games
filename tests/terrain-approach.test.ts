@@ -121,10 +121,10 @@ describe('fb064o — the metric is the sim`s, not the analyzer`s', () => {
       // a plain terrain field — the quantity a generation band can hold.
       let compared = 0;
       for (let i = 0; i < mine.length; i++) {
-        const m = mine[i];
-        if (m === undefined) throw new Error(`unreachable: mine[${i}] out of bounds`);
-        expect(m, `seed ${seed} tile ${i % map.w},${(i / map.w) | 0}`).toBe(grid.ground.dist[i]);
-        if (m >= 0) compared++;
+        expect(mine[i], `seed ${seed} tile ${i % map.w},${(i / map.w) | 0}`).toBe(
+          grid.ground.dist[i],
+        );
+        if ((mine[i] ?? -1) >= 0) compared++;
       }
       // Guard against the assertion above passing on an all-`-1` field.
       expect(compared, `seed ${seed} reachable tiles`).toBeGreaterThan(300);
@@ -176,7 +176,7 @@ describe('fb064o — the metric is the sim`s, not the analyzer`s', () => {
     // read as a straight walk in.
     const kind = handMap();
     const g = GATES[1];
-    if (g === undefined) throw new Error('unreachable: GATES has 4 fixed entries');
+    if (g === undefined) throw new Error('unreachable — GATES has 4 authored entries');
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = 0; dy <= 1; dy++) {
         const x = g.tx + dx;
@@ -230,9 +230,9 @@ describe('fb064o — the flat arena is the baseline, and it measures exactly 1',
     for (const g of GATES) {
       const free = freeApproachCost(g.tx, g.ty, anchor, flat.w, CORE_W, CORE_H);
       const i = GATES.indexOf(g);
-      const pg = m.perGate[i];
-      if (pg === undefined) throw new Error(`unreachable: perGate[${i}] out of bounds`);
-      expect(pg / free, `gate ${g.key} detour`).toBe(1);
+      const perGate = m.perGate[i];
+      if (perGate === undefined) throw new Error('unreachable — i is GATES.indexOf(g), always in range');
+      expect(perGate / free, `gate ${g.key} detour`).toBe(1);
     }
     expect(maxGateDetour(flat, cfg, anchor, CORE_W, CORE_H)).toBe(1);
     expect(measureTerrain(flat, cfg).maxGateDetour).toBe(1);
@@ -250,11 +250,9 @@ describe('fb064o — the flat arena is the baseline, and it measures exactly 1',
       expect(m.allReachable, `seed ${seed}`).toBe(true);
       for (let i = 0; i < GATES.length; i++) {
         const gate = GATES[i];
-        if (gate === undefined) throw new Error(`unreachable: GATES[${i}] out of bounds`);
+        if (gate === undefined) throw new Error('unreachable — i is within GATES bounds');
         const free = freeApproachCost(gate.tx, gate.ty, anchor, map.w, CORE_W, CORE_H);
-        const pg = m.perGate[i];
-        if (pg === undefined) throw new Error(`unreachable: perGate[${i}] out of bounds`);
-        expect(pg, `seed ${seed} gate ${gate.key}`).toBeGreaterThanOrEqual(free);
+        expect(m.perGate[i], `seed ${seed} gate ${gate.key}`).toBeGreaterThanOrEqual(free);
       }
       expect(measureTerrain(map, cfg).maxGateDetour).toBeGreaterThanOrEqual(1);
     }

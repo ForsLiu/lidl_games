@@ -5823,83 +5823,93 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       one-comment-per-site convention). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
-    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 9 more
-      files with real guards (never `!`), all under `tests/`:
-      `tests/class-p6d-agreement.ts` (a `leadingWhitespaceLen` helper
-      replacing two `.exec()!` sites whose regex — `/^\s*/` — always
-      matches, plus `hits[0]`/`all[0]` throw guards right after the
-      preceding `.length !== 1` checks that already prove the index exists),
-      `tests/fb152-dot-tick-cadence.test.ts` (`e.dots[0]` guarded at two call
-      sites, immediately after an `applyDot(..., { maxStacks: 1 })` that
-      guarantees exactly one stack), `tests/fb154-vs-gate-spawns.test.ts`
-      (`w.gates[0]` guarded at two call sites, one after asserting a fixed
-      `gates.length = 1`), `tests/fb159-damage-font-scaling.test.ts` (a
-      local `nth()` array-index helper for a fixed 4-element `sizes` array,
-      plus a `firstEnemyKey()` helper matching the established convention
-      from `tests/fb013-timelord.test.ts` and siblings), `tests/p-core-e-
-      time-decay.test.ts` (module-scope guards on `TIME.upgrade.steps`'s
-      array indices 2/3/4, replacing `steps![2]`-style access that only
-      guarded the array itself, not the element), `tests/render-fb060-dot-
-      tick-numbers.test.ts` (`firstEnemyKey()` helper, 4 call sites),
-      `tests/render-fb116-terrain-rendering.test.ts` (a `channels()`
-      hex-color-parsing helper replacing an unguarded destructure of
-      `parseInt` results; a `terrainKind[idx]` throw guard; a
-      `towers.towers[0]` throw guard), `tests/ui-fb082-overlay-
-      geometry.test.ts` (`cvVars()`'s return type changed from
-      `Record<string, string>` — whose index-signature reads
-      `noUncheckedIndexedAccess` always treats as possibly-undefined — to a
-      concrete 5-field `CvVars` interface, since those 5 CSS-var keys are
-      always present; a type-level fix, no runtime change),
-      `tests/ui-fb096-save-slots.test.ts` (a generic `nth<T extends
-      Node>()` `NodeListOf` helper; `line.split('//')[0] ?? ''`, matching
-      the established `split()`-always-returns-≥1-element convention).
-      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
-      flags any of the 9, and flags no new offenders (diffed the full
-      actual-vs-allowlist file sets — exact match, 84 → 75); main `tsc
-      --noEmit` clean; targeted `npx vitest run` on all 9 plus two
-      downstream consumers of `class-p6d-agreement.ts`
-      (`tests/class-kit-whiff.test.ts`, `tests/p6d-nine-classes.test.ts`)
-      plus the ratchet test itself, all green (326 tests); `npm run
-      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 84 →
-      **75 files remain** on the allowlist. code-reviewer APPROVE (two
-      Nits, both fixed same-day: the ratchet test's own docstring
-      narrative of past counts was stale before and after this session —
-      corrected; `fb159`'s new `nth()` helper omitted the descriptive
-      `what` message the established `ui-fb117-core-select.test.ts`
-      version carries — added). Light tier (`[polish]`, no `/src`/`/data`
-      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
-      fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 10 more
+      files with real guards (never `!`), none touching `/src`/`/data`:
+      `tests/class-p6d-agreement.ts` (`hits[0]`/`all[0]` throw guards, each
+      reached only after the preceding `hits.length !== 1`/`all.length !== 1`
+      check already ruled out the undefined case; a loop-local `ls[j]` guard),
+      `tests/fb152-dot-tick-cadence.test.ts` (two `firstDot = e.dots[0]` throw
+      guards after `applyDot` just pushed one), `tests/fb154-vs-gate-spawns.test.ts`
+      (two `gate = w.gates[0]` throw guards, one after `vsWorld()`'s seeded
+      gate, one after an explicit `gates.length = 1`), `tests/fb159-damage-
+      font-scaling.test.ts` (loop-bounded `cur`/`prev` guards, a
+      `firstEnemyDef` guard matching the established `firstEnemyKey`
+      precedent), `tests/p-core-e-time-decay.test.ts` (a new `step(n)` helper
+      replacing four `TIME.upgrade.steps![n]` indexed reads),
+      `tests/render-fb060-dot-tick-numbers.test.ts` (a new shared
+      `firstEnemyKey(w)` helper replacing four `w.content.enemies.enemies[0]
+      .key` reads), `tests/render-fb116-terrain-rendering.test.ts` (a `kind`
+      undefined guard before the `terrainCfg.tiles[kind]` read, a `hexChannel`
+      helper replacing an untyped `number[]` destructure that left `p`/`a`
+      possibly-undefined, a `firstTower` guard), `tests/ui-fb082-overlay-
+      geometry.test.ts` (retyped `cvVars`'s return from `Record<string,
+      string>` to a named-property type, removing the index-signature-induced
+      `| undefined` with no assertion needed), `tests/ui-fb096-save-
+      slots.test.ts` (`?? ''` on a `line.split('//')[0]` regex-test read, two
+      button-list destructure/index guards keyed off the already-asserted
+      slot count), `tools/gate-audit.ts` (two regex-capture-group throw
+      guards, both regexes having exactly two required groups). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of
+      the 10, and flags no new offenders (diffed the full actual-vs-allowlist
+      file sets — exact match, 84 → 74); main `npx tsc --noEmit` clean;
+      targeted `npx vitest run` on all 10 plus the 3 files importing
+      `class-p6d-agreement.ts` plus the ratchet test green (284 tests);
+      `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped. 84 → **74 files remain** on the allowlist. code-reviewer
+      APPROVE, no Critical/Major findings (one Minor/Nit: `render-fb116-
+      terrain-rendering.test.ts` still carries two pre-existing `!`
+      assertions untouched by this round — they don't trigger
+      `noUncheckedIndexedAccess` so are out of this round's scope, flagged
+      for awareness now that the file is off the allowlist). Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
     - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session)**:
-      fixed 3 more files with real guards (never `!`) — `tools/gate-
-      audit.ts` (`parseGates`/`backlogCheckboxes`'s regex-match loops:
-      throw guards on `m[1]`/`m[2]` right after a successful `.exec()`
-      match, since both patterns' capture groups are non-optional and
-      always populate on a match), `tests/p-core-b-effects.test.ts` (a
-      `coreStep(core, name, i)` helper generalizing `tests/p-core-e-time-
-      decay.test.ts`'s same-day module-scope `TIME_STEPn` guard pattern to
-      both `VAMPIRE`/`TIME` and reused at 4 call sites, replacing
-      `steps![i]`-style access that only guarded the array itself; two
-      `w.damageByWeapon['arrow_spire']` throw guards, each right after the
-      site that first reads `dealt` and before it is used arithmetically),
-      `tests/terrain-approach.test.ts` (throw guards on `mine[i]` in a
-      `for (i < mine.length)` loop, `GATES[1]`/`GATES[i]` — `GATES` is the
-      same fixed 4-element literal array other ratchet fixes have already
-      established — and `m.perGate[i]`, each read right after the index
-      that produced it). Verified: `npx tsc --noEmit -p
-      tsconfig.unchecked.json` no longer flags any of the 3, no new
-      offenders (75 → 72, exact match); main `tsc --noEmit` clean;
-      targeted `npx vitest run` on all 3 plus the ratchet test green (52
-      tests — `gate-audit.ts` has no `it()` cases of its own, exercised
-      only via the type-check); `npm run test:fast` unchanged at 315
-      files / 4548 passed / 35 skipped. code-reviewer APPROVE, no
-      Critical/Major/Minor/Nit findings — independently re-verified `npx
-      tsc --noEmit -p tsconfig.unchecked.json` clean on all 3, reran the
-      52 targeted tests, traced `coreStep`'s guard correctness, confirmed
-      `GATES`'s fixed-4-element shape at `src/sim/grid.ts` and
-      `measureApproach`'s `perGate.length === GATES.length` invariant at
-      `src/sim/terrain/path.ts`. Light tier (`[polish]`, no `/src`/`/data`
-      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
-      fb064t Log.
+      fixed 7 more files with real guards (never `!`): `tests/content-
+      complete.test.ts` (throw guards on `content.waves.waves[17]`, a
+      skill-card-record read, and a two-element `draft.options` destructure),
+      `tests/fb006-dot-hp-indicator.test.ts` (a shared `firstEnemyKey(w)`
+      helper, matching the established precedent, replacing 7
+      `w.content.enemies.enemies[0].key` reads), `tests/fb038-status.test.ts`
+      (a new `first(arr)` helper replacing 7 `rows[0]`/`pending[0]` reads),
+      `tests/m19c-damage-types.test.ts` (throw guards on a paired
+      `before[i]`/`e.hp` tick-delta map, a crowd's last-enemy read, a first
+      DoT read, and a fixed-3-enemy-array read), `tests/p-core-b-
+      effects.test.ts` (a new `coreStep(core, n)` helper generalizing
+      `p-core-e-time-decay.test.ts`'s single-core `step(n)` to any core,
+      replacing 5 `CORE.upgrade.steps![n]` reads, plus two `dealt`
+      throw-guards after their own `toBeGreaterThan(0)` assertions),
+      `tests/terrain-approach.test.ts` (an `?? -1` default on a loop-bounded
+      field read, throw guards on `GATES[1]`, `m.perGate[i]` and a
+      loop-local `GATES[i]`), `tools/sim.ts` (a `requireValue(v, flag)`
+      helper closing a real latent gap — a CLI flag with no following value
+      used to silently write `undefined` into a typed `string`/`string|null`
+      field instead of erroring, now throws `"${flag}: missing value"`
+      matching `assertValidSeed`'s existing throw convention; a loop-local
+      `k` guard; `?? 0` on `median`'s already-length-checked array read).
+      `tests/p6e-class-diversity.test.ts` (6 errors, same `vectors[i]`/
+      `vectors[j]` pattern as the rest of this batch) was drafted and typed
+      clean, then **reverted and left on the allowlist**: running it
+      directly (it's excluded from `test:fast` for being ~50+ minutes of
+      real sim — CLAUDE.md's own fast-tier exclusion) surfaced its `beforeAll`-
+      measured fingerprint-distance-failure pin (28, pinned 2026-09-16 by
+      fb197) now reads **44** against current `/data`/`src/sim` content —
+      stale, not caused by this diff (the reverted edit was a pure `vi`/`vj`
+      local-capture refactor with identical control flow, confirmed by
+      re-reading the diff before reverting). Re-measuring and re-pinning
+      that number is balance-analyst/[balance] work, out of this
+      `[polish]`-tier item's scope and this routine's "never generate new
+      backlog items" rule — flagged here so a future item picks it up
+      rather than re-discovering it; the file stays on the allowlist
+      untouched pending that. Verified (the 7 committed files only): `npx
+      tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+      7, no new offenders (74 → 67, exact match); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on all 7 plus the ratchet test green
+      (196 tests); `npm run sim -- --seed 1 --policy hybrid` gives the
+      identical `endHash` (`d6452f98`), confirming `tools/sim.ts`'s CLI
+      parsing change is behavior-neutral for real invocations; `npm run
+      test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped.
+      74 → **67 files remain** on the allowlist. Light tier (`[polish]`, no
+      `/src`/`/data` touched). — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

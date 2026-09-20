@@ -30,9 +30,9 @@
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
- * then 105, then 98, then 92, then 90, then 86, then 84, then 75, then 72
- * files remaining as of the latest). Shrink this list as files are fixed;
- * do not add to it without a reason logged in BACKLOG.md.
+ * then 105, then 98, then 92 files remaining as of the latest). Shrink this
+ * list as files are fixed; do not add to it without a reason logged in
+ * BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -56,24 +56,20 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/class-line-bonus.test.ts',
   'tests/class-passive-magnitudes.test.ts',
   'tests/codex.test.ts',
-  'tests/content-complete.test.ts',
   'tests/equip-spec-ledger.ts',
   'tests/equip-spec-numbers.test.ts',
   'tests/f003-leak-coupling.test.ts',
-  'tests/fb006-dot-hp-indicator.test.ts',
   'tests/fb015-equipment.test.ts',
   'tests/fb016-vfx-registry.test.ts',
   'tests/fb022-info-surfacing.test.ts',
   'tests/fb027-selection-panels.test.ts',
   'tests/fb037-vs-panel.test.ts',
-  'tests/fb038-status.test.ts',
   'tests/fb044-tuner-per-field.test.ts',
   'tests/fb085-enablers.test.ts',
   'tests/fb158-enemy-attack-indicators.test.ts',
   'tests/fb164-prescale-prose.test.ts',
   'tests/g2-determinism.test.ts',
   'tests/grid.test.ts',
-  'tests/m19c-damage-types.test.ts',
   'tests/m20b-owner-towers.test.ts',
   'tests/meta.test.ts',
   'tests/p2a-vs-wielding.test.ts',
@@ -111,7 +107,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tools/fuzz-command-domain.ts',
   'tools/fuzz-data.ts',
   'tools/fuzz-weapon-boundary.ts',
-  'tools/sim.ts',
   'tools/status.ts',
   'tools/ui-audit.ts',
 ];

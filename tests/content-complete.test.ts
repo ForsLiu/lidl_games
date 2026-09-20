@@ -38,6 +38,7 @@ describe('content completeness', () => {
   // Gatebreaker on every wave 10-18 before p8a authored real 11-18 content.
   it('introduces the Gatebreaker on wave 18, and only wave 18', () => {
     const last = content.waves.waves[17];
+    if (last === undefined) throw new Error('unreachable — §13 pins 18 waves');
     expect(last.wave).toBe(18);
     expect(last.groups.some((g) => g.enemy === 'gatebreaker')).toBe(true);
     for (const wave of content.waves.waves.slice(0, 17)) {
@@ -69,6 +70,7 @@ describe('content completeness', () => {
     for (const c of content.classes.classes) {
       const cards = content.boons.skillCards[c.key];
       expect(cards, c.key).toBeDefined();
+      if (cards === undefined) throw new Error(`unreachable — just asserted defined for ${c.key}`);
       expect(cards, c.key).toHaveLength(3);
       for (const card of cards) expect(card.maxRank, card.key).toBe(2);
       const effects = cards.map((card) => card.effect).sort();
@@ -190,7 +192,9 @@ describe('map tiers (SPEC 8.3)', () => {
       expect(draft.length).toBe(tier - 1);
       for (const slot of draft) {
         expect(slot.options.length).toBe(2);
-        expect(slot.options[0].key).not.toBe(slot.options[1].key);
+        const [first, second] = slot.options;
+        if (first === undefined || second === undefined) throw new Error('unreachable — options.length === 2 just asserted');
+        expect(first.key).not.toBe(second.key);
       }
     }
   });

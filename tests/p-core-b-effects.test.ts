@@ -42,17 +42,15 @@ const ARROW = content.towerByKey.get('arrow_spire')!;
 const STONE = content.coreByKey.get('stone_heart')!;
 const VAMPIRE = content.coreByKey.get('vampire_heart')!;
 const TIME = content.coreByKey.get('time')!;
-
-function coreStep(core: typeof VAMPIRE, name: string, i: number): NonNullable<typeof VAMPIRE.upgrade.steps>[number] {
-  const steps = core.upgrade.steps;
-  if (!steps) throw new Error(`${name} core has no upgrade steps`);
-  const step = steps[i];
-  if (!step) throw new Error(`${name} core missing upgrade step ${i}`);
-  return step;
-}
 /** Sum of `stone_heart`'s first `n` step `coreHpBonus` deltas, straight off `/data/cores.json` — not a hardcoded per-step amount, since the three steps need not stay uniform. */
 const stoneStepSum = (n: number): number =>
   STONE.upgrade.steps!.slice(0, n).reduce((sum, step) => sum + (step.coreHpBonus ?? 0), 0);
+/** A core's `upgrade.steps![n]`, guarded — every core in `/data/cores.json` authors at least the steps its own tests read. */
+function coreStep<S>(core: { upgrade: { steps?: readonly S[] } }, n: number): S {
+  const s = core.upgrade.steps?.[n];
+  if (s === undefined) throw new Error(`unreachable — core has no step ${n}`);
+  return s;
+}
 /**
  * fb153a: read from the **authored** document (kept as a habit rather than
  * `VAMPIRE.effects!.overhealGoldRatio` even though fb163/fb194 made the two
@@ -67,12 +65,12 @@ const stoneStepSum = (n: number): number =>
 const VAMP_BASE_OVERHEAL_RATIO = (
   content.raw.cores as { cores: { key: string; effects?: { overhealGoldRatio?: number } }[] }
 ).cores.find((c) => c.key === 'vampire_heart')!.effects!.overhealGoldRatio!;
-const VAMP_STEP2_OVERHEAL_RATIO = coreStep(VAMPIRE, 'vampire_heart', 1).overhealGoldRatio;
+const VAMP_STEP2_OVERHEAL_RATIO = coreStep(VAMPIRE, 1).overhealGoldRatio;
 const TIME_TD_SLOW_MUL = 1 - TIME.effects!.tdSlowPct;
 const TIME_VS_SPEED_MUL = 1 + TIME.effects!.vsSpeedPct;
-const TIME_STEP1_GOLD = coreStep(TIME, 'time', 0).goldPerSecond;
-const TIME_STEP2_REGEN = coreStep(TIME, 'time', 1).hpRegenPerSecond;
-const TIME_STEP2_HEAL_MUL = 1 + coreStep(TIME, 'time', 1).healingReceivedPct;
+const TIME_STEP1_GOLD = coreStep(TIME, 0).goldPerSecond;
+const TIME_STEP2_REGEN = coreStep(TIME, 1).hpRegenPerSecond;
+const TIME_STEP2_HEAL_MUL = 1 + coreStep(TIME, 1).healingReceivedPct;
 
 /** A free, buildable tile close to the Warden's default start (near the Core). */
 function nearTile(w: World): { tx: number; ty: number } {
@@ -230,8 +228,8 @@ describe('p-core-b — Vampire Heart', () => {
     updateTowers(w, DT);
 
     const dealt = w.damageByWeapon['arrow_spire'];
-    if (dealt === undefined) throw new Error('expected arrow_spire to have dealt damage');
     expect(dealt).toBeGreaterThan(0);
+    if (dealt === undefined) throw new Error('unreachable — just asserted greater than 0');
     expect(s.hp).toBeCloseTo(1 + dealt * VAMPIRE.effects!.towerLifestealPct, 9);
   });
 
@@ -304,8 +302,8 @@ describe('p-core-b — Vampire Heart', () => {
     updateWieldedAttacks(w, DT);
 
     const dealt = w.damageByWeapon['arrow_spire'];
-    if (dealt === undefined) throw new Error('expected arrow_spire to have dealt damage');
     expect(dealt).toBeGreaterThan(0);
+    if (dealt === undefined) throw new Error('unreachable — just asserted greater than 0');
     expect(w.warden.leechAccumulator).toBeCloseTo(dealt * VAMPIRE.effects!.vsLifestealPct, 9);
   });
 
@@ -404,7 +402,7 @@ describe('p-core-b — Vampire Heart', () => {
     expect(upgradeCore(w)).toBe(true);
     expect(upgradeCore(w)).toBe(true);
     expect(w.coreStep).toBe(3);
-    const bonus = coreStep(VAMPIRE, 'vampire_heart', 2).towerLifestealBonus;
+    const bonus = coreStep(VAMPIRE, 2).towerLifestealBonus;
     expect(w.core.towerLifestealPct).toBeCloseTo(VAMPIRE.effects!.towerLifestealPct + bonus, 9);
   });
 

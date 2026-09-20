@@ -78,12 +78,6 @@ function reload(): void {
   ensureActiveSlotMigrated();
 }
 
-function nth<T extends Node>(list: NodeListOf<T>, i: number): T {
-  const v = list[i];
-  if (v === undefined) throw new Error(`expected index ${i} in a ${list.length}-item NodeList`);
-  return v;
-}
-
 /** The `skillPoints` stored in `slot`'s own dedicated key, or null if it has none. */
 function slotSkillPoints(slot: number): number | null {
   const raw = localStorage.getItem(`stonewake.save.slot${slot + 1}.v1`);
@@ -436,8 +430,10 @@ describe('fb096: Settings tab Save Slots panel', () => {
     expect(rows.length).toBe(SAVE_SLOT_COUNT);
     expect(root.textContent).toContain('Slot 1 (active)');
     const switchButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-switch]');
-    expect(nth(switchButtons, 0).disabled).toBe(true);
-    expect(nth(switchButtons, 1).disabled).toBe(false);
+    const [first, second] = switchButtons;
+    if (first === undefined || second === undefined) throw new Error('unreachable — SAVE_SLOT_COUNT rows just asserted above');
+    expect(first.disabled).toBe(true);
+    expect(second.disabled).toBe(false);
   });
 
   it('an empty slot is labeled empty and its Delete button is disabled', () => {
@@ -445,7 +441,9 @@ describe('fb096: Settings tab Save Slots panel', () => {
     const { root } = openHub();
     expect(root.textContent).toContain('Slot 2 — empty');
     const deleteButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-delete]');
-    expect(nth(deleteButtons, 1).disabled).toBe(true);
+    const secondDelete = deleteButtons[1];
+    if (secondDelete === undefined) throw new Error('unreachable — Slot 2 is one of SAVE_SLOT_COUNT rows');
+    expect(secondDelete.disabled).toBe(true);
   });
 
   it('clicking Switch moves the active slot and reloads the page immediately, without touching in-memory meta', () => {

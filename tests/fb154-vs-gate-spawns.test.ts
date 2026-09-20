@@ -152,7 +152,7 @@ describe('fb154 — VS ground spawns come out of the gates', () => {
     // final boss included, before this rule).
     const w = vsWorld();
     const gate = w.gates[0];
-    if (gate === undefined) throw new Error('unreachable: vsWorld always has at least one gate');
+    if (gate === undefined) throw new Error('unreachable — vsWorld() seeds at least one gate');
     w.warden.x = gate.tx + 0.5;
     w.warden.y = gate.ty + 0.5;
     const minDist = Math.min(w.content.spawns.spawnDistance, 12);
@@ -170,7 +170,7 @@ describe('fb154 — VS ground spawns come out of the gates', () => {
     const w = vsWorld();
     w.gates.length = 1;
     const gate = w.gates[0];
-    if (gate === undefined) throw new Error('unreachable: gates.length was just set to 1');
+    if (gate === undefined) throw new Error('unreachable — gates.length was just set to 1');
     w.warden.x = gate.tx + 0.5;
     w.warden.y = gate.ty + 0.5;
     const p = pickSpawnPoint(w, GROUND);

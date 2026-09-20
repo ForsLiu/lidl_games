@@ -25,18 +25,15 @@ import { cfg, scaled } from './helpers';
 const DT = 1 / 60;
 const content = loadContent();
 const TIME = content.coreByKey.get('time')!;
-const TIME_STEPS = TIME.upgrade.steps;
-if (!TIME_STEPS) throw new Error('time core has no upgrade steps');
-const TIME_STEP3 = TIME_STEPS[2];
-if (!TIME_STEP3) throw new Error('time core missing upgrade step 3');
-const TIME_STEP4 = TIME_STEPS[3];
-if (!TIME_STEP4) throw new Error('time core missing upgrade step 4');
-const TIME_STEP5 = TIME_STEPS[4];
-if (!TIME_STEP5) throw new Error('time core missing upgrade step 5');
-const TIME_R3 = TIME_STEP3.decayRadius; // step 3: aura radius
-const TIME_MULT3 = TIME_STEP3.decayMult; // step 3: aura multiplier
-const TIME_R4 = TIME_STEP4.decayRadius; // step 4: extended radius
-const TIME_MULT5 = TIME_STEP5.decayMult; // step 5: raised multiplier
+function step(n: number) {
+  const s = TIME.upgrade.steps![n];
+  if (s === undefined) throw new Error(`unreachable — data/cores.json's time core has no step ${n}`);
+  return s;
+}
+const TIME_R3 = step(2).decayRadius; // step 3: aura radius
+const TIME_MULT3 = step(2).decayMult; // step 3: aura multiplier
+const TIME_R4 = step(3).decayRadius; // step 4: extended radius
+const TIME_MULT5 = step(4).decayMult; // step 5: raised multiplier
 /**
  * §5.5's fixed decay-ring shape — `1 x mult^(5-ring)` — is code, not data (the
  * literal 5 is baked into `cores.ts`'s own formula, not a `/data/cores.json`

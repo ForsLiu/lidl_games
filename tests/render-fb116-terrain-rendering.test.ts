@@ -25,16 +25,6 @@ import { cfg } from './helpers';
 
 const terrainCfg = loadTerrain();
 
-/** `parseInt` on a 2-hex-digit slice always yields a number, never `undefined`, only NaN on bad input. */
-function channels(hex: string): [number, number, number] {
-  const vals = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const [r, g, b] = vals;
-  if (r === undefined || g === undefined || b === undefined) {
-    throw new Error(`expected a 6-hex-digit color, got ${hex}`);
-  }
-  return [r, g, b];
-}
-
 /** Same recording idiom `tests/fb016-vfx-registry.test.ts` uses, extended to tag every `fillRect` with the `fillStyle` live at call time and every `moveTo`/`lineTo` pair into a line segment. */
 function recordingCanvas(): {
   canvas: HTMLCanvasElement;
@@ -131,7 +121,7 @@ describe('fb116: every non-normal tile is painted with its kind\'s authored colo
         const t = w.grid.tile[idx];
         if (t === TileType.Border || t === TileType.Gate) continue; // fb116: these win over terrain — see drawTiles' own comment.
         const kind = w.grid.terrainKind[idx];
-        if (kind === undefined) throw new Error(`unreachable: terrainKind[${idx}] out of bounds`);
+        if (kind === undefined) throw new Error('unreachable — idx is within terrainKind bounds');
         if (kind === TerrainKind.Normal) continue;
         sawNonNormal = true;
         const authored = terrainCfg.tiles[kind]!.color;
@@ -143,13 +133,12 @@ describe('fb116: every non-normal tile is painted with its kind\'s authored colo
         // rather than re-deriving the exact jittered value here, which would
         // just re-run the renderer's own formula against itself.
         expect(painted).toMatch(/^#[0-9a-f]{6}$/i);
-        const [pr, pg, pb] = channels(painted!);
-        const [ar, ag, ab] = channels(authored);
-        for (const [p, a] of [
-          [pr, ar],
-          [pg, ag],
-          [pb, ab],
-        ] as const) {
+        const hexChannel = (hex: string, i: number): number => parseInt(hex.slice(i, i + 2), 16);
+        const channels: [number, number][] = [1, 3, 5].map((i) => [
+          hexChannel(painted!, i),
+          hexChannel(authored, i),
+        ]);
+        for (const [p, a] of channels) {
           expect(Math.abs(p - a)).toBeLessThanOrEqual(Math.ceil(0.12 * 255));
         }
       }
@@ -274,7 +263,7 @@ describe('fb116: the build ghost names the terrain rejection', () => {
     expect(target, 'seed 7 must generate at least one interior Rock tile').not.toBeNull();
 
     const firstTower = w.content.towers.towers[0];
-    if (!firstTower) throw new Error('expected at least one tower definition');
+    if (firstTower === undefined) throw new Error('unreachable — data/towers.json is never empty');
     const towerId = firstTower.id;
     const texts: string[] = [];
     const canvas = document.createElement('canvas');

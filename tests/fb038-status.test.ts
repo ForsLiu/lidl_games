@@ -40,6 +40,13 @@ function fakeReport(outcome: RunOutcome): RunReport {
   return { outcome } as RunReport;
 }
 
+/** Every call site below asserts (via its own writeFileSync fixture) exactly one row/entry exists. */
+function first<T>(arr: T[]): T {
+  const v = arr[0];
+  if (v === undefined) throw new Error('unreachable — this fixture produces exactly one row');
+  return v;
+}
+
 function emptyBalance(overrides: Partial<BalanceSnapshot> = {}): BalanceSnapshot {
   return {
     policyComparison: [],
@@ -132,7 +139,7 @@ describe('fb038: feedbackLedger (regression: section headers must not steal a ci
 
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), join(dir, 'BACKLOG.md'));
       expect(rows).toHaveLength(1);
-      expect(rows[0].status).toBe('fb038 — queued');
+      expect(first(rows).status).toBe('fb038 — queued');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -144,7 +151,7 @@ describe('fb038: feedbackLedger (regression: section headers must not steal a ci
       writeFileSync(join(dir, 'feedback', 'processed', '20260828-225846-verdicts-q122-133.md'), 'verdicts\n');
       writeFileSync(join(dir, 'BACKLOG.md'), '- [x] (unrelated) [feat] x — refs: y');
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), join(dir, 'BACKLOG.md'));
-      expect(rows[0].status).toContain('verdict batch');
+      expect(first(rows).status).toContain('verdict batch');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -156,7 +163,7 @@ describe('fb038: feedbackLedger (regression: section headers must not steal a ci
       writeFileSync(join(dir, 'feedback', 'processed', '20260101-000000-feature-nowhere.md'), 'x\n');
       writeFileSync(join(dir, 'BACKLOG.md'), '- [x] (other) [feat] unrelated — refs: z');
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), join(dir, 'BACKLOG.md'));
-      expect(rows[0].status).toBe('no BACKLOG citation found');
+      expect(first(rows).status).toBe('no BACKLOG citation found');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -190,7 +197,7 @@ describe('fb038: pendingQuestions', () => {
       writeFileSync(p, text);
       const pending = pendingQuestions(p);
       expect(pending.map((q) => q.id)).toEqual(['Q2']);
-      expect(pending[0].snippet).toContain('Unresolved question spanning');
+      expect(first(pending).snippet).toContain('Unresolved question spanning');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -499,7 +506,7 @@ describe('fb141: the ledger reads every backlog file, not just the main queue', 
       );
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
       expect(rows).toHaveLength(1);
-      expect(rows[0].status).toBe('fb999 (BACKLOG-UI.md) — queued');
+      expect(first(rows).status).toBe('fb999 (BACKLOG-UI.md) — queued');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -514,7 +521,7 @@ describe('fb141: the ledger reads every backlog file, not just the main queue', 
       writeFileSync(join(dir, 'BACKLOG.md'), '- [ ] (fbMAIN) [feat] main — refs: owner feedback `feature-both`.');
       writeFileSync(join(dir, 'BACKLOG-TERRAIN.md'), '- [ ] (fbLANE) [feat] lane — refs: `feature-both`.');
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
-      expect(rows[0].status).toBe('fbMAIN — queued');
+      expect(first(rows).status).toBe('fbMAIN — queued');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -534,7 +541,7 @@ describe('fb141: the ledger reads every backlog file, not just the main queue', 
       const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
       // The parent is named too: a sub-item's own checkbox is not the state of
       // the order it is part of.
-      expect(rows[0].status).toBe('fbCHILD (of fbPARENT) (BACKLOG-CONTENT.md) — queued');
+      expect(first(rows).status).toBe('fbCHILD (of fbPARENT) (BACKLOG-CONTENT.md) — queued');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

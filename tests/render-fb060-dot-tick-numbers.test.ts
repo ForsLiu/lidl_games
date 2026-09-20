@@ -21,18 +21,19 @@ import { damageStyleColor } from '../src/sim/damagetypes';
 import { defaultSettings } from '../src/ui/settings';
 import { cfg } from './helpers';
 
-function firstEnemyKey(w: World): string {
-  const def = w.content.enemies.enemies[0];
-  if (!def) throw new Error('expected at least one enemy definition');
-  return def.key;
-}
-
 interface Text {
   x: number;
   y: number;
   text: string;
   color: string;
   font: string;
+}
+
+/** `data/enemies.json` is never empty, so index 0 always exists. */
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (def === undefined) throw new Error('unreachable — data/enemies.json is never empty');
+  return def.key;
 }
 
 /** Same recording-canvas convention as tests/fb006-dot-hp-indicator.test.ts, plus `fillText`. */

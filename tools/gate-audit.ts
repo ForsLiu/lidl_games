@@ -51,9 +51,7 @@ export function parseGates(specText: string): Gate[] {
   while ((m = rowRe.exec(section))) {
     const id = m[1];
     const text = m[2];
-    if (id === undefined || text === undefined) {
-      throw new Error('unreachable: both capture groups always match this pattern');
-    }
+    if (id === undefined || text === undefined) throw new Error('gate-audit: unreachable — rowRe has two required capture groups');
     gates.push({ id, text });
   }
   return gates;
@@ -412,12 +410,10 @@ export function backlogCheckboxes(text: string): Record<string, boolean> {
   const re = /^- \[([ xX])\] \((q\d+)\)/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    const state = m[1];
+    const mark = m[1];
     const id = m[2];
-    if (state === undefined || id === undefined) {
-      throw new Error('unreachable: both capture groups always match this pattern');
-    }
-    map[id] = state.toLowerCase() === 'x';
+    if (mark === undefined || id === undefined) throw new Error('gate-audit: unreachable — re has two required capture groups');
+    map[id] = mark.toLowerCase() === 'x';
   }
   return map;
 }
