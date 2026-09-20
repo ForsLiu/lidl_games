@@ -23,6 +23,15 @@ import { defaultSettings } from '../src/ui/settings';
 import { enemyInfoMarkup } from '../src/ui/hud';
 import { enemyAttackDescription, enemyAttackIconMarkup, enemyAttackMarkup } from '../src/ui/enemy-info';
 import { trimNum } from '../src/ui/info-format';
+
+function nth<T>(arr: readonly T[], i: number, what: string): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected ${what}`);
+  return v;
+}
+function last<T>(arr: readonly T[], what: string): T {
+  return nth(arr, arr.length - 1, what);
+}
 import { buildCodexCollections } from '../src/ui/codex-collections';
 import { cfg } from './helpers';
 
@@ -133,7 +142,7 @@ describe('fb158: every enemy always shows its attack-kind icon', () => {
       const expectedR = shape.big ? 4.5 : 3;
       const hits = circleAt(arcs, ix, iy, expectedR);
       expect(hits.length, `${def.key} (${def.attackKind}) icon`).toBeGreaterThan(0);
-      const hit = hits[hits.length - 1];
+      const hit = last(hits, `${def.key} last icon hit`);
       expect(hit.filled, `${def.key} filled-vs-ring`).toBe(shape.filled);
       expect(
         hit.filled ? hit.fillStyle : hit.strokeStyle,
@@ -205,7 +214,7 @@ describe('fb158: the attack-range ring draws on hover and on selection', () => {
     new Renderer(canvas).draw(w, view({ selection: { kind: 'enemy', id: e.id } }));
     const hits = circleAt(arcs, cx, cy, expectedR);
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[hits.length - 1].globalAlpha).toBeCloseTo(0.85, 5);
+    expect(last(hits, 'last ring hit').globalAlpha).toBeCloseTo(0.85, 5);
   });
 
   it('an enemy that is both hovered AND selected rings once, at the bolder selected style — not twice', () => {
@@ -223,7 +232,7 @@ describe('fb158: the attack-range ring draws on hover and on selection', () => {
     new Renderer(canvas).draw(w, view({ selection: { kind: 'enemy', id: e.id }, cursorX: e.x, cursorY: e.y }));
     const hits = circleAt(arcs, cx, cy, expectedR);
     expect(hits.length, 'exactly one ring, not one per style').toBe(1);
-    expect(hits[0].globalAlpha, 'the selected (bolder) style wins, not the hover one').toBeCloseTo(0.85, 5);
+    expect(nth(hits, 0, 'the one ring').globalAlpha, 'the selected (bolder) style wins, not the hover one').toBeCloseTo(0.85, 5);
   });
 
   it("a non-elite enemy's specialRange never rings, even selected", () => {
@@ -262,7 +271,7 @@ describe('fb158: the attack-range ring draws on hover and on selection', () => {
     expect(circleAt(a2, cx, cy, def.attackRange * TILE).length, 'selected base ring').toBeGreaterThan(0);
     const specialHits = circleAt(a2, cx, cy, def.specialRange! * TILE);
     expect(specialHits.length, 'selected special ring').toBeGreaterThan(0);
-    expect(specialHits[specialHits.length - 1].dashed, 'special ring is dashed').toBe(true);
+    expect(last(specialHits, 'last special ring hit').dashed, 'special ring is dashed').toBe(true);
   });
 });
 

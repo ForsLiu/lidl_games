@@ -72,8 +72,10 @@ describe('character panel data model', () => {
       const expectedSources = w.stats.contributions(row.key);
       expect(row.sources.length, row.key).toBe(expectedSources.length);
       expectedSources.forEach(([source, value], i) => {
-        expect(row.sources[i].source, `${row.key}[${i}]`).toBe(source);
-        expect(row.sources[i].value, `${row.key}[${i}]`).toBe(value);
+        const actual = row.sources[i];
+        if (actual === undefined) throw new Error(`${row.key}[${i}] missing from panel sources`);
+        expect(actual.source, `${row.key}[${i}]`).toBe(source);
+        expect(actual.value, `${row.key}[${i}]`).toBe(value);
       });
     }
 
@@ -137,6 +139,7 @@ describe('character panel data model', () => {
     const boons = characterPanelData(w).boons;
     expect(boons.length).toBe(1);
     const row = boons[0];
+    if (row === undefined) throw new Error('boons[0] missing after length check');
     expect(row.key).toBe('power');
     expect(row.rank).toBe(3);
     expect(row.maxRank).toBe(content.boonByKey.get('power')!.maxRank);

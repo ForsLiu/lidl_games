@@ -255,7 +255,10 @@ function probeAllKinds(): Array<{ classKey: string; which: 'active1' | 'active2'
 function hasFalloff(measured: number[]): boolean {
   const struck = measured.filter((d) => d > 1e-6);
   for (let i = 1; i < struck.length; i++) {
-    if (struck[i] < struck[i - 1] * (1 - 1e-6)) return true;
+    const cur = struck[i];
+    const prev = struck[i - 1];
+    if (cur === undefined || prev === undefined) throw new Error(`hasFalloff: index ${i} out of range`);
+    if (cur < prev * (1 - 1e-6)) return true;
   }
   return false;
 }
@@ -331,6 +334,7 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     const isChargeKindKind = (k: string) => k === 'charge_nova' || k === 'charge_pierce';
     for (const kind of ['charge_pierce', 'charge_nova'] as const) {
       const recipe = FIRE_RECIPES[kind];
+      if (!recipe) throw new Error(`FIRE_RECIPES has no entry for ${kind}`);
       // Any class whose Active1 is neither charge kind at all (not just "not
       // this one") — `tickClassCharge`'s own `isChargeKind` guard covers
       // both, so a class using the OTHER charge kind would (correctly)
@@ -364,16 +368,23 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     const probe = probeAllKinds().find((p) => p.kind === 'chain_lightning')!;
     const struck = probe.measured.filter((d) => d > 0);
     expect(struck.length).toBeGreaterThan(1);
-    for (let i = 1; i < struck.length; i++) expect(struck[i]).toBeGreaterThan(struck[i - 1]);
+    for (let i = 1; i < struck.length; i++) {
+      const cur = struck[i];
+      const prev = struck[i - 1];
+      if (cur === undefined || prev === undefined) throw new Error(`index ${i} out of range`);
+      expect(cur).toBeGreaterThan(prev);
+    }
     expect(hasFalloff(probe.measured)).toBe(false);
   });
 
   it("dash_volley's fixed-count, fixed-damage volley measures as NOT decaying (equal hits, not a falloff)", () => {
     const probe = probeAllKinds().find((p) => p.kind === 'dash_volley')!;
     const struck = probe.measured.filter((d) => d > 0);
+    const first = struck[0];
+    if (first === undefined) throw new Error('dash_volley measured no non-zero hits');
     // Whatever the shipped shot count is, every hit lands for the same
     // amount — the untouched remainder reads 0 and is excluded above.
-    for (const d of struck) expect(d).toBeCloseTo(struck[0], 6);
+    for (const d of struck) expect(d).toBeCloseTo(first, 6);
     expect(hasFalloff(probe.measured)).toBe(false);
   });
 

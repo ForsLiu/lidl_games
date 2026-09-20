@@ -239,6 +239,7 @@ describe('q21 offer/wielding boundary fuzz', () => {
       w.phase = 'levelup';
       w.offers = rollOffers(w);
       const chosen = w.offers[0];
+      if (chosen === undefined) throw new Error('rollOffers produced no offers');
       applyCommand(w, { k: 'pick', index: 0 });
       expect(w.phase).toBe('act2');
       expect(w.boonRanks[chosen.key]).toBe(chosen.toLevel);
@@ -407,7 +408,8 @@ describe('q21 offer/wielding boundary fuzz', () => {
     it('tier=NaN: wielded damage is NaN, but damageEnemy drops it — hp and damageTotal stay clean across repeated ticks', () => {
       const w = newWorld();
       forcePlace(w, 'arrow_spire', 5, 5, NaN);
-      const [arrow] = wieldedAttacks(w);
+      const arrow = wieldedAttacks(w)[0];
+      if (arrow === undefined) throw new Error('arrow_spire produced no wielded attack');
       expect(arrow.damage).toBeNaN();
       const e = spawnEnemy(w, 'husk', w.warden.x + 1, w.warden.y, { overlay: false })!;
       w.rebuildBuckets();
@@ -427,7 +429,8 @@ describe('q21 offer/wielding boundary fuzz', () => {
       for (const tier of [0, -5, 1e9]) {
         const w = newWorld(content);
         forcePlace(w, 'arrow_spire', 5, 5, tier);
-        const [arrow] = wieldedAttacks(w);
+        const arrow = wieldedAttacks(w)[0];
+        if (arrow === undefined) throw new Error(`tier=${tier}: arrow_spire produced no wielded attack`);
         expect(Number.isFinite(arrow.damage), `tier=${tier}`).toBe(true);
         // One tower: damage = per-tower value x 1.1, and the per-tower value
         // stays inside the [tier 1, tier maxLevel] stat track.
@@ -447,9 +450,11 @@ describe('q21 offer/wielding boundary fuzz', () => {
       for (let i = 0; i < 5; i++) forcePlace(w, 'arrow_spire', 4 + i, 4, 1);
       const list = wieldedAttacks(w);
       expect(list.length).toBe(1);
-      expect(list[0].count).toBe(5);
+      const only = list[0];
+      if (only === undefined) throw new Error('wieldedAttacks list is empty after length check');
+      expect(only.count).toBe(5);
       const base = w.content.towerByKey.get('arrow_spire')!.attack!.damage;
-      expect(list[0].damage).toBeCloseTo(base * (1 + 0.1 * 5), 9);
+      expect(only.damage).toBeCloseTo(base * (1 + 0.1 * 5), 9);
     });
 
     it('attackless types (wall, totem, sprout) wield nothing, alone or alongside attackers', () => {
