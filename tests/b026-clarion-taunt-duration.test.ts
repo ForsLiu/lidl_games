@@ -39,8 +39,9 @@ describe('b026: Clarion Taunt duration matches SPEC-FINAL §4.2 (4 s, not 6 s)',
     w.warden.y = 10;
     w.warden.attackCooldown = 1e9;
 
-    const key = w.content.enemies.enemies[0].key;
-    const e = spawnEnemy(w, key, 11, 10)!;
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const e = spawnEnemy(w, firstEnemy.key, 11, 10)!;
     w.rebuildBuckets();
 
     applyCommand(w, { k: 'class_active' });

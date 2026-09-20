@@ -377,7 +377,9 @@ function dummy(w: World, x: number, y: number, radius?: number): Enemy {
   expect(y, `harness budget: a probe at y=${y} ran off the board`).toBeLessThan(GRID_H - 1);
   expect(y, `harness budget: a probe at y=${y} ran off the board`).toBeGreaterThan(0);
   // `w.content`, not the module `content`: a no-grove world must spawn from its own Content.
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  const firstEnemy = w.content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('no enemies in content');
+  const e = spawnEnemy(w, firstEnemy.key, x, y)!;
   e.hp = 1e7;
   e.maxHp = Math.max(1e7, e.maxHp);
   e.speed = 0;

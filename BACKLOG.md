@@ -5264,6 +5264,39 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       its own seed/policy combos against a `git stash` baseline (byte
       identical on every field including `endHash`), and confirmed every new
       throw's bounding invariant with zero thrown errors across all runs.
+    - **Ratchet shrunk further 2026-09-19 (scheduled routine)**: fixed 11
+      more test files with real guards (all one-error-each, no `/src`
+      changes) — `tests/a4-single-type.test.ts` (a `T1_IDENTITY_FLOOR[key]`
+      lookup now throws if a `SOUL_TOWERS` key is missing an entry, proven
+      impossible since the map's 7 keys are exactly `SOUL_TOWERS`),
+      `tests/a7-turtle-check.test.ts` (a local `wave9Data` — renamed to
+      avoid shadowing the file's own `wave9(seed)` helper — throws if wave 9
+      is missing from content; file stays `describe.skip`'d, unchanged
+      behavior), `tests/a9-economy.test.ts` (`median()` throws on an empty
+      input array, unreachable for its only caller today), `tests/b026-
+      clarion-taunt-duration.test.ts`, `tests/class-kit-liveness.test.ts`,
+      `tests/class-kit-power-reach.test.ts`, `tests/class-kit-whiff.test.ts`,
+      `tests/class-wide-grove-reach.test.ts` (all five: a shared `dummy()`/
+      setup helper's `content.enemies.enemies[0]` throws if the roster is
+      ever empty), `tests/b033-boon-contrast.test.ts` (`varMatch?.[1]`
+      optional-chains a mandatory regex capture group instead of assuming
+      it), `tests/b073-act1-alive-cap.test.ts` (the cap-draining loop throws
+      if `w.enemies[i]` is missing before `fillToCap` should have populated
+      it), `tests/class-board-windows.test.ts` (`EXPECTED[w.site]?.[name]`
+      throws if a window/origin pair has no recorded expectation). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of
+      the 11; `npx tsc --noEmit` (main config) clean; targeted `npx vitest
+      run` on all 11 plus the ratchet test green (251 passed, 5 skipped);
+      `npm run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+      198 → **187 files remain** on the allowlist. code-reviewer APPROVE (one
+      Minor: `class-board-windows.test.ts`'s new guard throws at `describe`-
+      body collection time rather than inside an `it`, widening one missing-
+      entry's failure from a single case to the whole file — currently moot,
+      all 15 window/origin pairs have entries, left as-is; one Nit: `a9-
+      economy.test.ts`'s empty-array guard is unreachable for its only
+      caller, fine as defensive typing). Light tier per this item's `[polish]`
+      tag and no `/src` changes — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

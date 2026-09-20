@@ -85,7 +85,9 @@ function idle(over: Partial<TickInput> = {}): TickInput {
 }
 
 function dummy(w: World, x: number, y: number): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const firstEnemy = content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('no enemies in content');
+  const e = spawnEnemy(w, firstEnemy.key, x, y)!;
   e.hp = 1e6;
   e.maxHp = 1e6;
   e.speed = 0;
