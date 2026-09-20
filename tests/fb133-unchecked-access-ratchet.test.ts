@@ -112,7 +112,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p9b-codex-hub.test.ts',
   'tests/p9c-tuner-hub-flag.test.ts',
   'tests/p9c-tuner-save.test.ts',
-  'tests/p9h-armour-floor-display.test.ts',
   'tests/practice.test.ts',
   'tests/progress.test.ts',
   'tests/q120-order1-taunt.test.ts',
