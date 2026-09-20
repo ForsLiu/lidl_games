@@ -181,6 +181,7 @@ describe('q8 save round-trip: metas grown through a real applyRunResult', () => 
     const rng = new Rng(101);
     for (let i = 0; i < 500; i++) {
       const startCase = cases[i % cases.length];
+      if (!startCase) throw new Error(`no case at index ${i % cases.length}`);
       const base = validMeta(rng);
       const grown = applyRunResult(base, startCase.report, startCase.world);
       expectRoundTrips(`${startCase.label} #${i}`, grown);

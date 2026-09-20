@@ -80,7 +80,12 @@ describe('fb181 — GATES and MODIFIER_GATES sit on the current border', () => {
     // whatever `src/sim/grid.ts` exports today.
     const staleGatesEast: GateDef = { key: 'east', tx: 35, ty: 17 };
     expect(isLegalGatePosition(staleGatesEast.tx, staleGatesEast.ty)).toBe(false);
-    const staleGates: readonly GateDef[] = [GATES[0], GATES[1], staleGatesEast, GATES[3]];
+    const gateAt = (i: number): GateDef => {
+      const g = GATES[i];
+      if (!g) throw new Error(`GATES has no entry at index ${i}`);
+      return g;
+    };
+    const staleGates: readonly GateDef[] = [gateAt(0), gateAt(1), staleGatesEast, gateAt(3)];
     expect(describeAll(staleGates)).toEqual(['east (35,17)']);
 
     // A second, synthetic case per the acceptance's own three named defects

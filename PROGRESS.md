@@ -5,7 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 121 → 111.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 111 → 101.**
+  Fixed 10 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/q15-command-domain-fuzz.test.ts` (a `firstFieldSpec()`
+  helper reused at both call sites, plus a guarded
+  `content.towers.towers[0]`), `tests/q3-save-fuzz.test.ts` (guards a
+  `byFamily[family]` census lookup), `tests/q8-save-roundtrip.test.ts`
+  (guards a `cases[i % cases.length]` read), `tests/q9-phase-
+  coverage.test.ts` (guards two `RECORDED_FLOOR` lookups, by dynamic key and
+  by `.hybrid`), `tests/terrain-cost-retry-ratio.test.ts` (guards a
+  `seeds[i]`/`rawMin[i]` pair inside a loop and a `costs[costs.length - 1]`
+  tuple read), `tests/terrain-cost.test.ts` (guards `SAMPLE[0]`, reused for
+  its three fields), `tests/terrain-gate-legality.test.ts` (a `gateAt(i)`
+  helper guarding `GATES[0..3]`), `tests/ui-fb058-class-select.test.ts`
+  (guards `CLASS_BANDS.swordsman` and `.plaguebringer`), `tests/ui-fb065-
+  resize-listener.test.ts` (a `flushLast(rafQueue)` helper guarding
+  `rafQueue[rafQueue.length - 1]`, reused at all 3 call sites),
+  `tests/ui-fb098-tower-vfx.test.ts` (guards `TOWER_VFX[key]`). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+  10; main `tsc --noEmit` clean; targeted `npx vitest run` on all 10 plus
+  the ratchet test green (142 passed); `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings
+  (independently confirmed `tests/q9-phase-coverage.test.ts`'s pre-existing
+  13/17 sandbox-specific failure — no bot policy reaches `act2`/`levelup`
+  on this host — is identical with the diff removed via `git stash`, so
+  not caused by this batch). Light tier (`[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 121 → 111.**
   Fixed 10 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/a1-run-length.test.ts` (dead code inside a `describe.skip`
   block — `?? 0` guards are purely compile-time, matching the earlier
