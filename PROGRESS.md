@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 171 → 163.**
+  Fixed 8 more one-error-each test files with real guards, none touching
+  `/src`: `tests/p9e-levelup-idle.test.ts` (`w.offers[0]` throws if no offer
+  rolled, unreachable right after `openLevelUpIfPending`),
+  `tests/q13-perf-ratio.test.ts` / `tests/q13-perf-sensitivity.test.ts`
+  (both: a local `median()` throws on empty input, matching
+  `tests/a9-economy.test.ts`'s identical helper), `tests/q28-cli-error-
+  handling.test.ts` (`warn.mock.calls[0]` throws if missing, unreachable
+  given the preceding `toHaveBeenCalledTimes(1)`), `tests/render-fb067-dot-
+  number-budget.test.ts`, `tests/render-fb068-dot-density-hysteresis.test.ts`,
+  `tests/render-fb069-dot-accum-stale-cleanup.test.ts`, `tests/render-fb070-
+  dot-toggle-off-stale-cleanup.test.ts` (all four share the
+  `content.enemies.enemies[0]` spawn-helper pattern, throwing if the roster
+  is empty, matching `fb084-summon-cap-stat.test.ts`'s `firstEnemy`
+  convention). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the 8; `npx tsc --noEmit` (main config) clean;
+  targeted `npx vitest run` on the ratchet test plus all 8 files green (9
+  files / 38 tests), `q13-perf-sensitivity.test.ts` separately confirmed
+  green under `vitest.perf.config.ts`; `npm run test:fast` unchanged at 315
+  files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings.
+  Light tier (item is `[polish]`, no `/src`/`/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
 - **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 179 → 171.**
   Fixed 8 more test files with real guards, all one-error-each:
   `tests/fb153a-number-scale.test.ts` (regex capture read hoisted and

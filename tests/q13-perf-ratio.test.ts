@@ -34,7 +34,9 @@ import { measureRatioForWorld, worstCaseWorld, calibrationWork } from '../tools/
 
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
-  return s[Math.floor(s.length / 2)];
+  const mid = s[Math.floor(s.length / 2)];
+  if (mid === undefined) throw new Error('median of empty array');
+  return mid;
 }
 
 /**

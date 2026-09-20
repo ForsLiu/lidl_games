@@ -79,7 +79,9 @@ describe('fb069: a DoT stack expiring mid-starvation must not leave a stale accu
   it('does not mix stale pending seconds into a later re-application', () => {
     const w = new World(cfg());
     w.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const e = spawnEnemy(w, firstEnemy.key, w.warden.x + 10, w.warden.y)!;
     applyDot(w, e, 'bleeding', 20, 3.5, 'test');
 
     const { canvas, texts } = recordingCanvas();
