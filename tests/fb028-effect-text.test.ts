@@ -214,7 +214,9 @@ describe('fb028: the Codex — classes and equipment rows expand to full live-fo
 
     const detail = root.querySelector('.sw-codex-detail')!;
     expect(detail.innerHTML).toBe(classAbilitiesMarkup(swordsmanCls));
-    expect(rows[idx].classList.contains('active')).toBe(true);
+    const row = rows[idx];
+    if (!row) throw new Error('swordsman row not found');
+    expect(row.classList.contains('active')).toBe(true);
   });
 
   it('fb107: a classes row detail reflects a rebound keyBindings, not always the default Q/E', () => {

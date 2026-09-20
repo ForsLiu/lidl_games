@@ -156,6 +156,7 @@ describe('G13 no tower type dominates VS damage across the winning-build pool', 
   it.skip('gives no tower type more than 35% of the winning-pool VS damage', () => {
     const worst = shares[0];
     expect(worst, readable).toBeDefined();
+    if (worst === undefined) throw new Error('unreachable: just asserted worst is defined');
     expect(worst.share, readable).toBeLessThanOrEqual(CAP);
   });
 

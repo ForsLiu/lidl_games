@@ -61,7 +61,10 @@ describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
         expect(w.wave).toBe(tdWaveCount);
 
         if (w.wave === 18) {
-          wave18Queue = w.spawnQueue.map(([defId]) => defId);
+          wave18Queue = w.spawnQueue.map(([defId]) => {
+            if (defId === undefined) throw new Error('spawn queue entry missing defId');
+            return defId;
+          });
         }
 
         // Empty the field and let the real completeWave() transition fire.

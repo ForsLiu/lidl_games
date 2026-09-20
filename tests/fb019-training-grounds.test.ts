@@ -120,7 +120,9 @@ describe('fb019 Training Grounds: the HUD spawn panel', () => {
     expect(select.options.length).toBeGreaterThan(0);
     const options = [...select.options].map((o) => o.value);
     expect(options).toContain('husk');
-    expect(world.content.enemyByKey.has(options[0])).toBe(true);
+    const firstOption = options[0];
+    if (!firstOption) throw new Error('no spawn options rendered');
+    expect(world.content.enemyByKey.has(firstOption)).toBe(true);
 
     select.value = 'husk';
     count.value = '4';
