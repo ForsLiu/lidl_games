@@ -5891,10 +5891,15 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       targeted `npx vitest run` on all 3 plus the ratchet test green (52
       tests — `gate-audit.ts` has no `it()` cases of its own, exercised
       only via the type-check); `npm run test:fast` unchanged at 315
-      files / 4548 passed / 35 skipped. code-reviewer dispatched — see
-      PROGRESS.md for its outcome before treating this batch as final.
-      Light tier (`[polish]`, no `/src`/`/data` touched) — no
-      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+      files / 4548 passed / 35 skipped. code-reviewer APPROVE, no
+      Critical/Major/Minor/Nit findings — independently re-verified `npx
+      tsc --noEmit -p tsconfig.unchecked.json` clean on all 3, reran the
+      52 targeted tests, traced `coreStep`'s guard correctness, confirmed
+      `GATES`'s fixed-4-element shape at `src/sim/grid.ts` and
+      `measureApproach`'s `perGate.length === GATES.length` invariant at
+      `src/sim/terrain/path.ts`. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
