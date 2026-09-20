@@ -226,18 +226,22 @@ function getAt(root: unknown, path: Path): unknown {
 
 function setAt(root: unknown, path: Path, value: unknown): unknown {
   if (path.length === 0) return value;
+  const key = path[path.length - 1];
+  if (key === undefined) return root;
   const parent = getAt(root, path.slice(0, -1)) as Record<string | number, unknown>;
   if (parent === null || typeof parent !== 'object') return root;
-  parent[path[path.length - 1]] = value;
+  parent[key] = value;
   return root;
 }
 
 function delAt(root: unknown, path: Path): void {
   if (path.length === 0) return;
+  const key = path[path.length - 1];
+  if (key === undefined) return;
   const parent = getAt(root, path.slice(0, -1)) as Record<string | number, unknown>;
   if (parent === null || typeof parent !== 'object') return;
-  if (Array.isArray(parent)) parent.splice(Number(path[path.length - 1]), 1);
-  else delete parent[path[path.length - 1]];
+  if (Array.isArray(parent)) parent.splice(Number(key), 1);
+  else delete parent[key];
 }
 
 /**

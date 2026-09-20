@@ -56,7 +56,9 @@ describe('Hub Codex tab (p9b)', () => {
     expect(navButtons.length).toBe(collections.length);
 
     const table = root.querySelector('.sw-codex-content table')!;
-    expect(table.querySelectorAll('tbody tr').length).toBe(collections[0].rows.length);
+    const firstCollection = collections[0];
+    if (!firstCollection) throw new Error('expected at least one Codex collection');
+    expect(table.querySelectorAll('tbody tr').length).toBe(firstCollection.rows.length);
   });
 
   it('switching to another tab and back re-mounts a fresh Codex rather than a stale one', () => {
@@ -76,7 +78,9 @@ describe('Hub Codex tab (p9b)', () => {
     // Back on the tab, it starts fresh at the first collection again, not
     // pinned to whatever was selected before the tab switch tore it down.
     const collections = buildCodexCollections();
-    expect(root.querySelector('.sw-codex-content h2')!.textContent).toBe(collections[0].label);
+    const firstCollection = collections[0];
+    if (!firstCollection) throw new Error('expected at least one Codex collection');
+    expect(root.querySelector('.sw-codex-content h2')!.textContent).toBe(firstCollection.label);
   });
 
   it('fb107: the Codex classes detail shows a rebound key, matching Class Select one tab over', () => {

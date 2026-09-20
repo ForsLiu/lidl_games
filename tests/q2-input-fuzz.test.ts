@@ -56,7 +56,7 @@ describe('q2 input fuzz', () => {
     const src = readFileSync(join(process.cwd(), 'src', 'sim', 'types.ts'), 'utf8');
     const union = /export type Phase =([^;]*);/.exec(src);
     expect(union, 'could not find the Phase union in src/sim/types.ts').not.toBeNull();
-    const declared = [...(union as RegExpExecArray)[1].matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
+    const declared = [...((union as RegExpExecArray)[1] ?? '').matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1]);
     expect(declared.length).toBeGreaterThan(0);
     expect([...PHASES].sort()).toEqual([...declared].sort());
   });
@@ -71,7 +71,7 @@ describe('q2 input fuzz', () => {
     // space, never a newline. `\r?` because the checkout has CRLF endings.
     const union = /export type Command =([\s\S]*?);\r?\n/.exec(src);
     expect(union, 'could not find the Command union in src/sim/types.ts').not.toBeNull();
-    const declared = [...(union as RegExpExecArray)[1].matchAll(/\bk:\s*'([a-z0-9_]+)'/g)].map((m) => m[1]);
+    const declared = [...((union as RegExpExecArray)[1] ?? '').matchAll(/\bk:\s*'([a-z0-9_]+)'/g)].map((m) => m[1]);
     expect(declared.length).toBeGreaterThan(0);
     expect([...COMMAND_KINDS].sort()).toEqual([...declared].sort());
   });

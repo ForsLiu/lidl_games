@@ -214,8 +214,8 @@ describe('fb096: the live indicator actually renders the exact rectangle', () =>
     const expXs = [expected.p1x, expected.p2x, expected.p3x, expected.p4x].map((v) => v * TILE).sort((a, b) => a - b);
     const expYs = [expected.p1y, expected.p2y, expected.p3y, expected.p4y].map((v) => v * TILE).sort((a, b) => a - b);
     for (let i = 0; i < 4; i++) {
-      expect(xs[i]).toBeCloseTo(expXs[i], 1);
-      expect(ys[i]).toBeCloseTo(expYs[i], 1);
+      expect(xs[i]).toBeCloseTo(expXs[i] ?? 0, 1);
+      expect(ys[i]).toBeCloseTo(expYs[i] ?? 0, 1);
     }
   });
 

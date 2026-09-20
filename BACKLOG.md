@@ -5467,6 +5467,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Light tier per this item's `[polish]` tag and no `/src`/`/data`
       changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t
       Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 16 more files with real guards, none touching `/src`/`/data`:
+      `tests/p3b-multi-summon.test.ts` / `tests/render-fb096-combo-
+      indicator.test.ts` (`?? 0` on ledger/geometry reads proven present by
+      the surrounding loop), `tests/p5c-milestone-specials.test.ts` (guards
+      `patches[0]`), `tests/p9b-codex-hub.test.ts` (guards `collections[0]`,
+      twice), `tests/p9h-armour-floor-display.test.ts` (guards
+      `[...enemyByKey.values()][0]`, twice), `tests/practice.test.ts`
+      (guards `alive[0]` and `alive[alive.length - 1]`),
+      `tests/progress.test.ts` (guards `boss[0]`, `?? 0` on a `riftTimes[0]`
+      arithmetic read), `tests/q2-input-fuzz.test.ts` (`?? ''` on a regex
+      capture group before `.matchAll`, twice), `tests/t2-selection.test.ts`
+      (a variable-level `[number, number][]` tuple annotation, not an
+      `as`-cast — code-reviewer's Minor, fixed before commit),
+      `tests/terrain-verify.test.ts` (guards both swapped-tile reads before
+      the swap), `tests/ui-fb093-ultrawide-narrow-audit.test.ts` (guards
+      `present[i]`/`present[j]` before indexing `rects`), `tests/ui-fb142-
+      dpr-change.test.ts` (guards `resolutionQueries[0]`), `tests/ui-fb148-
+      dash-range-live.test.ts` (`?? ''` on a `.split('//')[0]` read),
+      `tests/x001-dot-stack-caps.test.ts` (`?? e.hp`/`?? 0` on reads proven
+      in-range by a 1:1 array map), `tools/fuzz-save.ts` (`setAt`/`delAt`
+      guard their path-tail key before indexing — dead branches given the
+      preceding `path.length === 0` early return), `tools/m20d-swarm.ts` (a
+      `[number, number]` tuple annotation on `levels`). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 16;
+      main `tsc --noEmit` clean; targeted `npx vitest run` on all 16 plus
+      the ratchet test green (two pre-existing `tests/q2-input-fuzz.test.ts`
+      failures — a missing `place_core` Command-union member and a seed-2
+      tick-count flake — confirmed present on unmodified HEAD via `git
+      stash`, not regressions); `npm run test:fast` unchanged at 315 files /
+      4548 passed / 35 skipped. 137 → **121 files remain** on the allowlist.
+      code-reviewer APPROVE (one Minor fixed before commit; one Nit on a
+      pre-existing, out-of-scope `!` left as-is). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

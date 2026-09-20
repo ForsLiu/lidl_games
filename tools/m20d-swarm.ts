@@ -85,7 +85,7 @@ try {
   const n = Number(process.argv[2] ?? 40);
   const hps = process.argv.slice(3).map(Number);
   const list = hps.length ? hps : [20, 25, 30, 40, 60, 90, 140, 220];
-  const levels = [maxLevel(VENOM) - 1, maxLevel(VENOM)];
+  const levels: [number, number] = [maxLevel(VENOM) - 1, maxLevel(VENOM)];
   console.log(`venom_spore, ${n} husks — seconds to clear (L${levels[0]} → L${levels[1]})`);
   for (const hp of hps.length ? hps : list) {
     const a = clearSeconds(levels[0], n, hp);
