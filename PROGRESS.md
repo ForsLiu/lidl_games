@@ -5,7 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 74 → 67.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 67 → 61.**
+  Fixed 6 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/ui-fb174-measured-falloff-guard.test.ts` (throw guards in
+  `hasFalloff`'s adjacent-pair loop and the chain_lightning/dash_volley
+  falloff checks, all on indices a preceding loop bound or length assertion
+  already guarantees in range; a `recipeFor`-style throw on `FIRE_RECIPES`
+  lookups for `charge_pierce`/`charge_nova`, both real, always-present
+  keys), `tests/ui-input.test.ts` (new `firstLink(id)` helper replacing five
+  `content.treeById.get(0)!.links[0]` reads — node 0 is the constellation
+  tree's root and always has an outgoing link), `tests/character-panel.test.ts`
+  (two throw guards on `row.sources[i]` and `boons[0]`, each immediately
+  after an `expect(...).length` assertion that already guarantees the index
+  exists), `tests/codex.test.ts` (a `nth<T>(arr, i, what)` helper matching
+  the `tests/ui-fb117-core-select.test.ts` precedent, used at every
+  NodeList/array indexing site — table rows, cells, first collection),
+  `tests/fb158-enemy-attack-indicators.test.ts` (local `nth`/`last` helpers
+  replacing five `hits[hits.length - 1]`/`hits[0]`-style reads, each after
+  an `expect(hits.length)` assertion), `tests/g2-determinism.test.ts` (a
+  guard on `content.equipment.items[0]`, and an `at(i)` helper for the
+  weighted-pick histogram test — confirmed `rng.weightedIndex(...)` is
+  called exactly once per loop iteration, not double-consumed by the fix).
+  Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+  any of the 6, no new offenders (67 → 61, exact match via the ratchet
+  test); main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 6
+  plus the ratchet test green (108 tests); `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings.
+  Light tier (`[polish]`, no `/src`/`/data` touched). — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 74 → 67.**
   Fixed 7 more files with real guards, none touching `/src`/`/data`:
   `tests/content-complete.test.ts`, `tests/fb006-dot-hp-indicator.test.ts`,
   `tests/fb038-status.test.ts`, `tests/m19c-damage-types.test.ts`,

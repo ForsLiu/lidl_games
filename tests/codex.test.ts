@@ -18,6 +18,12 @@ import { collectColumns, renderCodexTable, mountCodex } from '../src/ui/codex';
 import { buildCodexCollections, type CodexCollection } from '../src/ui/codex-collections';
 import { loadContent, TUNER_FILES } from '../src/sim/content';
 
+function nth<T>(arr: ArrayLike<T>, i: number, what: string): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected ${what}`);
+  return v;
+}
+
 describe('collectColumns — generic, schema-agnostic', () => {
   it('derives columns from the union of keys actually present, in first-seen order', () => {
     const rows = [
@@ -52,12 +58,12 @@ describe('renderCodexTable — a field added to a schema needs no code change he
     const bodyRows = table.querySelectorAll('tbody tr');
     expect(bodyRows.length).toBe(2);
 
-    const firstCells = Array.from(bodyRows[0].querySelectorAll('td')).map((td) => td.textContent);
+    const firstCells = Array.from(nth(bodyRows, 0, 'first body row').querySelectorAll('td')).map((td) => td.textContent);
     expect(firstCells).toEqual(['ballista', 'unknown', '7']);
 
     // Row 2 has no `freshlyAddedStat` — the column still exists, the cell is blank,
     // not dropped or misaligned.
-    const secondCells = Array.from(bodyRows[1].querySelectorAll('td')).map((td) => td.textContent);
+    const secondCells = Array.from(nth(bodyRows, 1, 'second body row').querySelectorAll('td')).map((td) => td.textContent);
     expect(secondCells).toEqual(['mortar', 'unknown', '']);
   });
 
@@ -148,9 +154,9 @@ describe('buildCodexCollections — every /data collection is reachable', () => 
     expect(headers).toContain('futureUpgradeSlot');
     expect(headers).toContain('cost'); // still carries every real field too
 
-    const firstRowCells = table.querySelectorAll('tbody tr')[0].querySelectorAll('td');
+    const firstRowCells = nth(table.querySelectorAll('tbody tr'), 0, 'first tower row').querySelectorAll('td');
     const col = headers.indexOf('futureUpgradeSlot');
-    expect(firstRowCells[col].textContent).toBe('prismatic');
+    expect(nth(firstRowCells, col, 'futureUpgradeSlot cell').textContent).toBe('prismatic');
   });
 
   it('p9c: every collection\'s tunerFile names a real TUNER_FILES entry (code-reviewer Minor #3)', () => {
@@ -175,7 +181,8 @@ describe('buildCodexCollections — every /data collection is reachable', () => 
     expect(costCol).toBeGreaterThanOrEqual(0);
 
     const rowIndex = towers.findIndex((r) => r.key === 'ballista');
-    const cell = table.querySelectorAll('tbody tr')[rowIndex].querySelectorAll('td')[costCol];
+    const cells = nth(table.querySelectorAll('tbody tr'), rowIndex, 'ballista row').querySelectorAll('td');
+    const cell = nth(cells, costCol, 'cost cell');
     expect(cell.textContent).toBe(String(ballista.cost));
   });
 });
@@ -197,10 +204,11 @@ describe('mountCodex — the assembled page', () => {
 
     const buttons = root.querySelectorAll('.sw-codex-nav-btn');
     expect(buttons.length).toBe(collections.length);
-    expect(handle.current()).toBe(collections[0].key);
+    const first = nth(collections, 0, 'first collection');
+    expect(handle.current()).toBe(first.key);
 
     const table = root.querySelector('.sw-codex-content table')!;
-    expect(table.querySelectorAll('tbody tr').length).toBe(collections[0].rows.length);
+    expect(table.querySelectorAll('tbody tr').length).toBe(first.rows.length);
   });
 
   it('switching collections re-renders the table to match the new collection', () => {

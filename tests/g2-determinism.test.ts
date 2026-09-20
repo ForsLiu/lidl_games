@@ -71,6 +71,7 @@ describe('G2 determinism', () => {
     const TICKS = 2400;
     const content = loadContent();
     const item = content.equipment.items[0];
+    if (item === undefined) throw new Error('content.equipment.items is empty');
     for (const seed of [1, 5, 13, 42, 87]) {
       const log = withSkillCommands(makeInputLog(seed, TICKS), item.slot, item.key);
       const config = cfg({ seed, ownedEquipment: { [item.key]: 1 } });
@@ -237,11 +238,19 @@ describe('rng streams', () => {
   it('draws uniformly enough for weighted picks', () => {
     const rng = new Rng(4);
     const counts = [0, 0, 0];
-    for (let i = 0; i < 30000; i++) counts[rng.weightedIndex([1, 2, 3])]++;
-    expect(counts[0] / 30000).toBeGreaterThan(0.13);
-    expect(counts[0] / 30000).toBeLessThan(0.2);
-    expect(counts[2] / 30000).toBeGreaterThan(0.45);
-    expect(counts[2] / 30000).toBeLessThan(0.55);
+    const at = (i: number): number => {
+      const v = counts[i];
+      if (v === undefined) throw new Error(`weightedIndex returned out-of-range index ${i}`);
+      return v;
+    };
+    for (let i = 0; i < 30000; i++) {
+      const idx = rng.weightedIndex([1, 2, 3]);
+      counts[idx] = at(idx) + 1;
+    }
+    expect(at(0) / 30000).toBeGreaterThan(0.13);
+    expect(at(0) / 30000).toBeLessThan(0.2);
+    expect(at(2) / 30000).toBeGreaterThan(0.45);
+    expect(at(2) / 30000).toBeLessThan(0.55);
   });
 
   it('hashes strings stably', () => {

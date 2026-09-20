@@ -5910,6 +5910,36 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped.
       74 → **67 files remain** on the allowlist. Light tier (`[polish]`, no
       `/src`/`/data` touched). — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 6 more files with real guards (never `!`): `tests/ui-fb174-
+      measured-falloff-guard.test.ts` (throw guards in `hasFalloff`'s
+      adjacent-pair loop and the chain_lightning/dash_volley falloff checks,
+      all on indices a preceding loop bound or length assertion already
+      guarantees in range; a throw on `FIRE_RECIPES[kind]` for
+      `charge_pierce`/`charge_nova`, both real, always-present keys),
+      `tests/ui-input.test.ts` (a new `firstLink(id)` helper replacing five
+      `content.treeById.get(0)!.links[0]` reads — node 0 is the
+      constellation tree's root and always has an outgoing link),
+      `tests/character-panel.test.ts` (two throw guards on `row.sources[i]`
+      and `boons[0]`, each immediately after an `expect(...).length`
+      assertion that already guarantees the index exists), `tests/codex.
+      test.ts` (a `nth<T>(arr, i, what)` helper matching the `tests/ui-
+      fb117-core-select.test.ts` precedent, used at every NodeList/array
+      indexing site — table rows, cells, first collection), `tests/fb158-
+      enemy-attack-indicators.test.ts` (local `nth`/`last` helpers replacing
+      five `hits[hits.length - 1]`/`hits[0]`-style reads, each after an
+      `expect(hits.length)` assertion), `tests/g2-determinism.test.ts` (a
+      guard on `content.equipment.items[0]`, and an `at(i)` helper for the
+      weighted-pick histogram test — confirmed `rng.weightedIndex(...)` is
+      called exactly once per loop iteration, not double-consumed by the
+      fix). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags any of the 6, no new offenders (67 → 61, exact match via
+      the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on all 6 plus the ratchet test green (108 tests); `npm
+      run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+      code-reviewer APPROVE, no findings. 67 → **61 files remain** on the
+      allowlist. Light tier (`[polish]`, no `/src`/`/data` touched). —
+      refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

@@ -434,14 +434,20 @@ describe('Constellation refund (SPEC 8.1)', () => {
    * under an account that never had this many points), so `refundBlocker`'s
    * cost branch is tested directly against a constructed one.
    */
+  function firstLink(id: number): number {
+    const first = content.treeById.get(id)?.links[0];
+    if (first === undefined) throw new Error(`node ${id} has no outgoing link`);
+    return first;
+  }
+
   function metaWithOneNode(skillPoints: number): MetaState {
-    const first = content.treeById.get(0)!.links[0];
+    const first = firstLink(0);
     return { ...defaultMeta(), skillPoints, allocated: [0, first] };
   }
 
   it('reports a node as refundable only when the skill points are there', () => {
     const cost = content.tree.respecCostPerNode;
-    const node = content.treeById.get(0)!.links[0];
+    const node = firstLink(0);
 
     const broke = metaWithOneNode(Math.max(0, cost - 1));
     expect(canRefund(broke, node)).toBe(false);
@@ -458,7 +464,7 @@ describe('Constellation refund (SPEC 8.1)', () => {
     const root = mount();
     const cost = content.tree.respecCostPerNode;
     let meta = metaWithOneNode(cost + 10);
-    const node = content.treeById.get(0)!.links[0];
+    const node = firstLink(0);
 
     const hub = new Hub(root, meta, 1, {
       settings: defaultSettings(),
@@ -482,7 +488,7 @@ describe('Constellation refund (SPEC 8.1)', () => {
     const root = mount();
     const cost = content.tree.respecCostPerNode;
     let meta = metaWithOneNode(Math.max(0, cost - 1));
-    const node = content.treeById.get(0)!.links[0];
+    const node = firstLink(0);
 
     const hub = new Hub(root, meta, 1, {
       settings: defaultSettings(),
@@ -520,7 +526,7 @@ describe('Constellation refund (SPEC 8.1)', () => {
   });
 
   it('refuses a refund that would orphan a downstream node, whatever the skill points', () => {
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(0);
     const b = content.treeById.get(a)!.links.find((l) => l !== 0)!;
     let meta = { ...defaultMeta(), skillPoints: 10 };
     meta = allocate(meta, a);
