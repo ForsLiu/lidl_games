@@ -5,7 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 111 → 105.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 105 → 98.**
+  Fixed 7 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/terrain-gate-legality.test.ts` (a `gateAt(arr, i)` helper
+  throwing on an undefined index, used for `GATES[0]`/`[1]`/`[3]` — `GATES`
+  is a fixed 4-element literal array in `src/sim/grid.ts`), `tests/ui-fb058-
+  class-select.test.ts` (throw guards on `CLASS_BANDS.swordsman`/
+  `.plaguebringer`, both real class keys present in the literal object),
+  `tests/ui-fb065-resize-listener.test.ts` (a `flushLast(rafQueue)` helper
+  replacing three `rafQueue[rafQueue.length - 1](0)` calls, each safe
+  because the listener always enqueues exactly one rAF callback on the
+  `resize` dispatch immediately preceding it), `tests/ui-fb098-tower-
+  vfx.test.ts` (a throw guard right after the file's own existing
+  `expect(entry, key).toBeDefined()`, unreachable since a failed `expect`
+  halts the test first), `tests/ui-fb105-codex-search.test.ts` (a
+  `firstRow(rows)` helper replacing three `rows[0].textContent` reads each
+  made right after asserting the rows array's length), `tests/ui-fb115-
+  fb173-area-scaled-effects.test.ts` (`lastFxRadius`'s loop binds `w.fx[i]`
+  to a local before reading it — a loop-bound tautology; hoisted
+  `content.enemies.enemies[0]?.key` to a throw-guarded `firstEnemyKey`
+  const), `tests/ui-fb146-dash-width-units-guard.test.ts` (`.split('//')[0]
+  ?? ''` — `split()` always returns at least one element). Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the 7, and
+  flags no new offenders (diffed the full actual-vs-allowlist file sets —
+  exact match); main `tsc --noEmit` clean; targeted `npx vitest run` on all
+  7 plus the ratchet test green (84/84); `npm run test:fast` green,
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor: `flushLast`'s doc comment overstated that every call site is
+  preceded by a length assertion — fixed the comment rather than adding an
+  assertion, since one call site genuinely has more than one rAF queued by
+  that point and forcing a `queuedBefore + 1` assertion there was
+  empirically false). Light tier (`[polish]`, no `/src`/`/data` touched) —
+  no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 111 → 105.**
   Fixed 6 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/q15-command-domain-fuzz.test.ts` (a local `first<T>(arr:
   readonly T[]): T` helper, throwing on an empty array, reused for

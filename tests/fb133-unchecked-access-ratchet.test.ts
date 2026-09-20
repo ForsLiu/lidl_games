@@ -30,8 +30,8 @@
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
- * then 105 files remaining as of the latest). Shrink this list as files are
- * fixed; do not add to it without a reason logged in BACKLOG.md.
+ * then 105, then 98 files remaining as of the latest). Shrink this list as
+ * files are fixed; do not add to it without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -114,7 +114,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/terrain-cost-ledger.ts',
   'tests/terrain-describe.test.ts',
   'tests/terrain-four-gates.test.ts',
-  'tests/terrain-gate-legality.test.ts',
   'tests/terrain-gate-open.test.ts',
   'tests/terrain-generation.test.ts',
   'tests/terrain-grid.test.ts',
@@ -122,17 +121,11 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/terrain-modifier-gate-jitter.test.ts',
   'tests/terrain-variety.test.ts',
   'tests/ui-audit-checks.test.ts',
-  'tests/ui-fb058-class-select.test.ts',
-  'tests/ui-fb065-resize-listener.test.ts',
   'tests/ui-fb082-overlay-geometry.test.ts',
   'tests/ui-fb091-crash-log.test.ts',
   'tests/ui-fb096-save-slots.test.ts',
   'tests/ui-fb097-zip-archive.test.ts',
-  'tests/ui-fb098-tower-vfx.test.ts',
-  'tests/ui-fb105-codex-search.test.ts',
-  'tests/ui-fb115-fb173-area-scaled-effects.test.ts',
   'tests/ui-fb117-core-select.test.ts',
-  'tests/ui-fb146-dash-width-units-guard.test.ts',
   'tests/ui-fb149-falloff-wording.test.ts',
   'tests/ui-fb174-measured-falloff-guard.test.ts',
   'tests/ui-input.test.ts',

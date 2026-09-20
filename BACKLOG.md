@@ -5567,6 +5567,46 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       source and re-ran the affected suites). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session,
+      second item)**: fixed 7 more files with real guards, none touching
+      `/src`/`/data`: `tests/terrain-gate-legality.test.ts` (a `gateAt(arr,
+      i)` helper throwing on an undefined index, used for `GATES[0]`/`[1]`/
+      `[3]` — `GATES` is a fixed 4-element literal array in `src/sim/
+      grid.ts`), `tests/ui-fb058-class-select.test.ts` (throw guards on
+      `CLASS_BANDS.swordsman`/`.plaguebringer` — real class keys, present in
+      the literal `CLASS_BANDS` object), `tests/ui-fb065-resize-
+      listener.test.ts` (a `flushLast(rafQueue)` helper, throwing on an
+      undefined last slot, replacing three `rafQueue[rafQueue.length - 1](0)`
+      calls — each site dispatches a native `resize` event immediately
+      before, and the listener always enqueues exactly one rAF callback on
+      that dispatch, so the slot is always populated even where a preceding
+      length assertion doesn't happen to be present), `tests/ui-fb098-tower-
+      vfx.test.ts` (a throw guard right after the file's own existing
+      `expect(entry, key).toBeDefined()`, purely for TS narrowing — the throw
+      is unreachable since a failed `expect` halts the test first),
+      `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper,
+      throwing on an undefined index 0, replacing three `rows[0].textContent`
+      reads each made right after asserting the rows array's length),
+      `tests/ui-fb115-fb173-area-scaled-effects.test.ts` (`lastFxRadius`'s
+      loop binds `w.fx[i]` to a local and checks it's defined before reading
+      — a loop-bound tautology, not a behavior change; hoisted
+      `content.enemies.enemies[0]?.key` to a throw-guarded module-level
+      `firstEnemyKey` const), `tests/ui-fb146-dash-width-units-guard.test.ts`
+      (`.split('//')[0] ?? ''` — `String.prototype.split` always returns at
+      least one element, so this is a dead-code fallback, not new behavior).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 7, and flags no new offenders (diffed the full
+      actual-vs-allowlist file sets — exact match); main `tsc --noEmit`
+      clean; targeted `npx vitest run` on all 7 plus the ratchet test green
+      (84/84); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. 105 → **98 files remain** on the allowlist.
+      code-reviewer APPROVE (one Minor: the `flushLast` doc comment
+      overstated that every call site is preceded by a length assertion —
+      fixed the comment to describe the real, still-safe invariant instead of
+      adding an assertion that turned out false at the third call site,
+      where earlier actions in the test already leave more than one rAF
+      queued). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

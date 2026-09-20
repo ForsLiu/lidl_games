@@ -28,6 +28,16 @@ import type { World } from '../src/sim/world';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 
+// Every call site dispatches a native 'resize' event immediately before
+// calling this, and the listener (src/ui/main.ts) always enqueues exactly
+// one rAF callback on that dispatch, so the last slot is always populated —
+// not all call sites assert the queue length explicitly first.
+function flushLast(rafQueue: FrameRequestCallback[]): void {
+  const cb = rafQueue[rafQueue.length - 1];
+  if (cb === undefined) throw new Error('rafQueue must be non-empty');
+  cb(0);
+}
+
 function mount(rafQueue: FrameRequestCallback[]): HTMLElement {
   document.head.innerHTML = `<style>${CSS}</style>`;
   document.body.innerHTML = '<div id="app"></div>';
@@ -73,13 +83,13 @@ describe('fb065: the window resize listener coalesces bursts and always targets 
     expect(rafQueue.length).toBe(queuedBefore + 1);
     expect(spy).not.toHaveBeenCalled();
 
-    rafQueue[rafQueue.length - 1](0);
+    flushLast(rafQueue);
     expect(spy).toHaveBeenCalledTimes(1);
 
     // A later burst, after the first flush, queues (and flushes) again.
     window.dispatchEvent(new Event('resize'));
     expect(rafQueue.length).toBe(queuedBefore + 2);
-    rafQueue[rafQueue.length - 1](0);
+    flushLast(rafQueue);
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
@@ -101,7 +111,7 @@ describe('fb065: the window resize listener coalesces bursts and always targets 
     const newSpy = vi.spyOn(newRenderer, 'resize');
 
     window.dispatchEvent(new Event('resize'));
-    rafQueue[rafQueue.length - 1](0);
+    flushLast(rafQueue);
 
     expect(newSpy).toHaveBeenCalledTimes(1);
     expect(oldSpy).not.toHaveBeenCalled();

@@ -23,6 +23,13 @@ function visibleBodyRows(root: HTMLElement): HTMLTableRowElement[] {
   return rows.filter((tr) => !tr.classList.contains('sw-codex-row-hidden'));
 }
 
+// Only called right after asserting the rows array has at least one entry.
+function firstRow(rows: HTMLTableRowElement[]): HTMLTableRowElement {
+  const row = rows[0];
+  if (row === undefined) throw new Error('expected at least one visible row');
+  return row;
+}
+
 describe('fb105: Codex search/filter box', () => {
   it('renders a search input above the table for every collection', () => {
     const root = mount();
@@ -49,7 +56,7 @@ describe('fb105: Codex search/filter box', () => {
 
     const visible = visibleBodyRows(root);
     expect(visible.length).toBe(1);
-    expect(visible[0].textContent).toContain(ballista.key);
+    expect(firstRow(visible).textContent).toContain(ballista.key);
 
     input.value = '';
     input.dispatchEvent(new Event('input'));
@@ -76,7 +83,7 @@ describe('fb105: Codex search/filter box', () => {
     input.dispatchEvent(new Event('input'));
     let visible = visibleBodyRows(root);
     expect(visible.length).toBe(1);
-    expect(visible[0].textContent).toContain('frost-tower');
+    expect(firstRow(visible).textContent).toContain('frost-tower');
 
     input.value = '';
     input.dispatchEvent(new Event('input'));
@@ -95,7 +102,7 @@ describe('fb105: Codex search/filter box', () => {
     input.value = 'ballista';
     input.dispatchEvent(new Event('input'));
     expect(visibleBodyRows(root).length).toBe(1);
-    expect(visibleBodyRows(root)[0].textContent).toContain('Ballista');
+    expect(firstRow(visibleBodyRows(root)).textContent).toContain('Ballista');
   });
 
   it('shows a "no matches" message and an updated count when the query matches nothing', () => {
