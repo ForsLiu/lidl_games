@@ -5,7 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 105 → 98.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 98 → 92.**
+  Fixed 6 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/class-board.test.ts` (three regex-capture-group fixes,
+  each on a pattern whose accessed group is non-optional, so a successful
+  match always populates it), `tests/equip-hasequipment-roster.test.ts`
+  (a `.split('\n', 1)[0] ?? ''` safe default, two regex-group throw
+  guards, and a `.filter((k): k is string => ...)` type guard),
+  `tests/equip-spec-ledger.test.ts` (fixed for free by tightening
+  `defaultReads`'s return type in `tests/equip-spec-ledger.ts` from
+  `readonly RegExp[]` to `readonly [RegExp, RegExp]` — it always returns a
+  2-element literal; that file itself stays on the allowlist, with 14
+  unrelated pre-existing errors elsewhere), `tests/fb013-timelord.test.ts`
+  (a `firstEnemyKey(w)` helper, matching the established precedent,
+  replacing three `w.content.enemies.enemies[0].key` reads; a throw guard
+  on `w.warden.dots[0]`), `tests/fb031-gem-accelerate.test.ts` (a
+  `firstGem(w)` helper replacing three `w.gems[0]` reads),
+  `tests/p-core-c-plant.test.ts` (throw guards on `e.dots[0]` and a
+  `baseHp[i]` filter-callback read). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 6, and flags no new
+  offenders (diffed the full actual-vs-allowlist file sets — exact match);
+  main `tsc --noEmit` clean; targeted `npx vitest run` on all 6 plus the
+  ratchet test green (152/152); `npm run test:fast` green, unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE (no
+  findings). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 105 → 98.**
   Fixed 7 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/terrain-gate-legality.test.ts` (a `gateAt(arr, i)` helper
   throwing on an undefined index, used for `GATES[0]`/`[1]`/`[3]` — `GATES`

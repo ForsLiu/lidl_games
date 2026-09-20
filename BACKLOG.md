@@ -5607,6 +5607,43 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       where earlier actions in the test already leave more than one rAF
       queued). Light tier (`[polish]`, no `/src`/`/data` touched) — no
       qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session,
+      third item)**: fixed 6 more files with real guards, none touching
+      `/src`/`/data`: `tests/class-board.test.ts` (three regex-capture-group
+      fixes — `placerNames`'s loop destructures both non-optional groups and
+      `continue`s if either is undefined; `buildCallTiles`'s `m[1]` extracted
+      to a checked local; the warden.x/y-write census's `.map` destructures
+      and throws on either group, all three patterns having only non-optional
+      groups so a successful match always populates them),
+      `tests/equip-hasequipment-roster.test.ts` (`.split('\n', 1)[0] ?? ''` —
+      split always returns ≥1 element; a `key[2]` regex-group throw guard; a
+      `row!.split('|')[1]` throw guard, leaving the pre-existing `row!` alone
+      as out of scope; a `registryBlock![1]` throw guard plus a type-guard
+      filter replacing a bare `!== 'none'`), `tests/equip-spec-ledger.test.ts`
+      (fixed for free by tightening `defaultReads`'s return type in
+      `tests/equip-spec-ledger.ts` from `readonly RegExp[]` to `readonly
+      [RegExp, RegExp]` — it always returns a 2-element literal; that file
+      itself stays on the allowlist, since it has 14 unrelated pre-existing
+      errors elsewhere), `tests/fb013-timelord.test.ts` (a `firstEnemyKey(w)`
+      helper, matching the `firstEnemyKey()` precedent from an earlier batch,
+      replacing three `w.content.enemies.enemies[0].key` reads across three
+      World instances; a throw guard on `w.warden.dots[0]` right after
+      asserting `dots.length === 1`), `tests/fb031-gem-accelerate.test.ts` (a
+      `firstGem(w)` helper replacing three `w.gems[0]` reads, each after the
+      test's own setup pushes exactly one gem), `tests/p-core-c-plant.test.ts`
+      (a throw guard on `e.dots[0]` right after asserting `dots.length ===
+      1`, reused for three property reads; a `baseHp[i]` throw guard inside a
+      `.filter()` where `baseHp = enemies.map(...)` guarantees the same
+      index range). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+      no longer flags any of the 6, and flags no new offenders (diffed the
+      full actual-vs-allowlist file sets — exact match); main `tsc --noEmit`
+      clean; targeted `npx vitest run` on all 6 plus the ratchet test green
+      (152/152); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. 98 → **92 files remain** on the allowlist.
+      code-reviewer APPROVE (no findings —
+      independently traced every regex-group and tuple-type claim to source).
+      Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

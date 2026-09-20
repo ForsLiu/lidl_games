@@ -173,7 +173,7 @@ export function escapeForRegex(text: string): string {
  * What a pointer must find in its block when its row declares no `reads`: the
  * row's own stat key, bounded on the left, and its own item/class key.
  */
-export function defaultReads(stat: string, owner: string): readonly RegExp[] {
+export function defaultReads(stat: string, owner: string): readonly [RegExp, RegExp] {
   return [readsStat(stat), new RegExp(escapeForRegex(owner))];
 }
 

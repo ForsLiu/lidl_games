@@ -114,9 +114,15 @@ const CALL_SITES: readonly CallSite[] = SRC_FILES.flatMap((full) => {
   // `hasEquipment(this.w, …)` and a double-quoted key are both call sites, and
   // a scan that cannot see them is a barrier with a hole in it (code review).
   for (const m of code.matchAll(/hasEquipment\(\s*[^,)]+,\s*(?:' *'|" *")/g)) {
-    const key = /hasEquipment\(\s*[^,)]+,\s*(['"])([^'"]+)\1/.exec(raw.slice(m.index!).split('\n', 1)[0]);
+    // .split(str, 1) always returns at least one element.
+    const line = raw.slice(m.index!).split('\n', 1)[0] ?? '';
+    const key = /hasEquipment\(\s*[^,)]+,\s*(['"])([^'"]+)\1/.exec(line);
     if (!key) throw new Error(`c031: cannot read the item key at ${full}:${m.index}`);
-    out.push({ file: rel(full), key: key[2] });
+    // Group 2 is non-optional in the pattern, so a successful match always
+    // populates it.
+    const itemKey = key[2];
+    if (itemKey === undefined) throw new Error(`c031: unreachable — group 2 is required at ${full}:${m.index}`);
+    out.push({ file: rel(full), key: itemKey });
   }
   return out;
 });
@@ -252,7 +258,9 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
       // a `toContain` here passes for the one mis-pairing §7 most needs kept
       // apart (code review measured it).
       const name = content.equipmentByKey.get(a.key)!.name.toLowerCase();
-      expect(row!.split('|')[1].trim().toLowerCase(), `${a.key}: the clause is in another item's row`).toBe(name);
+      const firstCell = row!.split('|')[1];
+      if (firstCell === undefined) throw new Error(`${a.key}: the §7 row has no first cell`);
+      expect(firstCell.trim().toLowerCase(), `${a.key}: the clause is in another item's row`).toBe(name);
       expect(a.why.trim().length, `${a.key}: no reason given`).toBeGreaterThan(20);
     }
   });
@@ -286,7 +294,13 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
       /const KNOWN_EQUIPMENT_EFFECT_KEYS = new Set<string>\(\[([\s\S]*?)\]\);/,
     );
     expect(registryBlock, 'the effectKey registry moved — c023 and c031 both describe it').toBeDefined();
-    const listed = [...registryBlock![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).filter((k) => k !== 'none');
+    // Group 1 is non-optional in the pattern, so a successful match always
+    // populates it.
+    const registryBody = registryBlock![1];
+    if (registryBody === undefined) throw new Error('unreachable: group 1 is required');
+    const listed = [...registryBody.matchAll(/'([a-z_]+)'/g)]
+      .map((m) => m[1])
+      .filter((k): k is string => k !== undefined && k !== 'none');
     for (const key of new Set(CALL_SITES.map((c) => c.key))) {
       expect(listed, `${key} is gated in classes.ts but missing from the effectKey registry`).toContain(key);
     }
