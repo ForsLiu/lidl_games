@@ -5532,7 +5532,132 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       before commit; one Nit left as informational). Light tier (`[polish]`,
       no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
-    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+    - **Ratchet reconciled 2026-09-20 (Integrator merge, PR #122)**: two
+      scheduled-routine sessions independently shrunk the same 111-file
+      allowlist in parallel branches — session A reached 92 (6 unique
+      fixes: `tests/class-board.test.ts`, `tests/equip-hasequipment-
+      roster.test.ts`, `tests/equip-spec-ledger.test.ts`, `tests/fb013-
+      timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts`, `tests/p-
+      core-c-plant.test.ts`, plus 13 files also fixed by session B) and
+      session B reached 96 (2 unique fixes: `tools/perf-ratio.ts`,
+      `tools/sweep.ts`, plus the same 13 shared files). On the 13 shared
+      files, session B's guards were kept (already on `master`); both
+      sessions' unique fixes were kept since they don't overlap. Net: 111 →
+      **90 files remain** on the allowlist. `npm run test:fast` green
+      post-merge. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, session A)**: fixed 6 more
+      files with real guards, none touching `/src`/`/data`:
+      `tests/q15-command-domain-fuzz.test.ts` (a local `first<T>(arr:
+      readonly T[]): T` helper, throwing on an empty array, reused at both
+      `FIELD_SPECS[0]`/`FAMILIES[0]` sites and `w.content.towers.towers[0]` —
+      `FAMILIES.length === 5` is asserted elsewhere in the same file, so `[0]`
+      is unreachable-undefined), `tests/q3-save-fuzz.test.ts` (`byFamily
+      [family]` guarded — `family` is drawn from the same `FAMILIES` the
+      `byFamily` record is keyed by, traced through `mutate()`'s unconditional
+      `mut.family = only` assignment), `tests/q8-save-roundtrip.test.ts`
+      (`cases[i % cases.length]` guarded — `cases` is a fixed 5-element array
+      from `buildGrowthCases()`), `tests/q9-phase-coverage.test.ts`
+      (`RECORDED_FLOOR[policy]`/`RECORDED_FLOOR.hybrid` guarded — `policy`
+      comes from `Object.keys(RECORDED_FLOOR)` and `.hybrid` is a literal key,
+      both always present), `tests/terrain-cost-retry-ratio.test.ts`
+      (`seeds[i]`/`rawMin[i]` guarded inside a `for (i < seeds.length)` loop —
+      `runLedger()` allocates `rawMin` to `seeds.length` and fills every
+      index; `costs[costs.length - 1]` guarded, same non-empty seed list),
+      `tests/terrain-cost.test.ts` (`SAMPLE[0]` guarded — `SAMPLE` is a fixed
+      4-element literal array in `terrain-cost-ledger.ts`). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 6 (and
+      flags no new offenders — diffed the full actual-vs-allowlist file sets,
+      exact match); main `tsc --noEmit` clean; targeted `npx vitest run` on
+      all 6 plus the ratchet test green, aside from
+      `tests/q9-phase-coverage.test.ts`'s 13 pre-existing failures (a
+      phase-reachability census not reaching `act2`/`levelup` for the `idle`
+      policy), confirmed present identically on unmodified HEAD via `git
+      stash` — not a regression, and that file is already excluded from
+      `vitest.fast.config.ts`'s fast tier so it doesn't gate this item;
+      `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped. 111 → **105 files remain** on the allowlist. code-reviewer
+      APPROVE (no findings — independently traced every guard's invariant to
+      source and re-ran the affected suites). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session,
+      second item)**: fixed 7 more files with real guards, none touching
+      `/src`/`/data`: `tests/terrain-gate-legality.test.ts` (a `gateAt(arr,
+      i)` helper throwing on an undefined index, used for `GATES[0]`/`[1]`/
+      `[3]` — `GATES` is a fixed 4-element literal array in `src/sim/
+      grid.ts`), `tests/ui-fb058-class-select.test.ts` (throw guards on
+      `CLASS_BANDS.swordsman`/`.plaguebringer` — real class keys, present in
+      the literal `CLASS_BANDS` object), `tests/ui-fb065-resize-
+      listener.test.ts` (a `flushLast(rafQueue)` helper, throwing on an
+      undefined last slot, replacing three `rafQueue[rafQueue.length - 1](0)`
+      calls — each site dispatches a native `resize` event immediately
+      before, and the listener always enqueues exactly one rAF callback on
+      that dispatch, so the slot is always populated even where a preceding
+      length assertion doesn't happen to be present), `tests/ui-fb098-tower-
+      vfx.test.ts` (a throw guard right after the file's own existing
+      `expect(entry, key).toBeDefined()`, purely for TS narrowing — the throw
+      is unreachable since a failed `expect` halts the test first),
+      `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper,
+      throwing on an undefined index 0, replacing three `rows[0].textContent`
+      reads each made right after asserting the rows array's length),
+      `tests/ui-fb115-fb173-area-scaled-effects.test.ts` (`lastFxRadius`'s
+      loop binds `w.fx[i]` to a local and checks it's defined before reading
+      — a loop-bound tautology, not a behavior change; hoisted
+      `content.enemies.enemies[0]?.key` to a throw-guarded module-level
+      `firstEnemyKey` const), `tests/ui-fb146-dash-width-units-guard.test.ts`
+      (`.split('//')[0] ?? ''` — `String.prototype.split` always returns at
+      least one element, so this is a dead-code fallback, not new behavior).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 7, and flags no new offenders (diffed the full
+      actual-vs-allowlist file sets — exact match); main `tsc --noEmit`
+      clean; targeted `npx vitest run` on all 7 plus the ratchet test green
+      (84/84); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. 105 → **98 files remain** on the allowlist.
+      code-reviewer APPROVE (one Minor: the `flushLast` doc comment
+      overstated that every call site is preceded by a length assertion —
+      fixed the comment to describe the real, still-safe invariant instead of
+      adding an assertion that turned out false at the third call site,
+      where earlier actions in the test already leave more than one rAF
+      queued). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session,
+      third item)**: fixed 6 more files with real guards, none touching
+      `/src`/`/data`: `tests/class-board.test.ts` (three regex-capture-group
+      fixes — `placerNames`'s loop destructures both non-optional groups and
+      `continue`s if either is undefined; `buildCallTiles`'s `m[1]` extracted
+      to a checked local; the warden.x/y-write census's `.map` destructures
+      and throws on either group, all three patterns having only non-optional
+      groups so a successful match always populates them),
+      `tests/equip-hasequipment-roster.test.ts` (`.split('\n', 1)[0] ?? ''` —
+      split always returns ≥1 element; a `key[2]` regex-group throw guard; a
+      `row!.split('|')[1]` throw guard, leaving the pre-existing `row!` alone
+      as out of scope; a `registryBlock![1]` throw guard plus a type-guard
+      filter replacing a bare `!== 'none'`), `tests/equip-spec-ledger.test.ts`
+      (fixed for free by tightening `defaultReads`'s return type in
+      `tests/equip-spec-ledger.ts` from `readonly RegExp[]` to `readonly
+      [RegExp, RegExp]` — it always returns a 2-element literal; that file
+      itself stays on the allowlist, since it has 14 unrelated pre-existing
+      errors elsewhere), `tests/fb013-timelord.test.ts` (a `firstEnemyKey(w)`
+      helper, matching the `firstEnemyKey()` precedent from an earlier batch,
+      replacing three `w.content.enemies.enemies[0].key` reads across three
+      World instances; a throw guard on `w.warden.dots[0]` right after
+      asserting `dots.length === 1`), `tests/fb031-gem-accelerate.test.ts` (a
+      `firstGem(w)` helper replacing three `w.gems[0]` reads, each after the
+      test's own setup pushes exactly one gem), `tests/p-core-c-plant.test.ts`
+      (a throw guard on `e.dots[0]` right after asserting `dots.length ===
+      1`, reused for three property reads; a `baseHp[i]` throw guard inside a
+      `.filter()` where `baseHp = enemies.map(...)` guarantees the same
+      index range). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+      no longer flags any of the 6, and flags no new offenders (diffed the
+      full actual-vs-allowlist file sets — exact match); main `tsc --noEmit`
+      clean; targeted `npx vitest run` on all 6 plus the ratchet test green
+      (152/152); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. 98 → **92 files remain** on the allowlist.
+      code-reviewer APPROVE (no findings —
+      independently traced every regex-group and tuple-type claim to source).
+      Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, session B)**:
       fixed 10 more files with real guards, none touching `/src`/`/data`:
       `tests/q15-command-domain-fuzz.test.ts` (a `firstFieldSpec()` helper
       reused at both call sites, plus a guarded

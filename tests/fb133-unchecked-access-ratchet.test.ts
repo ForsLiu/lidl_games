@@ -29,9 +29,10 @@
  * `src/sim/sundering.ts`, `src/sim/terrain/config.ts`) and, independently,
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
- * in similar batches since (155, then 147, then 137, then 121, then 111
- * files remaining as of the latest). Shrink this list as files are fixed;
- * do not add to it without a reason logged in BACKLOG.md.
+ * in similar batches since (155, then 147, then 137, then 121, then 111,
+ * then 105, then 98, then 92 files remaining as of the latest). Shrink this
+ * list as files are fixed; do not add to it without a reason logged in
+ * BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
