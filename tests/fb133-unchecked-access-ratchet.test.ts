@@ -29,9 +29,9 @@
  * `src/sim/sundering.ts`, `src/sim/terrain/config.ts`) and, independently,
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
- * in similar batches since (155, then 147, then 137, then 121, then 111
- * files remaining as of the latest). Shrink this list as files are fixed;
- * do not add to it without a reason logged in BACKLOG.md.
+ * in similar batches since (155, then 147, then 137, then 121, then 111,
+ * then 105 files remaining as of the latest). Shrink this list as files are
+ * fixed; do not add to it without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -101,12 +101,8 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p6e-class-diversity.test.ts',
   'tests/p9c-tuner-save.test.ts',
   'tests/q120-order1-taunt.test.ts',
-  'tests/q15-command-domain-fuzz.test.ts',
   'tests/q21-weapon-boundary-fuzz.test.ts',
-  'tests/q3-save-fuzz.test.ts',
   'tests/q7-data-fuzz.test.ts',
-  'tests/q8-save-roundtrip.test.ts',
-  'tests/q9-phase-coverage.test.ts',
   'tests/render-fb055-basic-attack-vfx.test.ts',
   'tests/render-fb060-dot-tick-numbers.test.ts',
   'tests/render-fb116-terrain-rendering.test.ts',
@@ -116,8 +112,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/terrain-config-tiles.test.ts',
   'tests/terrain-core-placement.test.ts',
   'tests/terrain-cost-ledger.ts',
-  'tests/terrain-cost-retry-ratio.test.ts',
-  'tests/terrain-cost.test.ts',
   'tests/terrain-describe.test.ts',
   'tests/terrain-four-gates.test.ts',
   'tests/terrain-gate-legality.test.ts',

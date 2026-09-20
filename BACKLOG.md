@@ -5532,6 +5532,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       before commit; one Nit left as informational). Light tier (`[polish]`,
       no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 6 more
+      files with real guards, none touching `/src`/`/data`:
+      `tests/q15-command-domain-fuzz.test.ts` (a local `first<T>(arr:
+      readonly T[]): T` helper, throwing on an empty array, reused at both
+      `FIELD_SPECS[0]`/`FAMILIES[0]` sites and `w.content.towers.towers[0]` —
+      `FAMILIES.length === 5` is asserted elsewhere in the same file, so `[0]`
+      is unreachable-undefined), `tests/q3-save-fuzz.test.ts` (`byFamily
+      [family]` guarded — `family` is drawn from the same `FAMILIES` the
+      `byFamily` record is keyed by, traced through `mutate()`'s unconditional
+      `mut.family = only` assignment), `tests/q8-save-roundtrip.test.ts`
+      (`cases[i % cases.length]` guarded — `cases` is a fixed 5-element array
+      from `buildGrowthCases()`), `tests/q9-phase-coverage.test.ts`
+      (`RECORDED_FLOOR[policy]`/`RECORDED_FLOOR.hybrid` guarded — `policy`
+      comes from `Object.keys(RECORDED_FLOOR)` and `.hybrid` is a literal key,
+      both always present), `tests/terrain-cost-retry-ratio.test.ts`
+      (`seeds[i]`/`rawMin[i]` guarded inside a `for (i < seeds.length)` loop —
+      `runLedger()` allocates `rawMin` to `seeds.length` and fills every
+      index; `costs[costs.length - 1]` guarded, same non-empty seed list),
+      `tests/terrain-cost.test.ts` (`SAMPLE[0]` guarded — `SAMPLE` is a fixed
+      4-element literal array in `terrain-cost-ledger.ts`). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 6 (and
+      flags no new offenders — diffed the full actual-vs-allowlist file sets,
+      exact match); main `tsc --noEmit` clean; targeted `npx vitest run` on
+      all 6 plus the ratchet test green, aside from
+      `tests/q9-phase-coverage.test.ts`'s 13 pre-existing failures (a
+      phase-reachability census not reaching `act2`/`levelup` for the `idle`
+      policy), confirmed present identically on unmodified HEAD via `git
+      stash` — not a regression, and that file is already excluded from
+      `vitest.fast.config.ts`'s fast tier so it doesn't gate this item;
+      `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped. 111 → **105 files remain** on the allowlist. code-reviewer
+      APPROVE (no findings — independently traced every guard's invariant to
+      source and re-ran the affected suites). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

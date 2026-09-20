@@ -70,7 +70,9 @@ describe('q9 — phase-reachability census', () => {
   it.each(Object.keys(RECORDED_FLOOR))('%s reaches at least its recorded floor', (policy) => {
     const row = byPolicy.get(policy);
     expect(row).toBeDefined();
+    // `policy` is drawn from Object.keys(RECORDED_FLOOR), so it is always a key.
     const floor = RECORDED_FLOOR[policy];
+    if (floor === undefined) throw new Error(`missing RECORDED_FLOOR entry for ${policy}`);
     expect(isSuperset(row!.reached, floor)).toBe(true);
   });
 
@@ -132,6 +134,7 @@ describe('q9 — phase-reachability census', () => {
       unreached: ['levelup'],
     };
     const floor = RECORDED_FLOOR.hybrid;
+    if (floor === undefined) throw new Error('missing RECORDED_FLOOR.hybrid entry');
     expect(isSuperset(missingLevelup.reached, floor)).toBe(false);
     // And the honest case still passes, so the guard isn't just always-false.
     expect(isSuperset(ALL_PHASES.slice(), floor)).toBe(true);

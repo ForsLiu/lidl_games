@@ -5,7 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 121 → 111.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 111 → 105.**
+  Fixed 6 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/q15-command-domain-fuzz.test.ts` (a local `first<T>(arr:
+  readonly T[]): T` helper, throwing on an empty array, reused for
+  `FIELD_SPECS[0]`/`FAMILIES[0]`/`w.content.towers.towers[0]` — `FAMILIES.
+  length === 5` is asserted elsewhere in the same file, so `[0]` is
+  unreachable-undefined), `tests/q3-save-fuzz.test.ts` (`byFamily[family]`
+  guarded — traced `mutate()`'s unconditional `mut.family = only`
+  assignment to confirm the key is always present), `tests/q8-save-
+  roundtrip.test.ts` (`cases[i % cases.length]` guarded — `cases` is a
+  fixed 5-element array from `buildGrowthCases()`), `tests/q9-phase-
+  coverage.test.ts` (`RECORDED_FLOOR[policy]`/`RECORDED_FLOOR.hybrid`
+  guarded — `policy` is drawn from `Object.keys(RECORDED_FLOOR)` and
+  `.hybrid` is a literal key, both always present), `tests/terrain-cost-
+  retry-ratio.test.ts` (`seeds[i]`/`rawMin[i]` guarded inside a `for (i <
+  seeds.length)` loop — `runLedger()` allocates `rawMin` to `seeds.length`
+  and fills every index; `costs[costs.length - 1]` guarded, same non-empty
+  seed list), `tests/terrain-cost.test.ts` (`SAMPLE[0]` guarded — `SAMPLE`
+  is a fixed 4-element literal array). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 6, and flags no new
+  offenders (diffed the full actual-vs-allowlist file sets — exact match);
+  main `tsc --noEmit` clean; targeted `npx vitest run` on all 6 plus the
+  ratchet test green, aside from `tests/q9-phase-coverage.test.ts`'s 13
+  pre-existing failures (a phase-reachability census not reaching `act2`/
+  `levelup` for the `idle` policy), confirmed present identically on
+  unmodified HEAD via `git stash` — not a regression, and that file is
+  already excluded from `vitest.fast.config.ts`'s fast tier so it doesn't
+  gate this item; `npm run test:fast` green, unchanged at 315 files / 4548
+  passed / 35 skipped. code-reviewer APPROVE (no findings). Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 121 → 111.**
   Fixed 10 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/a1-run-length.test.ts` (dead code inside a `describe.skip`
   block — `?? 0` guards are purely compile-time, matching the earlier

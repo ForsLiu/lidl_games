@@ -71,7 +71,12 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     const retryRaw: number[] = [];
     const plainRaw: number[] = [];
     for (let i = 0; i < seeds.length; i++) {
-      (retrySet.has(seeds[i]) ? retryRaw : plainRaw).push(rawMin[i]);
+      // `seeds`/`rawMin` are runLedger()'s parallel per-seed arrays, so both
+      // indices are in range for i < seeds.length.
+      const seed = seeds[i];
+      const raw = rawMin[i];
+      if (seed === undefined || raw === undefined) throw new Error('runLedger arrays out of sync');
+      (retrySet.has(seed) ? retryRaw : plainRaw).push(raw);
     }
     expect(retryRaw.length).toBe(MEASURED.retryCount);
 
@@ -94,7 +99,9 @@ describe('fb064z — the retry cost ratio (timing)', () => {
     // identity itself is host-local — `MEASURED.worstSeed` names whichever
     // retry seed this host's own runs happened to read as worst, and a
     // different host is free to name the other one.
-    const [worst] = costs[costs.length - 1];
+    const worstEntry = costs[costs.length - 1];
+    if (worstEntry === undefined) throw new Error('costs must be non-empty');
+    const [worst] = worstEntry;
     void worst;
   });
 });
