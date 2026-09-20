@@ -146,7 +146,7 @@ describe('fb077 — stranded-Core seeds resolve via seed+1 retry (item 3)', () =
 
   it('the raw generated map at seed 2722 really does strand the hardcoded Core (documents the bug applyRunTerrain works around)', () => {
     const gates = GATES.slice(0, 3);
-    const map = generateTerrain(STRANDED_CORE_SEEDS[0], terrainCfg, gates);
+    const map = generateTerrain(STRANDED_CORE_SEEDS[0] ?? 2722, terrainCfg, gates);
     const grid = new Grid();
     grid.applyTerrain(terrainOverlay(map, terrainCfg));
     grid.refresh();

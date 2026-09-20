@@ -5297,6 +5297,35 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       caller, fine as defensive typing). Light tier per this item's `[polish]`
       tag and no `/src` changes — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 8 more
+      test files with real guards, all one-error-each —
+      `tests/equip-effectkey-reach.test.ts`, `tests/fb025-enemy-hp-bars.test.ts`,
+      `tests/fb084-summon-cap-stat.test.ts` (all three: the shared
+      `content.enemies.enemies[0].key` spawn-helper pattern now throws if the
+      roster is empty, matching `class-kit-liveness.test.ts`'s own `dummy()`
+      convention), `tests/fb019-training-grounds.test.ts` (a rendered
+      `<select>` option read throws if no option rendered, already proven
+      impossible by a preceding `options.length > 0` assertion),
+      `tests/fb028-effect-text.test.ts` (a `NodeList` row read by an
+      already-found `findIndex` throws if the row is missing),
+      `tests/fb077-terrain-wiring.test.ts` (`STRANDED_CORE_SEEDS[0] ?? 2722`,
+      a literal-array default matching the array's own first element),
+      `tests/fb086-blood-tithe-lifesteal.test.ts` (a `damageByWeapon` record
+      read throws if undefined, unreachable given the immediately preceding
+      `toBeGreaterThan(0)` assertion), `tests/fb140-ci-workflow.test.ts` (a
+      regex capture-group read throws instead of assuming the match).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 8; `npx tsc --noEmit` (main config) clean; `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped; targeted
+      `npx vitest run` on all 8 plus the ratchet test green (97 passed). 187 →
+      **179 files remain** on the allowlist. code-reviewer APPROVE (one
+      Minor: fb019's `options[0] ?? ''` empty-string fallback was
+      inconsistent with the batch's own throw-guard convention and could mask
+      a real failure as a confusing `false` instead of a clear error — fixed
+      to a `throw` guard before commit; one Nit: fb086's guard-after-assert
+      ordering is stylistically unusual but correct, left as-is). Light tier
+      per this item's `[polish]` tag and no `/src`/`/data` changes — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
