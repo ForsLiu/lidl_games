@@ -78,6 +78,12 @@ function reload(): void {
   ensureActiveSlotMigrated();
 }
 
+function nth<T extends Node>(list: NodeListOf<T>, i: number): T {
+  const v = list[i];
+  if (v === undefined) throw new Error(`expected index ${i} in a ${list.length}-item NodeList`);
+  return v;
+}
+
 /** The `skillPoints` stored in `slot`'s own dedicated key, or null if it has none. */
 function slotSkillPoints(slot: number): number | null {
   const raw = localStorage.getItem(`stonewake.save.slot${slot + 1}.v1`);
@@ -387,7 +393,7 @@ describe('fb096: save-slots module', () => {
           .forEach((line, i) => {
             const trimmed = line.trimStart();
             if (trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('//')) return;
-            if (SAVE_META_REF.test(line.split('//')[0])) offenders.push(`${rel}:${i + 1}: ${trimmed}`);
+            if (SAVE_META_REF.test(line.split('//')[0] ?? '')) offenders.push(`${rel}:${i + 1}: ${trimmed}`);
           });
       }
     }
@@ -430,8 +436,8 @@ describe('fb096: Settings tab Save Slots panel', () => {
     expect(rows.length).toBe(SAVE_SLOT_COUNT);
     expect(root.textContent).toContain('Slot 1 (active)');
     const switchButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-switch]');
-    expect(switchButtons[0].disabled).toBe(true);
-    expect(switchButtons[1].disabled).toBe(false);
+    expect(nth(switchButtons, 0).disabled).toBe(true);
+    expect(nth(switchButtons, 1).disabled).toBe(false);
   });
 
   it('an empty slot is labeled empty and its Delete button is disabled', () => {
@@ -439,7 +445,7 @@ describe('fb096: Settings tab Save Slots panel', () => {
     const { root } = openHub();
     expect(root.textContent).toContain('Slot 2 — empty');
     const deleteButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-delete]');
-    expect(deleteButtons[1].disabled).toBe(true);
+    expect(nth(deleteButtons, 1).disabled).toBe(true);
   });
 
   it('clicking Switch moves the active slot and reloads the page immediately, without touching in-memory meta', () => {

@@ -61,21 +61,31 @@ const OCCUPANCY_TITLE = /^\s*it\((['"`]).*every target tile already occupied.*\1
  * `});` match is what let a `}, 20000);` closer swallow the next block there,
  * and p6d is a file this lane cannot edit if it ever grows one.
  */
+/** The leading-whitespace pattern always matches, even an empty string, so `null` is impossible. */
+function leadingWhitespaceLen(s: string): number {
+  const m = /^\s*/.exec(s);
+  if (!m) throw new Error('class-p6d-agreement: leading-whitespace regex failed to match — impossible');
+  return m[0].length;
+}
+
 function occupancyBlock(text: string): string {
   const ls = text.split('\n');
   const hits = ls.map((l, i) => [l, i] as const).filter(([l]) => OCCUPANCY_TITLE.test(l));
-  if (hits.length !== 1) {
+  const first = hits[0];
+  if (hits.length !== 1 || !first) {
     throw new Error(
       `class-p6d-agreement: ${P6D_FILE} has ${hits.length} "every target tile already occupied" tests, expected 1 ` +
         '— the Ice Wall occupancy row was renamed or duplicated, so the agreement cannot be read (this is a parse ' +
         'failure, not a re-aim)',
     );
   }
-  const [line, i] = hits[0];
-  const indent = /^\s*/.exec(line)![0].length;
+  const [line, i] = first;
+  const indent = leadingWhitespaceLen(line);
   for (let j = i + 1; j < ls.length; j++) {
-    if (ls[j].trim() === '') continue;
-    if (/^\s*/.exec(ls[j])![0].length > indent) continue;
+    const row = ls[j];
+    if (row === undefined) throw new Error(`class-p6d-agreement: ls[${j}] undefined despite j < ls.length`);
+    if (row.trim() === '') continue;
+    if (leadingWhitespaceLen(row) > indent) continue;
     return ls.slice(i + 1, j).join('\n');
   }
   throw new Error(`class-p6d-agreement: ${P6D_FILE}'s occupancy test never closes — parse failure, not a re-aim`);
@@ -87,13 +97,14 @@ const AIM = /k:\s*['"`]class_active2['"`],\s*aimX:\s*(-?[\d.]+),\s*aimY:\s*(-?[\
 
 function only(block: string, re: RegExp, what: string): RegExpMatchArray {
   const all = [...block.matchAll(re)];
-  if (all.length !== 1) {
+  const first = all[0];
+  if (all.length !== 1 || !first) {
     throw new Error(
       `class-p6d-agreement: ${P6D_FILE}'s occupancy test states ${all.length} ${what}s, expected 1 ` +
         '— park and aim must pair unambiguously (this is a parse failure, not a re-aim)',
     );
   }
-  return all[0];
+  return first;
 }
 
 /** Pure, so the shapes QA broke can be exercised on synthetic sources. */

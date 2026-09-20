@@ -21,6 +21,12 @@ import { damageStyleColor } from '../src/sim/damagetypes';
 import { defaultSettings } from '../src/ui/settings';
 import { cfg } from './helpers';
 
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 interface Text {
   x: number;
   y: number;
@@ -85,7 +91,7 @@ describe('fb060: a bleeding enemy shows ticking numbers', () => {
     w.warden.attackCooldown = 1e9;
     // Far enough from the Warden that it can't leak/die from movement alone
     // inside the ~1s window this test ticks through (fb006's same convention).
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 10, w.warden.y)!;
     applyDot(w, e, 'bleeding', 20, 5, 'test');
 
     const { canvas, texts } = recordingCanvas();
@@ -116,7 +122,7 @@ describe('fb060: a bleeding enemy shows ticking numbers', () => {
   it('the "DoT numbers" toggle (default ON) actually gates them', () => {
     const w = new World(cfg({ practice: true }));
     w.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 10, w.warden.y)!;
     applyDot(w, e, 'poison', 20, 5, 'test');
 
     const { canvas, texts } = recordingCanvas();
@@ -142,7 +148,7 @@ describe('fb060: density cutoff above 150 DoT carriers', () => {
   it('keeps numbers for a near-character enemy and an elite, drops a lonely far one', () => {
     const w = new World(cfg({ practice: true }));
     w.warden.attackCooldown = 1e9;
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     // The corner diagonally opposite the Warden: far under any plausible
     // starting position on a 36x20 grid (worst case, dead-center start, is
     // still ~20 tiles away — comfortably past the 8-tile "near" radius).
@@ -195,7 +201,7 @@ describe('fb060 perf: a 300-enemy burning horde stays inside a frame budget', ()
   it('ingest+update+draw for 300 DoT carriers fits well inside 16.7ms/frame with the density cutoff live', () => {
     const w = new World(cfg({ practice: true }));
     w.warden.attackCooldown = 1e9;
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     for (let i = 0; i < 300; i++) {
       const x = 1 + (i % 34);
       const y = 1 + (Math.floor(i / 34) % 18);

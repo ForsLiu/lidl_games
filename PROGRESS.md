@@ -5,7 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 86 → 84.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 84 → 75.**
+  Fixed 9 more files with real guards (never `!`), all under `tests/`:
+  `tests/class-p6d-agreement.ts`, `tests/fb152-dot-tick-cadence.test.ts`,
+  `tests/fb154-vs-gate-spawns.test.ts`, `tests/fb159-damage-font-
+  scaling.test.ts`, `tests/p-core-e-time-decay.test.ts`, `tests/render-
+  fb060-dot-tick-numbers.test.ts`, `tests/render-fb116-terrain-
+  rendering.test.ts`, `tests/ui-fb082-overlay-geometry.test.ts`,
+  `tests/ui-fb096-save-slots.test.ts` — see BACKLOG.md fb133 Log for the
+  per-file breakdown. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 9, no new offenders
+  (84 → 75, exact match against the allowlist); main `tsc --noEmit`
+  clean; targeted `npx vitest run` on all 9 plus two downstream consumers
+  of `class-p6d-agreement.ts` plus the ratchet test, all green (326
+  tests); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer dispatched in the background; this commit lands
+  ahead of its result per the session's uncommitted-work policy — its
+  outcome (and any fix it prompts) follows in a subsequent commit. Light
+  tier (`[polish]`, no `/src`/`/data` touched). — refs: BACKLOG.md fb133
+  Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 86 → 84.**
   Fixed 2 more files with real guards, none touching `/src`/`/data`:
   `tests/dps-panel.test.ts` (6 `Object.keys(record)` + `record[key]` sites
   fixed with `record[key] ?? 0`, matching the exact pattern already used in

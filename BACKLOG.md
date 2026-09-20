@@ -5823,6 +5823,48 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       one-comment-per-site convention). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine)**: fixed 9 more
+      files with real guards (never `!`), all under `tests/`:
+      `tests/class-p6d-agreement.ts` (a `leadingWhitespaceLen` helper
+      replacing two `.exec()!` sites whose regex — `/^\s*/` — always
+      matches, plus `hits[0]`/`all[0]` throw guards right after the
+      preceding `.length !== 1` checks that already prove the index exists),
+      `tests/fb152-dot-tick-cadence.test.ts` (`e.dots[0]` guarded at two call
+      sites, immediately after an `applyDot(..., { maxStacks: 1 })` that
+      guarantees exactly one stack), `tests/fb154-vs-gate-spawns.test.ts`
+      (`w.gates[0]` guarded at two call sites, one after asserting a fixed
+      `gates.length = 1`), `tests/fb159-damage-font-scaling.test.ts` (a
+      local `nth()` array-index helper for a fixed 4-element `sizes` array,
+      plus a `firstEnemyKey()` helper matching the established convention
+      from `tests/fb013-timelord.test.ts` and siblings), `tests/p-core-e-
+      time-decay.test.ts` (module-scope guards on `TIME.upgrade.steps`'s
+      array indices 2/3/4, replacing `steps![2]`-style access that only
+      guarded the array itself, not the element), `tests/render-fb060-dot-
+      tick-numbers.test.ts` (`firstEnemyKey()` helper, 4 call sites),
+      `tests/render-fb116-terrain-rendering.test.ts` (a `channels()`
+      hex-color-parsing helper replacing an unguarded destructure of
+      `parseInt` results; a `terrainKind[idx]` throw guard; a
+      `towers.towers[0]` throw guard), `tests/ui-fb082-overlay-
+      geometry.test.ts` (`cvVars()`'s return type changed from
+      `Record<string, string>` — whose index-signature reads
+      `noUncheckedIndexedAccess` always treats as possibly-undefined — to a
+      concrete 5-field `CvVars` interface, since those 5 CSS-var keys are
+      always present; a type-level fix, no runtime change),
+      `tests/ui-fb096-save-slots.test.ts` (a generic `nth<T extends
+      Node>()` `NodeListOf` helper; `line.split('//')[0] ?? ''`, matching
+      the established `split()`-always-returns-≥1-element convention).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 9, and flags no new offenders (diffed the full
+      actual-vs-allowlist file sets — exact match, 84 → 75); main `tsc
+      --noEmit` clean; targeted `npx vitest run` on all 9 plus two
+      downstream consumers of `class-p6d-agreement.ts`
+      (`tests/class-kit-whiff.test.ts`, `tests/p6d-nine-classes.test.ts`)
+      plus the ratchet test itself, all green (326 tests); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 84 →
+      **75 files remain** on the allowlist. code-reviewer dispatched — see
+      PROGRESS.md for its outcome before treating this batch as final. Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
