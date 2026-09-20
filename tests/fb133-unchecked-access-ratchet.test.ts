@@ -30,9 +30,9 @@
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
- * then 105, then 98, then 92, then 90, then 86, then 84, then 75 files
- * remaining as of the latest). Shrink this list as files are fixed; do not
- * add to it without a reason logged in BACKLOG.md.
+ * then 105, then 98, then 92, then 90, then 86, then 84, then 75, then 72
+ * files remaining as of the latest). Shrink this list as files are fixed;
+ * do not add to it without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -76,7 +76,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/m19c-damage-types.test.ts',
   'tests/m20b-owner-towers.test.ts',
   'tests/meta.test.ts',
-  'tests/p-core-b-effects.test.ts',
   'tests/p2a-vs-wielding.test.ts',
   'tests/p2b-wielded-fire.test.ts',
   'tests/p2c-vs-specials.test.ts',
@@ -91,7 +90,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/q7-data-fuzz.test.ts',
   'tests/render-fb055-basic-attack-vfx.test.ts',
   'tests/terrain-anchor-quality.test.ts',
-  'tests/terrain-approach.test.ts',
   'tests/terrain-character.test.ts',
   'tests/terrain-core-placement.test.ts',
   'tests/terrain-cost-ledger.ts',
@@ -113,7 +111,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tools/fuzz-command-domain.ts',
   'tools/fuzz-data.ts',
   'tools/fuzz-weapon-boundary.ts',
-  'tools/gate-audit.ts',
   'tools/sim.ts',
   'tools/status.ts',
   'tools/ui-audit.ts',

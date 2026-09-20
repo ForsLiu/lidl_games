@@ -5869,6 +5869,32 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       version carries — added). Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, same session)**:
+      fixed 3 more files with real guards (never `!`) — `tools/gate-
+      audit.ts` (`parseGates`/`backlogCheckboxes`'s regex-match loops:
+      throw guards on `m[1]`/`m[2]` right after a successful `.exec()`
+      match, since both patterns' capture groups are non-optional and
+      always populate on a match), `tests/p-core-b-effects.test.ts` (a
+      `coreStep(core, name, i)` helper generalizing `tests/p-core-e-time-
+      decay.test.ts`'s same-day module-scope `TIME_STEPn` guard pattern to
+      both `VAMPIRE`/`TIME` and reused at 4 call sites, replacing
+      `steps![i]`-style access that only guarded the array itself; two
+      `w.damageByWeapon['arrow_spire']` throw guards, each right after the
+      site that first reads `dealt` and before it is used arithmetically),
+      `tests/terrain-approach.test.ts` (throw guards on `mine[i]` in a
+      `for (i < mine.length)` loop, `GATES[1]`/`GATES[i]` — `GATES` is the
+      same fixed 4-element literal array other ratchet fixes have already
+      established — and `m.perGate[i]`, each read right after the index
+      that produced it). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3, no new
+      offenders (75 → 72, exact match); main `tsc --noEmit` clean;
+      targeted `npx vitest run` on all 3 plus the ratchet test green (52
+      tests — `gate-audit.ts` has no `it()` cases of its own, exercised
+      only via the type-check); `npm run test:fast` unchanged at 315
+      files / 4548 passed / 35 skipped. code-reviewer dispatched — see
+      PROGRESS.md for its outcome before treating this batch as final.
+      Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

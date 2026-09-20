@@ -5,7 +5,19 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 84 → 75.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 75 → 72.**
+  Fixed 3 more files with real guards (never `!`): `tools/gate-audit.ts`,
+  `tests/p-core-b-effects.test.ts`, `tests/terrain-approach.test.ts` — see
+  BACKLOG.md fb133 Log for the per-file breakdown. Verified: `npx tsc
+  --noEmit -p tsconfig.unchecked.json` no longer flags any of the 3, no
+  new offenders (75 → 72, exact match); main `tsc --noEmit` clean;
+  targeted `npx vitest run` on all 3 plus the ratchet test green (52
+  tests); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer dispatched in the background; this commit lands
+  ahead of its result — its outcome (and any fix it prompts) follows in a
+  subsequent commit. Light tier (`[polish]`, no `/src`/`/data` touched).
+  — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 84 → 75.**
   Fixed 9 more files with real guards (never `!`), all under `tests/`:
   `tests/class-p6d-agreement.ts`, `tests/fb152-dot-tick-cadence.test.ts`,
   `tests/fb154-vs-gate-spawns.test.ts`, `tests/fb159-damage-font-
