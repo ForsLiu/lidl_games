@@ -25,6 +25,12 @@ import type { MetaState } from '../src/sim/types';
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 const content = loadContent();
 
+function nth<T>(arr: readonly T[], i: number, what: string): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected ${what}`);
+  return v;
+}
+
 /** The Hub renders `.sw-classdetail` for both the Class and Core panels — pick the one naming this Core, same convention `fb022-info-surfacing.test.ts` uses. */
 function coreDetail(root: HTMLElement, coreName: string): HTMLElement {
   return [...root.querySelectorAll<HTMLElement>('.sw-classdetail')].find((el) =>
@@ -131,15 +137,15 @@ describe('fb117: hovering the TD effect / VS effect / each upgrade step shows nu
     expect(labels[2]).toContain(`Step 1 of ${def.upgrade.count}`);
     expect(labels[2]).toContain(`${def.upgrade.stepCost}g`);
 
-    const tdTip = entries[0].querySelector('.sw-cs-tip')!.innerHTML;
+    const tdTip = nth(entries, 0, 'a TD-effect skill entry').querySelector('.sw-cs-tip')!.innerHTML;
     expect(tdTip).toContain(`${def.effects!.devourRadius}`);
     expect(tdTip).not.toContain('poisonVolleyInterval');
 
-    const vsTip = entries[1].querySelector('.sw-cs-tip')!.innerHTML;
+    const vsTip = nth(entries, 1, 'a VS-effect skill entry').querySelector('.sw-cs-tip')!.innerHTML;
     expect(vsTip).toContain(`${def.effects!.poisonBulletDamage}`);
 
-    const step1Tip = entries[2].querySelector('.sw-cs-tip')!.innerHTML;
-    const step1 = def.upgrade.steps![0];
+    const step1Tip = nth(entries, 2, 'a step-1 skill entry').querySelector('.sw-cs-tip')!.innerHTML;
+    const step1 = nth(def.upgrade.steps ?? [], 0, "carnivorous_plant's step 1");
     expect(step1Tip).toContain(`${step1.devourRangeBonus}`);
   });
 
@@ -151,7 +157,7 @@ describe('fb117: hovering the TD effect / VS effect / each upgrade step shows nu
     expect(stepEntries).toHaveLength(def.upgrade.steps!.length);
     stepEntries.forEach((entry, i) => {
       const tip = entry.querySelector('.sw-cs-tip')!.innerHTML;
-      expect(tip).toContain(`${def.upgrade.steps![i].coreHpBonus}`);
+      expect(tip).toContain(`${nth(def.upgrade.steps ?? [], i, `stone_heart's step ${i + 1}`).coreHpBonus}`);
     });
   });
 });

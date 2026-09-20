@@ -10,8 +10,17 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { saveTunerFile } from '../src/devserver/tunerSave';
+import { saveTunerFile, type TunerFieldError, type TunerSaveResult } from '../src/devserver/tunerSave';
 import { TUNER_FILES } from '../src/sim/content';
+
+// Every call site below already asserted `result.errors!.length > 0` (or is
+// about to) before reading `[0]` — this just makes that "at least one error"
+// invariant explicit instead of indexing twice.
+function firstError(result: TunerSaveResult): TunerFieldError {
+  const err = result.errors?.[0];
+  if (err === undefined) throw new Error('expected saveTunerFile to report at least one error');
+  return err;
+}
 
 function makeTempDataDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'stonewake-tuner-'));
@@ -44,8 +53,8 @@ describe('saveTunerFile (p9c, G15)', () => {
     const result = saveTunerFile('towers', { towers: 'not-an-array' }, dir);
     expect(result.ok).toBe(false);
     expect(result.errors!.length).toBeGreaterThan(0);
-    expect(typeof result.errors![0].path).toBe('string');
-    expect(typeof result.errors![0].message).toBe('string');
+    expect(typeof firstError(result).path).toBe('string');
+    expect(typeof firstError(result).message).toBe('string');
     expect(readFileSync(join(dir, 'towers.json'), 'utf8')).toBe(before);
   });
 
@@ -79,7 +88,7 @@ describe('saveTunerFile (p9c, G15)', () => {
     const dir = makeTempDataDir();
     const result = saveTunerFile('not-a-real-file', {}, dir);
     expect(result.ok).toBe(false);
-    expect(result.errors![0].message).toMatch(/unknown tuner file/);
+    expect(firstError(result).message).toMatch(/unknown tuner file/);
   });
 
   it('leaves no temp file behind after a successful save (the tmp path is unique per call, not fixed)', () => {
@@ -111,7 +120,7 @@ describe('saveTunerFile (p9c, G15)', () => {
       waves.waves[0].groups[0].enemy = 'no-such-enemy-key';
       const result = saveTunerFile('waves', waves, dir);
       expect(result.ok).toBe(false);
-      expect(result.errors![0].message).toMatch(/unknown enemy/);
+      expect(firstError(result).message).toMatch(/unknown enemy/);
       expect(readFileSync(join(dir, 'waves.json'), 'utf8')).toBe(before);
     });
 
@@ -124,7 +133,7 @@ describe('saveTunerFile (p9c, G15)', () => {
       withFallback.classFallback.notClassKey = 'no-such-class-key';
       const result = saveTunerFile('equipment', equipment, dir);
       expect(result.ok).toBe(false);
-      expect(result.errors![0].message).toMatch(/unknown class/);
+      expect(firstError(result).message).toMatch(/unknown class/);
       expect(readFileSync(join(dir, 'equipment.json'), 'utf8')).toBe(before);
     });
 

@@ -5717,6 +5717,112 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `noUncheckedIndexedAccess`, left as-is). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, reconcile)**:
+      an unrelated orphan branch (`claude/dreamy-hopper-wlu4w0`, no open PR,
+      last pushed >60 min before this routine started so not treated as
+      in-progress work) had independently continued this same ratchet from
+      the shared 111-file ancestor down to 92, fixing 6 files this branch's
+      own 111 → 96 chain hadn't touched: `tests/class-board.test.ts`,
+      `tests/equip-hasequipment-roster.test.ts`,
+      `tests/fb013-timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts`,
+      `tests/p-core-c-plant.test.ts` (real guards — throw on an
+      already-proven-safe invariant, matching this ratchet's convention)
+      and `tests/equip-spec-ledger.test.ts` (fixed for free by narrowing
+      `tests/equip-spec-ledger.ts`'s `defaultReads` return type from
+      `readonly RegExp[]` to `readonly [RegExp, RegExp]`, since it always
+      returns a 2-element literal). Rather than redoing that work, cherry-
+      picked just those 6 files' diffs from the orphan branch's tip commit
+      onto this branch (its `BACKLOG.md`/`PROGRESS.md` hunks excluded,
+      written fresh here instead) and independently re-verified before
+      committing: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 6 (and confirms `equip-spec-ledger.ts` itself,
+      correctly still allowlisted, is untouched); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on all 6 plus the ratchet test green
+      (7 files / 152 tests); `npm run test:fast` unchanged at 315 files /
+      4548 passed / 35 skipped. 96 → **90 files remain** on the allowlist.
+      code-reviewer independently re-reviewed every ported guard's
+      unreachability reasoning against the surrounding code rather than
+      trusting the orphan branch's own prior approval — APPROVE, no
+      Critical/Major findings (three informational Nits: several regex-
+      capture-group guards in `class-board.test.ts`/`equip-hasequipment-
+      roster.test.ts` are unreachable by construction since every group
+      involved is non-optional in its pattern, correct but worth a
+      "the pattern guarantees this" comment for a future reader; a
+      `.split('\n', 1)[0] ?? ''` in the latter is similarly dead code since
+      `split(sep, 1)` always returns one element; one guard on a markdown
+      table row's first cell is a genuine content-shape invariant rather
+      than a tautology, correctly left as a throw instead of `!`). Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later)**: fixed
+      4 more files with real guards, none touching `/src`/`/data` —
+      `tests/class-passive-liveness.test.ts` (`dummy()`'s
+      `content.enemies.enemies[0]` guarded via the established
+      `firstEnemyKey`-style throw; `longDrawPierce`'s per-index `before[i]`
+      read — `before = line.map(...)`, same length as `line` by construction
+      — throws instead of falling back, matching this file's own
+      `conduction` case a few lines below; `conduction`'s `dealt` array —
+      `chain.map(...)`, same length as the fixed 3-enemy `chain` — is now
+      destructured into `[firstDealt, secondDealt]` with a throw-guard
+      before use, replacing direct `dealt[0]`/`dealt[1]` indexing),
+      `tests/p9c-tuner-save.test.ts` (a new `firstError(result)` helper
+      throws if `saveTunerFile`'s `errors` array is empty, replacing 5
+      `result.errors![0].message`-style call sites — the pre-existing `!`
+      on `.errors` itself is untouched, only the `[0]` indexing was this
+      ratchet's error), `tests/terrain-config-tiles.test.ts` (a new
+      `tileAt(tiles, index)` helper throws on a missing positional tile,
+      replacing two direct `tilesOf(doc)[TerrainKind.X]` indexes and a
+      `[t[1], t[2]] = [t[2], t[1]]` swap — rewritten to guard both slots
+      into locals first, functionally identical, confirmed by code-reviewer
+      tracing the new assignment against the original one-liner; an
+      `onTiles[0]` read is destructured with a throw-guard right after an
+      `expect(onTiles.length).toBeGreaterThan(0)` already proves it
+      non-empty), `tests/ui-fb117-core-select.test.ts` (a new generic
+      `nth<T>(arr, i, what)` helper throws a descriptive error on a missing
+      index, replacing direct `entries[0]/[1]/[2]` and
+      `def.upgrade.steps![i]` indexing at 5 call sites). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 4;
+      main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 4 plus
+      the ratchet test green (71 tests); `npm run test:fast` unchanged at
+      315 files / 4548 passed / 35 skipped. 90 → **86 files remain** on the
+      allowlist. code-reviewer APPROVE (one Minor: the terrain-config-tiles
+      swap's crossed variable names read confusingly at a glance — fixed
+      with an inline comment spelling out the equivalence before commit;
+      one Nit: `longDrawPierce`'s original `?? e.hp` fallback used a
+      different convention than `conduction`'s throw for the same
+      same-length-by-construction invariant — changed to throw for
+      consistency, since a silent `false` there would have quietly
+      undercounted pierce hits instead of failing loudly). Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still)**:
+      fixed 2 more files with real guards, none touching `/src`/`/data` —
+      `tests/dps-panel.test.ts` (6 sites of `for (const key of
+      Object.keys(someRecord)) { ... someRecord[key] ... }` — `key` is
+      always one of `someRecord`'s own keys by construction — fixed with
+      `someRecord[key] ?? 0`, matching the exact `?? 0`-on-a-`Record`-read
+      pattern already used in production at `src/sim/enemies.ts:465` and
+      `src/sim/run.ts`'s `damageSince`), `tests/fb005-damage-colors.test.ts`
+      (a new `typeAt(dt, i)` helper throws if `dt.types[i]` is missing —
+      `dt` is a fresh clone of the real `content.damageTypes`, which §13
+      pins at 6 damage types, so indices 0/1 always exist — used at 3 call
+      sites; a `for (i < types.length)` loop over a fixed 6-element literal
+      array guards `types[i]` into a local before use). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags either file;
+      main `npx tsc --noEmit` clean; targeted `npx vitest run` on both plus
+      the ratchet test green (25 tests); `npm run test:fast` unchanged at
+      315 files / 4548 passed / 35 skipped. 86 → **84 files remain** on the
+      allowlist. code-reviewer APPROVE, no Critical/Major findings (one
+      Minor: `typeAt`'s doc comment described caller behavior rather than
+      stating the underlying §13-pinned-count invariant directly, left
+      as-is, informational; two Nits: an already-unguarded `types[i]`
+      string-interpolation a few lines above the new guard in the same
+      loop is harmless and outside the ratchet's flagged diagnostics; the
+      6 repeated one-line comments in `dps-panel.test.ts` could have been
+      DRY'd into a shared helper but match this ratchet's established
+      one-comment-per-site convention). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

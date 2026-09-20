@@ -136,7 +136,10 @@ function dummy(w: World, x: number, y: number, hp = 1e6): Enemy {
   // `w.content`, not the module-level `content`: a row built from a
   // `contentWithout` rebuild must spawn from *its* Content, or a future
   // enemy-side kill row would be silently vacuous (code review + QA).
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  // data/enemies.json always authors at least one enemy.
+  const firstEnemyKey = w.content.enemies.enemies[0]?.key;
+  if (firstEnemyKey === undefined) throw new Error('expected at least one enemy in content');
+  const e = spawnEnemy(w, firstEnemyKey, x, y)!;
   e.hp = hp;
   e.maxHp = Math.max(hp, e.maxHp);
   e.speed = 0;
@@ -323,7 +326,12 @@ const signal = {
       for (let i = 1; i <= 6; i++) line.push(dummy(w, WX + i, WY));
       const before = line.map((e) => e.hp);
       chargeFor(w, held, WX + 6, WY);
-      return line.filter((e, i) => e.hp < before[i]).length;
+      // `before` is `line.map(...)`, so it shares `line`'s length by construction.
+      return line.filter((e, i) => {
+        const hpBefore = before[i];
+        if (hpBefore === undefined) throw new Error(`expected a pre-charge hp sample at index ${i}`);
+        return e.hp < hpBefore;
+      }).length;
     };
     return pierced(3) - pierced(1);
   },
@@ -374,9 +382,14 @@ const signal = {
     const chain = [dummy(w, WX + 2, WY), dummy(w, WX + 4, WY), dummy(w, WX + 6, WY)];
     const before = chain.map((e) => e.hp);
     expect(useClassActive(w, WX + 2, WY)).toBe(true);
-    const dealt = chain.map((e, i) => before[i] - e.hp);
-    expect(dealt[0], 'chain never reached its first target').toBeGreaterThan(0);
-    return dealt[1] - dealt[0];
+    // `before` is `chain.map(...)`, so it shares `chain`'s length by construction.
+    const dealt = chain.map((e, i) => (before[i] ?? e.hp) - e.hp);
+    const [firstDealt, secondDealt] = dealt;
+    if (firstDealt === undefined || secondDealt === undefined) {
+      throw new Error('expected three dealt-damage samples from a fixed 3-enemy chain');
+    }
+    expect(firstDealt, 'chain never reached its first target').toBeGreaterThan(0);
+    return secondDealt - firstDealt;
   },
 
   /**

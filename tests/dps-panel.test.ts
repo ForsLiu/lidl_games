@@ -136,12 +136,14 @@ describe('DPS panel data model', () => {
     for (const key of Object.keys(report.damageByWeapon)) {
       const row = data.run.bySource.find((r) => r.key === key);
       expect(row, `panel is missing source ${key}`).toBeDefined();
-      expect(row!.damage).toBeCloseTo(report.damageByWeapon[key], 2);
+      // `key` is one of `report.damageByWeapon`'s own keys, so the read is always in range.
+      expect(row!.damage).toBeCloseTo(report.damageByWeapon[key] ?? 0, 2);
     }
     for (const key of Object.keys(report.damageByType)) {
       const row = data.run.byType.find((r) => r.key === key);
       expect(row, `panel is missing damage type ${key}`).toBeDefined();
-      expect(row!.damage).toBeCloseTo(report.damageByType[key], 2);
+      // `key` is one of `report.damageByType`'s own keys, so the read is always in range.
+      expect(row!.damage).toBeCloseTo(report.damageByType[key] ?? 0, 2);
     }
   });
 
@@ -210,8 +212,9 @@ describe('DPS panel data model', () => {
     expect(data, 'run never reached the Sundering (huntsWarden && sundered)').toBeDefined();
 
     const expectedWaveByWeapon = damageSince(run.world.damageByWeapon, run.world.damageAtSunder);
+    // `k` is one of `expectedWaveByWeapon`'s own keys, so the read is always in range.
     const expectedWaveDamage = Object.keys(expectedWaveByWeapon).reduce(
-      (sum, k) => sum + expectedWaveByWeapon[k],
+      (sum, k) => sum + (expectedWaveByWeapon[k] ?? 0),
       0,
     );
     expect(
@@ -222,7 +225,8 @@ describe('DPS panel data model', () => {
     for (const key of Object.keys(expectedWaveByWeapon)) {
       const row = data!.wave.bySource.find((r) => r.key === key);
       expect(row, `wave window is missing source ${key}`).toBeDefined();
-      expect(row!.damage).toBeCloseTo(expectedWaveByWeapon[key], 6);
+      // `key` is one of `expectedWaveByWeapon`'s own keys, so the read is always in range.
+      expect(row!.damage).toBeCloseTo(expectedWaveByWeapon[key] ?? 0, 6);
     }
     expect(data!.wave.seconds).toBeGreaterThan(0);
 
@@ -231,12 +235,14 @@ describe('DPS panel data model', () => {
     for (const key of Object.keys(report!.damageByWeapon)) {
       const row = data!.run.bySource.find((r) => r.key === key);
       expect(row, `panel is missing source ${key}`).toBeDefined();
-      expect(row!.damage).toBeCloseTo(report!.damageByWeapon[key], 2);
+      // `key` is one of `report!.damageByWeapon`'s own keys, so the read is always in range.
+      expect(row!.damage).toBeCloseTo(report!.damageByWeapon[key] ?? 0, 2);
     }
     for (const key of Object.keys(report!.damageByType)) {
       const row = data!.run.byType.find((r) => r.key === key);
       expect(row, `panel is missing damage type ${key}`).toBeDefined();
-      expect(row!.damage).toBeCloseTo(report!.damageByType[key], 2);
+      // `key` is one of `report!.damageByType`'s own keys, so the read is always in range.
+      expect(row!.damage).toBeCloseTo(report!.damageByType[key] ?? 0, 2);
     }
     // The whole point of this test: prove the damageAtSunder branch, not
     // damageAtWaveStart, produced the wave window above.

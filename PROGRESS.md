@@ -5,30 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (Integrator merge, PR #122) — fb133 ratchet reconciled to 90
-  files.** Two scheduled-routine sessions independently shrunk the same
-  111-file allowlist in parallel branches: session A (below) reached 92 by
-  fixing `tests/class-board.test.ts`, `tests/equip-hasequipment-
-  roster.test.ts`, `tests/equip-spec-ledger.test.ts`, `tests/fb013-
-  timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts` and `tests/p-core-
-  c-plant.test.ts` in addition to the 13 files both sessions fixed in
-  common; session B (below) reached 96 by additionally fixing `tools/perf-
-  ratio.ts` and `tools/sweep.ts`. On the 13 files both sessions guarded
-  independently (`tests/q15-command-domain-fuzz.test.ts`, `tests/q3-save-
-  fuzz.test.ts`, `tests/q8-save-roundtrip.test.ts`, `tests/q9-phase-
-  coverage.test.ts`, `tests/terrain-cost-retry-ratio.test.ts`, `tests/
-  terrain-cost.test.ts`, `tests/terrain-gate-legality.test.ts`, `tests/ui-
-  fb058-class-select.test.ts`, `tests/ui-fb065-resize-listener.test.ts`,
-  `tests/ui-fb098-tower-vfx.test.ts`, `tests/ui-fb105-codex-search.test.ts`,
-  `tests/ui-fb115-fb173-area-scaled-effects.test.ts`, `tests/ui-fb146-dash-
-  width-units-guard.test.ts`), session B's guards were kept (already on
-  `master`) to avoid re-verifying a second implementation of an already-
-  landed fix; session A's unique 6 files and session B's unique 2 files
-  were both kept, since neither touches the other's files. Net: 111 → 90
-  files remain on the allowlist (the ratchet test's
-  `KNOWN_UNCHECKED_ACCESS_FILES` merged cleanly to this count since both
-  sides deleted the same 13 shared entries). Verified post-merge: `npm run
-  test:fast` green.
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 86 → 84.**
+  Fixed 2 more files with real guards, none touching `/src`/`/data`:
+  `tests/dps-panel.test.ts` (6 `Object.keys(record)` + `record[key]` sites
+  fixed with `record[key] ?? 0`, matching the exact pattern already used in
+  production at `src/sim/enemies.ts`/`run.ts`'s `damageSince`),
+  `tests/fb005-damage-colors.test.ts` (a new `typeAt(dt, i)` helper throws
+  on a missing damage-type index — §13 pins 6 types, so indices 0/1 always
+  exist — plus a loop guard on a fixed 6-element literal array). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` clean on both; main `tsc
+  --noEmit` clean; targeted `npx vitest run` green (25 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE, no Critical/Major findings (one informational
+  Minor on a doc-comment's wording, two informational Nits, none requiring
+  a fix). Light tier (`[polish]`, no `/src`/`/data` touched). — refs:
+  BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 90 → 86.**
+  Fixed 4 more files with real guards, none touching `/src`/`/data`:
+  `tests/class-passive-liveness.test.ts` (a `dummy()` first-enemy guard, a
+  per-index `before[i]` throw in `longDrawPierce`, and a destructured
+  `[firstDealt, secondDealt]` guard replacing direct `dealt[0]`/`dealt[1]`
+  indexing in `conduction`), `tests/p9c-tuner-save.test.ts` (a new
+  `firstError(result)` helper replacing 5 `result.errors![0].message`-style
+  call sites), `tests/terrain-config-tiles.test.ts` (a new `tileAt(tiles,
+  index)` helper replacing direct positional-tile indexing and a swap
+  rewritten to guard both slots first, verified functionally identical),
+  `tests/ui-fb117-core-select.test.ts` (a new generic `nth<T>(arr, i,
+  what)` helper replacing 5 direct-index call sites). Verified: `npx tsc
+  --noEmit -p tsconfig.unchecked.json` clean on all 4; main `tsc --noEmit`
+  clean; targeted `npx vitest run` green (71 tests); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor — a confusing swap-variable naming, fixed with a clarifying
+  comment; one Nit — an inconsistent `?? default` vs. throw convention for
+  an identical invariant, fixed to throw for consistency). Light tier
+  (`[polish]`, no `/src`/`/data` touched). — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (reconciled twice — Integrator PR #122, then this branch's own
+  96 → 90 item) — fb133 ratchet at 90 files.** Two scheduled-routine sessions
+  (session A and session B below) independently shrunk the same 111-file
+  allowlist in parallel branches: session A reached 92 by fixing
+  `tests/class-board.test.ts`, `tests/equip-hasequipment-roster.test.ts`,
+  `tests/equip-spec-ledger.test.ts`, `tests/fb013-timelord.test.ts`,
+  `tests/fb031-gem-accelerate.test.ts` and `tests/p-core-c-plant.test.ts` in
+  addition to the 13 files both sessions fixed in common; session B reached
+  96 by additionally fixing `tools/perf-ratio.ts` and `tools/sweep.ts`. Two
+  independent reconciliations of the same orphan branch (the Integrator's PR
+  #122 merge, and session B's own follow-up item cherry-picking the same 6
+  files) landed on the same 90-file result, since both kept session B's
+  guards for the 13 files both sessions touched and both sessions' unique
+  fixes. `npm run test:fast` green after each. Net: 111 → 90 files remained
+  before session B continued the chain further below (90 → 86 → 84).
 - **2026-09-20 (scheduled routine, session A) — fb133 ratchet shrunk 98 → 92.**
   Fixed 6 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/class-board.test.ts` (three regex-capture-group fixes,
