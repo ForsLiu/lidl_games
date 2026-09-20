@@ -5,7 +5,119 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 101 → 96.**
+- **2026-09-20 (Integrator merge, PR #122) — fb133 ratchet reconciled to 90
+  files.** Two scheduled-routine sessions independently shrunk the same
+  111-file allowlist in parallel branches: session A (below) reached 92 by
+  fixing `tests/class-board.test.ts`, `tests/equip-hasequipment-
+  roster.test.ts`, `tests/equip-spec-ledger.test.ts`, `tests/fb013-
+  timelord.test.ts`, `tests/fb031-gem-accelerate.test.ts` and `tests/p-core-
+  c-plant.test.ts` in addition to the 13 files both sessions fixed in
+  common; session B (below) reached 96 by additionally fixing `tools/perf-
+  ratio.ts` and `tools/sweep.ts`. On the 13 files both sessions guarded
+  independently (`tests/q15-command-domain-fuzz.test.ts`, `tests/q3-save-
+  fuzz.test.ts`, `tests/q8-save-roundtrip.test.ts`, `tests/q9-phase-
+  coverage.test.ts`, `tests/terrain-cost-retry-ratio.test.ts`, `tests/
+  terrain-cost.test.ts`, `tests/terrain-gate-legality.test.ts`, `tests/ui-
+  fb058-class-select.test.ts`, `tests/ui-fb065-resize-listener.test.ts`,
+  `tests/ui-fb098-tower-vfx.test.ts`, `tests/ui-fb105-codex-search.test.ts`,
+  `tests/ui-fb115-fb173-area-scaled-effects.test.ts`, `tests/ui-fb146-dash-
+  width-units-guard.test.ts`), session B's guards were kept (already on
+  `master`) to avoid re-verifying a second implementation of an already-
+  landed fix; session A's unique 6 files and session B's unique 2 files
+  were both kept, since neither touches the other's files. Net: 111 → 90
+  files remain on the allowlist (the ratchet test's
+  `KNOWN_UNCHECKED_ACCESS_FILES` merged cleanly to this count since both
+  sides deleted the same 13 shared entries). Verified post-merge: `npm run
+  test:fast` green.
+- **2026-09-20 (scheduled routine, session A) — fb133 ratchet shrunk 98 → 92.**
+  Fixed 6 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/class-board.test.ts` (three regex-capture-group fixes,
+  each on a pattern whose accessed group is non-optional, so a successful
+  match always populates it), `tests/equip-hasequipment-roster.test.ts`
+  (a `.split('\n', 1)[0] ?? ''` safe default, two regex-group throw
+  guards, and a `.filter((k): k is string => ...)` type guard),
+  `tests/equip-spec-ledger.test.ts` (fixed for free by tightening
+  `defaultReads`'s return type in `tests/equip-spec-ledger.ts` from
+  `readonly RegExp[]` to `readonly [RegExp, RegExp]` — it always returns a
+  2-element literal; that file itself stays on the allowlist, with 14
+  unrelated pre-existing errors elsewhere), `tests/fb013-timelord.test.ts`
+  (a `firstEnemyKey(w)` helper, matching the established precedent,
+  replacing three `w.content.enemies.enemies[0].key` reads; a throw guard
+  on `w.warden.dots[0]`), `tests/fb031-gem-accelerate.test.ts` (a
+  `firstGem(w)` helper replacing three `w.gems[0]` reads),
+  `tests/p-core-c-plant.test.ts` (throw guards on `e.dots[0]` and a
+  `baseHp[i]` filter-callback read). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 6, and flags no new
+  offenders (diffed the full actual-vs-allowlist file sets — exact match);
+  main `tsc --noEmit` clean; targeted `npx vitest run` on all 6 plus the
+  ratchet test green (152/152); `npm run test:fast` green, unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE (no
+  findings). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 105 → 98.**
+  Fixed 7 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/terrain-gate-legality.test.ts` (a `gateAt(arr, i)` helper
+  throwing on an undefined index, used for `GATES[0]`/`[1]`/`[3]` — `GATES`
+  is a fixed 4-element literal array in `src/sim/grid.ts`), `tests/ui-fb058-
+  class-select.test.ts` (throw guards on `CLASS_BANDS.swordsman`/
+  `.plaguebringer`, both real class keys present in the literal object),
+  `tests/ui-fb065-resize-listener.test.ts` (a `flushLast(rafQueue)` helper
+  replacing three `rafQueue[rafQueue.length - 1](0)` calls, each safe
+  because the listener always enqueues exactly one rAF callback on the
+  `resize` dispatch immediately preceding it), `tests/ui-fb098-tower-
+  vfx.test.ts` (a throw guard right after the file's own existing
+  `expect(entry, key).toBeDefined()`, unreachable since a failed `expect`
+  halts the test first), `tests/ui-fb105-codex-search.test.ts` (a
+  `firstRow(rows)` helper replacing three `rows[0].textContent` reads each
+  made right after asserting the rows array's length), `tests/ui-fb115-
+  fb173-area-scaled-effects.test.ts` (`lastFxRadius`'s loop binds `w.fx[i]`
+  to a local before reading it — a loop-bound tautology; hoisted
+  `content.enemies.enemies[0]?.key` to a throw-guarded `firstEnemyKey`
+  const), `tests/ui-fb146-dash-width-units-guard.test.ts` (`.split('//')[0]
+  ?? ''` — `split()` always returns at least one element). Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the 7, and
+  flags no new offenders (diffed the full actual-vs-allowlist file sets —
+  exact match); main `tsc --noEmit` clean; targeted `npx vitest run` on all
+  7 plus the ratchet test green (84/84); `npm run test:fast` green,
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE
+  (one Minor: `flushLast`'s doc comment overstated that every call site is
+  preceded by a length assertion — fixed the comment rather than adding an
+  assertion, since one call site genuinely has more than one rAF queued by
+  that point and forcing a `queuedBefore + 1` assertion there was
+  empirically false). Light tier (`[polish]`, no `/src`/`/data` touched) —
+  no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 111 → 105.**
+  Fixed 6 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/q15-command-domain-fuzz.test.ts` (a local `first<T>(arr:
+  readonly T[]): T` helper, throwing on an empty array, reused for
+  `FIELD_SPECS[0]`/`FAMILIES[0]`/`w.content.towers.towers[0]` — `FAMILIES.
+  length === 5` is asserted elsewhere in the same file, so `[0]` is
+  unreachable-undefined), `tests/q3-save-fuzz.test.ts` (`byFamily[family]`
+  guarded — traced `mutate()`'s unconditional `mut.family = only`
+  assignment to confirm the key is always present), `tests/q8-save-
+  roundtrip.test.ts` (`cases[i % cases.length]` guarded — `cases` is a
+  fixed 5-element array from `buildGrowthCases()`), `tests/q9-phase-
+  coverage.test.ts` (`RECORDED_FLOOR[policy]`/`RECORDED_FLOOR.hybrid`
+  guarded — `policy` is drawn from `Object.keys(RECORDED_FLOOR)` and
+  `.hybrid` is a literal key, both always present), `tests/terrain-cost-
+  retry-ratio.test.ts` (`seeds[i]`/`rawMin[i]` guarded inside a `for (i <
+  seeds.length)` loop — `runLedger()` allocates `rawMin` to `seeds.length`
+  and fills every index; `costs[costs.length - 1]` guarded, same non-empty
+  seed list), `tests/terrain-cost.test.ts` (`SAMPLE[0]` guarded — `SAMPLE`
+  is a fixed 4-element literal array). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 6, and flags no new
+  offenders (diffed the full actual-vs-allowlist file sets — exact match);
+  main `tsc --noEmit` clean; targeted `npx vitest run` on all 6 plus the
+  ratchet test green, aside from `tests/q9-phase-coverage.test.ts`'s 13
+  pre-existing failures (a phase-reachability census not reaching `act2`/
+  `levelup` for the `idle` policy), confirmed present identically on
+  unmodified HEAD via `git stash` — not a regression, and that file is
+  already excluded from `vitest.fast.config.ts`'s fast tier so it doesn't
+  gate this item; `npm run test:fast` green, unchanged at 315 files / 4548
+  passed / 35 skipped. code-reviewer APPROVE (no findings). Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine, session B) — fb133 ratchet shrunk 101 → 96.**
   Fixed 5 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/ui-fb105-codex-search.test.ts` (a `firstRow(rows)` helper
   guarding `rows[0]`, reused at 3 call sites), `tests/ui-fb115-fb173-area-

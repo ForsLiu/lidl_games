@@ -28,6 +28,16 @@ import type { World } from '../src/sim/world';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 
+// Every call site dispatches a native 'resize' event immediately before
+// calling this, and the listener (src/ui/main.ts) always enqueues exactly
+// one rAF callback on that dispatch, so the last slot is always populated —
+// not all call sites assert the queue length explicitly first.
+function flushLast(rafQueue: FrameRequestCallback[]): void {
+  const cb = rafQueue[rafQueue.length - 1];
+  if (cb === undefined) throw new Error('rafQueue must be non-empty');
+  cb(0);
+}
+
 function mount(rafQueue: FrameRequestCallback[]): HTMLElement {
   document.head.innerHTML = `<style>${CSS}</style>`;
   document.body.innerHTML = '<div id="app"></div>';
@@ -40,12 +50,6 @@ function mount(rafQueue: FrameRequestCallback[]): HTMLElement {
     return rafQueue.length;
   }) as never;
   return document.getElementById('app') as HTMLElement;
-}
-
-function flushLast(rafQueue: FrameRequestCallback[]): void {
-  const cb = rafQueue[rafQueue.length - 1];
-  if (!cb) throw new Error('rafQueue is empty');
-  cb(0);
 }
 
 /** Forces the live run straight to the Results screen without playing it out — same idiom as tests/b069-retry-autopick-lastcfg.test.ts. */

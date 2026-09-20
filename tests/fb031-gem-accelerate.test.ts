@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
 import { updateGems } from '../src/sim/progression';
+import type { Gem } from '../src/sim/types';
 import { cfg } from './helpers';
 
 function act2World(): World {
@@ -18,6 +19,13 @@ function act2World(): World {
   w.warden.x = 10;
   w.warden.y = 10;
   return w;
+}
+
+// Only called right after the test's own setup pushes at least one gem.
+function firstGem(w: World): Gem {
+  const gem = w.gems[0];
+  if (gem === undefined) throw new Error('expected at least one gem');
+  return gem;
 }
 
 describe('fb031: gem attraction speed ramps uncapped once attracted', () => {
@@ -42,7 +50,7 @@ describe('fb031: gem attraction speed ramps uncapped once attracted', () => {
     // "a gem attracted behind a character moving at max speed", not a
     // same-tick race between the gem entering radius and the flee starting.
     updateGems(w, dt);
-    expect(w.gems[0].attractedT).toBeGreaterThan(0);
+    expect(firstGem(w).attractedT).toBeGreaterThan(0);
 
     // tiles/s — far above the old fixed `7 + radius` pull, standing in for
     // an uncapped stacked-move-speed build (fb041 removed the VS "swift"
@@ -84,7 +92,7 @@ describe('fb031: gem attraction speed ramps uncapped once attracted', () => {
         dead: false,
         attractedT,
       });
-      const before = { x: w.gems[0].x, y: w.gems[0].y };
+      const before = { x: firstGem(w).x, y: firstGem(w).y };
       updateGems(w, dt);
       const after = w.gems.find((g) => g.id === 1)!;
       return Math.hypot(after.x - before.x, after.y - before.y);
@@ -141,7 +149,7 @@ describe('fb031: gem attraction speed ramps uncapped once attracted', () => {
     // (sidesteps the same-tick boundary race a fresh flee would hit — see
     // the first test's comment).
     updateGems(w, dt);
-    expect(w.gems[0].attractedT).toBeGreaterThan(0);
+    expect(firstGem(w).attractedT).toBeGreaterThan(0);
 
     const speed = 40; // far above any pre-fb041-uncapped move speed
     const halfCycleTicks = 180; // reverse direction every 3s — aggressive kiting
