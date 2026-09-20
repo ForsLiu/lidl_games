@@ -5414,6 +5414,35 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `data/towers.json` directly). Light tier per this item's `[polish]`
       tag and no `/src`/`/data` changes — no qa-playtester dispatch. —
       refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, later still 3)**:
+      fixed 8 more files with real guards, all test-only — `tests/ui-fb094-
+      screenshot-export.test.ts` and `tests/ui-fb097-frame-capture.test.ts`
+      (both: a `.mock.calls[0]` read throws if missing, unreachable given
+      the preceding `toHaveBeenCalledTimes(1)`), `tests/ui-fb108-active-
+      sentences-all-classes.test.ts` (`content.enemies.enemies[0]` hoisted
+      out of a loop with a throw guard), `tests/ui-fb175-single-falloff-
+      clause.test.ts` and `tests/b030-autopick-pause-toggle.test.ts` (both:
+      a destructure guarded, unreachable given a preceding `toHaveLength`),
+      `tests/class-roster-size.test.ts` (`doc.classes[0]` and
+      `boonsDoc.skillCards[sourceKey]` each guarded before use — real
+      shipped content, never empty), `tests/fb155-enemy-attack-
+      registry.test.ts` (`doc.enemies[0]` guarded before a `delete`, and a
+      `Record<string, number>`-cast index read guarded before
+      `toBeCloseTo` — `noUncheckedIndexedAccess` types an index-signature
+      read as possibly-`undefined` regardless of an explicit cast, which is
+      the flag's documented behavior, not a bug), `tests/p9h-armour-floor-
+      display.test.ts` (`[...enemyByKey.values()][0]` guarded, twice, same
+      pattern in two `it` blocks). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 8; `npx tsc
+      --noEmit` (main config) clean; targeted `npx vitest run` on the
+      ratchet test plus all 8 files green (9 files / 65 tests); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 155 →
+      **147 files remain** on the allowlist. code-reviewer APPROVE (one
+      Nit: the destructure-or-throw idiom recurs across the batch, worth a
+      shared `tests/helpers.ts` assertion only if a future batch repeats it
+      at larger scale — no action taken). Light tier per this item's
+      `[polish]` tag and no `/src`/`/data` changes — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

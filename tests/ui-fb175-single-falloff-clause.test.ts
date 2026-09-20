@@ -91,6 +91,7 @@ describe('fb175: the single blurb names its own falloff, IFF it actually has one
     // pierce: 1 at max tier (arrow_spire's only milestone) -> hits = 1 + 1.
     expect(struck).toHaveLength(2);
     const [primaryDamage, carriedDamage] = struck;
+    if (primaryDamage === undefined || carriedDamage === undefined) throw new Error('expected two struck values');
     expect(carriedDamage).toBeLessThan(primaryDamage);
   });
 

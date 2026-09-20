@@ -79,7 +79,9 @@ describe('b030: the pause Esc Options auto-pick checkbox survives two clicks in 
       (c): c is { k: 'set_autopick'; on: boolean } => c.k === 'set_autopick',
     );
     expect(autopickCmds).toHaveLength(2);
-    expect(autopickCmds[0].on).toBe(!startValue);
-    expect(autopickCmds[1].on).toBe(startValue);
+    const [first, second] = autopickCmds;
+    if (!first || !second) throw new Error('expected two autopick toggle commands');
+    expect(first.on).toBe(!startValue);
+    expect(second.on).toBe(startValue);
   });
 });

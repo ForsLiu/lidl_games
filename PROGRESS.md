@@ -5,7 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 163 → 155.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 155 → 147.**
+  Fixed 8 more test files with real guards, none touching `/src`: `tests/ui-
+  fb094-screenshot-export.test.ts` / `tests/ui-fb097-frame-capture.test.ts`
+  (`.mock.calls[0]` proven by a preceding `toHaveBeenCalledTimes(1)`),
+  `tests/ui-fb108-active-sentences-all-classes.test.ts` (`content.enemies
+  .enemies[0]` hoisted with a guard), `tests/ui-fb175-single-falloff-
+  clause.test.ts` / `tests/b030-autopick-pause-toggle.test.ts` (destructures
+  proven by a preceding `toHaveLength`), `tests/class-roster-size.test.ts`
+  (`doc.classes[0]` and `boonsDoc.skillCards[sourceKey]` both guarded, real
+  shipped content), `tests/fb155-enemy-attack-registry.test.ts`
+  (`doc.enemies[0]` guarded before a `delete`, and a `Record<string,
+  number>`-cast index read guarded before `toBeCloseTo`),
+  `tests/p9h-armour-floor-display.test.ts` (`[...enemyByKey.values()][0]`
+  guarded twice). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the 8; `npx tsc --noEmit` (main config) clean;
+  targeted `npx vitest run` on the ratchet test plus all 8 files green (9
+  files / 65 tests); `npm run test:fast` unchanged at 315 files / 4548
+  passed / 35 skipped. code-reviewer APPROVE (one Nit on a recurring
+  destructure-or-throw idiom, no action taken). Light tier (item is
+  `[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 163 → 155.**
   Fixed 8 more one-error-each test files with real guards, none touching
   `/src`: `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]`
   proven by a preceding `toHaveLength(1)`), `tests/t1-range-

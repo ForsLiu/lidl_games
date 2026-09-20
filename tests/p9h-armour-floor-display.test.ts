@@ -20,6 +20,7 @@ describe('p9h — the armour row shows the effective (floored/capped) value', ()
   it('shreds an enemy past the -100 floor and shows -100, not the raw negative', () => {
     const w = new World(cfg());
     const def = [...content.enemyByKey.values()][0];
+    if (!def) throw new Error('expected at least one enemy definition');
     const e = spawnEnemy(w, def.key, 10, 10)!;
     shredArmor(e, 294 + e.armor); // raw effective armour would be -294
     const markup = enemyInfoMarkup(w, e);
@@ -31,6 +32,7 @@ describe('p9h — the armour row shows the effective (floored/capped) value', ()
   it('leaves an unclamped armour value unmarked', () => {
     const w = new World(cfg());
     const def = [...content.enemyByKey.values()][0];
+    if (!def) throw new Error('expected at least one enemy definition');
     const e = spawnEnemy(w, def.key, 10, 10)!;
     const markup = enemyInfoMarkup(w, e);
     expect(markup).not.toContain('(floor)');
