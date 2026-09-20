@@ -75,7 +75,9 @@ describe('fb067: a full floating-number budget does not silently drop a DoT tick
   it('retries the flush once budget frees up instead of discarding the accumulated second', () => {
     const w = new World(cfg());
     w.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const firstEnemy = w.content.enemies.enemies[0];
+    if (!firstEnemy) throw new Error('no enemies in content');
+    const e = spawnEnemy(w, firstEnemy.key, w.warden.x + 10, w.warden.y)!;
     applyDot(w, e, 'bleeding', 20, 5, 'test');
 
     const { canvas, texts } = recordingCanvas();

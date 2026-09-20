@@ -196,7 +196,9 @@ describe('cleanupScratch (b029)', () => {
       }),
     ).not.toThrow();
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain('some/scratch/dir');
+    const call0 = warn.mock.calls[0];
+    if (!call0) throw new Error('expected warn to have been called');
+    expect(call0[0]).toContain('some/scratch/dir');
     warn.mockRestore();
   });
 

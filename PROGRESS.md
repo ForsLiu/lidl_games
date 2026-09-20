@@ -5,7 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 179 → 171.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 171 → 161.**
+  Fixed 10 more test files with real guards, all one-error-each:
+  `tests/p9e-levelup-idle.test.ts` (`w.offers[0]` guarded), `tests/q13-perf-
+  ratio.test.ts` / `tests/q13-perf-sensitivity.test.ts` (`median()` throws on
+  empty array, matching `tests/a9-economy.test.ts`'s identical helper),
+  `tests/q28-cli-error-handling.test.ts` (`warn.mock.calls[0]` guarded right
+  after `toHaveBeenCalledTimes(1)` proves it exists),
+  `tests/render-fb067/68/69/70-*.test.ts` (all four: guard
+  `w.content.enemies.enemies[0]` before use, matching the fb025/fb084
+  precedent), `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]`
+  guarded right after `toHaveLength(1)` proves it exists),
+  `tests/t1-range-indicators.test.ts` (destructures `[countOff, countOn]`
+  from the fixed 2-element `.map` result instead of indexing). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+  10; `npx tsc --noEmit` (main config) clean; targeted `npx vitest run` on
+  all 10 plus the ratchet test green (60 passed); `npm run test:fast`
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE,
+  no findings. Light tier (item is `[polish]`, no `/src`/`/data` touched) —
+  no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 179 → 171.**
   Fixed 8 more test files with real guards, all one-error-each:
   `tests/fb153a-number-scale.test.ts` (regex capture read hoisted and
   guarded), `tests/p-core-d-corpse.test.ts` (module-scope data-constant read

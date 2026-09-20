@@ -5356,6 +5356,34 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       reasoning is sound). Light tier per this item's `[polish]` tag and no
       `/src`/`/data` changes — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-20 (scheduled routine, next item)**:
+      fixed 10 more files, all one-error-each — `tests/p9e-levelup-idle.test.ts`
+      (`w.offers[0]` guarded, throws on an exhausted offer pool),
+      `tests/q13-perf-ratio.test.ts` and `tests/q13-perf-sensitivity.test.ts`
+      (`median()` now throws on an empty array, matching
+      `tests/a9-economy.test.ts`'s own identical helper — same fix already
+      applied to `p10e-perf-budget.test.ts` last item), `tests/q28-cli-error-
+      handling.test.ts` (`warn.mock.calls[0]` guarded, immediately after
+      `expect(warn).toHaveBeenCalledTimes(1)` already proves it exists),
+      `tests/render-fb067-dot-number-budget.test.ts`,
+      `tests/render-fb068-dot-density-hysteresis.test.ts`,
+      `tests/render-fb069-dot-accum-stale-cleanup.test.ts` and
+      `tests/render-fb070-dot-toggle-off-stale-cleanup.test.ts` (all four:
+      guard `w.content.enemies.enemies[0]` before use, matching the same
+      pattern already used in fb025-enemy-hp-bars/fb084-summon-cap-stat),
+      `tests/render-fb098-colorblind-audit.test.ts` (`violations[0]` guarded,
+      immediately after `expect(violations).toHaveLength(1)` already proves
+      it exists), `tests/t1-range-indicators.test.ts` (destructures
+      `[countOff, countOn]` from the fixed 2-element `.map` result instead of
+      indexing `counts[0]`/`counts[1]`, both guarded for `undefined`).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+      any of the 10; `npx tsc --noEmit` (main config) clean; targeted `npx
+      vitest run` on all 10 plus the ratchet test green (60 passed); `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 171 →
+      **161 files remain** on the allowlist. code-reviewer APPROVE (no
+      findings). Light tier per this item's `[polish]` tag and no `/src`/
+      `/data` changes — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
