@@ -50,7 +50,7 @@ const terrainCfg = loadTerrain();
 // none of the prior (post-merge 4426/4515/5516, pre-merge 97/2055/2845/3098)
 // still strand under the corrected 3-gate list; these four are the first
 // that do, of seeds 1..8000.
-const STRANDED_CORE_SEEDS = [2722, 6377, 6736, 7916];
+const STRANDED_CORE_SEEDS = [2722, 6377, 6736, 7916] as const;
 
 function coreTileIndices(w: number): number[] {
   const out: number[] = [];
