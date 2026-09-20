@@ -49,7 +49,10 @@ export function parseGates(specText: string): Gate[] {
   const rowRe = /^\|\s*(G\d+)\s*\|\s*(.+?)\s*\|\s*$/gm;
   let m: RegExpExecArray | null;
   while ((m = rowRe.exec(section))) {
-    gates.push({ id: m[1], text: m[2] });
+    const id = m[1];
+    const text = m[2];
+    if (id === undefined || text === undefined) throw new Error('gate-audit: unreachable — rowRe has two required capture groups');
+    gates.push({ id, text });
   }
   return gates;
 }
@@ -406,7 +409,12 @@ export function backlogCheckboxes(text: string): Record<string, boolean> {
   const map: Record<string, boolean> = {};
   const re = /^- \[([ xX])\] \((q\d+)\)/gm;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) map[m[2]] = m[1].toLowerCase() === 'x';
+  while ((m = re.exec(text))) {
+    const mark = m[1];
+    const id = m[2];
+    if (mark === undefined || id === undefined) throw new Error('gate-audit: unreachable — re has two required capture groups');
+    map[id] = mark.toLowerCase() === 'x';
+  }
   return map;
 }
 

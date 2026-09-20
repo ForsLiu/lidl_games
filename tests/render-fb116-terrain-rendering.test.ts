@@ -121,6 +121,7 @@ describe('fb116: every non-normal tile is painted with its kind\'s authored colo
         const t = w.grid.tile[idx];
         if (t === TileType.Border || t === TileType.Gate) continue; // fb116: these win over terrain — see drawTiles' own comment.
         const kind = w.grid.terrainKind[idx];
+        if (kind === undefined) throw new Error('unreachable — idx is within terrainKind bounds');
         if (kind === TerrainKind.Normal) continue;
         sawNonNormal = true;
         const authored = terrainCfg.tiles[kind]!.color;
@@ -132,13 +133,12 @@ describe('fb116: every non-normal tile is painted with its kind\'s authored colo
         // rather than re-deriving the exact jittered value here, which would
         // just re-run the renderer's own formula against itself.
         expect(painted).toMatch(/^#[0-9a-f]{6}$/i);
-        const [pr, pg, pb] = [1, 3, 5].map((i) => parseInt(painted!.slice(i, i + 2), 16));
-        const [ar, ag, ab] = [1, 3, 5].map((i) => parseInt(authored.slice(i, i + 2), 16));
-        for (const [p, a] of [
-          [pr, ar],
-          [pg, ag],
-          [pb, ab],
-        ]) {
+        const hexChannel = (hex: string, i: number): number => parseInt(hex.slice(i, i + 2), 16);
+        const channels: [number, number][] = [1, 3, 5].map((i) => [
+          hexChannel(painted!, i),
+          hexChannel(authored, i),
+        ]);
+        for (const [p, a] of channels) {
           expect(Math.abs(p - a)).toBeLessThanOrEqual(Math.ceil(0.12 * 255));
         }
       }
@@ -262,7 +262,9 @@ describe('fb116: the build ghost names the terrain rejection', () => {
     }
     expect(target, 'seed 7 must generate at least one interior Rock tile').not.toBeNull();
 
-    const towerId = w.content.towers.towers[0].id;
+    const firstTower = w.content.towers.towers[0];
+    if (firstTower === undefined) throw new Error('unreachable — data/towers.json is never empty');
+    const towerId = firstTower.id;
     const texts: string[] = [];
     const canvas = document.createElement('canvas');
     canvas.getContext = (() =>

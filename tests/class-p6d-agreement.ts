@@ -71,11 +71,15 @@ function occupancyBlock(text: string): string {
         'failure, not a re-aim)',
     );
   }
-  const [line, i] = hits[0];
+  const hit = hits[0];
+  if (hit === undefined) throw new Error('class-p6d-agreement: unreachable — hits.length === 1 just confirmed');
+  const [line, i] = hit;
   const indent = /^\s*/.exec(line)![0].length;
   for (let j = i + 1; j < ls.length; j++) {
-    if (ls[j].trim() === '') continue;
-    if (/^\s*/.exec(ls[j])![0].length > indent) continue;
+    const lj = ls[j];
+    if (lj === undefined) continue;
+    if (lj.trim() === '') continue;
+    if (/^\s*/.exec(lj)![0].length > indent) continue;
     return ls.slice(i + 1, j).join('\n');
   }
   throw new Error(`class-p6d-agreement: ${P6D_FILE}'s occupancy test never closes — parse failure, not a re-aim`);
@@ -93,7 +97,9 @@ function only(block: string, re: RegExp, what: string): RegExpMatchArray {
         '— park and aim must pair unambiguously (this is a parse failure, not a re-aim)',
     );
   }
-  return all[0];
+  const found = all[0];
+  if (found === undefined) throw new Error('class-p6d-agreement: unreachable — all.length === 1 just confirmed');
+  return found;
 }
 
 /** Pure, so the shapes QA broke can be exercised on synthetic sources. */
