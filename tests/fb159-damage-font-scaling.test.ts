@@ -36,11 +36,17 @@ describe('fb159: floatingNumberFontSize is monotonic in value and clamped', () =
   it('renders three visibly distinct sizes across 1/10/100/1000, strictly increasing', () => {
     const sizes = [1, 10, 100, 1000].map((v) => floatingNumberFontSize(v));
     for (let i = 1; i < sizes.length; i++) {
-      expect(sizes[i], `${[1, 10, 100, 1000][i]} vs previous`).toBeGreaterThan(sizes[i - 1]);
+      const cur = sizes[i];
+      const prev = sizes[i - 1];
+      if (cur === undefined || prev === undefined) throw new Error('unreachable — i is within sizes bounds');
+      expect(cur, `${[1, 10, 100, 1000][i]} vs previous`).toBeGreaterThan(prev);
     }
     // "Visibly distinct" — at least a few px apart between adjacent anchors, not a rounding artifact.
     for (let i = 1; i < sizes.length; i++) {
-      expect(sizes[i] - sizes[i - 1]).toBeGreaterThan(1);
+      const cur = sizes[i];
+      const prev = sizes[i - 1];
+      if (cur === undefined || prev === undefined) throw new Error('unreachable — i is within sizes bounds');
+      expect(cur - prev).toBeGreaterThan(1);
     }
   });
 
@@ -163,7 +169,9 @@ describe('fb159: real hit/execute/DoT events render through the same formula end
   it('a real DoT aggregate tick renders at 80% of the same value-based size, not a flat fraction of 12px', () => {
     const w = new World(cfg({ practice: true }));
     w.warden.attackCooldown = 1e9;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const firstEnemyDef = w.content.enemies.enemies[0];
+    if (firstEnemyDef === undefined) throw new Error('unreachable — data/enemies.json is never empty');
+    const e = spawnEnemy(w, firstEnemyDef.key, w.warden.x + 10, w.warden.y)!;
     applyDot(w, e, 'bleeding', 20, 5, 'test');
 
     const { canvas, texts } = recordingCanvas();

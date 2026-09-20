@@ -179,9 +179,11 @@ describe('fb152 — DoT tick cadence', () => {
       w.rebuildBuckets();
       updateEnemies(w, DT);
     }
-    expect(e.dots[0].accDamage).toBeGreaterThan(0);
-    const bank = e.dots[0].accDamage;
-    const bankedTime = e.dots[0].accTime;
+    const firstDot = e.dots[0];
+    if (firstDot === undefined) throw new Error('unreachable — applyDot just pushed one');
+    expect(firstDot.accDamage).toBeGreaterThan(0);
+    const bank = firstDot.accDamage;
+    const bankedTime = firstDot.accTime;
     applyDot(w, e, 'poison', 40, 4, 'second', { maxStacks: 1 });
     expect(e.dots.length).toBe(1);
     const drops = tickHpDrops(w, e, 4.5);
@@ -205,7 +207,9 @@ describe('fb152 — DoT tick cadence', () => {
     expect(dotOutstanding(e)).toBeCloseTo(10 * 4, 6);
     // And the owed total tracks the clock, bank included, rather than dropping
     // the accrued-but-unpaid part on the floor (`dotOutstanding` reads both).
-    expect(e.dots[0].accDamage).toBeCloseTo(10 * elapsed, 9);
+    const firstDot = e.dots[0];
+    if (firstDot === undefined) throw new Error('unreachable — applyDot just pushed one');
+    expect(firstDot.accDamage).toBeCloseTo(10 * elapsed, 9);
   });
 
   it('Burning\'s splash pays its whole bank even when the carrier dies on that tick', () => {

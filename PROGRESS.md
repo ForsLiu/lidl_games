@@ -5,7 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 86 → 84.**
+- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 84 → 74.**
+  Fixed 10 more files with real guards, none touching `/src`/`/data`:
+  `tests/class-p6d-agreement.ts`, `tests/fb152-dot-tick-cadence.test.ts`,
+  `tests/fb154-vs-gate-spawns.test.ts`, `tests/fb159-damage-font-scaling.test.ts`,
+  `tests/p-core-e-time-decay.test.ts`, `tests/render-fb060-dot-tick-numbers.test.ts`,
+  `tests/render-fb116-terrain-rendering.test.ts`,
+  `tests/ui-fb082-overlay-geometry.test.ts`, `tests/ui-fb096-save-slots.test.ts`,
+  `tools/gate-audit.ts` — mostly throw-on-already-guaranteed-invariant guards
+  and a couple of new helpers (`step(n)` in p-core-e, a shared `firstEnemyKey(w)`
+  in render-fb060, a `hexChannel` helper in render-fb116) matching the
+  established fb133 conventions; one real type fix (`ui-fb082`'s `cvVars`
+  return type). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+  clean on all 10, no new offenders; main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` green (284 tests); `npm run test:fast` green, unchanged
+  at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE (one
+  informational Minor/Nit on pre-existing untouched `!` assertions in
+  render-fb116, not a regression). Light tier (`[polish]`, no `/src`/`/data`
+  touched). — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 86 → 84.**
   Fixed 2 more files with real guards, none touching `/src`/`/data`:
   `tests/dps-panel.test.ts` (6 `Object.keys(record)` + `record[key]` sites
   fixed with `record[key] ?? 0`, matching the exact pattern already used in

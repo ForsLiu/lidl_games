@@ -387,7 +387,7 @@ describe('fb096: save-slots module', () => {
           .forEach((line, i) => {
             const trimmed = line.trimStart();
             if (trimmed.startsWith('*') || trimmed.startsWith('/*') || trimmed.startsWith('//')) return;
-            if (SAVE_META_REF.test(line.split('//')[0])) offenders.push(`${rel}:${i + 1}: ${trimmed}`);
+            if (SAVE_META_REF.test(line.split('//')[0] ?? '')) offenders.push(`${rel}:${i + 1}: ${trimmed}`);
           });
       }
     }
@@ -430,8 +430,10 @@ describe('fb096: Settings tab Save Slots panel', () => {
     expect(rows.length).toBe(SAVE_SLOT_COUNT);
     expect(root.textContent).toContain('Slot 1 (active)');
     const switchButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-switch]');
-    expect(switchButtons[0].disabled).toBe(true);
-    expect(switchButtons[1].disabled).toBe(false);
+    const [first, second] = switchButtons;
+    if (first === undefined || second === undefined) throw new Error('unreachable — SAVE_SLOT_COUNT rows just asserted above');
+    expect(first.disabled).toBe(true);
+    expect(second.disabled).toBe(false);
   });
 
   it('an empty slot is labeled empty and its Delete button is disabled', () => {
@@ -439,7 +441,9 @@ describe('fb096: Settings tab Save Slots panel', () => {
     const { root } = openHub();
     expect(root.textContent).toContain('Slot 2 — empty');
     const deleteButtons = root.querySelectorAll<HTMLButtonElement>('[data-slot-delete]');
-    expect(deleteButtons[1].disabled).toBe(true);
+    const secondDelete = deleteButtons[1];
+    if (secondDelete === undefined) throw new Error('unreachable — Slot 2 is one of SAVE_SLOT_COUNT rows');
+    expect(secondDelete.disabled).toBe(true);
   });
 
   it('clicking Switch moves the active slot and reloads the page immediately, without touching in-memory meta', () => {
