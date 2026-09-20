@@ -19,11 +19,15 @@
   clean; targeted `npx vitest run` on all 9 plus two downstream consumers
   of `class-p6d-agreement.ts` plus the ratchet test, all green (326
   tests); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
-  skipped. code-reviewer dispatched in the background; this commit lands
-  ahead of its result per the session's uncommitted-work policy — its
-  outcome (and any fix it prompts) follows in a subsequent commit. Light
-  tier (`[polish]`, no `/src`/`/data` touched). — refs: BACKLOG.md fb133
-  Log.
+  skipped. code-reviewer APPROVE (two Nits, both fixed same-day: the
+  ratchet test's own docstring narrative was already stale before this
+  session and remained stale after — updated to say 92, 90, 86, 84, then
+  75; `tests/fb159-damage-font-scaling.test.ts`'s new `nth()` helper
+  omitted the descriptive `what` message the established
+  `tests/ui-fb117-core-select.test.ts` version of the same helper
+  carries — added, with call sites updated). Light tier (`[polish]`, no
+  `/src`/`/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md
+  fb133 Log.
 - **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 86 → 84.**
   Fixed 2 more files with real guards, none touching `/src`/`/data`:
   `tests/dps-panel.test.ts` (6 `Object.keys(record)` + `record[key]` sites

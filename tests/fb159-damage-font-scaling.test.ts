@@ -25,9 +25,9 @@ function firstEnemyKey(w: World): string {
   return def.key;
 }
 
-function nth(arr: readonly number[], i: number): number {
+function nth(arr: readonly number[], i: number, what: string): number {
   const v = arr[i];
-  if (v === undefined) throw new Error(`expected index ${i}`);
+  if (v === undefined) throw new Error(`expected ${what}`);
   return v;
 }
 
@@ -48,11 +48,13 @@ describe('fb159: floatingNumberFontSize is monotonic in value and clamped', () =
   it('renders three visibly distinct sizes across 1/10/100/1000, strictly increasing', () => {
     const sizes = [1, 10, 100, 1000].map((v) => floatingNumberFontSize(v));
     for (let i = 1; i < sizes.length; i++) {
-      expect(nth(sizes, i), `${[1, 10, 100, 1000][i]} vs previous`).toBeGreaterThan(nth(sizes, i - 1));
+      expect(nth(sizes, i, `sizes[${i}]`), `${[1, 10, 100, 1000][i]} vs previous`).toBeGreaterThan(
+        nth(sizes, i - 1, `sizes[${i - 1}]`),
+      );
     }
     // "Visibly distinct" — at least a few px apart between adjacent anchors, not a rounding artifact.
     for (let i = 1; i < sizes.length; i++) {
-      expect(nth(sizes, i) - nth(sizes, i - 1)).toBeGreaterThan(1);
+      expect(nth(sizes, i, `sizes[${i}]`) - nth(sizes, i - 1, `sizes[${i - 1}]`)).toBeGreaterThan(1);
     }
   });
 

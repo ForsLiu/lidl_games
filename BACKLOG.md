@@ -5861,10 +5861,14 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       (`tests/class-kit-whiff.test.ts`, `tests/p6d-nine-classes.test.ts`)
       plus the ratchet test itself, all green (326 tests); `npm run
       test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 84 →
-      **75 files remain** on the allowlist. code-reviewer dispatched — see
-      PROGRESS.md for its outcome before treating this batch as final. Light
-      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
-      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+      **75 files remain** on the allowlist. code-reviewer APPROVE (two
+      Nits, both fixed same-day: the ratchet test's own docstring
+      narrative of past counts was stale before and after this session —
+      corrected; `fb159`'s new `nth()` helper omitted the descriptive
+      `what` message the established `ui-fb117-core-select.test.ts`
+      version carries — added). Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
