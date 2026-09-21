@@ -5,7 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 38 → 35.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 35 → 32.**
+  Fixed 3 more files with real guards (never `!`): `tests/ui-fb149-falloff-
+  wording.test.ts` (a local `nth<T>(arr, i)` throw-guard helper replacing
+  every unguarded `dealt[...]`/`struck[...]` indexed read across the
+  falloff-measurement suite, each index already proven in range by a
+  preceding `.toHaveLength`/loop-bound check); `tests/equip-spec-
+  numbers.test.ts` (throw-guards on regex capture groups — `m?.[1]` plus an
+  explicit `undefined` check — in the §7 spec-table parser and the
+  `fromQuote` inverse-scaling block, an `at(i)` cell-accessor helper for
+  the already-length-checked 8-cell table row parse, `?? ''` on a
+  `q.split(' ')[0]` that can never actually be `undefined` since `split`
+  always returns a non-empty array); `tests/meta.test.ts` (a local
+  `firstLink(node)` throw-guard helper replacing every `content.treeById
+  .get(0)!.links[0]` unguarded index across the Constellation test block).
+  Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+  any of the 3, no new offenders; main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` on the 3 files plus the ratchet test itself (173 tests)
+  green; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 35 → **32 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major/Minor findings. Light tier (`[polish]`, no
+  `/src`/`/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 38 → 35.**
   Fixed 3 more files with real guards (never `!`): `tests/p6d-nine-
   classes.test.ts` (a `firstEnemyKey()` helper matching the pattern already
   used in several sibling test files, replacing an unsafe `content.enemies

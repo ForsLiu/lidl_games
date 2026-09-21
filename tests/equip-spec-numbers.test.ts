@@ -156,8 +156,9 @@ const SPEC_7_TEXT = (() => {
  */
 const SPEC_SLOTS: readonly string[] = (() => {
   const m = /Slots: \*\*(.+?)\*\*/.exec(SPEC_7_TEXT);
-  if (!m) throw new Error('SPEC-FINAL §7: no `Slots: **...**` preamble line');
-  return m[1].split(',').map((s) => s.trim());
+  const captured = m?.[1];
+  if (captured === undefined) throw new Error('SPEC-FINAL §7: no `Slots: **...**` preamble line');
+  return captured.split(',').map((s) => s.trim());
 })();
 
 /**
@@ -181,20 +182,27 @@ const SPEC_TABLE: readonly SpecRow[] = (() => {
         `§7: table row has ${cells.length} cells, expected 8 - "${line.trim()}"`,
       );
     }
-    if (cells[0] === 'Item' || cells[0].startsWith('---')) continue;
+    const at = (i: number): string => {
+      const v = cells[i];
+      if (v === undefined) throw new Error(`§7: table row missing cell ${i} - "${line.trim()}"`);
+      return v;
+    };
+    const name = at(0);
+    if (name === 'Item' || name.startsWith('---')) continue;
     const num = (raw: string): number => {
       // `×1.2` -> 1.2 (U+00D7), a bare `10` -> 10. Anything else is a parse
       // failure, not a zero: a silently-zeroed cell would make its row assert
       // the opposite of what the spec says.
       const m = /^(?:×)?(-?[\d.]+)$/.exec(raw);
-      if (!m) throw new Error(`§7: cannot read numeric cell "${raw}" in row "${cells[0]}"`);
-      return Number(m[1]);
+      const captured = m?.[1];
+      if (captured === undefined) throw new Error(`§7: cannot read numeric cell "${raw}" in row "${name}"`);
+      return Number(captured);
     };
     out.push({
-      name: cells[0],
-      slot: cells[1],
-      cells: { hp: num(cells[2]), atk: num(cells[3]), def: num(cells[4]), atkspd: num(cells[5]), move: num(cells[6]) },
-      effect: cells[7],
+      name,
+      slot: at(1),
+      cells: { hp: num(at(2)), atk: num(at(3)), def: num(at(4)), atkspd: num(at(5)), move: num(at(6)) },
+      effect: at(7),
     });
   }
   return out;
@@ -1428,13 +1436,14 @@ describe('c012 — SPEC-FINAL §7: every stated figure, matched or named', () =>
         // `engineer` left the entire suite green, this file included, while
         // contradicting the sentence the row quotes.
         if (f.bag === 'fallback') {
-          const who = /if not (\w+)/.exec(quote);
-          expect(who, `${id(f)}: a fallback quote must name the class §7 excludes`).not.toBeNull();
+          const who = /if not (\w+)/.exec(quote)?.[1];
+          expect(who, `${id(f)}: a fallback quote must name the class §7 excludes`).not.toBeUndefined();
+          if (who === undefined) throw new Error(`${id(f)}: unreachable, checked above`);
           const item = RAW.items.find((i) => i.key === f.item);
           expect(
             item?.classFallback?.notClassKey,
-            `${id(f)}: §7 excludes the ${who![1]}, so notClassKey must be its class key`,
-          ).toBe(who![1].toLowerCase());
+            `${id(f)}: §7 excludes the ${who}, so notClassKey must be its class key`,
+          ).toBe(who.toLowerCase());
         }
       }
 
@@ -2500,13 +2509,17 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
         if (f.stat && (STAT_SCALED[f.stat as StatKey] || STAT_INVERSE_SCALED[f.stat as StatKey]) && f.fromQuote) {
           const m = f.fromQuote.pattern.exec(want);
           expect(m, `${id(f)}: fromQuote pattern does not match "${want}"`).not.toBeNull();
+          if (m === null) throw new Error(`${id(f)}: unreachable, checked above`);
+          const whole = m[0];
+          const group1 = m[1];
+          if (group1 === undefined) throw new Error(`${id(f)}: fromQuote pattern has no capture group in "${want}"`);
           const factor = STAT_SCALED[f.stat as StatKey]
             ? content.modifiers.numberScale
             : 1 / content.modifiers.numberScale;
-          const scaled = Number(m![1]) * factor;
-          const numStart = m![0].indexOf(m![1]);
-          const scaledMatch = m![0].slice(0, numStart) + String(scaled) + m![0].slice(numStart + m![1].length);
-          want = want.slice(0, m!.index) + scaledMatch + want.slice(m!.index + m![0].length);
+          const scaled = Number(group1) * factor;
+          const numStart = whole.indexOf(group1);
+          const scaledMatch = whole.slice(0, numStart) + String(scaled) + whole.slice(numStart + group1.length);
+          want = want.slice(0, m.index) + scaledMatch + want.slice(m.index + whole.length);
         }
         expect(desc, `${id(f)}: the desc does not state §7's "${f.quote}"`).toContain(want);
         // `descQuote` is the one hand-typed expectation left in this file, and
@@ -2535,7 +2548,7 @@ describe('c012 — each item’s desc states §7’s own figures', () => {
           expect(f.descQuote, `${id(f)}: descQuote no longer names §7's "${noun}"`).toContain(noun);
           // ...and the word §7 states the figure as must be *inflected*, not
           // dropped: "double" -> "doubles" is the whole licence this hatch has.
-          const head = q.split(' ')[0];
+          const head = q.split(' ')[0] ?? '';
           expect(
             f.descQuote.startsWith(head),
             `${id(f)}: descQuote drops §7's "${head}" rather than inflecting it`,

@@ -6140,6 +6140,29 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major/Minor findings. Light tier (`[polish]`, no `/src`/
       `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
       TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed 3
+      more files with real guards (never `!`) — `tests/ui-fb149-falloff-
+      wording.test.ts` (a local `nth<T>(arr, i)` throw-guard helper
+      replacing every unguarded `dealt[...]`/`struck[...]` indexed read
+      across the falloff-measurement suite, each index already proven in
+      range by a preceding `.toHaveLength`/loop-bound check), `tests/
+      equip-spec-numbers.test.ts` (throw-guards on regex capture groups —
+      `m?.[1]` plus an explicit `undefined` check — in the §7 spec-table
+      parser and the `fromQuote` inverse-scaling block, an `at(i)` cell-
+      accessor helper for the already-length-checked 8-cell table row
+      parse, `?? ''` on a `q.split(' ')[0]` that can never actually be
+      `undefined` since `split` always returns a non-empty array),
+      `tests/meta.test.ts` (a local `firstLink(node)` throw-guard helper
+      replacing every `content.treeById.get(0)!.links[0]` unguarded
+      index across the Constellation test block). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 3,
+      no new offenders; main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on the 3 files plus the ratchet test itself (173
+      tests) green; `npm run test:fast` unchanged at 315 files / 4548
+      passed / 35 skipped. 35 → **32 files remain** on the allowlist.
+      code-reviewer APPROVE, no Critical/Major/Minor findings. Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
