@@ -41,6 +41,12 @@ function cfg(over: Parameters<typeof cfgWithTerrain>[0] = {}): ReturnType<typeof
   return cfgWithTerrain({ practice: true, ...over });
 }
 
+function firstEnemyKey(w: World): string {
+  const first = w.content.enemies.enemies[0];
+  if (first === undefined) throw new Error('content.enemies.enemies is empty');
+  return first.key;
+}
+
 const DT = 1 / 60;
 
 describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override', () => {
@@ -53,7 +59,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     w.warden.y = 10;
     w.warden.attackCooldown = 1e9; // isolate the Active from the basic attack
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const inRange = spawnEnemy(w, key, 11, 10)!;
     inRange.speed = 3;
     const outOfRange = spawnEnemy(w, key, 30, 15)!; // outside r6 of the cast point
@@ -94,7 +100,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     const totem = w.classSummons.find((s) => s.kind === 'animist_totem');
     expect(totem).toBeDefined();
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     // Distance 3 from the totem, inside its radius-4 aura.
     const near = spawnEnemy(w, key, 5, 8)!;
     near.speed = 3;
@@ -122,7 +128,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     applyCommand(w, { k: 'class_active2' });
     expect(w.classSummons.some((s) => s.kind === 'animist_totem')).toBe(true);
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const near = spawnEnemy(w, key, 5, 8, { overlay: false })!;
     w.rebuildBuckets();
 
@@ -141,7 +147,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     w.warden.y = 2;
     w.warden.attackCooldown = 1e9;
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, CORE_X + 0.5, CORE_Y + 0.5, { overlay: false })!;
     e.speed = 0; // stands still: isolates the leak check from the movement override
     e.tauntRemaining = 5;
@@ -162,7 +168,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     // case so the caller falls back to real flow-field pathing, not a beeline
     // toward a point resolved from a totem that no longer exists.
     const w = new World(cfg({ classKey: 'animist' }));
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 5, 8)!;
     e.tauntRemaining = 0.3; // still inside the totem's own decay tail
     e.tauntKind = TAUNT_TOTEM;
@@ -184,7 +190,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     applyCommand(w, { k: 'class_active2' }); // totem #1 at (5,5)
     const totem1 = w.classSummons.find((s) => s.kind === 'animist_totem')!;
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 6, 5, { overlay: false })!;
     e.speed = 0;
     w.rebuildBuckets();
@@ -222,7 +228,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     const totem = w.classSummons.find((s) => s.kind === 'animist_totem')!;
     totem.auraTauntTickSeconds = -1; // simulates a corrupted /data value
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 6, 5, { overlay: false })!;
     w.rebuildBuckets();
 
@@ -246,7 +252,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     w.phase = 'act2';
     w.warden.x = 8;
     w.warden.y = 8;
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 9, 8, { overlay: false })!; // inside r6
     w.rebuildBuckets();
 
@@ -275,7 +281,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     w.phase = 'act2';
     w.grid.refresh();
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const taunted = spawnEnemy(w, key, 13, 9.5, { overlay: true })!;
     taunted.speed = 2;
     w.rebuildBuckets();
@@ -338,7 +344,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     // the wall's tile to reach it.
     w.warden.x = 13.5;
     w.warden.y = 15.5;
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 14, 15, { overlay: false })!;
     e.speed = 3;
     w.rebuildBuckets();
@@ -391,7 +397,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
     const totem = w.classSummons.find((s) => s.kind === 'animist_totem');
     expect(totem).toBeDefined();
 
-    const key = w.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(w);
     const e = spawnEnemy(w, key, 13, 15, { overlay: false })!; // distance 3, inside radius 4
     e.speed = 3;
     w.rebuildBuckets();
@@ -432,7 +438,7 @@ describe('Q120 ORDER 1: minimal taunt — per-enemy pathing destination override
   it('hashWorld covers the new taunt fields — two otherwise-identical worlds differing only there hash differently', () => {
     const a = new World(cfg({ classKey: 'paladin' }));
     const b = new World(cfg({ classKey: 'paladin' }));
-    const key = a.content.enemies.enemies[0].key;
+    const key = firstEnemyKey(a);
     const ea = spawnEnemy(a, key, 10, 10)!;
     spawnEnemy(b, key, 10, 10);
 

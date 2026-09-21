@@ -669,13 +669,16 @@ const CLAUSE = ';:,';
  * lets the TD claim borrow "TD waves" from the VS clause.
  */
 function window(text: string, found: readonly Numeral[], i: number): string {
-  const from = i === 0 ? 0 : found[i - 1].end;
-  const to = i + 1 < found.length ? found[i + 1].start : text.length;
+  const self = found[i];
+  if (self === undefined) throw new Error(`found[${i}] out of range`); // caller always passes a valid index
+  const from = i === 0 ? 0 : (found[i - 1]?.end ?? 0); // i === 0 handled above; i - 1 is otherwise always in range
+  const to = i + 1 < found.length ? (found[i + 1]?.start ?? text.length) : text.length;
   let clauseFrom = 0;
   let clauseTo = text.length;
   for (let p = 0; p < text.length; p++) {
-    if (!CLAUSE.includes(text[p])) continue;
-    if (p < found[i].start) clauseFrom = p + 1;
+    const ch = text[p];
+    if (ch === undefined || !CLAUSE.includes(ch)) continue;
+    if (p < self.start) clauseFrom = p + 1;
     else {
       clauseTo = p;
       break;
@@ -831,10 +834,13 @@ describe('c015 — every numeral in a class description names its own field', ()
         // ...and each numeral is still attached to the noun its claim is about.
         found.forEach((_, i) => {
           const own = window(text, found, i);
-          for (const kw of claims[i].keywords) {
+          const claim = claims[i];
+          // found and claims were just asserted equal-length above (line 831's toEqual).
+          if (claim === undefined) throw new Error(`claims[${i}] out of range`);
+          for (const kw of claim.keywords) {
             expect(
               own.includes(kw),
-              `${id(claims[i])}: "${kw}" is no longer beside this number — its window is "${own}". The number still matches its field, but the sentence is now about something else.`,
+              `${id(claim)}: "${kw}" is no longer beside this number — its window is "${own}". The number still matches its field, but the sentence is now about something else.`,
             ).toBe(true);
           }
         });
@@ -1011,6 +1017,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       const row = doc.classes.find((r) => r.key === target.cls);
       const parent = walk(row, path.slice(0, -1)) as Record<string, unknown> | undefined;
       const leaf = path[path.length - 1];
+      if (leaf === undefined) throw new Error(`${id(target)}: claimPath is empty`); // a data-homed claim path always has >=1 segment
       expect(parent, `${id(target)}: ${path.join('.')} has no parent object`).toBeTypeOf('object');
       expect(typeof parent![leaf], `${id(target)}: nothing authored at ${path.join('.')}`).toBe('number');
 

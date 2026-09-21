@@ -183,7 +183,11 @@ export function sites(file: DataFile): Site[] {
       return;
     }
     if (v && typeof v === 'object') {
-      for (const k of Object.keys(v)) walk(v[k], `${path}.${k}`, [...pointer, k], false);
+      for (const k of Object.keys(v)) {
+        const child = v[k];
+        if (child === undefined) continue; // k came from Object.keys(v): always present
+        walk(child, `${path}.${k}`, [...pointer, k], false);
+      }
     }
   };
   walk(pristine(file), file, [], false);
@@ -222,7 +226,11 @@ export function stringSites(file: DataFile): Site[] {
       return;
     }
     if (v && typeof v === 'object') {
-      for (const k of Object.keys(v)) walk(v[k], `${path}.${k}`, [...pointer, k], false);
+      for (const k of Object.keys(v)) {
+        const child = v[k];
+        if (child === undefined) continue; // k came from Object.keys(v): always present
+        walk(child, `${path}.${k}`, [...pointer, k], false);
+      }
     }
   };
   walk(pristine(file), file, [], false);
@@ -351,14 +359,22 @@ function resolve(root: JsonValue, pointer: (string | number)[]): Slot | null {
   let cur: JsonValue = root;
   for (let i = 0; i < pointer.length - 1; i++) {
     if (cur === null || typeof cur !== 'object') return null;
-    cur = (cur as Record<string | number, JsonValue>)[pointer[i]];
+    const step = pointer[i];
+    if (step === undefined) return null; // i < pointer.length - 1: always in range
+    const next = (cur as Record<string | number, JsonValue>)[step];
+    if (next === undefined) return null; // stale pointer against the given root
+    cur = next;
   }
   if (cur === null || typeof cur !== 'object') return null;
   const key = pointer[pointer.length - 1];
+  // sites() only emits pointers with length > 0, so this is always in range.
+  if (key === undefined) return null;
+  const value = (cur as Record<string | number, JsonValue>)[key];
+  if (value === undefined) return null; // stale pointer against the given root
   return {
     parent: cur as JsonValue[] | { [k: string]: JsonValue },
     key,
-    value: (cur as Record<string | number, JsonValue>)[key],
+    value,
   };
 }
 
@@ -408,8 +424,12 @@ export function mutate(root: JsonValue, site: Site, family: Family): boolean {
       return Array.isArray(value) && value.length > 0 ? set([]) : false;
     case 'drop-element':
       return Array.isArray(value) && value.length > 0 ? set(value.slice(1)) : false;
-    case 'dupe-element':
-      return Array.isArray(value) && value.length > 0 ? set([...value, value[0]]) : false;
+    case 'dupe-element': {
+      if (!Array.isArray(value) || value.length === 0) return false;
+      const first = value[0];
+      if (first === undefined) return false; // value.length > 0: always in range
+      return set([...value, first]);
+    }
     case 'drop-key': {
       if (Array.isArray(parent) || !(key in parent)) return false;
       delete (parent as Record<string, JsonValue>)[key as string];
@@ -557,7 +577,7 @@ export function scanContent(c: unknown): string[] {
 /** The one-line complaint a loader threw, trimmed to something a report can hold. */
 export function errorLine(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
-  return msg.split('\n')[0].slice(0, 160);
+  return (msg.split('\n')[0] ?? '').slice(0, 160); // split() on a string always yields >=1 element
 }
 
 /* ---------------------------------------------------------------- summary */

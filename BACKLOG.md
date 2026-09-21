@@ -5964,6 +5964,64 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       APPROVE, no findings. 61 → **56 files remain** on the allowlist.
       Light tier (`[polish]`, no `/src`/`/data` touched). — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed 7 more
+      files with real guards (never `!`), none touching `/src`/`/data` —
+      `tests/p6e-class-diversity.test.ts` and `tests/class-kit-fingerprint.
+      test.ts` (both share the same `vectors[i]`/`vectors[j]` pairwise-loop
+      shape: `i < vectors.length`/`j = i+1 < vectors.length` already proves
+      both indices in range, so each site takes a local `const vi =
+      vectors[i]` etc. with a throw guard before use; `class-kit-fingerprint`
+      also guards `pairsByType[i]`-aligned `pairs[i]` inside a `.some`
+      callback, built by the same double loop so always the same length),
+      `tests/q120-order1-taunt.test.ts` (a `firstEnemyKey(w)` helper
+      replacing 12 `w.content.enemies.enemies[0].key`/`a.content.enemies.
+      enemies[0].key` reads, matching the `tests/p6a-class-framework.test.ts`
+      precedent), `tools/fuzz-data.ts` (`sites`/`stringSites`'s `Object.keys`
+      walk guards `v[k]` before recursing — `k` came from `Object.keys(v)` so
+      is always present; `resolve`'s pointer-walk guards each `cur =
+      (...)[step]`/`(...)[key]` step, returning `null` — its existing
+      "bad pointer" signal — on a miss instead of assuming one; `dupe-
+      element`'s `value[0]` guarded right after the `value.length > 0` check
+      that already proves it in range; `errorLine`'s `msg.split('\n')[0]`
+      defaults `?? ''`, unreachable since `split` on a string always yields
+      >=1 element), `tests/class-deeper-draw.test.ts` and `tests/class-line-
+      bonus.test.ts` (both: a `card()`/`lineCard()` helper throws if `own[0]`
+      is missing, right after `expect(own.length).toBe(1)` already proves it
+      isn't, matching the `tests/class-line-bonus.test.ts` `lineCard`
+      precedent that predates this batch; a local `firstEnemyKey(w)` helper
+      for the same `enemies.enemies[0].key` pattern; `class-deeper-draw`
+      additionally destructures `readings` into `[r0, r1, r2]` with a guard
+      instead of indexing a fixed 3-element mapped array, and guards
+      `lineOfDummies`'s `line[0]`, both already proven non-empty by their
+      own callers), `tests/class-descriptions.test.ts` (`window`'s
+      `found[i]`/`found[i-1]`/`found[i+1]` reads guarded — the two neighbour
+      reads keep their existing in-range proof (the `i === 0` ternary branch,
+      the `i + 1 < found.length` check) as `?? ` defaults since they're
+      already unreachable, the self read throws since callers always pass a
+      valid index; a `text[p]` char read inside the same function's clause
+      scan skips on `undefined` — string indexing is also flagged under the
+      flag; a `claims[i]` read inside a `found.forEach` guarded by a throw,
+      safe because the line just above already asserts `found` and `claims`
+      the same length; a `path[path.length - 1]` leaf-key read throws if
+      empty, unreachable since every data-homed claim path has >=1 segment).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 7; main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on `q120-order1-taunt`/`class-kit-fingerprint`/`class-
+      deeper-draw`/`class-descriptions`/`class-line-bonus`/`q47-cli-crash-
+      coverage`/`q54-unguarded-data-read`/`q7-data-fuzz` (the `fuzz-data.ts`
+      consumers) all green (194 tests); `npm run test:fast` unchanged at 315
+      files / 4548 passed / 35 skipped. `tests/p6e-class-diversity.test.ts`
+      itself is excluded from the fast tier (its own `beforeAll` runs a real
+      12-seed x 12-class sim sweep, minutes long) — its guards are the
+      identical already-proven-in-range shape as every other fix in this
+      batch, `npx tsc --noEmit -p tsconfig.unchecked.json` confirms it
+      clean, and its direct `npx vitest run` was kicked off in the
+      background rather than blocking this item on a multi-minute run,
+      matching the `tests/p10c-weapon-share.test.ts` precedent two batches
+      back. 56 → **50 files remain** on the allowlist (the ratchet test
+      itself, run standalone, confirms the list matches exactly). Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
