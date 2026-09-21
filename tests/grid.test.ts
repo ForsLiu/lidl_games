@@ -5,6 +5,12 @@ import { describe, expect, it } from 'vitest';
 import { CORE_X, CORE_Y, GATES, GRID_H, GRID_W, Grid, TileType } from '../src/sim/grid';
 import { loadContent } from '../src/sim/content';
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 describe('grid', () => {
   it('matches the SPEC 2.3 layout', () => {
     expect(GRID_W).toBe(56);
@@ -29,8 +35,9 @@ describe('grid', () => {
 
   it('flow field steps strictly downhill toward the Core', () => {
     const g = new Grid();
-    let tx = GATES[0].tx;
-    let ty = GATES[0].ty;
+    const gate0 = nth(GATES, 0);
+    let tx = gate0.tx;
+    let ty = gate0.ty;
     let guard = 0;
     while (g.distAt(tx, ty) > 0 && guard++ < 500) {
       const prev = g.distAt(tx, ty);
@@ -67,25 +74,27 @@ describe('grid', () => {
 
   it('routes around a placed wall', () => {
     const g = new Grid();
-    const before = g.distAt(GATES[0].tx, GATES[0].ty);
+    const gate0 = nth(GATES, 0);
+    const before = g.distAt(gate0.tx, gate0.ty);
     for (let y = 2; y < 15; y++) g.setOcc(10, y, 999);
     g.refresh();
     expect(g.allGatesReachable()).toBe(true);
-    expect(g.distAt(GATES[0].tx, GATES[0].ty)).toBeGreaterThan(before);
+    expect(g.distAt(gate0.tx, gate0.ty)).toBeGreaterThan(before);
   });
 
   it('prices a full wall line as a breach instead of going unreachable (SPEC-FINAL §10)', () => {
     const g = new Grid();
-    const open = g.distAt(GATES[0].tx, GATES[0].ty, false);
+    const gate0 = nth(GATES, 0);
+    const open = g.distAt(gate0.tx, gate0.ty, false);
     for (let y = 1; y < GRID_H - 1; y++) g.setOcc(10, y, 999);
     g.refresh();
     // The west gate's ground route now crosses exactly one structure tile, so
     // it costs at least the flat breach surcharge on top of the walk.
-    const breach = g.distAt(GATES[0].tx, GATES[0].ty, false);
+    const breach = g.distAt(gate0.tx, gate0.ty, false);
     expect(breach).toBeGreaterThan(open);
     expect(breach).toBeGreaterThan(g.breachBase);
     // A Burrower still tunnels under it for free.
-    const ghost = g.distAt(GATES[0].tx, GATES[0].ty, true);
+    const ghost = g.distAt(gate0.tx, gate0.ty, true);
     expect(ghost).toBeGreaterThan(0);
     expect(ghost).toBeLessThan(breach);
   });
@@ -95,7 +104,7 @@ describe('grid', () => {
     for (const gate of GATES) {
       const path = g.gatePath(gate);
       expect(path.length).toBeGreaterThan(1);
-      expect(path[0]).toEqual({ tx: gate.tx, ty: gate.ty, breach: false });
+      expect(nth(path, 0)).toEqual({ tx: gate.tx, ty: gate.ty, breach: false });
       // Re-walk stepFrom independently and compare tile-for-tile.
       let tx = gate.tx;
       let ty = gate.ty;
@@ -103,9 +112,10 @@ describe('grid', () => {
         const step = g.stepFrom(tx, ty);
         expect(step).not.toBeNull();
         [tx, ty] = step!;
-        expect(path[i].tx).toBe(tx);
-        expect(path[i].ty).toBe(ty);
-        expect(path[i].breach).toBe(false); // no structures on an empty map
+        const p = nth(path, i);
+        expect(p.tx).toBe(tx);
+        expect(p.ty).toBe(ty);
+        expect(p.breach).toBe(false); // no structures on an empty map
       }
       expect(g.tile[g.idx(tx, ty)]).toBe(TileType.Core);
     }
@@ -115,12 +125,13 @@ describe('grid', () => {
     const g = new Grid();
     for (let y = 1; y < GRID_H - 1; y++) g.setOcc(10, y, 999);
     g.refresh();
-    const path = g.gatePath(GATES[0]);
+    const path = g.gatePath(nth(GATES, 0));
     const breachedTiles = path.filter((p) => p.breach);
     expect(breachedTiles.length).toBeGreaterThan(0);
     for (const p of breachedTiles) expect(g.occ[g.idx(p.tx, p.ty)]).not.toBe(0);
     // The route still ends at the Core rather than dead-ending mid-wall.
-    expect(g.tile[g.idx(path[path.length - 1].tx, path[path.length - 1].ty)]).toBe(TileType.Core);
+    const last = nth(path, path.length - 1);
+    expect(g.tile[g.idx(last.tx, last.ty)]).toBe(TileType.Core);
   });
 });
 
