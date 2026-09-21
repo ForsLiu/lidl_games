@@ -38,6 +38,9 @@ import {
   gateComponent,
   generateTerrain,
   gridTerrain,
+  isBuildable,
+  isHighGround,
+  isWalkable,
   loadTerrain,
   terrainOverlay,
   TerrainKind,
@@ -48,6 +51,12 @@ import { Hasher } from '../src/sim/hash';
 import type { TerrainGrid } from '../src/sim/terrain/types';
 
 const cfg = loadTerrain();
+
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
 
 /** A rock-bordered map with a hand-placed patch of one kind in the interior. */
 function handMap(patch: Array<[number, number, TerrainKind]>): TerrainGrid {
@@ -78,8 +87,8 @@ function wardenAll(g: Grid): number[] {
 function fieldHash(g: Grid): string {
   const h = new Hasher();
   for (const f of [g.ground, g.ghost]) {
-    for (let i = 0; i < f.dist.length; i++) h.int(f.dist[i]);
-    for (let i = 0; i < f.next.length; i++) h.int(f.next[i]);
+    for (let i = 0; i < f.dist.length; i++) h.int(f.dist[i] ?? 0);
+    for (let i = 0; i < f.next.length; i++) h.int(f.next[i] ?? 0);
   }
   return h.hex();
 }
@@ -304,7 +313,8 @@ describe('Grid.applyTerrain (fb064b)', () => {
     expect(wardenAll(g)).toEqual(wardenBefore);
     // And the traffic runs the other way too: the structural override must land
     // in the Grid's copy, never back in the caller's overlay.
-    expect(overlayKindBefore[GATES[0].ty * GRID_W + GATES[0].tx]).toBe(map.kind[GATES[0].ty * GRID_W + GATES[0].tx]);
+    const gate0 = nth(GATES, 0);
+    expect(overlayKindBefore[gate0.ty * GRID_W + gate0.tx]).toBe(map.kind[gate0.ty * GRID_W + gate0.tx]);
   });
 
   it('covers a gate the run opens later, not just the four it was built with', () => {
@@ -338,7 +348,7 @@ describe('the structural override over gate tiles (fb064b, pinned fb064h)', () =
     // `grid.tile` after generation, on a tile the generator gave no protection
     // and may well have buried (138 of 500 seeds, measured in fb064b). This is
     // the only assertion standing between that and an unwalkable spawn point.
-    const gate = GATES[1];
+    const gate = nth(GATES, 1);
     const map = handMap([[gate.tx, gate.ty, TerrainKind.Rock]]);
     const g = applied(map);
     expect(g.terrainKind[g.idx(gate.tx, gate.ty)]).toBe(TerrainKind.Normal);
@@ -357,10 +367,10 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
         const x = i % GRID_W;
         const y = (i / GRID_W) | 0;
         const tile = g.tile[i];
-        const flags = cfg.tiles[g.terrainKind[i]];
-        expect(g.passable(x, y)).toBe(tile !== TileType.Border && flags.walkable);
-        expect(g.buildable(x, y)).toBe(tile === TileType.Open && flags.buildable);
-        expect(g.isHighGround(x, y)).toBe(flags.highGround);
+        const kind = g.terrainKind[i] ?? TerrainKind.Normal;
+        expect(g.passable(x, y)).toBe(tile !== TileType.Border && isWalkable(cfg, kind));
+        expect(g.buildable(x, y)).toBe(tile === TileType.Open && isBuildable(cfg, kind));
+        expect(g.isHighGround(x, y)).toBe(isHighGround(cfg, kind));
       }
     }
   });
@@ -376,7 +386,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
       for (let i = 0; i < GRID_W * GRID_H; i++) {
         const x = i % GRID_W;
         const y = (i / GRID_W) | 0;
-        if (g.ground.dist[i] < 0) continue;
+        if ((g.ground.dist[i] ?? 0) < 0) continue;
         if (!g.passable(x, y) && g.occ[i] === 0) terrainWithDist++;
       }
       expect(terrainWithDist).toBe(0);
@@ -397,7 +407,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
         g.computeField(field, [gi], false);
         const flood = walkableFlood(view, cfg, [gi]);
         for (let i = 0; i < GRID_W * GRID_H; i++) {
-          expect(field.dist[i] >= 0).toBe(flood[i] === 1);
+          expect((field.dist[i] ?? -1) >= 0).toBe(flood[i] === 1);
         }
       }
     }
@@ -481,7 +491,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
           expect(g.passable(step.tx, step.ty) || step.breach).toBe(true);
         }
         if (reachable) {
-          const last = path[path.length - 1];
+          const last = nth(path, path.length - 1);
           expect(g.tile[g.idx(last.tx, last.ty)]).toBe(TileType.Core);
         }
       }
@@ -493,7 +503,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
       const g = applied(generateTerrain(seed, cfg));
       if (!g.allGatesReachable()) continue;
       const box: Array<[number, number]> = [];
-      const gate = GATES[0];
+      const gate = nth(GATES, 0);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const x = gate.tx + dx;
@@ -577,7 +587,8 @@ describe('high ground and structures (fb064b)', () => {
     expect(g.wardenPassable(CORE_X, CORE_Y)).toBe(true);
     g.setOcc(9, 5, 42);
     expect(g.wardenPassable(9, 5)).toBe(true);
-    expect(g.wardenPassable(GATES[0].tx, GATES[0].ty)).toBe(true);
+    const gate0 = nth(GATES, 0);
+    expect(g.wardenPassable(gate0.tx, gate0.ty)).toBe(true);
     expect(g.wardenPassable(0, 0)).toBe(false);
   });
 
@@ -640,10 +651,11 @@ describe('high ground and structures (fb064b)', () => {
 
   it('still prices a structure on ordinary ground as a breach', () => {
     const g = applied(handMap([]));
-    const open = g.distAt(GATES[0].tx, GATES[0].ty);
+    const gate0 = nth(GATES, 0);
+    const open = g.distAt(gate0.tx, gate0.ty);
     for (let y = 1; y < GRID_H - 1; y++) g.setOcc(10, y, 999);
     g.refresh();
-    const breached = g.distAt(GATES[0].tx, GATES[0].ty);
+    const breached = g.distAt(gate0.tx, gate0.ty);
     expect(breached).toBeGreaterThan(open);
     expect(breached).toBeGreaterThan(g.breachBase);
   });
@@ -949,6 +961,7 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
         // and gone green completely unguarded. That is the same hole fb064y's
         // re-review closed for the `accessor` bucket, one branch further in.
         const throwing = (g as unknown as Record<string, (a: number, b: number) => unknown>)[name];
+        if (throwing === undefined) throw new Error(`${name}: no such Grid method`);
         expect(typeof throwing, `${name} is callable`).toBe('function');
         for (const [tx, ty] of BAD) {
           expect(() => throwing.call(g, tx, ty), `${name}(${tx}, ${ty})`).toThrow(
@@ -969,8 +982,11 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       }
       const bound =
         PROBE.get(name) ??
-        ((tx: number, ty: number) =>
-          (g as unknown as Record<string, (a: number, b: number) => unknown>)[name].call(g, tx, ty));
+        ((tx: number, ty: number) => {
+          const method = (g as unknown as Record<string, (a: number, b: number) => unknown>)[name];
+          if (method === undefined) throw new Error(`${name}: no such Grid method`);
+          return method.call(g, tx, ty);
+        });
       if (rule === 'exempt') {
         // Exempt by reason, not by omission, so it is probed for the answer
         // that *makes* it exempt: an in-arena fraction is in the arena. It is
@@ -1098,13 +1114,13 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
           expect(g.distAt(tx, ty, true), `seed ${seed} ghost(${tx}, ${ty})`).toBe(g.ghost.dist[i]);
           expect(fieldDist(g.ground, tx, ty)).toBe(g.ground.dist[i]);
           const step = g.stepFrom(tx, ty);
-          const n = g.ground.next[i];
+          const n = g.ground.next[i] ?? -1;
           if (n < 0) expect(step).toBeNull();
           else expect(step).toEqual([n % GRID_W, (n / GRID_W) | 0]);
           expect(fieldStep(g.ground, tx, ty)).toEqual(step);
           // The ghost field too, which nothing in the repo reads (QA bug 1).
           const ghostStep = g.stepFrom(tx, ty, true);
-          const gn = g.ghost.next[i];
+          const gn = g.ghost.next[i] ?? -1;
           if (gn < 0) expect(ghostStep).toBeNull();
           else expect(ghostStep).toEqual([gn % GRID_W, (gn / GRID_W) | 0]);
           expect(fieldStep(g.ghost, tx, ty)).toEqual(ghostStep);
@@ -1123,7 +1139,7 @@ describe('fb064y — the non-predicate tile accessors answer about a tile that e
         const path = g.gatePath(gate);
         expect(path.length, `seed ${seed} gate ${gate.key}`).toBeGreaterThan(1);
         expect(path[0]).toMatchObject({ tx: gate.tx, ty: gate.ty });
-        const last = path[path.length - 1];
+        const last = nth(path, path.length - 1);
         expect(g.tile[last.ty * GRID_W + last.tx]).toBe(TileType.Core);
       }
     }

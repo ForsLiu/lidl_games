@@ -6470,6 +6470,43 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       skipped. code-reviewer APPROVE, no findings. Light tier
       (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
       dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      ground truth re-measured directly from `tests/fb133-unchecked-access-
+      ratchet.test.ts`'s live `KNOWN_UNCHECKED_ACCESS_FILES` rather than
+      trusted from the log above (whose last two entries' before-counts, 15
+      and 13, no longer matched the file on disk after the 2026-09-21 merge
+      note's reconciliation to 9) — confirmed **9 files remained**, the last
+      of them a test file: `tests/terrain-grid.test.ts` (37 unchecked-index
+      sites). Fixed with real guards (never `!`): a local `nth<T>`
+      throw-guard helper (same convention as `tests/terrain-character.
+      test.ts`), used for fixed-index reads of the module-level `GATES`
+      array and `path[path.length - 1]` after a length/reachability check;
+      `?? 0`/`?? -1` defaults on `Grid` typed-array reads (`ground.dist`,
+      `ground.next`, `ghost.next`, `terrainKind`) already proven in-range by
+      their loop's own bound; a raw `cfg.tiles[kind].walkable/buildable/
+      highGround` triple swapped for the existing `isWalkable`/`isBuildable`/
+      `isHighGround(cfg, kind)` helpers (`src/sim/terrain/config.ts`, via
+      `src/sim/terrain/index.ts`) that already null-guard the same lookup;
+      and two `Record<string, Fn>` dynamic-method lookups off `Grid` given an
+      explicit `if (x === undefined) throw` before the following `.call(...)`
+      (strictly stricter than the implicit crash that would otherwise
+      follow). Does not touch `/src/sim`, `/src/render`, `/src/ui` or
+      `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags the file, no new offenders (9 → 8, exact match via the
+      ratchet test); main `npx tsc --noEmit` clean; targeted `npx vitest run`
+      on the file plus the ratchet test itself green (36 tests); `npm run
+      test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped.
+      code-reviewer APPROVE, no findings (independently re-verified every
+      guard's backing array/length and the `isWalkable`-family helpers'
+      behavioral equivalence to the direct field read for any in-range
+      `kind`). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch. **8 files remain** on the allowlist:
+      `src/sim/enemies.ts`, `src/sim/grid.ts`, `src/sim/run.ts`,
+      `src/sim/terrain/analyze.ts`, `src/sim/world.ts` (5 `/src/sim` files —
+      Full tier, code-reviewer + qa-playtester, once picked up per CLAUDE.md's
+      QA tiering) and `tests/fb037-vs-panel.test.ts`,
+      `tests/p2b-wielded-fire.test.ts`, `tests/p2c-vs-specials.test.ts` (3
+      test files, still Light tier). — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
