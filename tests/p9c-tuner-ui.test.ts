@@ -79,7 +79,9 @@ describe('mountTunerPanel, dev build (p9c, G15)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error('expected fetch to have been called');
+    const [url, init] = call;
     expect(url).toBe('/__tuner/save');
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body.key).toBe('towers');

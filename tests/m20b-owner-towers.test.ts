@@ -91,12 +91,22 @@ function dummy(w: World, x: number, y: number, key = 'husk'): Enemy {
   return e;
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
+function specialAt(def: TowerDef, i: number): TowerDef['upgrades']['specials'][number] {
+  return nth(def.upgrades.specials, i);
+}
+
 /** Fires the tower exactly once and returns each enemy's HP loss. */
 function fireOnce(w: World, enemies: Enemy[]): number[] {
   const before = enemies.map((e) => e.hp);
   w.rebuildBuckets();
   updateTowers(w, DT);
-  return enemies.map((e, i) => before[i] - e.hp);
+  return enemies.map((e, i) => nth(before, i) - e.hp);
 }
 
 /* ------------------------------------------------------- §4's authored table */
@@ -131,8 +141,8 @@ describe("m20b — the three owner towers carry §4's profile", () => {
     expect(at(ARROW)).toEqual(['3:pierce', '4:onHit', '5:projectiles']);
     expect(at(TESLA)).toEqual(['3:electricChain']);
     expect(at(VENOM)).toEqual(['2:projectiles', '4:damageRatio']);
-    expect(ARROW.upgrades.specials[1].type, 'Bleeding, by §3 key').toBe('bleeding');
-    expect(VENOM.upgrades.specials[1].ratio).toEqual({ normal: 1, poison: 1.5 });
+    expect(specialAt(ARROW, 1).type, 'Bleeding, by §3 key').toBe('bleeding');
+    expect(specialAt(VENOM, 1).ratio).toEqual({ normal: 1, poison: 1.5 });
   });
 
   it('folds a special at its own step and not one earlier', () => {
@@ -156,7 +166,7 @@ describe('m20b — Arrow: +1 pierce @3, Bleeding @4, +1 projectile @5 (§4)', ()
   const line = (t: ReturnType<typeof tower>) => [dummy(t.w, t.x + 1.5, t.y), dummy(t.w, t.x + 2.5, t.y)];
 
   it('hits one enemy at level 1 and carries through to a second at @3', () => {
-    const at3 = ARROW.upgrades.specials[0].at;
+    const at3 = specialAt(ARROW, 0).at;
 
     const plain = tower(ARROW, at3 - 1);
     const hurt = fireOnce(plain.w, line(plain)).filter((d) => d > 0);
@@ -167,20 +177,20 @@ describe('m20b — Arrow: +1 pierce @3, Bleeding @4, +1 projectile @5 (§4)', ()
     expect(attackProfile(ARROW, at3 + 1).pierce).toBe(1);
     const both = fireOnce(pierced.w, line(pierced)).filter((d) => d > 0);
     expect(both, 'the shot carries on through the target').toHaveLength(2);
-    expect(both[0] + both[1]).toBeGreaterThan(pierced.hit);
+    expect(nth(both, 0) + nth(both, 1)).toBeGreaterThan(pierced.hit);
   });
 
   it('pierces nothing rather than everything when it has no line to fire down', () => {
     // A target standing on the tower's own tile gives `normalize` a zero
     // vector, and every enemy in reach lies on the line (0,0): the pierce
     // would have swept the pile instead of the shot's path.
-    const t = tower(ARROW, ARROW.upgrades.specials[0].at);
+    const t = tower(ARROW, specialAt(ARROW, 0).at);
     const pile = [0, 1, 2, 3, 4].map(() => dummy(t.w, t.x, t.y));
     expect(fireOnce(t.w, pile).filter((d) => d > 0)).toHaveLength(1);
   });
 
   it('applies exactly one Bleeding per shot at @4, and none at @3', () => {
-    const at4 = ARROW.upgrades.specials[1].at;
+    const at4 = specialAt(ARROW, 1).at;
 
     const before = tower(ARROW, at4 - 1);
     const e0 = dummy(before.w, before.x + 1.5, before.y);
@@ -197,11 +207,11 @@ describe('m20b — Arrow: +1 pierce @3, Bleeding @4, +1 projectile @5 (§4)', ()
   });
 
   it('puts a second shot down the same path at @5, doubling a lone target', () => {
-    const at5 = ARROW.upgrades.specials[2].at;
+    const at5 = specialAt(ARROW, 2).at;
 
     const one = tower(ARROW, at5 - 1);
     const e0 = dummy(one.w, one.x + 1.5, one.y);
-    const single = fireOnce(one.w, [e0])[0];
+    const single = nth(fireOnce(one.w, [e0]), 0);
     expect(single).toBeCloseTo(one.hit, 6);
 
     const two = tower(ARROW, at5);
@@ -209,7 +219,7 @@ describe('m20b — Arrow: +1 pierce @3, Bleeding @4, +1 projectile @5 (§4)', ()
     // milestones — so this is the projectile count and nothing else.
     expect(two.hit).toBeCloseTo(one.hit, 10);
     const e1 = dummy(two.w, two.x + 1.5, two.y);
-    const doubled = fireOnce(two.w, [e1])[0];
+    const doubled = nth(fireOnce(two.w, [e1]), 0);
     expect(doubled).toBeCloseTo(single * 2, 6);
     expect(dotStacks(e1, 'bleeding'), 'two arrows, two Bleedings').toBe(2);
   });
@@ -230,7 +240,7 @@ describe('m20b — Electric: the 1:1 split, and the chain @3 (§4)', () => {
   });
 
   it('arcs the electric half to the nearest other enemy at @3, and not before', () => {
-    const at3 = TESLA.upgrades.specials[0].at;
+    const at3 = specialAt(TESLA, 0).at;
     const pair = (t: ReturnType<typeof tower>) => [
       dummy(t.w, t.x + 1.5, t.y),
       // Beyond Electric's own r0.8 splash, inside the tower's chain range.
@@ -250,7 +260,7 @@ describe('m20b — Electric: the 1:1 split, and the chain @3 (§4)', () => {
   });
 
   it('applies the electric half twice to the first when it is alone (§4)', () => {
-    const at3 = TESLA.upgrades.specials[0].at;
+    const at3 = specialAt(TESLA, 0).at;
     const t = tower(TESLA, at3);
     const lone = dummy(t.w, t.x + 1.5, t.y);
     const dealt = fireOnce(t.w, [lone])[0];
@@ -263,7 +273,7 @@ describe('m20b — Electric: the 1:1 split, and the chain @3 (§4)', () => {
     // application is a copy of the first, so it has to arrive from the same
     // place; passing no origin made it bypass the shield and land harder than
     // the attack it copies.
-    const at3 = TESLA.upgrades.specials[0].at;
+    const at3 = specialAt(TESLA, 0).at;
     const shielded = (steps: number) => {
       const t = tower(TESLA, steps);
       const e = dummy(t.w, t.x + 1.5, t.y, 'shellback');
@@ -272,7 +282,7 @@ describe('m20b — Electric: the 1:1 split, and the chain @3 (§4)', () => {
       // Facing the tower, so every hit from it is frontal.
       e.fx = -1;
       e.fy = 0;
-      return fireOnce(t.w, [e])[0];
+      return nth(fireOnce(t.w, [e]), 0);
     };
     const shieldedHit = shielded(at3 - 1);
     const reduction = 1 - content.enemyByKey.get('shellback')!.frontReduction!;
@@ -330,7 +340,7 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
   // target, never a second enemy, even when a second one is standing right
   // there to spread onto.
   it('fires both spores at the same target at @2 — same path, not spread (§5.1)', () => {
-    const at2 = VENOM.upgrades.specials[0].at;
+    const at2 = specialAt(VENOM, 0).at;
     // A second candidate present, well outside the primary's splash, so a
     // spread would show up as damage landing on it too.
     const pair = (t: ReturnType<typeof tower>) => [dummy(t.w, t.x + 2, t.y), dummy(t.w, t.x, t.y + 2)];
@@ -356,13 +366,15 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
       t.hit * (1 - damageShare(VENOM.attack!.damageRatio!, 'poison'));
 
     const near = tower(VENOM, 0);
-    const pair = [dummy(near.w, near.x + 1.5, near.y), dummy(near.w, near.x + 1.5, near.y + 0.6)];
+    const nearE0 = dummy(near.w, near.x + 1.5, near.y);
+    const nearE1 = dummy(near.w, near.x + 1.5, near.y + 0.6);
+    const pair = [nearE0, nearE1];
     const both = fireOnce(near.w, pair);
     // Under `aoeFullTargets` the blast pays every body inside it in full.
     expect(both[0], 'the target takes the full spore').toBeCloseTo(impactOf(near), 6);
     expect(both[1], 'and so does whoever is standing with it').toBeCloseTo(impactOf(near), 6);
-    expect(dotOutstanding(pair[0]), 'the poison half splashes too').toBeGreaterThan(0);
-    expect(dotOutstanding(pair[1])).toBeCloseTo(dotOutstanding(pair[0]), 6);
+    expect(dotOutstanding(nearE0), 'the poison half splashes too').toBeGreaterThan(0);
+    expect(dotOutstanding(nearE1)).toBeCloseTo(dotOutstanding(nearE0), 6);
 
     const far = tower(VENOM, 0);
     const apart = [dummy(far.w, far.x + 1.5, far.y), dummy(far.w, far.x + 1.5, far.y + 2.5)];
@@ -376,20 +388,20 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
   // originally worried about (nothing against a lone Gatebreaker or the
   // boss), now true for a structural reason rather than a fallback rule.
   it('still fires that second spore when there is only one enemy to fire it at', () => {
-    const at2 = VENOM.upgrades.specials[0].at;
+    const at2 = specialAt(VENOM, 0).at;
     const one = tower(VENOM, at2 - 1);
     const lone0 = dummy(one.w, one.x + 1.5, one.y);
-    const before = fireOnce(one.w, [lone0])[0];
+    const before = nth(fireOnce(one.w, [lone0]), 0);
 
     const two = tower(VENOM, at2);
     const lone1 = dummy(two.w, two.x + 1.5, two.y);
-    const after = fireOnce(two.w, [lone1])[0];
+    const after = nth(fireOnce(two.w, [lone1]), 0);
     expect(after, 'both spores land on the only target there is').toBeCloseTo(before * 2, 6);
     expect(dotOutstanding(lone1)).toBeCloseTo(dotOutstanding(lone0) * 2, 6);
   });
 
   it('moves its split to 1:1.5 at @4 — less impact, more poison', () => {
-    const at4 = VENOM.upgrades.specials[1].at;
+    const at4 = specialAt(VENOM, 1).at;
 
     const before = tower(VENOM, at4 - 1);
     const e0 = dummy(before.w, before.x + 1.5, before.y);
