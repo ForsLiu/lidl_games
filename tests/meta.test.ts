@@ -30,6 +30,12 @@ function metaWith(over: Partial<MetaState> = {}): MetaState {
   return { ...defaultMeta(), ...over };
 }
 
+function firstLink(node: { links: readonly number[] }): number {
+  const v = node.links[0];
+  if (v === undefined) throw new Error('node has no links');
+  return v;
+}
+
 describe('the Constellation (SPEC 8.1, 8.3)', () => {
   it('has 120 allocatable nodes, 3 keystones, and a connected graph', () => {
     const allocatable = content.tree.nodes.filter((n) => n.kind !== 'start');
@@ -44,7 +50,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
   it('p7d: skill points are the tree\'s only currency — available points is skillPoints minus allocated', () => {
     const m = metaWith({ skillPoints: 5 });
     expect(pointsAvailable(m)).toBe(5);
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     const spent = allocate(m, a);
     expect(pointsAvailable(spent)).toBe(4);
   });
@@ -52,7 +58,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
   it('only allows nodes adjacent to what is already taken', () => {
     const m = metaWith({ skillPoints: 3 });
     const start = content.treeById.get(0)!;
-    const near = start.links[0];
+    const near = firstLink(start);
     const far = content.tree.nodes.find(
       (n) => n.kind !== 'start' && !start.links.includes(n.id) && !n.links.includes(0),
     )!;
@@ -61,15 +67,15 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
   });
 
   it('refuses to allocate without points', () => {
-    const m = metaWith({ skillPoints: 1, allocated: [0, content.treeById.get(0)!.links[0]] });
+    const m = metaWith({ skillPoints: 1, allocated: [0, firstLink(content.treeById.get(0)!)] });
     expect(pointsAvailable(m)).toBe(0);
-    const next = content.treeById.get(content.treeById.get(0)!.links[0])!.links.find((l) => l !== 0)!;
+    const next = content.treeById.get(firstLink(content.treeById.get(0)!))!.links.find((l) => l !== 0)!;
     expect(canAllocate(m, next)).toBe(false);
   });
 
   it('refuses a refund that would orphan a downstream node', () => {
     let m = metaWith({ skillPoints: 10 });
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     m = allocate(m, a);
     const b = content.treeById.get(a)!.links.find((l) => l !== 0)!;
     m = allocate(m, b);
@@ -79,7 +85,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
 
   it('§8.3 (Q46): "respec 1 point per node" — refunding charges the tree\'s respecCostPerNode in skill points', () => {
     let m = metaWith({ skillPoints: 10 });
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     m = allocate(m, a);
     const before = m.skillPoints;
     m = refund(m, a);
@@ -89,7 +95,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
 
   it('a free (same-visit) refund costs nothing', () => {
     let m = metaWith({ skillPoints: 10 });
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     m = allocate(m, a);
     const before = m.skillPoints;
     m = refund(m, a, { free: true });
@@ -98,7 +104,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
 
   it('refuses a paid refund without enough skill points banked', () => {
     let m = metaWith({ skillPoints: content.tree.respecCostPerNode });
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     m = allocate(m, a);
     // Spending down to exactly 0 leaves nothing to pay the respec fee with.
     m = { ...m, skillPoints: 0 };
@@ -115,7 +121,7 @@ describe('the Constellation (SPEC 8.1, 8.3)', () => {
 
 describe('save / load', () => {
   it('round-trips a populated account exactly', () => {
-    const a = content.treeById.get(0)!.links[0];
+    const a = firstLink(content.treeById.get(0)!);
     const meta = metaWith({
       skillPoints: 7,
       allocated: [0, a],
