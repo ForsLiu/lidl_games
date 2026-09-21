@@ -5,7 +5,79 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 56 → 50.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 44 → 41.**
+  Fixed 3 more files with real guards (never `!`): `tests/fb164-
+  prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
+  match or missing capture group, replacing `m![N]` reads that followed
+  an `expect(m, ...).not.toBeNull()` — the `expect` call doesn't narrow
+  TS's type — plus throw-guards on a few `core.upgrade!.steps![N]`
+  reads); `tests/terrain-cost-ledger.ts` (a real, non-test perf-sweep
+  module shared by `terrain-cost.test.ts` and the perf-config
+  `terrain-cost-retry-ratio.test.ts` — throw-guards inside its hot
+  per-seed loops (`seeds[i]`, the 200-seed warmup, `rawMin[i]`/
+  `next.ms[i]` round-merge, `units[i]`) and in `median()`/`quantile()`;
+  code-reviewer confirmed every guarded index is already provably in
+  range via its enclosing loop bound, so each throw is unreachable and
+  the branch overhead is negligible next to the file's own ~1-2ms
+  generation cost); `tests/terrain-describe.test.ts` (throw-guards on
+  `TERRAIN_KEYS[i]`, `rows[g.ty]`/`row[g.tx]` against fixed `GATES`
+  coordinates, `rowsOf(...)[0]`, golden-dump line reads, and a
+  `dump.split('\n')[3]` bands-line read — all against fixed-shape
+  fixtures, so a trip would signal a real dump-format regression, not a
+  false invariant). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files (68 tests)
+  green; the perf-config `terrain-cost-retry-ratio.test.ts` still
+  passes; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 44 → **41 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major findings. Light tier (`[polish]`, no `/src`/
+  `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133
+  Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 47 → 44.**
+  Fixed 3 more files with real guards (never `!`): `tests/fb027-
+  selection-panels.test.ts` (a throw-guard after the existing
+  `expect(first, ...).toBeDefined()` — the `expect` call doesn't narrow
+  TS's type — plus a guard on `milestonesOwned[0]`); `tests/terrain-
+  high-ground.test.ts` (a new generic `nth<T>(arr, i)` throw-guard helper
+  replacing several `fams[N]` indexes across loader-refusal test fixtures,
+  a `highTiles[0]` destructure guard, and a `catchAll = fams[fams.length
+  - 1]` guard — code-reviewer independently traced every refusal fixture
+  to confirm the same broken config shape still reaches the loader
+  unchanged); `tools/cli-crash-coverage.ts` (a real dev tool, not a test
+  — `?? ''` defaults on 8 regex capture-group reads across `unquote`,
+  the bound-var/readFileSync-arg scans, `CONCAT_ARG_RE`/
+  `READFILESYNC_JOIN_DATA_RE`/`READFILESYNC_TEMPLATE_LITERAL_RE`
+  consumers, and `isTypeOnlyNamedImportClause`, plus two `text[i]`/
+  `text[i+1]` char reads in the comment-stripping scanner — code-reviewer
+  verified every touched capture group is a mandatory, non-optional
+  regex group, so each default is dead code at runtime, not a detection-
+  behavior change). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files plus
+  cli-crash-coverage's 3 consumer test files (116 tests) green; `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 47 → **44
+  files remain** on the allowlist. code-reviewer APPROVE, no Critical/
+  Major findings. Light tier (`[polish]`, no `/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 50 → 47.**
+  Fixed 3 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/f003-leak-coupling.test.ts` (a new `spawnCost(w, key)`
+  helper that throws on a missing director-cost key, replacing 6 unguarded
+  `w.content.spawns.costs.<key>` reads — `costs` is `z.record(num)`, a
+  genuinely partial map); `tests/fb022-info-surfacing.test.ts` (destructured/
+  guarded `querySelectorAll` array entries, `upgrade.steps![0]`, and
+  `modLines(...)[0]` reads with throw-guards); `tests/ui-fb097-zip-
+  archive.test.ts` (guarded `decoded[i]`/`entries[i]` reads in the ZIP
+  round-trip loop, unreachable in practice since the preceding
+  `.toEqual(...names...)` already proves equal length/order). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+  3; main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 3 (52
+  tests) green; `npm run test:fast` unchanged at 315 files / 4548 passed /
+  35 skipped. 50 → **47 files remain** on the allowlist, confirmed exactly
+  by the ratchet test run standalone. Light tier (`[polish]`, no `/src`/
+  `/data` touched) — code-reviewer APPROVE, no findings; no qa-playtester
+  dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 56 → 50.**
   Fixed 7 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/p6e-class-diversity.test.ts` and `tests/class-kit-
   fingerprint.test.ts` (the shared `vectors[i]`/`vectors[j]` pairwise-loop

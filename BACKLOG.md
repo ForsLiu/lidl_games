@@ -6022,6 +6022,73 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       itself, run standalone, confirms the list matches exactly). Light
       tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
       dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, later)**: fixed
+      3 more files with real guards (never `!`), none touching `/src`/
+      `/data` — `tests/f003-leak-coupling.test.ts` (a new `spawnCost(w,
+      key)` helper throwing on a missing director-cost key, replacing 6
+      unguarded `w.content.spawns.costs.<key>` reads — `costs` is
+      `z.record(num)`, genuinely partial), `tests/fb022-info-
+      surfacing.test.ts` (destructured/guarded `querySelectorAll` entries,
+      `upgrade.steps![0]`, and `modLines(...)[0]` reads with throw-guards),
+      `tests/ui-fb097-zip-archive.test.ts` (guarded `decoded[i]`/
+      `entries[i]` reads in the ZIP round-trip loop, unreachable in
+      practice since the preceding name-array `.toEqual` already proves
+      equal length/order). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+      --noEmit` clean; targeted `npx vitest run` on all 3 (52 tests) green;
+      `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+      skipped. 50 → **47 files remain** on the allowlist. code-reviewer
+      APPROVE, no findings. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tests/fb027-
+      selection-panels.test.ts` (a throw-guard after the existing
+      `expect(first, ...).toBeDefined()`, which doesn't narrow TS's type,
+      plus a guard on `milestonesOwned[0]`), `tests/terrain-high-
+      ground.test.ts` (a new generic `nth<T>(arr, i)` throw-guard helper
+      replacing several `fams[N]` indexes across loader-refusal test
+      fixtures, a `highTiles[0]` destructure guard, and a `catchAll =
+      fams[fams.length - 1]` guard), `tools/cli-crash-coverage.ts` (a
+      real dev tool, not a test — `?? ''` defaults on 8 regex capture-
+      group reads, all confirmed mandatory non-optional groups so each
+      default is dead code at runtime and not a detection-behavior
+      change, plus two proven-in-range `text[i]`/`text[i+1]` char reads
+      in the comment-stripping scanner). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx
+      tsc --noEmit` clean; targeted `npx vitest run` on the 3 files plus
+      cli-crash-coverage's 3 consumer test files (116 tests) green; `npm
+      run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+      47 → **44 files remain** on the allowlist. code-reviewer APPROVE
+      (independently traced every terrain-high-ground refusal fixture to
+      confirm the same broken config shape still reaches the loader
+      unchanged), no Critical/Major findings. Light tier (`[polish]`, no
+      `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
+      TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tests/fb164-
+      prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
+      match or missing capture group, replacing `m![N]` reads that
+      followed an `expect(m, ...).not.toBeNull()`, plus throw-guards on
+      `core.upgrade!.steps![N]` reads), `tests/terrain-cost-ledger.ts` (a
+      real, non-test perf-sweep module shared by `terrain-cost.test.ts`
+      and the perf-config `terrain-cost-retry-ratio.test.ts` — throw-
+      guards inside its hot per-seed loops and in `median()`/
+      `quantile()`; code-reviewer confirmed every guarded index is
+      already provably in range via its enclosing loop bound, so the
+      branch overhead is negligible next to the file's own timing
+      measurements), `tests/terrain-describe.test.ts` (throw-guards on
+      `TERRAIN_KEYS[i]`, `rows[g.ty]`/`row[g.tx]` against fixed `GATES`
+      coordinates, `rowsOf(...)[0]`, golden-dump line reads, and a
+      bands-line read — all against fixed-shape fixtures). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any
+      of the 3; main `npx tsc --noEmit` clean; targeted `npx vitest run`
+      on the 3 files (68 tests) green; the perf-config `terrain-cost-
+      retry-ratio.test.ts` still passes; `npm run test:fast` unchanged
+      at 315 files / 4548 passed / 35 skipped. 44 → **41 files remain**
+      on the allowlist. code-reviewer APPROVE, no Critical/Major
+      findings. Light tier (`[polish]`, no `/data` touched) — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

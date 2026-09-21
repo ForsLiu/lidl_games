@@ -77,6 +77,7 @@ describe('fb027 towerInfo: the panel data the buttons/badges read from', () => {
     const def = w.content.towerByKey.get('tesla_coil')!;
     const first = def.upgrades.specials[0];
     expect(first, 'tesla_coil is one of the milestone towers').toBeDefined();
+    if (!first) throw new Error('tesla_coil is one of the milestone towers');
     const { tx, ty } = freeTileNear(w);
     w.gold = 99999;
     buildTower(w, def.id, tx, ty);
@@ -98,7 +99,9 @@ describe('fb027 towerInfo: the panel data the buttons/badges read from', () => {
     expect(upgradeTower(w, tx, ty)).toBe(true);
     const pastMilestone = towerInfo(w, def, w.structureAt(tx, ty)!);
     expect(pastMilestone.milestonesOwned.map((m) => m.at)).toEqual([first.at]);
-    expect(pastMilestone.milestonesOwned[0].text).toBe(first.note ?? first.key);
+    const ownedMilestone = pastMilestone.milestonesOwned[0];
+    if (!ownedMilestone) throw new Error('expected one owned milestone');
+    expect(ownedMilestone.text).toBe(first.note ?? first.key);
     expect(pastMilestone.stats.some((s) => s.label === `Upgrade ${first.at}`)).toBe(false);
     expect(attackProfile(def, first.at + 1).electricChain).toBe(true);
   });

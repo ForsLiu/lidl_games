@@ -47,6 +47,13 @@ function forceWaveClear(run: Run, wave: number): void {
   run.step(emptyInput());
 }
 
+/** A known enemy key's director cost, thrown on a bad key rather than assumed present. */
+function spawnCost(w: World, key: string): number {
+  const cost = w.content.spawns.costs[key];
+  if (cost === undefined) throw new Error(`spawns.json: no cost for "${key}"`);
+  return cost;
+}
+
 /** Standing exactly on the Core tile leaks the instant the wave update runs. */
 function leakOne(run: Run, key: string): void {
   const w = run.world;
@@ -66,7 +73,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
   it('a TD leak adds leakBudgetMultiplier (§1.1: 2) x its director cost to nightBudgetBonus and the "loose in the dark" headcount', () => {
     const run = new Run(cfg());
     const w = run.world;
-    const huskCost = w.content.spawns.costs.husk;
+    const huskCost = spawnCost(w, 'husk');
     const mul = w.content.spawns.leakBudgetMultiplier;
     // SPEC-FINAL §1.1's literal number, sourced from /data (`data/spawns.json`)
     // rather than hardcoded, per CLAUDE.md's architecture rule 4.
@@ -78,7 +85,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     expect(w.nightBudgetBonus).toBeCloseTo(huskCost * mul, 6);
 
     // A second, differently-costed enemy type adds its own director cost, not the first's.
-    const menderCost = w.content.spawns.costs.mender;
+    const menderCost = spawnCost(w, 'mender');
     leakOne(run, 'mender');
     expect(w.leaks).toBe(2);
     expect(w.looseInTheDark).toBe(2);
@@ -96,7 +103,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     w.phase = 'act1_wave';
     w.warden.attackCooldown = 1e9; // see `leakOne` (p6d)
     const def = w.content.enemyByKey.get('swarm_rat')!;
-    const cost = w.content.spawns.costs.swarm_rat;
+    const cost = spawnCost(w, 'swarm_rat');
     const mul = w.content.spawns.leakBudgetMultiplier;
 
     // Centred in the 2x2 Core block, so every pack member's <=0.6-tile spawn
@@ -122,7 +129,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
   it('the accumulated bonus lands in spawnBudget exactly once, at the TD-block-to-VS-wave transition, then clears for the next block', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
-    const huskCost = w.content.spawns.costs.husk;
+    const huskCost = spawnCost(w, 'husk');
     const mul = w.content.spawns.leakBudgetMultiplier;
 
     for (let i = 0; i < 10; i++) leakOne(run, 'husk');
@@ -157,7 +164,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     for (let i = 0; i < 10; i++) leakOne(withLeaks, 'husk');
     forceWaveClear(withLeaks, cycleWaveEnd(withLeaks.world, 1));
 
-    const huskCost = withLeaks.world.content.spawns.costs.husk;
+    const huskCost = spawnCost(withLeaks.world, 'husk');
     const mul = withLeaks.world.content.spawns.leakBudgetMultiplier;
     expect(withLeaks.world.spawnBudget - baselineBudget).toBeCloseTo(huskCost * mul * 10, 6);
     expect(withLeaks.world.spawnBudget).toBeGreaterThan(baselineBudget);
@@ -219,7 +226,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     for (let i = 0; i < 3; i++) leakOne(run, 'sprinter');
-    const expectedBonus = w.content.spawns.costs.sprinter * w.content.spawns.leakBudgetMultiplier * 3;
+    const expectedBonus = spawnCost(w, 'sprinter') * w.content.spawns.leakBudgetMultiplier * 3;
 
     forceWaveClear(run, cycleWaveEnd(w, 1));
     expect(w.spawnBudget).toBeCloseTo(expectedBonus, 6);
@@ -239,7 +246,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
   it('p3c: repeats correctly across all 6 TD-block -> VS-wave transitions of the real §1.1 shape, each block getting only its own leaks', () => {
     const run = new Run(cfg({ cycles: 6, seed: 1 }));
     const w = run.world;
-    const huskCost = w.content.spawns.costs.husk;
+    const huskCost = spawnCost(w, 'husk');
     const mul = w.content.spawns.leakBudgetMultiplier;
 
     for (let block = 1; block <= 6; block++) {

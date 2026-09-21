@@ -205,9 +205,9 @@ describe('fb064k — a terrain dump is the whole repro', () => {
     const glyphs = TERRAIN_KEYS.map((k) => field(GOLDEN_SEED_1, 'legend', k));
     const seen = glyphs.map((g) => rows.join('').split(g).length - 1);
     for (let i = 0; i < TERRAIN_KEYS.length; i++) {
-      expect(seen[i], `${TERRAIN_KEYS[i]} count`).toBe(
-        Number(field(GOLDEN_SEED_1, 'tiles', TERRAIN_KEYS[i])),
-      );
+      const key = TERRAIN_KEYS[i];
+      if (key === undefined) throw new Error(`unreachable: TERRAIN_KEYS index ${i} out of range`);
+      expect(seen[i], `${key} count`).toBe(Number(field(GOLDEN_SEED_1, 'tiles', key)));
     }
     expect(seen.reduce((a, b) => a + b, 0)).toBe(GRID_W * GRID_H);
 
@@ -256,9 +256,13 @@ describe('fb064k — a terrain dump is the whole repro', () => {
     // reorder red here rather than in a golden diff nobody can read.
     expect(GOLDEN_SEED_1).toContain('legend normal=. rough=, rock=# high=^');
     const one = synthetic(TerrainKind.Rough);
-    expect(rowsOf(describeTerrain(one, cfg))[0][0]).toBe(',');
+    const roughRow0 = rowsOf(describeTerrain(one, cfg))[0];
+    if (roughRow0 === undefined) throw new Error('expected at least one row');
+    expect(roughRow0[0]).toBe(',');
     const two = synthetic(TerrainKind.High);
-    expect(rowsOf(describeTerrain(two, cfg))[0][0]).toBe('^');
+    const highRow0 = rowsOf(describeTerrain(two, cfg))[0];
+    if (highRow0 === undefined) throw new Error('expected at least one row');
+    expect(highRow0[0]).toBe('^');
   });
 
   it.each([
@@ -385,7 +389,11 @@ describe('fb064k — a terrain dump is the whole repro', () => {
     for (const g of GATES) walled.kind[g.ty * GRID_W + g.tx] = TerrainKind.Rock;
     const text = describeTerrain(walled, cfg);
     const rows = rowsOf(text);
-    for (const g of GATES) expect(rows[g.ty][g.tx]).toBe('#');
+    for (const g of GATES) {
+      const row = rows[g.ty];
+      if (row === undefined) throw new Error(`unreachable: row ${g.ty} out of range`);
+      expect(row[g.tx]).toBe('#');
+    }
     expect(Array.from(parseTerrainDump(text).kind)).toEqual(Array.from(walled.kind));
     // The three rock tiles are counted as rock, not quietly restored to normal
     // on the way through the format.
@@ -444,10 +452,13 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
     // that justifies keeping both checks rather than just the cheap one.
     const lines = good.replace(/\n$/, '').split('\n');
     const top = lines.indexOf('map') + 1;
-    expect(lines[top][0]).toBe('#');
-    expect(lines[top + 12][0]).toBe('.');
-    lines[top] = `.${lines[top].slice(1)}`;
-    lines[top + 12] = `#${lines[top + 12].slice(1)}`;
+    const topLine = lines[top];
+    const belowLine = lines[top + 12];
+    if (topLine === undefined || belowLine === undefined) throw new Error('unreachable: line index out of range');
+    expect(topLine[0]).toBe('#');
+    expect(belowLine[0]).toBe('.');
+    lines[top] = `.${topLine.slice(1)}`;
+    lines[top + 12] = `#${belowLine.slice(1)}`;
     const broken = `${lines.join('\n')}\n`;
     expect(broken).not.toBe(good);
 
@@ -557,7 +568,9 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
     const mangle = (text: string): string => {
       const lines = text.replace(/\n$/, '').split('\n');
       const y = lines.indexOf('map') + 11;
-      lines[y] = `${lines[y].slice(0, 1)}#${lines[y].slice(2)}`;
+      const line = lines[y];
+      if (line === undefined) throw new Error('unreachable: line index out of range');
+      lines[y] = `${line.slice(0, 1)}#${line.slice(2)}`;
       return `${lines.join('\n')}\n`;
     };
 
@@ -980,6 +993,7 @@ describe('fb065i — a dump carries a fingerprint of the config it was measured 
     const map = generateTerrain(1, cfg);
     const dump = describeTerrain(map, cfg);
     const bandsLine = dump.split('\n')[3];
+    if (bandsLine === undefined) throw new Error('expected a bands line at index 3');
     expect(bandsLine.startsWith(`bands config=${configFingerprint(cfg)} `)).toBe(true);
   });
 
