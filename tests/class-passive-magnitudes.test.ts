@@ -151,9 +151,21 @@ function cls(w: World): ClassDef {
   return w.content.classByKey.get(w.cfg.classKey)!;
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 /** An immovable, unarmoured punching bag deep enough that nothing here kills it by accident. */
 function dummy(w: World, x: number, y: number, hp = 1e6): Enemy {
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(w), x, y)!;
   e.hp = hp;
   e.maxHp = Math.max(hp, e.maxHp);
   e.speed = 0;
@@ -332,7 +344,7 @@ describe('c011 — Conduction: the compounding stops at `chainCap` (G11 ceiling)
     for (let i = 1; i <= links; i++) line.push(dummy(w, WX + i * spacing, WY));
     const before = line.map((e) => e.hp);
     expect(useClassActive(w, WX + spacing, WY)).toBe(true);
-    return line.map((e, i) => before[i] - e.hp);
+    return line.map((e, i) => nth(before, i) - e.hp);
   }
 
   /**
@@ -359,13 +371,13 @@ describe('c011 — Conduction: the compounding stops at `chainCap` (G11 ceiling)
 
     // Indices 0..capAt-1 still grow...
     for (let i = 1; i < capAt; i++) {
-      expect(dealt[i] / dealt[i - 1], `jump ${i} did not compound`).toBeGreaterThan(1.0001);
+      expect(nth(dealt, i) / nth(dealt, i - 1), `jump ${i} did not compound`).toBeGreaterThan(1.0001);
     }
     // ...and every jump from the cap index on lands at the same damage. This
     // is the assertion `Math.min(i, capIndex)` exists for: without it the
     // ratios below stay above 1 and G11's ceiling is unbounded.
     for (let i = capAt; i < dealt.length; i++) {
-      expect(dealt[i] / dealt[capAt - 1], `jump ${i} kept compounding past the cap`).toBeCloseTo(1, 6);
+      expect(nth(dealt, i) / nth(dealt, capAt - 1), `jump ${i} kept compounding past the cap`).toBeCloseTo(1, 6);
     }
   });
 
@@ -377,7 +389,7 @@ describe('c011 — Conduction: the compounding stops at `chainCap` (G11 ceiling)
     // Same chain, same growth, the last link: the higher cap must have kept
     // compounding where the lower one had already stopped. `links` as the high
     // cap means it never binds, so this is "capped at 2" against "uncapped".
-    expect(at(links)[last] / at(2)[last]).toBeGreaterThan(1.0001);
+    expect(nth(at(links), last) / nth(at(2), last)).toBeGreaterThan(1.0001);
   });
 });
 
@@ -523,7 +535,8 @@ function animistWorld(spiritsBefore: number, spiritsAfter: number, c: Content = 
   expect(totem, 'harness produced no totem').toBeDefined();
   // Every spirit spawns on the same tile (`fireManifestSpirit` clones one
   // structure), so a target beside that tile serves all of them.
-  dummy(w, spirits[0].x + 1, spirits[0].y);
+  const firstSpirit = nth(spirits, 0);
+  dummy(w, firstSpirit.x + 1, firstSpirit.y);
   w.rebuildBuckets();
   return { w, spirits, totem: totem! };
 }
@@ -549,7 +562,8 @@ describe('c011 — Kinship: the aura respects the totem lifetime it is authored 
     // sides of `auraSpeedMul`'s `s.remaining <= 0` guard: the earlier spirit
     // reads the totem before it is decremented, the later one after.
     const { w, spirits, totem } = animistWorld(1, 1);
-    const [early, late] = spirits;
+    const early = nth(spirits, 0);
+    const late = nth(spirits, 1);
 
     // Well inside the lifetime: both are buffed, which is the control.
     early.attackCooldown = 0;
@@ -604,7 +618,7 @@ describe('c011 — Kinship: the aura respects the totem lifetime it is authored 
     // decrementing (found by code review).
     const ticksBuffed = (c: Content): number => {
       const { w, spirits } = animistWorld(0, 1, c);
-      const spirit = spirits[0];
+      const spirit = nth(spirits, 0);
       let last = 0;
       for (let t = 1; t <= Math.round(60 * 60); t++) {
         spirit.attackCooldown = 0;
@@ -891,7 +905,7 @@ describe('c011 — Time Flow: damage past the stack cap is merged, not dropped',
     const w = passiveWorld('time_lord');
     damageWarden(w, w.derived.maxHp * SHARE);
     expect(w.warden.dots.length, 'the harness converted nothing').toBe(1);
-    return w.warden.dots[0].remaining / 2;
+    return nth(w.warden.dots, 0).remaining / 2;
   }
 
   itCovering('Time Flow stack-cap merge', 'overflow hits still arrive: more hits than the cap deal strictly more damage', () => {
@@ -937,11 +951,11 @@ describe('c011 — Time Flow: damage past the stack cap is merged, not dropped',
 
     const before = w.warden.dots.map((d) => ({ remaining: d.remaining, dps: d.dps }));
     damageWarden(w, w.derived.maxHp * SHARE); // the overflow hit
-    const grew = w.warden.dots.filter((d, i) => d.dps > before[i].dps + 1e-9);
+    const grew = w.warden.dots.filter((d, i) => d.dps > nth(before, i).dps + 1e-9);
     expect(grew.length, 'the overflow did not land in exactly one stack').toBe(1);
 
     const shortest = Math.min(...before.map((d) => d.remaining));
-    expect(grew[0].remaining, 'the overflow was merged into a stack that was not the shortest').toBeCloseTo(
+    expect(nth(grew, 0).remaining, 'the overflow was merged into a stack that was not the shortest').toBeCloseTo(
       shortest,
       10,
     );

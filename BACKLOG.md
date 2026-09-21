@@ -6294,6 +6294,61 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Major/Minor findings. Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed 2
+      more files with real guards (never `!`) — `tests/p2d-weapon-
+      lineage.test.ts` (a local `nth<T>` throw-guard helper replacing
+      every unguarded `tiles(w, n)` array-destructure read (`[a1, a2,
+      a3]`/`[t1]`/`[wielded]`), `wieldedLineageText(w)[0]`, and
+      `spots[i]` inside the per-tower-kind `.forEach`; a new `atKey<T>`
+      helper for the `EXPECTED_SPECIAL[def.key]` regex-table lookup,
+      unreachable given the preceding `.toEqual(Object.keys(...).sort())`
+      key-set assertion) and `tests/class-passive-magnitudes.test.ts` (a
+      matching `nth<T>` helper plus a `firstEnemyKey()` helper for
+      `w.content.enemies.enemies[0].key`, replacing every unguarded
+      `before[i]`/`dealt[i]`/`at(links)[last]`/`spirits[0]`/`[early,
+      late] = spirits`/`w.warden.dots[0]`/`before[i].dps`/`grew[0]`
+      indexed read across the c011 passive-magnitude suite — each index
+      already proven in range by a preceding `.length`/`toHaveLength`
+      assertion or a loop bound tied to the same source array). Neither
+      file touches `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags either file, no new
+      offenders (18 → 16, exact match via the ratchet test); main `npx
+      tsc --noEmit` clean; targeted `npx vitest run` on both files plus
+      the ratchet test itself green (36 tests); `npm run test:fast`
+      unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer
+      APPROVE, no Critical/Major findings (two Nits: `nth`/`atKey` are
+      per-file duplicates of the same helper already living in other test
+      files — matches the established per-file-helper convention, not a
+      new problem). Light tier (`[polish]`, no `/src`/`/data` touched) —
+      no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/fb085-enablers.test.ts` with real guards (never `!`) —
+      a `firstEnemyKey(w)` helper matching the pattern already used in
+      several sibling test files, replacing 22 unguarded
+      `w.content.enemies.enemies[0].key` reads via a mechanical
+      bulk-replace (verified every site still reads the same `w.content`,
+      never mutated mid-test); a local `nth<T>` throw-guard helper
+      replacing three `w.warden.dots[0]` reads in the Chronomail window
+      cases (one call site factored into a `dot` const so `.dps`/
+      `.remaining` read the same element rather than calling `nth`
+      twice); an explicit `if (!fields) throw` guard on the
+      `WELL_FORMED[kind]` lookup inside the `it.each(Object.keys
+      (WELL_FORMED))` "accepts a well-formed %s row" case, unreachable
+      since `kind` only ever iterates `WELL_FORMED`'s own keys — a sibling
+      `WELL_FORMED[kind]` read earlier in the file (`baseEffect(kind,
+      WELL_FORMED[kind])`) was correctly left untouched since that
+      function's `over` parameter carries a `= {}` default, which widens
+      its accepted type to include `undefined` so tsc never flagged it.
+      Does not touch `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags the file, no new offenders
+      (16 → 15, exact match via the ratchet test); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on the file plus the ratchet test
+      itself green (62 tests); `npm run test:fast` unchanged at 315 files
+      / 4548 passed / 35 skipped. code-reviewer APPROVE, no Critical/
+      Major findings (one Minor/Nit on helper-message wording consistency
+      across sibling files, not fixed here). Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

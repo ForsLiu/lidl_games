@@ -40,6 +40,18 @@ function tiles(w: World, n: number): { tx: number; ty: number }[] {
   return out;
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
+function atKey<T>(rec: Readonly<Record<string, T>>, key: string): T {
+  const v = rec[key];
+  if (v === undefined) throw new Error(`expected key ${key} to exist`);
+  return v;
+}
+
 function build(w: World, def: TowerDef, tx: number, ty: number, steps: number) {
   w.warden.x = tx + 0.5;
   w.warden.y = ty + 0.5;
@@ -56,18 +68,22 @@ const LINE_SHAPE = /^(.+) ×(\d+) \(avg ([\d.]+), \+(\d+)%\) — (.+)$/;
 describe('p2d — §6.2 weapon panel lineage', () => {
   it('renders the worked-example shape and re-derives from wieldedAttacks, not a duplicate formula', () => {
     const w = new World(cfg(), content);
-    const [a1, a2, a3] = tiles(w, 3);
+    const spots3 = tiles(w, 3);
+    const a1 = nth(spots3, 0);
+    const a2 = nth(spots3, 1);
+    const a3 = nth(spots3, 2);
     build(w, ARROW, a1.tx, a1.ty, 0); // lv1
     build(w, ARROW, a2.tx, a2.ty, 3); // "lv3" milestone tier, +1 pierce
     build(w, ARROW, a3.tx, a3.ty, 3);
 
     const lines = wieldedLineageText(w);
     expect(lines).toHaveLength(1);
-    const m = LINE_SHAPE.exec(lines[0]);
-    expect(m, lines[0]).not.toBeNull();
+    const line0 = nth(lines, 0);
+    const m = LINE_SHAPE.exec(line0);
+    expect(m, line0).not.toBeNull();
     const [, name, count, avg, bonus, special] = m!;
 
-    const [wielded] = wieldedAttacks(w);
+    const wielded = nth(wieldedAttacks(w), 0);
     expect(name).toBe(ARROW.name);
     expect(Number(count)).toBe(wielded.count);
     expect(Number(bonus)).toBe(Math.round(wielded.count * 10));
@@ -105,7 +121,10 @@ describe('p2d — §6.2 weapon panel lineage', () => {
 
     const w = new World(cfg(), content);
     const spots = tiles(w, attackTowers.length);
-    attackTowers.forEach((def, i) => build(w, def, spots[i].tx, spots[i].ty, 0));
+    attackTowers.forEach((def, i) => {
+      const spot = nth(spots, i);
+      build(w, def, spot.tx, spot.ty, 0);
+    });
 
     const lines = wieldedLineageText(w);
     expect(lines).toHaveLength(attackTowers.length);
@@ -114,14 +133,14 @@ describe('p2d — §6.2 weapon panel lineage', () => {
       expect(line, `${def.key} produced no line`).toBeDefined();
       const m = LINE_SHAPE.exec(line!);
       expect(m, line).not.toBeNull();
-      expect(m![5], line).toMatch(EXPECTED_SPECIAL[def.key]);
+      expect(m![5], line).toMatch(atKey(EXPECTED_SPECIAL, def.key));
     }
   });
 
   it('a tower type with no attack (wall) contributes no line', () => {
     const WALL = content.towerByKey.get('palisade')!;
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, WALL, t1.tx, t1.ty, 0);
     expect(wieldedLineageText(w)).toEqual([]);
   });
@@ -165,7 +184,7 @@ describe('p2d — Hud panel reflects the live wielded roster, not a stale cache'
     const w = new World(cfg(), content);
     hud.buildTowerBar(w);
 
-    const [a1] = tiles(w, 1);
+    const a1 = nth(tiles(w, 1), 0);
     build(w, ARROW, a1.tx, a1.ty, 0);
     const structure = w.structureAt(a1.tx, a1.ty)!;
 
