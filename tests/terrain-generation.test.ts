@@ -46,6 +46,12 @@ import { legalUnder } from './terrain-legality';
 
 const cfg = loadTerrain();
 
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 /**
  * The `paint()` cost guard's ceiling — a **ratio**, not a millisecond budget
  * (fb065d).
@@ -211,26 +217,28 @@ function synthetic(fill: TerrainKind): TerrainMap {
 }
 
 /** Independent per-gate flood fill — never reuses the generator's own mask. */
+const NEIGHBOR_DIRS: ReadonlyArray<[number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
 function reachableFromGate(map: TerrainMap, gateIdx: number): Uint8Array {
   const seen = new Uint8Array(map.w * map.h);
-  if (!cfg.tiles[map.kind[gateIdx]].walkable) return seen;
+  if (!nth(cfg.tiles, nth(map.kind, gateIdx)).walkable) return seen;
   const queue = [gateIdx];
   seen[gateIdx] = 1;
   for (let head = 0; head < queue.length; head++) {
-    const i = queue[head];
+    const i = nth(queue, head);
     const x = i % map.w;
     const y = (i / map.w) | 0;
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
+    for (const [dx, dy] of NEIGHBOR_DIRS) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
       const ni = ny * map.w + nx;
-      if (seen[ni] || !cfg.tiles[map.kind[ni]].walkable) continue;
+      if (seen[ni] || !nth(cfg.tiles, nth(map.kind, ni)).walkable) continue;
       seen[ni] = 1;
       queue.push(ni);
     }
@@ -501,22 +509,22 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     // the JSON dump of its issues, so the key reads as \"rock\" in it.)
     expect(() =>
       withConfig((raw) => {
-        (raw.tiles as Record<string, unknown>[])[TerrainKind.Rock].walkable = true;
+        nth(raw.tiles as Record<string, unknown>[], TerrainKind.Rock).walkable = true;
       }),
     ).toThrow(/rock.*must have walkable: false/);
     expect(() =>
       withConfig((raw) => {
-        (raw.tiles as Record<string, unknown>[])[TerrainKind.Normal].walkable = false;
+        nth(raw.tiles as Record<string, unknown>[], TerrainKind.Normal).walkable = false;
       }),
     ).toThrow(/normal.*must have walkable: true/);
     expect(() =>
       withConfig((raw) => {
-        (raw.tiles as Record<string, unknown>[])[TerrainKind.High].highGround = false;
+        nth(raw.tiles as Record<string, unknown>[], TerrainKind.High).highGround = false;
       }),
     ).toThrow(/high.*must have highGround: true/);
     expect(() =>
       withConfig((raw) => {
-        (raw.tiles as Record<string, unknown>[])[TerrainKind.Rough].buildable = true;
+        nth(raw.tiles as Record<string, unknown>[], TerrainKind.Rough).buildable = true;
       }),
     ).toThrow(/rough.*must have buildable: false/);
   });
@@ -679,11 +687,11 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     const leakyBorder: string[] = [];
     for (const m of maps) {
       for (let i = 0; i < m.kind.length; i++) {
-        seenKinds.add(m.kind[i]);
+        seenKinds.add(nth(m.kind, i));
         const x = i % GRID_W;
         const y = (i / GRID_W) | 0;
         const border = x === 0 || y === 0 || x === GRID_W - 1 || y === GRID_H - 1;
-        if (border && !gateSet.has(i) && m.kind[i] !== TerrainKind.Rock) {
+        if (border && !gateSet.has(i) && nth(m.kind, i) !== TerrainKind.Rock) {
           leakyBorder.push(`seed ${m.seed} tile ${x},${y}`);
         }
       }
@@ -1014,7 +1022,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     // The full per-gate flood fill is quadratic-ish, so it runs on a spread
     // sample rather than all 1000 — the cheap invariants run on all of them.
     for (let k = 0; k < maps.length; k += 97) {
-      const m = maps[k];
+      const m = nth(maps, k);
       const anchors = legalCoreAnchors(m, cfg);
       expect(anchors.length).toBeGreaterThan(0);
       const reach = GATES.map((g) => reachableFromGate(m, g.ty * GRID_W + g.tx));
@@ -1024,7 +1032,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
         for (let dy = 0; dy < 2; dy++) {
           for (let dx = 0; dx < 2; dx++) {
             const i = (ay + dy) * GRID_W + (ax + dx);
-            expect(m.kind[i]).toBe(TerrainKind.Normal);
+            expect(nth(m.kind, i)).toBe(TerrainKind.Normal);
             expect(gateDistance(ax + dx, ay + dy)).toBeGreaterThan(cfg.coreGateClearance);
             for (const r of reach) expect(r[i]).toBe(1);
           }
@@ -1120,13 +1128,8 @@ describe('fb064a — the measurements can fail (negative cases)', () => {
   it('gatesOpen is false when a gate is walled in', () => {
     const m = synthetic(TerrainKind.Normal);
     expect(gatesOpen(m, cfg)).toBe(true);
-    const g = GATES[0];
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
+    const g = nth(GATES, 0);
+    for (const [dx, dy] of NEIGHBOR_DIRS) {
       const nx = g.tx + dx;
       const ny = g.ty + dy;
       if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue;
@@ -1140,7 +1143,7 @@ describe('fb064a — the measurements can fail (negative cases)', () => {
     expect(corridorsOk(m, cfg)).toBe(true);
     // Pinch the west gate to a single-tile mouth: rock out the whole column
     // next to it except the gate row.
-    const g = GATES[0];
+    const g = nth(GATES, 0);
     for (let y = 1; y < GRID_H - 1; y++) {
       if (y === g.ty) continue;
       m.kind[y * GRID_W + 1] = TerrainKind.Rock;
@@ -1159,14 +1162,15 @@ describe('fb064a — the measurements can fail (negative cases)', () => {
       (raw.constraints as Record<string, number>).minCorridorWidth = 1;
     });
     const m = synthetic(TerrainKind.Normal);
-    const north = GATES[1];
-    for (const [x, y] of [
+    const north = nth(GATES, 1);
+    const pinch: ReadonlyArray<[number, number]> = [
       [north.tx - 1, 1],
       [north.tx + 1, 1],
       [north.tx - 1, 2],
       [north.tx, 2],
       [north.tx + 1, 2],
-    ]) {
+    ];
+    for (const [x, y] of pinch) {
       m.kind[y * GRID_W + x] = TerrainKind.Rock;
     }
 
@@ -1207,7 +1211,7 @@ describe('fb064a — the measurements can fail (negative cases)', () => {
     // so the open area widened to `x:6-54, y:1-30` (short of the border ring)
     // to give every gate but `west` a plain, uncontested 2-wide main into it,
     // leaving `west` as the only one this test deliberately pinches.
-    for (const [x, y] of [
+    const staircase: ReadonlyArray<[number, number]> = [
       [1, 11],
       [2, 11],
       [1, 12],
@@ -1218,7 +1222,8 @@ describe('fb064a — the measurements can fail (negative cases)', () => {
       [4, 13], // block B, joined to A only at (2,12)-(3,12)
       [5, 12],
       [5, 13], // B into the open area
-    ]) {
+    ];
+    for (const [x, y] of staircase) {
       put(x, y);
     }
     expect(gatesOpen(m, cfg)).toBe(true);
