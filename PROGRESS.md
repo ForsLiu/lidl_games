@@ -5,7 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, later) — fb133 ratchet shrunk 50 → 47.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 47 → 44.**
+  Fixed 3 more files with real guards (never `!`): `tests/fb027-
+  selection-panels.test.ts` (a throw-guard after the existing
+  `expect(first, ...).toBeDefined()` — the `expect` call doesn't narrow
+  TS's type — plus a guard on `milestonesOwned[0]`); `tests/terrain-
+  high-ground.test.ts` (a new generic `nth<T>(arr, i)` throw-guard helper
+  replacing several `fams[N]` indexes across loader-refusal test fixtures,
+  a `highTiles[0]` destructure guard, and a `catchAll = fams[fams.length
+  - 1]` guard — code-reviewer independently traced every refusal fixture
+  to confirm the same broken config shape still reaches the loader
+  unchanged); `tools/cli-crash-coverage.ts` (a real dev tool, not a test
+  — `?? ''` defaults on 8 regex capture-group reads across `unquote`,
+  the bound-var/readFileSync-arg scans, `CONCAT_ARG_RE`/
+  `READFILESYNC_JOIN_DATA_RE`/`READFILESYNC_TEMPLATE_LITERAL_RE`
+  consumers, and `isTypeOnlyNamedImportClause`, plus two `text[i]`/
+  `text[i+1]` char reads in the comment-stripping scanner — code-reviewer
+  verified every touched capture group is a mandatory, non-optional
+  regex group, so each default is dead code at runtime, not a detection-
+  behavior change). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files plus
+  cli-crash-coverage's 3 consumer test files (116 tests) green; `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 47 → **44
+  files remain** on the allowlist. code-reviewer APPROVE, no Critical/
+  Major findings. Light tier (`[polish]`, no `/data` touched) — no
+  qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 50 → 47.**
   Fixed 3 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/f003-leak-coupling.test.ts` (a new `spawnCost(w, key)`
   helper that throws on a missing director-cost key, replacing 6 unguarded

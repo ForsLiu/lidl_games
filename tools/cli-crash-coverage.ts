@@ -85,7 +85,7 @@ const DATA_JSON_PATH_RE = /^(?:\.\.?\/)?data\/[\w.-]+(?:\/[\w.-]+)*\.json$/;
 function unquote(s: string): string {
   const trimmed = s.trim();
   const m = trimmed.match(/^(['"])(.*)\1$/);
-  return m ? m[2] : trimmed;
+  return m ? (m[2] ?? '') : trimmed;
 }
 
 /**
@@ -287,24 +287,24 @@ export function readsDataJsonDirectly(absPath: string): boolean {
 
   const boundVars = new Set<string>();
   for (const m of text.matchAll(/\bconst\s+(\w+)\s*=\s*(['"][^'"]*['"])\s*;/g)) {
-    if (DATA_JSON_PATH_RE.test(unquote(m[2]))) boundVars.add(m[1]);
+    if (DATA_JSON_PATH_RE.test(unquote(m[2] ?? ''))) boundVars.add(m[1] ?? '');
   }
 
   for (const m of text.matchAll(/\breadFileSync\s*\(\s*([^,)]+)/g)) {
-    const arg = m[1].trim();
+    const arg = (m[1] ?? '').trim();
     if (boundVars.has(arg) || DATA_JSON_PATH_RE.test(unquote(arg))) return true;
   }
 
   for (const m of text.matchAll(CONCAT_ARG_RE)) {
-    if (DATA_JSON_PATH_RE.test(concatLiteralValue(m[1]))) return true;
+    if (DATA_JSON_PATH_RE.test(concatLiteralValue(m[1] ?? ''))) return true;
   }
 
   const commentsStripped = stripComments(raw);
   for (const m of commentsStripped.matchAll(READFILESYNC_JOIN_DATA_RE)) {
-    if (/\.json\b/.test(m[2])) return true;
+    if (/\.json\b/.test(m[2] ?? '')) return true;
   }
   for (const m of commentsStripped.matchAll(READFILESYNC_TEMPLATE_LITERAL_RE)) {
-    if (DATA_JSON_PATH_RE.test(m[1])) return true;
+    if (DATA_JSON_PATH_RE.test(m[1] ?? '')) return true;
   }
   return false;
 }
@@ -341,7 +341,7 @@ const VALUE_IMPORT_RE =
 function isTypeOnlyNamedImportClause(clause: string): boolean {
   const m = clause.trim().match(/^\{([^}]*)\}$/);
   if (!m) return false;
-  const specifiers = m[1]
+  const specifiers = (m[1] ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -448,7 +448,7 @@ function stripCommentsAndBacktickStrings(text: string): string {
           } else if (text[i + 1] === '\r' && text[i + 2] === '\n') {
             i += 3;
           } else {
-            out += text[i] + text[i + 1];
+            out += (text[i] ?? '') + (text[i + 1] ?? '');
             i += 2;
           }
         } else {

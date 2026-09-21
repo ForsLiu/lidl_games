@@ -6041,6 +6041,30 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       APPROVE, no findings. Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tests/fb027-
+      selection-panels.test.ts` (a throw-guard after the existing
+      `expect(first, ...).toBeDefined()`, which doesn't narrow TS's type,
+      plus a guard on `milestonesOwned[0]`), `tests/terrain-high-
+      ground.test.ts` (a new generic `nth<T>(arr, i)` throw-guard helper
+      replacing several `fams[N]` indexes across loader-refusal test
+      fixtures, a `highTiles[0]` destructure guard, and a `catchAll =
+      fams[fams.length - 1]` guard), `tools/cli-crash-coverage.ts` (a
+      real dev tool, not a test — `?? ''` defaults on 8 regex capture-
+      group reads, all confirmed mandatory non-optional groups so each
+      default is dead code at runtime and not a detection-behavior
+      change, plus two proven-in-range `text[i]`/`text[i+1]` char reads
+      in the comment-stripping scanner). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx
+      tsc --noEmit` clean; targeted `npx vitest run` on the 3 files plus
+      cli-crash-coverage's 3 consumer test files (116 tests) green; `npm
+      run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+      47 → **44 files remain** on the allowlist. code-reviewer APPROVE
+      (independently traced every terrain-high-ground refusal fixture to
+      confirm the same broken config shape still reaches the loader
+      unchanged), no Critical/Major findings. Light tier (`[polish]`, no
+      `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
+      TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

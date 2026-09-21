@@ -74,6 +74,13 @@ function refusal(patch: (families: Array<Record<string, unknown>>) => void): str
   throw new Error('expected the loader to refuse this config, and it loaded');
 }
 
+/** A known-in-range array index, thrown rather than assumed present. */
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
 function familyOf(enemyKey: string, c: TerrainConfig = cfg): HighGroundFamily {
   const def = enemies.find((e) => e.key === enemyKey);
   if (!def) throw new Error(`no such enemy "${enemyKey}"`);
@@ -150,7 +157,10 @@ describe('fb064i — high-ground families are classified from authored traits', 
       const fams = hg.families as Array<{ key: string }>;
       const flier = fams.findIndex((f) => f.key === 'flier');
       const burrower = fams.findIndex((f) => f.key === 'burrower');
-      [fams[flier], fams[burrower]] = [fams[burrower], fams[flier]];
+      const flierFam = fams[flier];
+      const burrowerFam = fams[burrower];
+      if (!flierFam || !burrowerFam) throw new Error('expected both flier and burrower families');
+      [fams[flier], fams[burrower]] = [burrowerFam, flierFam];
     });
     expect(highGroundFamily(reordered, ['burrows', 'flying']).key).toBe('burrower');
     // The trait order on the enemy must not matter — only the table's order.
@@ -421,7 +431,8 @@ describe('fb064i — the predicates are total and pure', () => {
     }
     expect(Array.from(grid.terrainKind)).toEqual(before);
     expect(JSON.stringify(fam)).toBe(snapshot);
-    expect(canAttackStructureAt(grid, fam, highTiles[0][0], highTiles[0][1])).toBe(false);
+    const firstHighTile = nth(highTiles, 0);
+    expect(canAttackStructureAt(grid, fam, firstHighTile[0], firstHighTile[1])).toBe(false);
   });
 });
 
@@ -437,19 +448,19 @@ describe('fb064i — the loader refuses a silently-wrong family table', () => {
   });
 
   it('refuses a trait listed twice inside one family', () => {
-    expect(refusal((fams) => (fams[0].traits = ['flying', 'flying']))).toContain(
+    expect(refusal((fams) => (nth(fams, 0).traits = ['flying', 'flying']))).toContain(
       'family "flier" lists trait "flying" twice',
     );
   });
 
   it('refuses a trait claimed twice — the later family could never apply', () => {
-    expect(refusal((fams) => (fams[1].traits = ['ranged', 'flying']))).toContain(
+    expect(refusal((fams) => (nth(fams, 1).traits = ['ranged', 'flying']))).toContain(
       'trait "flying" is already claimed by family "flier"',
     );
   });
 
   it('refuses a duplicate family key', () => {
-    expect(refusal((fams) => (fams[1].key = 'flier'))).toContain('duplicate family key "flier"');
+    expect(refusal((fams) => (nth(fams, 1).key = 'flier'))).toContain('duplicate family key "flier"');
   });
 
   it('refuses a catch-all that is not last — it hides every family below it', () => {
@@ -482,7 +493,7 @@ describe('fb064i — the loader refuses a silently-wrong family table', () => {
     expect(() =>
       withConfig((raw) => {
         const fams = (raw.highGround as { families: Array<Record<string, unknown>> }).families;
-        fams[0].attacksLow = true;
+        nth(fams, 0).attacksLow = true;
       }),
     ).toThrow();
   });
@@ -491,13 +502,13 @@ describe('fb064i — the loader refuses a silently-wrong family table', () => {
     // fb064a's unbounded-loop lesson, applied to the one array this item adds.
     expect(() =>
       refusal((fams) => {
-        const catchAll = fams[fams.length - 1];
+        const catchAll = nth(fams, fams.length - 1);
         fams.length = 0;
         for (let i = 0; i < 70; i++) fams.push({ key: `f${i}`, traits: [`t${i}`], attacksHigh: false, surfacesHigh: false });
         fams.push(catchAll);
       }),
     ).not.toThrow();
-    expect(refusal((fams) => (fams[0].traits = Array.from({ length: 65 }, (_, i) => `t${i}`)))).toBeTruthy();
+    expect(refusal((fams) => (nth(fams, 0).traits = Array.from({ length: 65 }, (_, i) => `t${i}`)))).toBeTruthy();
   });
 
   it('accepts a re-tuned table — the rules are data, not code', () => {
