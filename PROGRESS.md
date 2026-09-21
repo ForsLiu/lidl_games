@@ -5,7 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 47 → 44.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 44 → 41.**
+  Fixed 3 more files with real guards (never `!`): `tests/fb164-
+  prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
+  match or missing capture group, replacing `m![N]` reads that followed
+  an `expect(m, ...).not.toBeNull()` — the `expect` call doesn't narrow
+  TS's type — plus throw-guards on a few `core.upgrade!.steps![N]`
+  reads); `tests/terrain-cost-ledger.ts` (a real, non-test perf-sweep
+  module shared by `terrain-cost.test.ts` and the perf-config
+  `terrain-cost-retry-ratio.test.ts` — throw-guards inside its hot
+  per-seed loops (`seeds[i]`, the 200-seed warmup, `rawMin[i]`/
+  `next.ms[i]` round-merge, `units[i]`) and in `median()`/`quantile()`;
+  code-reviewer confirmed every guarded index is already provably in
+  range via its enclosing loop bound, so each throw is unreachable and
+  the branch overhead is negligible next to the file's own ~1-2ms
+  generation cost); `tests/terrain-describe.test.ts` (throw-guards on
+  `TERRAIN_KEYS[i]`, `rows[g.ty]`/`row[g.tx]` against fixed `GATES`
+  coordinates, `rowsOf(...)[0]`, golden-dump line reads, and a
+  `dump.split('\n')[3]` bands-line read — all against fixed-shape
+  fixtures, so a trip would signal a real dump-format regression, not a
+  false invariant). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files (68 tests)
+  green; the perf-config `terrain-cost-retry-ratio.test.ts` still
+  passes; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 44 → **41 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major findings. Light tier (`[polish]`, no `/src`/
+  `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133
+  Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 47 → 44.**
   Fixed 3 more files with real guards (never `!`): `tests/fb027-
   selection-panels.test.ts` (a throw-guard after the existing
   `expect(first, ...).toBeDefined()` — the `expect` call doesn't narrow

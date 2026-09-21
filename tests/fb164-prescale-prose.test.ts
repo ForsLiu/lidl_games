@@ -59,6 +59,14 @@ function allNumbers(text: string): number[] {
   return [...text.matchAll(/-?\d+(?:\.\d+)?/g)].map((m) => Number.parseFloat(m[0]));
 }
 
+/** A capture group from a match already confirmed non-null, thrown rather than assumed present. */
+function group(m: RegExpMatchArray | null, i: number): string {
+  if (!m) throw new Error('expected a match');
+  const g = m[i];
+  if (g === undefined) throw new Error(`match has no group ${i}`);
+  return g;
+}
+
 describe('fb164 — damagetypes.json sentences match the post-numberScale dps', () => {
   it('Bleeding: "N damage per second" is the loaded dps', () => {
     const bleeding = content.damageTypeByKey.get('bleeding')!;
@@ -102,8 +110,8 @@ describe('fb164 — equipment.json item descriptions match their loaded mods', (
       const item = content.equipmentByKey.get(key)!;
       const m = item.desc.match(/HP (-?[\d.]+) \/ Atk (-?[\d.]+)/);
       expect(m, `${key}: description does not match the "HP X / Atk Y" shape`).not.toBeNull();
-      expect(Number.parseFloat(m![1])).toBeCloseTo(item.mods.maxHp ?? 0, 9);
-      expect(Number.parseFloat(m![2])).toBeCloseTo(item.mods.atkFlat ?? 0, 9);
+      expect(Number.parseFloat(group(m, 1))).toBeCloseTo(item.mods.maxHp ?? 0, 9);
+      expect(Number.parseFloat(group(m, 2))).toBeCloseTo(item.mods.atkFlat ?? 0, 9);
     });
   }
 
@@ -111,14 +119,14 @@ describe('fb164 — equipment.json item descriptions match their loaded mods', (
     const item = content.equipmentByKey.get('normal_ring')!;
     const m = item.desc.match(/Life regen \+(-?[\d.]+)/);
     expect(m).not.toBeNull();
-    expect(Number.parseFloat(m![1])).toBeCloseTo(item.mods.hpRegen ?? 0, 9);
+    expect(Number.parseFloat(group(m, 1))).toBeCloseTo(item.mods.hpRegen ?? 0, 9);
   });
 
   it("builders_necklace: \"All towers +N flat attack\" matches the loaded towerAtkFlat", () => {
     const item = content.equipmentByKey.get('builders_necklace')!;
     const m = item.desc.match(/All towers \+(-?[\d.]+) flat attack/);
     expect(m).not.toBeNull();
-    expect(Number.parseFloat(m![1])).toBeCloseTo(item.mods.towerAtkFlat ?? 0, 9);
+    expect(Number.parseFloat(group(m, 1))).toBeCloseTo(item.mods.towerAtkFlat ?? 0, 9);
   });
 });
 
@@ -139,7 +147,9 @@ describe('fb164 — tree.json node descriptions match their loaded stats', () =>
 describe('fb164 — cores.json upgrade/unlock text matches loaded core fields', () => {
   it('Stone Heart: "+N Core HP per step" is the loaded coreHpBonus', () => {
     const core = content.coreByKey.get('stone_heart')!;
-    expect(firstNumber(core.upgrade!.desc)).toBeCloseTo(core.upgrade!.steps![0].coreHpBonus!, 9);
+    const step0 = core.upgrade!.steps![0];
+    if (!step0) throw new Error('stone_heart has no upgrade step 0');
+    expect(firstNumber(core.upgrade!.desc)).toBeCloseTo(step0.coreHpBonus!, 9);
   });
 
   it('Vampire Heart: the two "N:1" ratios are the loaded overhealGoldRatio at each step', () => {
@@ -148,8 +158,10 @@ describe('fb164 — cores.json upgrade/unlock text matches loaded core fields', 
     const stepped = core.upgrade!.desc.match(/become ([\d.]+):1/);
     expect(base, 'no "converts N:1" in Vampire Heart\'s upgrade desc').not.toBeNull();
     expect(stepped, 'no "become N:1" in Vampire Heart\'s upgrade desc').not.toBeNull();
-    expect(Number.parseFloat(base![1])).toBeCloseTo(core.effects!.overhealGoldRatio!, 9);
-    expect(Number.parseFloat(stepped![1])).toBeCloseTo(core.upgrade!.steps![1].overhealGoldRatio!, 9);
+    expect(Number.parseFloat(group(base, 1))).toBeCloseTo(core.effects!.overhealGoldRatio!, 9);
+    const step1 = core.upgrade!.steps![1];
+    if (!step1) throw new Error('vampire_heart has no upgrade step 1');
+    expect(Number.parseFloat(group(stepped, 1))).toBeCloseTo(step1.overhealGoldRatio!, 9);
   });
 
   it('Corpse: the unlock condition\'s lifetime-damage figure (commas stripped) matches its own quest target', () => {
@@ -166,12 +178,14 @@ describe('fb164 — cores.json upgrade/unlock text matches loaded core fields', 
     const coefficient = core.upgrade!.desc.match(/\(([\d.]+)x1\.2\^/);
     expect(regen, 'no "+N HP regen/s" in Time\'s upgrade desc').not.toBeNull();
     expect(coefficient, 'no "(Nx1.2^..." in Time\'s upgrade desc').not.toBeNull();
-    expect(Number.parseFloat(regen![1])).toBeCloseTo(core.upgrade!.steps![1].hpRegenPerSecond!, 9);
+    const timeStep1 = core.upgrade!.steps![1];
+    if (!timeStep1) throw new Error('time has no upgrade step 1');
+    expect(Number.parseFloat(group(regen, 1))).toBeCloseTo(timeStep1.hpRegenPerSecond!, 9);
     // `updateTimeDecay` (src/sim/cores.ts) multiplies the exponent by
     // `content.modifiers.numberScale` directly — there is no /data field for
     // this literal (rule-4 debt, documented there), so the sentence is
     // pinned against the same scale rather than an authored row.
-    expect(Number.parseFloat(coefficient![1])).toBeCloseTo(content.modifiers.numberScale, 9);
+    expect(Number.parseFloat(group(coefficient, 1))).toBeCloseTo(content.modifiers.numberScale, 9);
   });
 });
 

@@ -6065,6 +6065,30 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       unchanged), no Critical/Major findings. Light tier (`[polish]`, no
       `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
       TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tests/fb164-
+      prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
+      match or missing capture group, replacing `m![N]` reads that
+      followed an `expect(m, ...).not.toBeNull()`, plus throw-guards on
+      `core.upgrade!.steps![N]` reads), `tests/terrain-cost-ledger.ts` (a
+      real, non-test perf-sweep module shared by `terrain-cost.test.ts`
+      and the perf-config `terrain-cost-retry-ratio.test.ts` — throw-
+      guards inside its hot per-seed loops and in `median()`/
+      `quantile()`; code-reviewer confirmed every guarded index is
+      already provably in range via its enclosing loop bound, so the
+      branch overhead is negligible next to the file's own timing
+      measurements), `tests/terrain-describe.test.ts` (throw-guards on
+      `TERRAIN_KEYS[i]`, `rows[g.ty]`/`row[g.tx]` against fixed `GATES`
+      coordinates, `rowsOf(...)[0]`, golden-dump line reads, and a
+      bands-line read — all against fixed-shape fixtures). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any
+      of the 3; main `npx tsc --noEmit` clean; targeted `npx vitest run`
+      on the 3 files (68 tests) green; the perf-config `terrain-cost-
+      retry-ratio.test.ts` still passes; `npm run test:fast` unchanged
+      at 315 files / 4548 passed / 35 skipped. 44 → **41 files remain**
+      on the allowlist. code-reviewer APPROVE, no Critical/Major
+      findings. Light tier (`[polish]`, no `/data` touched) — no
+      qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

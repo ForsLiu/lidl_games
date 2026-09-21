@@ -116,12 +116,14 @@ function pass(
     per.push((performance.now() - c0) / CALIB_CHUNK);
     if (Number.isNaN(acc)) throw new Error('unreachable: calibrationWork is integer arithmetic');
     for (let i = base; i < Math.min(base + CHUNK_SEEDS, seeds.length); i++) {
+      const seed = seeds[i];
+      if (seed === undefined) throw new Error(`unreachable: seed index ${i} out of range`);
       const t0 = performance.now();
-      const m = generateTerrain(seeds[i], cfg);
+      const m = generateTerrain(seed, cfg);
       ms[i] = performance.now() - t0;
       if (attempts) attempts.set(m.attempts, (attempts.get(m.attempts) ?? 0) + 1);
-      if (retries && m.attempts > 1) retries.push([seeds[i], m.attempts]);
-      if (fallbacks && m.fallback) fallbacks.push(seeds[i]);
+      if (retries && m.attempts > 1) retries.push([seed, m.attempts]);
+      if (fallbacks && m.fallback) fallbacks.push(seed);
     }
   }
   return { ms, per };
@@ -171,7 +173,11 @@ export function runLedger(): Ledger {
   // minimum), which is the conservative direction for a ceiling, and the mean
   // moves ~1% between the two settings. Recorded rather than fixed so the next
   // reader knows it is a choice.
-  for (let i = 0; i < 200; i++) generateTerrain(seeds[i], cfg);
+  for (let i = 0; i < 200; i++) {
+    const seed = seeds[i];
+    if (seed === undefined) throw new Error(`unreachable: seed index ${i} out of range`);
+    generateTerrain(seed, cfg);
+  }
 
   const byAttempts = new Map<number, number>();
   const retries: Array<readonly [number, number]> = [];
@@ -181,12 +187,23 @@ export function runLedger(): Ledger {
   let perMin = Math.min(...first.per);
   for (let r = 1; r < ROUNDS; r++) {
     const next = pass(seeds, null, null, null);
-    for (let i = 0; i < rawMin.length; i++) rawMin[i] = Math.min(rawMin[i], next.ms[i]);
+    for (let i = 0; i < rawMin.length; i++) {
+      const prev = rawMin[i];
+      const nextMs = next.ms[i];
+      if (prev === undefined || nextMs === undefined) throw new Error(`unreachable: index ${i} out of range`);
+      rawMin[i] = Math.min(prev, nextMs);
+    }
     perMin = Math.min(perMin, ...next.per);
   }
 
   const units = rawMin.map((v) => v / perMin);
-  const costs = seeds.map((s, i) => [s, units[i]] as const).sort((a, b) => a[1] - b[1]);
+  const costs = seeds
+    .map((s, i) => {
+      const unit = units[i];
+      if (unit === undefined) throw new Error(`unreachable: unit index ${i} out of range`);
+      return [s, unit] as const;
+    })
+    .sort((a, b) => a[1] - b[1]);
   const mean = units.reduce((a, b) => a + b, 0) / units.length;
   ledger = { byAttempts, retries, fellBack, costs, rawMin, seeds, mean };
   return ledger;
@@ -194,11 +211,15 @@ export function runLedger(): Ledger {
 
 export function median(xs: readonly number[]): number {
   const sorted = [...xs].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
+  const mid = sorted[Math.floor(sorted.length / 2)];
+  if (mid === undefined) throw new Error('median of an empty array');
+  return mid;
 }
 
 export function quantile(costs: Ledger['costs'], q: number): readonly [number, number] {
-  return costs[Math.floor(q * (costs.length - 1))];
+  const c = costs[Math.floor(q * (costs.length - 1))];
+  if (c === undefined) throw new Error('quantile of an empty costs array');
+  return c;
 }
 
 /**
