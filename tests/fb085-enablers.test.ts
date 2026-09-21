@@ -214,7 +214,9 @@ describe('fb085(b): Madness King/Voltbolt passive kinds + REQUIRED_PASSIVE_FIELD
   }
 
   it.each(Object.keys(WELL_FORMED))('accepts a well-formed %s row', (kind) => {
-    expect(() => validateClassPassive(basePassive(kind, WELL_FORMED[kind]), 'x')).not.toThrow();
+    const fields = WELL_FORMED[kind];
+    if (!fields) throw new Error(`expected WELL_FORMED to carry a "${kind}" row`);
+    expect(() => validateClassPassive(basePassive(kind, fields), 'x')).not.toThrow();
   });
 
   it.each(
@@ -236,10 +238,22 @@ function worldWith(over: Record<string, unknown> = {}): World {
   return w;
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 describe('fb085(b): the madness status on Enemy — install/decay/stacking', () => {
   it('applyMadness sets madnessRemaining, and Math.max-refreshes rather than resets it', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     applyMadness(e, 3);
     expect(e.madnessRemaining).toBe(3);
     applyMadness(e, 1); // shorter — must not shrink an already-longer remaining
@@ -250,7 +264,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
 
   it('madnessRemaining decays every tick (tickTimers, via updateEnemies) and zeroes madnessStacks at expiry', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyMadness(e, 2 / 60); // exactly 2 ticks
     registerMadnessAttack(e);
@@ -265,7 +279,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
 
   it('registerMadnessAttack increments stacks while mad, and is a no-op once madnessRemaining has lapsed', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     registerMadnessAttack(e); // never mad — no-op
     expect(e.madnessStacks).toBe(0);
     applyMadness(e, 5);
@@ -314,7 +328,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     };
     const c = loadContent({ classes: doc });
     const w = new World(cfg({ classKey: 'animist' }), c);
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
 
     const baseAtkMul = enemyAttackSpeedMul(w, e);
     const baseSpeed = effectiveSpeed(w, e);
@@ -327,22 +341,22 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
 describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attacks nearest other enemy in r3, or self + random-walk in r1")', () => {
   it('returns null for an enemy that is not currently mad', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     expect(madnessMoveTarget(w, e)).toBeNull();
   });
 
   it('returns null for a mad elite/boss — "elites never gain the movement change"', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y, { elite: true })!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y, { elite: true })!;
     applyMadness(e, 3);
     expect(madnessMoveTarget(w, e)).toBeNull();
   });
 
   it('returns the nearest other live enemy within r3 when one stands that close', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, 10, 10)!;
-    const near = spawnEnemy(w, w.content.enemies.enemies[0].key, 11, 10)!; // dist 1
-    const far = spawnEnemy(w, w.content.enemies.enemies[0].key, 19, 10)!; // dist 9, outside r3
+    const e = spawnEnemy(w, firstEnemyKey(w), 10, 10)!;
+    const near = spawnEnemy(w, firstEnemyKey(w), 11, 10)!; // dist 1
+    const far = spawnEnemy(w, firstEnemyKey(w), 19, 10)!; // dist 9, outside r3
     applyMadness(e, 3);
     w.rebuildBuckets();
     const target = madnessMoveTarget(w, e);
@@ -352,10 +366,10 @@ describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attac
 
   it('never targets itself, and skips a dead or submerged other enemy (falls back to wander, same as no candidate at all)', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, 10, 10)!;
-    const dead = spawnEnemy(w, w.content.enemies.enemies[0].key, 10.5, 10)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), 10, 10)!;
+    const dead = spawnEnemy(w, firstEnemyKey(w), 10.5, 10)!;
     dead.dead = true;
-    const submerged = spawnEnemy(w, w.content.enemies.enemies[0].key, 10.8, 10)!;
+    const submerged = spawnEnemy(w, firstEnemyKey(w), 10.8, 10)!;
     submerged.submerged = true;
     applyMadness(e, 3);
     w.rebuildBuckets();
@@ -369,7 +383,7 @@ describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attac
 
   it('wanders within r1 of its own spot when nothing stands within r3 ("self + random-walk")', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, 10, 10)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), 10, 10)!;
     applyMadness(e, 3);
     w.rebuildBuckets();
     for (let i = 0; i < 20; i++) {
@@ -381,8 +395,8 @@ describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attac
 
   it('updateEnemies: a taunted (Clarion Taunt) enemy is not also redirected by madness — the caster CC outranks the self-inflicted status', () => {
     const w = worldWith(); // fresh World defaults to act1_build — huntsWarden false, so TAUNT_WARDEN is a real diversion away from the Core (tauntTarget's own precedent)
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, 10, 10)!;
-    const decoy = spawnEnemy(w, w.content.enemies.enemies[0].key, 10.5, 10)!; // would otherwise win the madness redirect
+    const e = spawnEnemy(w, firstEnemyKey(w), 10, 10)!;
+    const decoy = spawnEnemy(w, firstEnemyKey(w), 10.5, 10)!; // would otherwise win the madness redirect
     e.tauntRemaining = 5;
     e.tauntKind = TAUNT_WARDEN;
     applyMadness(e, 5);
@@ -448,9 +462,9 @@ describe('fb085(d): Ring of Contagion — an extra Spreading Plague fan-out targ
   it('without the ring, the transfer still reaches exactly 1 nearest enemy (baseline unchanged)', () => {
     const c = contentWithRingOfContagion(1);
     const w = plagueWorld([], c);
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
-    const second = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
+    const second = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
     for (const e of [dying, nearest, second]) {
       e.hp = 1e6;
       e.maxHp = 1e6;
@@ -466,10 +480,10 @@ describe('fb085(d): Ring of Contagion — an extra Spreading Plague fan-out targ
   it('equipped, the transfer fans out to 1 extra nearest enemy per effectNums.extraTargets', () => {
     const c = contentWithRingOfContagion(1);
     const w = plagueWorld(['ring_of_contagion'], c);
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
-    const second = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
-    const third = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
+    const second = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
+    const third = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 10, w.warden.y)!;
     for (const e of [dying, nearest, second, third]) {
       e.hp = 1e6;
       e.maxHp = 1e6;
@@ -504,7 +518,7 @@ describe('fb085(d): Chronomail — a hook on Time Flow\'s window', () => {
     const w = new World(cfg({ classKey: 'time_lord', equipment: [] }), c);
     w.warden.hp = 1000;
     damageWarden(w, 100);
-    expect(w.warden.dots[0].remaining).toBeCloseTo(4, 5);
+    expect(nth(w.warden.dots, 0).remaining).toBeCloseTo(4, 5);
   });
 
   it('equipped, the window widens by effectNums.windowMul', () => {
@@ -512,9 +526,10 @@ describe('fb085(d): Chronomail — a hook on Time Flow\'s window', () => {
     const w = new World(cfg({ classKey: 'time_lord', equipment: ['chronomail'] }), c);
     w.warden.hp = 1000;
     damageWarden(w, 100);
-    expect(w.warden.dots[0].remaining).toBeCloseTo(8, 5);
+    expect(nth(w.warden.dots, 0).remaining).toBeCloseTo(8, 5);
     // Total damage owed is unchanged by the window widening (dps * remaining = the same mitigated total).
-    const owed = w.warden.dots[0].dps * w.warden.dots[0].remaining;
+    const dot = nth(w.warden.dots, 0);
+    const owed = dot.dps * dot.remaining;
     expect(owed).toBeCloseTo(100, 5);
   });
 });

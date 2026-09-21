@@ -5,6 +5,23 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 16 → 15.**
+  Fixed `tests/fb085-enablers.test.ts` with real guards (never `!`): a
+  `firstEnemyKey(w)` helper replacing 22 unguarded `w.content.enemies
+  .enemies[0].key` reads (mechanical bulk-replace, verified every site
+  reads the same never-mutated `w.content`); a local `nth<T>` helper
+  replacing three `w.warden.dots[0]` reads in the Chronomail window
+  cases; an explicit guard on a `WELL_FORMED[kind]` lookup inside an
+  `it.each(Object.keys(WELL_FORMED))` case (unreachable — `kind` only
+  ever iterates the record's own keys). Does not touch `/src/sim` or
+  `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags the file, no new offenders (16 → 15, exact match via the
+  ratchet test); main `npx tsc --noEmit` clean; targeted `npx vitest run`
+  on the file plus the ratchet test itself green (62 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE, no Critical/Major findings. Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 18 → 16.**
   Fixed `tests/p2d-weapon-lineage.test.ts` (a local `nth<T>` throw-guard
   helper replacing every unguarded `tiles(w, n)` array-destructure read
