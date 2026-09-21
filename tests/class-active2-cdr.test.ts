@@ -182,14 +182,18 @@ const CLASS_KEYS = content.classes.classes.map((c) => c.key);
 function cdrCard(classKey: string): SkillCardDef {
   const own = (content.boons.skillCards[classKey] ?? []).filter((c) => c.effect === 'active2_cdr');
   expect(own.length, `${classKey} should author exactly one active2_cdr card`).toBe(1);
-  return own[0];
+  const card = own[0];
+  if (!card) throw new Error(`unreachable: own.length === 1 for ${classKey}`);
+  return card;
 }
 
 /** The one `class_line` card, which for the Engineer is the cap this deviation turns on. */
 function lineCard(classKey: string): SkillCardDef {
   const own = (content.boons.skillCards[classKey] ?? []).filter((c) => c.effect === 'class_line');
   expect(own.length, `${classKey} should author exactly one class_line card`).toBe(1);
-  return own[0];
+  const card = own[0];
+  if (!card) throw new Error(`unreachable: own.length === 1 for ${classKey}`);
+  return card;
 }
 
 function active2(classKey: string): ClassEffect {
@@ -199,6 +203,12 @@ function active2(classKey: string): ClassEffect {
 /** `active2`'s twin — needed by `c041`, since Animist's summon cap (Manifest) lives on Active1, not Active2. */
 function active1(classKey: string): ClassEffect {
   return content.classByKey.get(classKey)!.active1;
+}
+
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
 }
 
 /**
@@ -461,12 +471,13 @@ describe("c019 — every active2_cdr card raises its own class's cast rate", () 
 
       const seconds = windowFor(classKey);
       const casts = [0, 1, 2].map((n) => spamActive2(classKey, n === 0 ? {} : { [card.key]: n }, seconds).casts);
+      const [c0, c1, c2] = [nth(casts, 0), nth(casts, 1), nth(casts, 2)];
       expect(
-        casts[0],
-        `harness window for ${classKey} was too short (${seconds}s produced ${casts[0]} casts) — a harness shortfall, not a dead card`,
+        c0,
+        `harness window for ${classKey} was too short (${seconds}s produced ${c0} casts) — a harness shortfall, not a dead card`,
       ).toBeGreaterThanOrEqual(2);
-      expect(casts[1], `${card.key} rank 0 -> 1 landed no extra cast: ${casts.join(' -> ')}`).toBeGreaterThan(casts[0]);
-      expect(casts[2], `${card.key} rank 1 -> 2 landed no extra cast: ${casts.join(' -> ')}`).toBeGreaterThan(casts[1]);
+      expect(c1, `${card.key} rank 0 -> 1 landed no extra cast: ${casts.join(' -> ')}`).toBeGreaterThan(c0);
+      expect(c2, `${card.key} rank 1 -> 2 landed no extra cast: ${casts.join(' -> ')}`).toBeGreaterThan(c1);
     });
 
     it(`${classKey} ${card.key}: the cast's cost is the authored /data figure, cut by perRank per rank`, () => {
@@ -517,12 +528,13 @@ describe("c019 — every active2_cdr card raises its own class's cast rate", () 
         const landed = charge === undefined ? useClassActive(w, AX, AY) : chargeAndRelease(w, charge);
         return { landed, cost: billed(w) };
       });
-      expect(readings[1].landed, `${classKey}: Active1 landed differently at cdr rank 2`).toBe(readings[0].landed);
+      const [r0, r1] = [nth(readings, 0), nth(readings, 1)];
+      expect(r1.landed, `${classKey}: Active1 landed differently at cdr rank 2`).toBe(r0.landed);
       expect(
-        readings[1].cost,
-        `${classKey}: cdr rank 2 moved Active1's cost ${readings[0].cost} -> ${readings[1].cost}`,
-      ).toBeCloseTo(readings[0].cost, 9);
-      if (readings[0].cost > 0) measured++;
+        r1.cost,
+        `${classKey}: cdr rank 2 moved Active1's cost ${r0.cost} -> ${r1.cost}`,
+      ).toBeCloseTo(r0.cost, 9);
+      if (r0.cost > 0) measured++;
     }
     // Not covered, and said rather than implied: `classes.ts` has a *third*
     // Active1 cooldown write, in `fireDashSlash`, where a Swordsman who dashes
@@ -662,13 +674,15 @@ describe('c019 — named deviation: at a cap it holds, Pop Turret Cooldown buys 
       'an Active2 summon this file does not know about — it needs a deviation row, or a cdr card that silently does nothing',
     ).toEqual(Object.keys(declared).sort());
     for (const [k, peaks] of Object.entries(census)) {
+      const declaredForClass = declared[k];
+      if (!declaredForClass) throw new Error(`unreachable: ${k} already proven a key of declared above`);
       expect(Object.keys(peaks).sort(), `${k} summons a kind this file does not know about`).toEqual(
-        Object.keys(declared[k]).sort(),
+        Object.keys(declaredForClass).sort(),
       );
       for (const [sk, peak] of Object.entries(peaks)) {
-        expect(peak, `${k} put ${peak} ${sk}s on the board against a cap of ${declared[k][sk]}`).toBeLessThanOrEqual(
-          declared[k][sk],
-        );
+        const cap = declaredForClass[sk];
+        if (cap === undefined) throw new Error(`unreachable: ${sk} already proven a key of declaredForClass above`);
+        expect(peak, `${k} put ${peak} ${sk}s on the board against a cap of ${cap}`).toBeLessThanOrEqual(cap);
       }
     }
   });
@@ -700,28 +714,31 @@ describe('c019 — named deviation: at a cap it holds, Pop Turret Cooldown buys 
     // thing it is flat *at* is half the claim (c018's lesson). `min` as well as
     // `mean`, so "flat" cannot be a mean hiding a dip.
     for (const n of [0, 1, 2]) {
-      expect(readings[n].min, `cdr rank ${n} dipped below the cap in steady state`).toBe(cap);
-      expect(readings[n].mean, `cdr rank ${n} steady-state mean`).toBeCloseTo(cap, 6);
+      const r = nth(readings, n);
+      expect(r.min, `cdr rank ${n} dipped below the cap in steady state`).toBe(cap);
+      expect(r.mean, `cdr rank ${n} steady-state mean`).toBeCloseTo(cap, 6);
     }
   });
 
   it('the card is nonetheless live: the same three worlds land strictly more casts', () => {
     const casts = [0, 1, 2].map((n) => live(n).casts);
-    expect(casts[1], `Pop Turret Cooldown rank 0 -> 1: ${casts.join(' -> ')}`).toBeGreaterThan(casts[0]);
-    expect(casts[2], `Pop Turret Cooldown rank 1 -> 2: ${casts.join(' -> ')}`).toBeGreaterThan(casts[1]);
+    const [c0, c1, c2] = [nth(casts, 0), nth(casts, 1), nth(casts, 2)];
+    expect(c1, `Pop Turret Cooldown rank 0 -> 1: ${casts.join(' -> ')}`).toBeGreaterThan(c0);
+    expect(c2, `Pop Turret Cooldown rank 1 -> 2: ${casts.join(' -> ')}`).toBeGreaterThan(c1);
   });
 
   it('what it buys, first: the board reaches the cap sooner from an empty board', () => {
     requireCapHolds();
     const ticksToCap = [0, 1, 2].map((n) => steady(live(n), cap, `cdr rank ${n}`).first);
+    const [t0, t1, t2] = [nth(ticksToCap, 0), nth(ticksToCap, 1), nth(ticksToCap, 2)];
     expect(
-      ticksToCap[1],
+      t1,
       `Pop Turret Cooldown rank 0 -> 1 did not shorten the fill: ${ticksToCap.join(' -> ')} ticks`,
-    ).toBeLessThan(ticksToCap[0]);
+    ).toBeLessThan(t0);
     expect(
-      ticksToCap[2],
+      t2,
       `Pop Turret Cooldown rank 1 -> 2 did not shorten the fill: ${ticksToCap.join(' -> ')} ticks`,
-    ).toBeLessThan(ticksToCap[1]);
+    ).toBeLessThan(t1);
   });
 
   /**
@@ -747,14 +764,15 @@ describe('c019 — named deviation: at a cap it holds, Pop Turret Cooldown buys 
     requireCapHolds();
     const ages = [0, 1, 2].map((n) => live(n).meanAge);
     for (const [n, a] of ages.entries()) expect(a, `cdr rank ${n}: no live turret to age`).not.toBeNaN();
+    const [a0, a1, a2] = [nth(ages, 0), nth(ages, 1), nth(ages, 2)];
     expect(
-      ages[1],
+      a1,
       `rank 0 -> 1 did not refresh the turret set: ${ages.map((a) => a.toFixed(2)).join(' -> ')}s mean age`,
-    ).toBeLessThan(ages[0]);
+    ).toBeLessThan(a0);
     expect(
-      ages[2],
+      a2,
       `rank 1 -> 2 did not refresh the turret set: ${ages.map((a) => a.toFixed(2)).join(' -> ')}s mean age`,
-    ).toBeLessThan(ages[1]);
+    ).toBeLessThan(a1);
   });
 
   /**
@@ -789,12 +807,13 @@ describe('c019 — named deviation: at a cap it holds, Pop Turret Cooldown buys 
 
     const top: Ranks = { [capCard.key]: capCard.maxRank };
     const means = [0, 1, 2].map((n) => steady(live(n, top), topCap, `cdr rank ${n} at the top cap`).mean);
+    const [m0, m1, m2] = [nth(means, 0), nth(means, 1), nth(means, 2)];
     expect(
-      means[1],
+      m1,
       `cdr rank 0 -> 1 bought no turrets at the top cap rank: ${means.map((m) => m.toFixed(2)).join(' -> ')}`,
-    ).toBeGreaterThan(means[0]);
-    expect(means[1], 'rank 1 should already pin the board at the top cap').toBeCloseTo(topCap, 6);
-    expect(means[2], 'rank 2 has nothing left to buy above the cap').toBeCloseTo(means[1], 6);
+    ).toBeGreaterThan(m0);
+    expect(m1, 'rank 1 should already pin the board at the top cap').toBeCloseTo(topCap, 6);
+    expect(m2, 'rank 2 has nothing left to buy above the cap').toBeCloseTo(m1, 6);
   });
 });
 
@@ -949,30 +968,33 @@ describe('c019 — named deviation 2: Recall Totem Cooldown buys uptime, and onl
 
     const uptime = [0, 1, 2].map((n) => run(n).uptime);
     const shown = uptime.map((u) => u.toFixed(4)).join(' -> ');
+    const [u0, u1, u2] = [nth(uptime, 0), nth(uptime, 1), nth(uptime, 2)];
     // Rank 0 is the authored duty cycle, read straight off `/data`.
-    expect(uptime[0], `rank 0 uptime should be duration/cooldown: ${shown}`).toBeCloseTo(life / eff.cooldownSeconds, 2);
-    expect(uptime[1], `rank 0 -> 1 bought no uptime: ${shown}`).toBeGreaterThan(uptime[0]);
+    expect(u0, `rank 0 uptime should be duration/cooldown: ${shown}`).toBeCloseTo(life / eff.cooldownSeconds, 2);
+    expect(u1, `rank 0 -> 1 bought no uptime: ${shown}`).toBeGreaterThan(u0);
     // The deviation itself: the second rank buys less than a tenth of what the
     // first did, because the first already closed the gap.
     expect(
-      uptime[2] - uptime[1],
+      u2 - u1,
       `rank 1 -> 2 is no longer the saturated step this deviation names: ${shown}`,
-    ).toBeLessThan((uptime[1] - uptime[0]) / 10);
+    ).toBeLessThan((u1 - u0) / 10);
   });
 
   it('the card is nonetheless live at every rank: more casts, and a totem re-planted more often', () => {
     const runs = [0, 1, 2].map((n) => run(n));
     const casts = runs.map((r) => r.casts);
-    expect(casts[1], `Recall Totem Cooldown rank 0 -> 1: ${casts.join(' -> ')}`).toBeGreaterThan(casts[0]);
-    expect(casts[2], `Recall Totem Cooldown rank 1 -> 2: ${casts.join(' -> ')}`).toBeGreaterThan(casts[1]);
+    const [cc0, cc1, cc2] = [nth(casts, 0), nth(casts, 1), nth(casts, 2)];
+    expect(cc1, `Recall Totem Cooldown rank 0 -> 1: ${casts.join(' -> ')}`).toBeGreaterThan(cc0);
+    expect(cc2, `Recall Totem Cooldown rank 1 -> 2: ${casts.join(' -> ')}`).toBeGreaterThan(cc1);
     // Age is the observable that still moves at rank 2, the same one the
     // Engineer's row ends on: a younger totem is a totem planted where the
     // Animist is now.
     const ages = runs.map((r) => r.meanAge);
+    const [aa1, aa2] = [nth(ages, 1), nth(ages, 2)];
     expect(
-      ages[2],
+      aa2,
       `rank 1 -> 2 bought nothing at all, not even a fresher totem: ${ages.map((a) => a.toFixed(2)).join(' -> ')}s`,
-    ).toBeLessThan(ages[1]);
+    ).toBeLessThan(aa1);
   });
 });
 

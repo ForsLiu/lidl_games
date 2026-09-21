@@ -6349,6 +6349,41 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       across sibling files, not fixed here). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed the
+      remaining 2 test files with real guards (never `!`) —
+      `tests/class-active2-cdr.test.ts` (a local `nth<T>` throw-guard
+      helper, byte-identical to the one already in `tests/class-passive-
+      magnitudes.test.ts`, replacing every fixed-length-array indexed read
+      — `casts[0..2]`, `readings[0..1]`, `ticksToCap[0..2]`, `ages[0..2]`,
+      `means[0..2]`, `uptime[0..2]` — each proven in range by the literal
+      `[0,1,2]`/`[0,2]` map it came from; `cdrCard`/`lineCard`'s `own[0]`
+      return guarded by the preceding `expect(own.length).toBe(1)`; the
+      summon-census's nested `declared[k][sk]` lookup guarded by explicit
+      undefined-throws proven unreachable by the preceding
+      `toEqual(Object.keys(declared).sort())` key-set assertion) and
+      `tests/p6b-swordsman.test.ts` (a `firstEnemyKey(w)` helper,
+      byte-identical to the one in `tests/fb085-enablers.test.ts`,
+      bulk-replacing 23 call sites of `X.content.enemies.enemies[0].key`
+      across every world variable the file uses — `w`, `wMin`/`wMax`,
+      `dashOnly`/`circleOnly`/`merged`, `unranked`/`ranked`, `a.world`/
+      `b.world`; two `wSword.structures[0]`/`wOther.structures[0]` reads
+      guarded by an explicit throw after both `buildTower(...).ok` asserts
+      passed; two `w.enemies[0]` reads in the `dyingWorld()`-derived Command
+      no-op cases guarded by an explicit throw). Neither file touches
+      `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags either file, no new
+      offenders (15 → 13, exact match via the ratchet test); main `npx tsc
+      --noEmit` clean; targeted `npx vitest run` on both files plus the
+      ratchet test itself green (129 tests); `npm run test:fast` unchanged
+      at 315 files / 4548 passed / 35 skipped; `npm run sim -- --seed 1
+      --policy hybrid` endHash unchanged (`d6452f98`), confirming no
+      behavior drift. code-reviewer APPROVE, no Critical/Major findings (one
+      Minor: the two `dyingWorld()` guards aren't backed by an explicit
+      preceding `expect(...)` the way the file's other guards are — still
+      strictly safer than the prior unguarded read, left as-is). Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+      **13 files remain** on the allowlist. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

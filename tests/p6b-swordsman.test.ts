@@ -23,6 +23,12 @@ import { cfg } from './helpers';
 const content = loadContent();
 const swordsman = content.classByKey.get('swordsman')! as ClassDef;
 
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 /**
  * A "survives the hit" dummy's HP, stated as a **ratio to the class's own
  * authored kit damage** rather than the flat 1000 these tests used to
@@ -95,7 +101,7 @@ describe('p6b: the loader rejects a charge_nova/dash_line row missing its kind-s
 describe('p6b: Thousand Cuts — every attack applies exactly 1 Bleeding', () => {
   it('the basic attack applies exactly 1 Bleeding stack per hit, not more', () => {
     const w = worldWith({}, { suppressBasicAttack: false });
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -106,7 +112,7 @@ describe('p6b: Thousand Cuts — every attack applies exactly 1 Bleeding', () =>
   it('a class without Thousand Cuts never applies Bleeding from its own basic attack', () => {
     const w = new World(cfg({ classKey: 'engineer' }));
     w.gold = 1e6;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const input: TickInput = { mx: 0, my: 0, dash: false, attack: true, aimX: e.x, aimY: e.y, active1Held: false, cmds: [] };
     for (let t = 0; t < 60; t++) updateWarden(w, input, 1 / 60);
@@ -121,7 +127,7 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
   });
 
   it('does nothing while merely held — no damage, no cooldown, until release', () => {
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1.2, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     for (let t = 0; t < 30; t++) updateWarden(w, held(true), 1 / 60);
@@ -131,8 +137,8 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
   });
 
   it('releasing after a near-zero hold fires at the minRadius/minDamage floor', () => {
-    const near = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
-    const far = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
+    const near = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1.2, w.warden.y)!;
+    const far = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
     w.rebuildBuckets();
     updateWarden(w, held(true), 1 / 60); // one tick of charge
     updateWarden(w, held(false), 1 / 60); // release
@@ -146,9 +152,9 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
   it('a full (capped) charge hits a farther enemy and deals more damage than a near-zero charge', () => {
     const wMin = worldWith();
     const wMax = worldWith();
-    const eMin = spawnEnemy(wMin, wMin.content.enemies.enemies[0].key, wMin.warden.x + 1.2, wMin.warden.y)!;
-    const eMax = spawnEnemy(wMax, wMax.content.enemies.enemies[0].key, wMax.warden.x + 1.2, wMax.warden.y)!;
-    const farMax = spawnEnemy(wMax, wMax.content.enemies.enemies[0].key, wMax.warden.x + 3, wMax.warden.y)!;
+    const eMin = spawnEnemy(wMin, firstEnemyKey(wMin), wMin.warden.x + 1.2, wMin.warden.y)!;
+    const eMax = spawnEnemy(wMax, firstEnemyKey(wMax), wMax.warden.x + 1.2, wMax.warden.y)!;
+    const farMax = spawnEnemy(wMax, firstEnemyKey(wMax), wMax.warden.x + 3, wMax.warden.y)!;
     // High HP so neither dies mid-test — a clamped-at-0 comparison would
     // still pass by accident and hide a scaling regression.
     for (const e of [eMin, eMax, farMax]) {
@@ -169,7 +175,7 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
   });
 
   it('a full charge knocks a struck enemy back away from the Warden', () => {
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1.2, w.warden.y)!;
     e.hp = DUMMY_HP; // survive the hit so the knockback branch (gated on `!e.dead`) actually runs
     e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
@@ -188,7 +194,7 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
   });
 
   it('the class_active Command is a no-op for a charge-kind Active1: no cooldown, no damage, returns false', () => {
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     const fired = useClassActive(w);
@@ -201,7 +207,7 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
 describe('p6b: Dash Slash — mouse-aimed line, own cooldown, moves the Warden', () => {
   it('damages an enemy on the aimed line and applies exactly 1 Bleeding', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
     e.hp = DUMMY_HP; // survive the hit — a dead enemy skips `applyEffects`/onHit entirely
     e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
@@ -235,7 +241,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
   it('reaches an enemy beyond dashRange alone, widened by the charge radius', () => {
     const w = worldWith();
     // dashRange 5, full-charge circle radius 4 -> hit range 9; place the enemy at 7.
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 7, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 7, w.warden.y)!;
     w.rebuildBuckets();
     for (let t = 0; t < 250; t++) updateWarden(w, held(true), 1 / 60);
     expect(w.warden.active1Charging).toBe(true);
@@ -256,7 +262,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
 
   it('sums the two damages into one hit (armor-mitigated total equals the two solo hits summed)', () => {
     const dashOnly = worldWith();
-    const eDash = spawnEnemy(dashOnly, dashOnly.content.enemies.enemies[0].key, dashOnly.warden.x + 3, dashOnly.warden.y)!;
+    const eDash = spawnEnemy(dashOnly, firstEnemyKey(dashOnly), dashOnly.warden.x + 3, dashOnly.warden.y)!;
     eDash.hp = 1e6;
     eDash.maxHp = 1e6;
     dashOnly.rebuildBuckets();
@@ -264,7 +270,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
     const dashLoss = 1e6 - eDash.hp;
 
     const circleOnly = worldWith();
-    const eCircle = spawnEnemy(circleOnly, circleOnly.content.enemies.enemies[0].key, circleOnly.warden.x + 1.2, circleOnly.warden.y)!;
+    const eCircle = spawnEnemy(circleOnly, firstEnemyKey(circleOnly), circleOnly.warden.x + 1.2, circleOnly.warden.y)!;
     eCircle.hp = 1e6;
     eCircle.maxHp = 1e6;
     circleOnly.rebuildBuckets();
@@ -273,7 +279,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
     const circleLoss = 1e6 - eCircle.hp;
 
     const merged = worldWith();
-    const eMerged = spawnEnemy(merged, merged.content.enemies.enemies[0].key, merged.warden.x + 3, merged.warden.y)!;
+    const eMerged = spawnEnemy(merged, firstEnemyKey(merged), merged.warden.x + 3, merged.warden.y)!;
     eMerged.hp = 1e6;
     eMerged.maxHp = 1e6;
     merged.rebuildBuckets();
@@ -295,7 +301,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
     const card = content.boons.skillCards['swordsman']!.find((c) => c.effect === 'active1_potency')!;
 
     const unranked = worldWith();
-    const eUnranked = spawnEnemy(unranked, unranked.content.enemies.enemies[0].key, unranked.warden.x + 3, unranked.warden.y)!;
+    const eUnranked = spawnEnemy(unranked, firstEnemyKey(unranked), unranked.warden.x + 3, unranked.warden.y)!;
     eUnranked.hp = 1e6;
     eUnranked.maxHp = 1e6;
     unranked.rebuildBuckets();
@@ -305,7 +311,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
 
     const ranked = worldWith();
     ranked.skillCardRanks[card.key] = 1;
-    const eRanked = spawnEnemy(ranked, ranked.content.enemies.enemies[0].key, ranked.warden.x + 3, ranked.warden.y)!;
+    const eRanked = spawnEnemy(ranked, firstEnemyKey(ranked), ranked.warden.x + 3, ranked.warden.y)!;
     eRanked.hp = 1e6;
     eRanked.maxHp = 1e6;
     ranked.rebuildBuckets();
@@ -318,7 +324,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
 
   it('each enemy struck takes exactly 1 Bleeding from the merged attack, not 2', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -329,7 +335,7 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
 
   it('firing Circle Slash and Dash Slash back to back (not merged) does stack 2 Bleeding, unlike the merge', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1.2, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -360,7 +366,10 @@ describe('p6b: Wind Slash — all towers +10% attack speed, effective in VS', ()
     wOther.warden.y = 10;
     expect(buildTower(wOther, arrow.id, 10, 10).ok).toBe(true);
 
-    expect(attackSpeedFor(wSword, wSword.structures[0])).toBeGreaterThan(attackSpeedFor(wOther, wOther.structures[0]));
+    const sSword = wSword.structures[0];
+    const sOther = wOther.structures[0];
+    if (!sSword || !sOther) throw new Error('expected a built tower in each world above');
+    expect(attackSpeedFor(wSword, sSword)).toBeGreaterThan(attackSpeedFor(wOther, sOther));
   });
 });
 
@@ -384,12 +393,12 @@ describe('p6b: replay-hash determinism with charging, Dash Slash and the merge i
 
     const a = new Run(cfg({ classKey: 'swordsman' }));
     a.world.gold = 1e6;
-    spawnEnemy(a.world, a.world.content.enemies.enemies[0].key, a.world.warden.x + 3, a.world.warden.y);
+    spawnEnemy(a.world, firstEnemyKey(a.world), a.world.warden.x + 3, a.world.warden.y);
     for (const input of log) a.step(input);
 
     const b = new Run(cfg({ classKey: 'swordsman' }));
     b.world.gold = 1e6;
-    spawnEnemy(b.world, b.world.content.enemies.enemies[0].key, b.world.warden.x + 3, b.world.warden.y);
+    spawnEnemy(b.world, firstEnemyKey(b.world), b.world.warden.x + 3, b.world.warden.y);
     for (const input of log) b.step(input);
 
     expect(a.hash()).toBe(b.hash());
@@ -404,7 +413,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
   function dyingWorld(): World {
     const w = worldWith();
     w.phase = 'act2'; // huntsWarden, so damageWarden's own defeat path is live
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 3, w.warden.y)!;
     e.hp = DUMMY_HP;
     e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
@@ -417,6 +426,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
   it('useClassActive2 (Dash Slash) is a no-op while dying: no movement, no damage, no cooldown', () => {
     const w = dyingWorld();
     const e = w.enemies[0];
+    if (!e) throw new Error('expected the enemy spawned in dyingWorld() to still be alive');
     const hpBefore = e.hp;
     const before = { x: w.warden.x, y: w.warden.y };
     const fired = useClassActive2(w, e.x, e.y);
@@ -437,7 +447,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     const w = new World(cfg({ classKey: 'pyromancer' }));
     w.gold = 1e6;
     w.phase = 'act2';
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = DUMMY_HP;
     e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
@@ -457,6 +467,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     w.warden.active1Charging = true;
     w.warden.active1Charge = 3;
     const e = w.enemies[0];
+    if (!e) throw new Error('expected the enemy spawned in dyingWorld() to still be alive');
     const hpBefore = e.hp;
     const fired = useClassActive2(w, e.x, e.y);
     expect(fired).toBe(false);

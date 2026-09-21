@@ -5,6 +5,27 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 15 → 13.**
+  Fixed the remaining two test files with real guards (never `!`):
+  `tests/class-active2-cdr.test.ts` (a `nth<T>` helper, byte-identical to
+  `tests/class-passive-magnitudes.test.ts`'s, guarding every fixed-length
+  array read — `casts`/`readings`/`ticksToCap`/`ages`/`means`/`uptime` — plus
+  `cdrCard`/`lineCard`'s `own[0]` and the summon-census's nested
+  `declared[k][sk]` lookup, all proven safe by a preceding assertion) and
+  `tests/p6b-swordsman.test.ts` (a `firstEnemyKey(w)` helper, byte-identical
+  to `tests/fb085-enablers.test.ts`'s, bulk-replacing 23 call sites across
+  every world variable the file uses; two `structures[0]` and two
+  `enemies[0]` reads guarded with explicit throws). Neither file touches
+  `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags either file, no new offenders
+  (15 → 13, exact match via the ratchet test); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` on both files plus the ratchet test
+  itself green (129 tests); `npm run test:fast` unchanged at 315 files /
+  4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy hybrid`
+  endHash unchanged (`d6452f98`), confirming no behavior drift.
+  code-reviewer APPROVE, no Critical/Major findings. Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 16 → 15.**
   Fixed `tests/fb085-enablers.test.ts` with real guards (never `!`): a
   `firstEnemyKey(w)` helper replacing 22 unguarded `w.content.enemies
