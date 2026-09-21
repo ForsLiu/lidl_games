@@ -6234,6 +6234,35 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       rather than re-doing that work. Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, 3rd round)**:
+      fixed the 3 smallest-error-count remaining files with real guards
+      (never `!`) — `tests/fb015-equipment.test.ts` (a `firstEnemyKey()`
+      helper and an `nth<T>` throw-guard helper replacing every unguarded
+      `X.content.enemies.enemies[0].key`, `w.structures[0]`, the
+      `w.stats.contributions('atkFlat')[0]` destructure, and
+      `row.sources[0]` reads), `tests/q7-data-fuzz.test.ts` (an explicit
+      guard on `holders[f]` in `install()`, an `nth<T>` helper for
+      `Object.keys(node.stats)[0]`/`Object.keys(stats)[0]` plus the
+      values read back out by those keys, a guard on a regex capture
+      group (`m[1]`), `acc[p]` via `?? []`, and several test-fixture
+      `array[0]` mutation sites), `tools/fuzz-command-domain.ts`
+      (`firstTowerId(w)`/`firstStructure(w)` helpers matching the file's
+      existing `firstUpgradableTowerId(w)` pattern, replacing repeated
+      `w.content.towers.towers[0].id`/`w.structures[0]` reads across
+      `FIELD_SPECS` and `runAliasProbe`, plus a guard on `mapLimit`'s
+      `items[i]` drain-loop read — already proven in-range by the
+      preceding `i >= items.length` bound). None touch `/src/sim` or
+      `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags any of the 3, no new offenders (23 → 20, exact match
+      via the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on the 3 files plus the ratchet test itself and
+      `tests/q15-command-domain-fuzz.test.ts` (exercises
+      `fuzz-command-domain.ts`'s `FIELD_SPECS`/`mapLimit`/
+      `runAliasProbe`) green (116 tests); `npm run test:fast` unchanged
+      at 315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no
+      Critical/Major/Minor findings. Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
