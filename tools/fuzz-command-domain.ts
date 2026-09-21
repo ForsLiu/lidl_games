@@ -77,6 +77,17 @@ import type { World } from '../src/sim/world';
 import { runInPhase } from './fuzz-input';
 import { scanWorld } from './invariants';
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
+/** The first tower type's id — content always defines at least one. */
+function firstTowerId(w: World): number {
+  return nth(w.content.towers.towers, 0).id;
+}
+
 /* ------------------------------------------------------------ generation */
 
 export const FAMILIES = ['nan', 'posInf', 'negInf', 'negative', 'fractional'] as const;
@@ -162,7 +173,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: bypassPreconditions,
     command: (w, family) => {
       const [tx, ty] = findBuildableTile(w);
-      const legalTower = w.content.towers.towers[0].id;
+      const legalTower = firstTowerId(w);
       return { k: 'build', tower: illegalValue(family, legalTower), tx, ty };
     },
   },
@@ -173,7 +184,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: bypassPreconditions,
     command: (w, family) => {
       const [tx, ty] = findBuildableTile(w);
-      return { k: 'build', tower: w.content.towers.towers[0].id, tx: illegalValue(family, tx), ty };
+      return { k: 'build', tower: firstTowerId(w), tx: illegalValue(family, tx), ty };
     },
   },
   {
@@ -183,7 +194,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: bypassPreconditions,
     command: (w, family) => {
       const [tx, ty] = findBuildableTile(w);
-      return { k: 'build', tower: w.content.towers.towers[0].id, tx, ty: illegalValue(family, ty) };
+      return { k: 'build', tower: firstTowerId(w), tx, ty: illegalValue(family, ty) };
     },
   },
   {
@@ -193,10 +204,10 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = w.structures[0];
+      const s = nth(w.structures, 0);
       return { k: 'upgrade', tx: illegalValue(family, s.tx), ty: s.ty };
     },
   },
@@ -207,10 +218,10 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = w.structures[0];
+      const s = nth(w.structures, 0);
       return { k: 'upgrade', tx: s.tx, ty: illegalValue(family, s.ty) };
     },
   },
@@ -221,10 +232,10 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = w.structures[0];
+      const s = nth(w.structures, 0);
       return { k: 'sell', tx: illegalValue(family, s.tx), ty: s.ty };
     },
   },
@@ -235,10 +246,10 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = w.structures[0];
+      const s = nth(w.structures, 0);
       return { k: 'sell', tx: s.tx, ty: illegalValue(family, s.ty) };
     },
   },
@@ -263,7 +274,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => ({ k: 'class_active', aimX: illegalValue(family, w.warden.x), aimY: w.warden.y }),
   },
@@ -274,7 +285,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
     setup: (w) => {
       bypassPreconditions(w);
       const [bx, by] = findBuildableTile(w);
-      buildTower(w, w.content.towers.towers[0].id, bx, by);
+      buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => ({ k: 'class_active', aimX: w.warden.x, aimY: illegalValue(family, w.warden.y) }),
   },
@@ -472,7 +483,7 @@ async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T, 
     for (;;) {
       const i = next++;
       if (i >= items.length) return;
-      results[i] = await fn(items[i], i);
+      results[i] = await fn(nth(items, i), i);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, drain));
@@ -651,7 +662,7 @@ export function runAliasProbe(which: 'upgrade' | 'sell'): AliasProbeResult {
   const [rx, ry] = findBuildableTile(w);
   const built = buildTower(w, firstUpgradableTowerId(w), rx, ry);
   if (!built.ok) throw new Error(`fuzz-command-domain: alias probe setup build failed: ${built.reason}`);
-  const realId = w.structures[0].id;
+  const realId = nth(w.structures, 0).id;
   const illegalTx = rx + GRID_W;
   const illegalTy = ry - 1;
   const idxMatches = w.grid.idx(illegalTx, illegalTy) === w.grid.idx(rx, ry);

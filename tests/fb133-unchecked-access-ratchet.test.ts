@@ -49,7 +49,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/world.ts',
   'tests/class-active2-cdr.test.ts',
   'tests/class-passive-magnitudes.test.ts',
-  'tests/fb015-equipment.test.ts',
   'tests/fb037-vs-panel.test.ts',
   'tests/fb044-tuner-per-field.test.ts',
   'tests/fb085-enablers.test.ts',
@@ -59,12 +58,10 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p2d-weapon-lineage.test.ts',
   'tests/p6b-swordsman.test.ts',
   'tests/p6c-plaguebringer.test.ts',
-  'tests/q7-data-fuzz.test.ts',
   'tests/terrain-four-gates.test.ts',
   'tests/terrain-gate-open.test.ts',
   'tests/terrain-generation.test.ts',
   'tests/terrain-grid.test.ts',
-  'tools/fuzz-command-domain.ts',
 ];
 
 // qa-playtester (fb133): under heavy host contention a slow `tsc` subprocess

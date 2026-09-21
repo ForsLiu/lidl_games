@@ -53,6 +53,19 @@ import {
 } from '../tools/fuzz-data';
 import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
+/** Read a record key already proven present (e.g. by `Object.keys`). */
+function atKey<T>(rec: Record<string, T>, key: string): T {
+  const v = rec[key];
+  if (v === undefined) throw new Error(`key ${key} not found`);
+  return v;
+}
+
 /* -------------------------------------------------------------- the seam */
 
 /**
@@ -99,6 +112,7 @@ vi.mock('../data/waves.json', () => ({ default: holders.waves }));
 function install(overrideFile: DataFile | null, override: JsonValue | null): void {
   for (const f of DATA_FILES) {
     const h = holders[f];
+    if (h === undefined) throw new Error(`no holder registered for data file ${f}`);
     for (const k of Object.keys(h)) delete h[k];
     Object.assign(h, f === overrideFile ? (override as object) : (pristine(f) as object));
   }
@@ -236,16 +250,16 @@ describe('q7 — the /data import seam', () => {
 
   it('carries an edit through to the loader, so a mutation is not fuzzing a copy', async () => {
     const root = pristine('towers') as { towers: { key: string; name: string }[] };
-    root.towers[0].name = 'Q7 Sentinel';
+    nth(root.towers, 0).name = 'Q7 Sentinel';
     const r = await load('towers', root as unknown as JsonValue);
     expect(r.outcome).toBe('accepted');
     const towers = (r.content as { towers: { towers: { name: string }[] } }).towers.towers;
-    expect(towers[0].name).toBe('Q7 Sentinel');
+    expect(nth(towers, 0).name).toBe('Q7 Sentinel');
   });
 
   it('rejects a hand-aimed bad value, so "rejected" is a verdict and not a stuck default', async () => {
     const root = pristine('towers') as { towers: { hp: unknown }[] };
-    root.towers[0].hp = 'not a number';
+    nth(root.towers, 0).hp = 'not a number';
     const r = await load('towers', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
     expect(r.error.length).toBeGreaterThan(0);
@@ -254,7 +268,10 @@ describe('q7 — the /data import seam', () => {
   it('mocks exactly the files src/sim/content.ts imports (fb080: terrain is a checked exception, reached indirectly)', () => {
     const src = readFileSync('src/sim/content.ts', 'utf8');
     const imported = new Set<string>();
-    for (const m of src.matchAll(/from '\.\.\/\.\.\/data\/([a-z]+)\.json'/g)) imported.add(m[1]);
+    for (const m of src.matchAll(/from '\.\.\/\.\.\/data\/([a-z]+)\.json'/g)) {
+      const name = m[1];
+      if (name !== undefined) imported.add(name);
+    }
     // terrain.json is the one DATA_FILES entry with no `from '../../data/
     // terrain.json'` in content.ts to match above — content.ts reaches it
     // through terrain/config.ts's TERRAIN_RAW instead (tools/fuzz-data.ts's
@@ -309,7 +326,7 @@ describe('q7 — the /data import seam', () => {
     // tested directly, on a hand-built fixture, so its own logic stays
     // covered independent of whether the loader still lets one through.
     const dup = pristine('towers') as { towers: JsonValue[] };
-    dup.towers.push(dup.towers[0]);
+    dup.towers.push(nth(dup.towers, 0));
     const r = await load('towers', dup as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
 
@@ -352,7 +369,7 @@ describe('q7 — every field, every wrong shape', () => {
     if (process.env.Q7_RECORD) {
       const acc = groupAccepted(trials);
       console.log('=== ACCEPTED ===');
-      for (const p of Object.keys(acc).sort()) console.log(`  '${p}': [${acc[p].map((f) => `'${f}'`).join(', ')}],`);
+      for (const p of Object.keys(acc).sort()) console.log(`  '${p}': [${atKey(acc, p).map((f) => `'${f}'`).join(', ')}],`);
       console.log('=== INEFFECTIVE ===');
       for (const k of ineffective) console.log(`  '${k}',`);
     }
@@ -748,8 +765,8 @@ describe('q7 — what used-to-be-accepted data now does at load (b013 closed E1/
   it('a stat key /data invents is now refused at load, not silently no-op (E6)', async () => {
     const root = pristine('tree') as { nodes: { id: number; stats: Record<string, number> }[] };
     const node = root.nodes.find((n) => Object.keys(n.stats).length > 0)!;
-    const key = Object.keys(node.stats)[0];
-    node.stats[`${key}${GARBAGE}`] = node.stats[key];
+    const key = nth(Object.keys(node.stats), 0);
+    node.stats[`${key}${GARBAGE}`] = atKey(node.stats, key);
     delete node.stats[key];
 
     const r = await load('tree', root as unknown as JsonValue);
@@ -765,7 +782,7 @@ describe('q7 — what used-to-be-accepted data now does at load (b013 closed E1/
     // route into that overflow is refused before it ever reaches `Stats`.
     const root = pristine('tree') as { nodes: { id: number; stats: Record<string, number> }[] };
     const node = root.nodes.find((n) => Object.keys(n.stats).length > 0)!;
-    const key = Object.keys(node.stats)[0];
+    const key = nth(Object.keys(node.stats), 0);
     node.stats[key] = 1.5e308;
 
     const r = await load('tree', root as unknown as JsonValue);
@@ -829,14 +846,14 @@ describe('q7 — filed defects (unskip with the fix)', () => {
 
   it('E4 — the loader refuses duplicate ids and keys instead of collapsing them', async () => {
     const root = pristine('towers') as { towers: JsonValue[] };
-    root.towers.push(root.towers[0]);
+    root.towers.push(nth(root.towers, 0));
     const r = await load('towers', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
   });
 
   it('E5 — tree.json authors angle and ring, so TreeNodeSchema names them', async () => {
     const root = pristine('tree') as { nodes: { angle?: unknown; ring?: unknown }[] };
-    root.nodes[0].angle = 'not a number';
+    nth(root.nodes, 0).angle = 'not a number';
     const r = await load('tree', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
   });
@@ -849,8 +866,8 @@ describe('q7 — filed defects (unskip with the fix)', () => {
     const root = pristine('tree') as { nodes: Record<string, JsonValue>[] };
     const node = root.nodes.find((n) => Object.keys(n.stats as object).length > 0)!;
     const stats = node.stats as Record<string, JsonValue>;
-    const key = Object.keys(stats)[0];
-    stats[`${key}${GARBAGE}`] = stats[key];
+    const key = nth(Object.keys(stats), 0);
+    stats[`${key}${GARBAGE}`] = atKey(stats, key);
     delete stats[key];
     const r = await load('tree', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
@@ -870,7 +887,7 @@ describe('q7 — filed defects (unskip with the fix)', () => {
       const root = pristine('vsupgrades') as {
         skillCards: Record<string, { key: string; perRank: number }[]>;
       };
-      const card = root.skillCards.archer[0];
+      const card = nth(atKey(root.skillCards, 'archer'), 0);
       card.perRank = bad;
       const r = await load('vsupgrades', root as unknown as JsonValue);
       expect(r.outcome, `perRank=${bad}`).toBe('rejected');

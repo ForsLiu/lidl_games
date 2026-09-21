@@ -5,7 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 29 → 23.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 23 → 20.**
+  Fixed 3 more files with real guards (never `!`), none touching
+  `/src/sim` or `/data`: `tests/fb015-equipment.test.ts` (a local `nth<T>`
+  throw-guard helper plus a `firstEnemyKey()` convenience, replacing 14
+  unguarded `X.content.enemies.enemies[0].key` reads and the
+  `w.structures[0]`/`stats.contributions('atkFlat')[0]`/`row.sources[0]`
+  reads with the same helper), `tests/q7-data-fuzz.test.ts` (a local
+  `nth<T>` helper plus an `atKey<T>` sibling for a record key already
+  proven present by its own `Object.keys()` call, replacing `holders[f]`,
+  `root.towers[0]`, `root.nodes[0]`, `Object.keys(node.stats)[0]`/
+  `node.stats[key]` and `root.skillCards.archer[0]` unguarded reads, plus
+  an explicit `undefined` check on a regex capture group in the
+  DATA_FILES-vs-content.ts import scan), `tools/fuzz-command-domain.ts`
+  (a local `nth<T>` helper plus a `firstTowerId()` convenience, replacing
+  6 `w.content.towers.towers[0].id` reads and 5 `w.structures[0]` reads,
+  plus `mapLimit`'s `items[i]` read already proven in-range by its own
+  preceding bounds check). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3, no new offenders
+  (23 → 20, exact match via the ratchet test); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` on all 3 files plus the ratchet test
+  itself (75 tests) green; `npm run test:fast` unchanged at 315 files /
+  4548 passed / 35 skipped. code-reviewer APPROVE (two Minor/Nit: the
+  `Q7_RECORD` debug-only logging line used `acc[p] ?? []` instead of the
+  file's own `atKey` convention, and the `fb121` archer-card guard inlined
+  an `undefined` check instead of reusing `atKey` — both fixed same-day to
+  `atKey(acc, p)` / `nth(atKey(root.skillCards, 'archer'), 0)`;
+  re-verified `npx tsc --noEmit -p tsconfig.unchecked.json` clean on the
+  file and `npx vitest run tests/q7-data-fuzz.test.ts tests/fb133-
+  unchecked-access-ratchet.test.ts` (42 tests) green). Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 29 → 23.**
   Folded in two ratchet commits (35 → 32 → 29) already pushed by a prior
   session to `claude/dreamy-hopper-tguxo9` but never merged to master (no
   open PR, last push 81 minutes stale — outside this routine's 60-minute

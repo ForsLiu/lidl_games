@@ -24,6 +24,17 @@ import { cfg, numberScale, runWithPolicy, scaled } from './helpers';
 
 const content = loadContent();
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
+/** The first enemy type from content — content always defines at least one. */
+function firstEnemyKey(w: World): string {
+  return nth(w.content.enemies.enemies, 0).key;
+}
+
 function held(active1Held: boolean, over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held, cmds: [], ...over };
 }
@@ -302,7 +313,7 @@ describe('fb052 (§7) Sleeve Sword: Circle Slash charge is instantly at max, but
 
   it('releasing at an arbitrary early tick still fires at max-charge damage/radius, not a partial charge', () => {
     const near = worldWith({ equipment: ['sleeve_sword'] });
-    const nearE = spawnEnemy(near, near.content.enemies.enemies[0].key, near.warden.x + 3.9, near.warden.y)!; // within full radius 4, outside minRadius 1.5
+    const nearE = spawnEnemy(near, firstEnemyKey(near), near.warden.x + 3.9, near.warden.y)!; // within full radius 4, outside minRadius 1.5
     nearE.hp = 1e6;
     nearE.maxHp = 1e6;
     near.rebuildBuckets();
@@ -316,7 +327,7 @@ describe('fb052 (§7) Sleeve Sword: Circle Slash charge is instantly at max, but
     const w = worldWith({ equipment: ['sleeve_sword'] });
     updateWarden(w, held(true), 1 / 60);
     expect(w.warden.active1Charging).toBe(true);
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 7, w.warden.y)!; // dashRange 5 + full charge radius 4 -> reachable at 7
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 7, w.warden.y)!; // dashRange 5 + full charge radius 4 -> reachable at 7
     w.rebuildBuckets();
     const hpBefore = e.hp;
     applyCommand(w, { k: 'class_active2', aimX: e.x, aimY: e.y });
@@ -326,7 +337,7 @@ describe('fb052 (§7) Sleeve Sword: Circle Slash charge is instantly at max, but
 
   it('deals the same damage as a fully-held (capped) Circle Slash without the item', () => {
     const wSleeve = worldWith({ equipment: ['sleeve_sword'] });
-    const eSleeve = spawnEnemy(wSleeve, wSleeve.content.enemies.enemies[0].key, wSleeve.warden.x + 1.2, wSleeve.warden.y)!;
+    const eSleeve = spawnEnemy(wSleeve, firstEnemyKey(wSleeve), wSleeve.warden.x + 1.2, wSleeve.warden.y)!;
     eSleeve.hp = 1e6;
     eSleeve.maxHp = 1e6;
     wSleeve.rebuildBuckets();
@@ -335,7 +346,7 @@ describe('fb052 (§7) Sleeve Sword: Circle Slash charge is instantly at max, but
     const sleeveLoss = 1e6 - eSleeve.hp;
 
     const wFull = worldWith();
-    const eFull = spawnEnemy(wFull, wFull.content.enemies.enemies[0].key, wFull.warden.x + 1.2, wFull.warden.y)!;
+    const eFull = spawnEnemy(wFull, firstEnemyKey(wFull), wFull.warden.x + 1.2, wFull.warden.y)!;
     eFull.hp = 1e6;
     eFull.maxHp = 1e6;
     wFull.rebuildBuckets();
@@ -375,7 +386,7 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
 
   it('cross-item: with Sleeve Sword also equipped, charge rate is moot (already instant-max) and damage is boosted by attack speed instead', () => {
     const wBoth = worldWith({ equipment: ['sleeve_sword', 'swordsman_armor'] });
-    const eBoth = spawnEnemy(wBoth, wBoth.content.enemies.enemies[0].key, wBoth.warden.x + 1.2, wBoth.warden.y)!;
+    const eBoth = spawnEnemy(wBoth, firstEnemyKey(wBoth), wBoth.warden.x + 1.2, wBoth.warden.y)!;
     eBoth.hp = 1e6;
     eBoth.maxHp = 1e6;
     wBoth.rebuildBuckets();
@@ -385,7 +396,7 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
     const bothLoss = 1e6 - eBoth.hp;
 
     const wSleeveOnly = worldWith({ equipment: ['sleeve_sword'] });
-    const eSleeveOnly = spawnEnemy(wSleeveOnly, wSleeveOnly.content.enemies.enemies[0].key, wSleeveOnly.warden.x + 1.2, wSleeveOnly.warden.y)!;
+    const eSleeveOnly = spawnEnemy(wSleeveOnly, firstEnemyKey(wSleeveOnly), wSleeveOnly.warden.x + 1.2, wSleeveOnly.warden.y)!;
     eSleeveOnly.hp = 1e6;
     eSleeveOnly.maxHp = 1e6;
     wSleeveOnly.rebuildBuckets();
@@ -414,7 +425,7 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
    */
   it('the Dash Slash merge also carries the cross-item damage boost when both items are equipped', () => {
     const wBoth = worldWith({ equipment: ['sleeve_sword', 'swordsman_armor'] });
-    const eBoth = spawnEnemy(wBoth, wBoth.content.enemies.enemies[0].key, wBoth.warden.x + 3, wBoth.warden.y)!; // dashRange 5 + full charge radius 4
+    const eBoth = spawnEnemy(wBoth, firstEnemyKey(wBoth), wBoth.warden.x + 3, wBoth.warden.y)!; // dashRange 5 + full charge radius 4
     eBoth.hp = 1e6;
     eBoth.maxHp = 1e6;
     wBoth.rebuildBuckets();
@@ -423,7 +434,7 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
     const bothLoss = 1e6 - eBoth.hp;
 
     const wSleeveOnly = worldWith({ equipment: ['sleeve_sword'] });
-    const eSleeveOnly = spawnEnemy(wSleeveOnly, wSleeveOnly.content.enemies.enemies[0].key, wSleeveOnly.warden.x + 3, wSleeveOnly.warden.y)!;
+    const eSleeveOnly = spawnEnemy(wSleeveOnly, firstEnemyKey(wSleeveOnly), wSleeveOnly.warden.x + 3, wSleeveOnly.warden.y)!;
     eSleeveOnly.hp = 1e6;
     eSleeveOnly.maxHp = 1e6;
     wSleeveOnly.rebuildBuckets();
@@ -441,7 +452,7 @@ describe('fb015 (§7) Swordsman Shoes: doubles Dash Slash distance', () => {
   it('reaches an enemy beyond the un-doubled dash range', () => {
     const w = worldWith({ equipment: ['swordsman_shoes'] });
     // dashRange 5 (content dash_line row) -> doubled to 10; place the enemy at 8, unreachable at x1.
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 8, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 8, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     applyCommand(w, { k: 'class_active2', aimX: e.x, aimY: e.y });
@@ -450,7 +461,7 @@ describe('fb015 (§7) Swordsman Shoes: doubles Dash Slash distance', () => {
 
   it('without the item, the same distant enemy is out of reach', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 8, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 8, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     applyCommand(w, { k: 'class_active2', aimX: e.x, aimY: e.y });
@@ -467,7 +478,7 @@ describe('fb015 (§7) Bleeding Ring: lifesteal now also applies to Bleeding dama
   it('a Bleeding tick heals the Warden when the ring is equipped', () => {
     const w = worldWith({ equipment: ['bleeding_ring'] });
     w.phase = 'act2'; // huntsWarden
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyDot(w, e, 'bleeding', 100, 5); // large dps so the heal is unmissable
     expect(w.warden.leechAccumulator).toBe(0);
@@ -484,7 +495,7 @@ describe('fb015 (§7) Bleeding Ring: lifesteal now also applies to Bleeding dama
     w.phase = 'act2';
     w.stats.add('test', 'leech', 0.5);
     w.recomputeDerived();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyDot(w, e, 'bleeding', 100, 5);
     updateEnemies(w, 1 / 60);
@@ -502,7 +513,7 @@ describe("fb015 (§7) Builder's Necklace: all towers +1 flat attack, boostable b
       w.warden.x = 10;
       w.warden.y = 10;
       expect(buildTower(w, arrow.id, 10, 10).ok).toBe(true);
-      const s = w.structures[0];
+      const s = nth(w.structures, 0);
       const tier1 = towerDamage(w, s, base);
       expect(upgradeTower(w, 10, 10)).toBe(true); // tier 2
       const tier2 = towerDamage(w, s, base);
@@ -563,7 +574,7 @@ describe('fb015 (§7) bracelets: character AND tower area/range +10%', () => {
 
     const w = worldWith({ equipment: ['sniper_bracelet'] });
     w.warden.attackCooldown = 0; // allow the basic attack to fire this call
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + baseRange * 1.05, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + baseRange * 1.05, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     classBasicAttack(w, cls);
@@ -571,7 +582,7 @@ describe('fb015 (§7) bracelets: character AND tower area/range +10%', () => {
 
     const wNone = worldWith();
     wNone.warden.attackCooldown = 0;
-    const eNone = spawnEnemy(wNone, wNone.content.enemies.enemies[0].key, wNone.warden.x + baseRange * 1.05, wNone.warden.y)!;
+    const eNone = spawnEnemy(wNone, firstEnemyKey(wNone), wNone.warden.x + baseRange * 1.05, wNone.warden.y)!;
     wNone.rebuildBuckets();
     const hpBeforeNone = eNone.hp;
     classBasicAttack(wNone, cls);
@@ -600,7 +611,7 @@ describe('fb015: replay-hash determinism with equipment in RunConfig', () => {
 describe('fb015 character panel: equipment sources are generic Stats contributions (closes Q132)', () => {
   it('an equipped item shows up as an equipment:<key> source, same as a relic', () => {
     const w = worldWith({ equipment: ['greatsword'] });
-    const [source, value] = w.stats.contributions('atkFlat')[0];
+    const [source, value] = nth(w.stats.contributions('atkFlat'), 0);
     expect(source).toBe('equipment:greatsword');
     expect(value).toBeCloseTo(scaled(10), 12);
   });
@@ -608,8 +619,9 @@ describe('fb015 character panel: equipment sources are generic Stats contributio
   it("qa-playtester finding: the panel labels the source with the item's name, not the raw key", () => {
     const w = worldWith({ equipment: ['greatsword'] });
     const row = characterPanelData(w).stats.find((s) => s.key === 'atkFlat')!;
-    expect(row.sources[0].source).toBe('equipment:greatsword');
-    expect(row.sources[0].label).toBe('Equipment: Greatsword');
+    const firstSource = nth(row.sources, 0);
+    expect(firstSource.source).toBe('equipment:greatsword');
+    expect(firstSource.label).toBe('Equipment: Greatsword');
   });
 
   it('a classFallback source is labelled distinctly from the item\'s primary source', () => {
