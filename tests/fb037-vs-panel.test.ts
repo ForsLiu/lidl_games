@@ -24,6 +24,12 @@ import { World } from '../src/sim/world';
 import { damageTypeText, vsPanelRows } from '../src/ui/vs-panel';
 import { cfg } from './helpers';
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 const content = loadContent();
 const ARROW = content.towerByKey.get('arrow_spire')!;
 const BALLISTA = content.towerByKey.get('ballista')!;
@@ -61,20 +67,20 @@ describe('fb037 — VS panel data model', () => {
 
   it('a wall (no attack) wields nothing, matching wieldedAttacks', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, content.towerByKey.get('palisade')!, t1.tx, t1.ty);
     expect(vsPanelRows(w)).toEqual([]);
   });
 
   it('a single-kind tower (Arrow) reports damage/range/pierce equal to the sim\'s own derivation', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, ARROW, t1.tx, t1.ty);
 
     const rows = vsPanelRows(w);
     expect(rows).toHaveLength(1);
-    const row = rows[0];
-    const wielded = wieldedAttacks(w)[0];
+    const row = nth(rows, 0);
+    const wielded = nth(wieldedAttacks(w), 0);
     const def = w.content.towerById.get(wielded.towerId)!;
 
     expect(row.key).toBe('arrow_spire');
@@ -97,10 +103,10 @@ describe('fb037 — VS panel data model', () => {
 
   it('a pierce-kind tower (Ballista) reports the wielded pierce bonus, not the raw profile pierce', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, BALLISTA, t1.tx, t1.ty);
-    const row = vsPanelRows(w)[0];
-    const wielded = wieldedAttacks(w)[0];
+    const row = nth(vsPanelRows(w), 0);
+    const wielded = nth(wieldedAttacks(w), 0);
     // `wieldedPierceFor` adds the wield-only bonus on top of the profile's
     // own pierce for the `pierce` kind — asserting against the raw profile
     // value here would catch a regression that dropped the bonus silently.
@@ -114,10 +120,10 @@ describe('fb037 — VS panel data model', () => {
 
   it('a lob-kind tower (Mortar) reports a nonzero AoE equal to the wielded (not TD) formula', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, MORTAR, t1.tx, t1.ty);
-    const row = vsPanelRows(w)[0];
-    const wielded = wieldedAttacks(w)[0];
+    const row = nth(vsPanelRows(w), 0);
+    const wielded = nth(wieldedAttacks(w), 0);
     const def = w.content.towerById.get(wielded.towerId)!;
     expect(row.aoe).toBeGreaterThan(0);
     expect(row.aoe).toBeCloseTo(wieldedAoeFor(w, def, def.attack!), 6);
@@ -127,9 +133,9 @@ describe('fb037 — VS panel data model', () => {
 
   it('a poison-kind tower with an authored damage ratio splits by damage type, summing to 100%', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, VENOM, t1.tx, t1.ty);
-    const row = vsPanelRows(w)[0];
+    const row = nth(vsPanelRows(w), 0);
     expect(row.damageTypeText).not.toBe('100% Normal');
     // Every percentage token in the text sums to 100 — a generic assertion
     // that survives the ratio's exact split changing in `/data`.
@@ -148,7 +154,9 @@ describe('fb037 — VS panel data model', () => {
 
   it('rows sort by name and every row carries a nonempty special-effect phrase', () => {
     const w = new World(cfg(), content);
-    const [t1, t2] = tiles(w, 2);
+    const twoTiles = tiles(w, 2);
+    const t1 = nth(twoTiles, 0);
+    const t2 = nth(twoTiles, 1);
     build(w, MORTAR, t1.tx, t1.ty);
     build(w, ARROW, t2.tx, t2.ty);
     const rows = vsPanelRows(w);
@@ -158,7 +166,7 @@ describe('fb037 — VS panel data model', () => {
 
   it('a single-kind tower (Arrow)\'s special text discloses the real wieldSplash cleave (b079)', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, ARROW, t1.tx, t1.ty);
 
     const row = vsPanelRows(w).find((r) => r.key === 'arrow_spire')!;
@@ -194,7 +202,7 @@ describe('fb037 — VS panel data model', () => {
 
   it('"this wave" damage/DPS reconciles with the DPS panel\'s own wave window', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, ARROW, t1.tx, t1.ty);
     // Fresh run, nothing fired yet: the row must not silently omit itself.
     let row = vsPanelRows(w).find((r) => r.key === 'arrow_spire')!;

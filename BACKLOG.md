@@ -6507,6 +6507,28 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       QA tiering) and `tests/fb037-vs-panel.test.ts`,
       `tests/p2b-wielded-fire.test.ts`, `tests/p2c-vs-specials.test.ts` (3
       test files, still Light tier). — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/fb037-vs-panel.test.ts` (49 unchecked-index sites) with
+      real guards (never `!`) — every site was an array-destructure/index of
+      a returned array whose length TypeScript can't statically prove
+      (`const [t1] = tiles(w, 1)`, `rows[0]`, `wieldedAttacks(w)[0]`,
+      `vsPanelRows(w)[0]`), fixed with the same `nth<T>` throw-guard helper
+      used across sibling test files; the one two-element destructure
+      (`const [t1, t2] = tiles(w, 2)`) became a single cached `tiles(w, 2)`
+      call read at indices 0/1, not a repeated call. Does not touch `/src` or
+      `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags the file, no new offenders (8 → 7, exact match via the
+      ratchet test); main `npx tsc --noEmit` clean; targeted `npx vitest run`
+      on the file plus the ratchet test itself green (11 tests); `npm run
+      test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped.
+      code-reviewer APPROVE, no findings (independently confirmed every
+      `nth(...)` call reads the same index the original code did, with no
+      accidental double-evaluation of `tiles`/`vsPanelRows`/`wieldedAttacks`).
+      Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. **7 files remain**: the same 5 `/src/sim` files (Full tier)
+      plus `tests/p2b-wielded-fire.test.ts`,
+      `tests/p2c-vs-specials.test.ts` (2 test files, Light tier). — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

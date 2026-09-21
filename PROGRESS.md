@@ -5,7 +5,21 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 9 → 8,
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 8 → 7.**
+  Fixed `tests/fb037-vs-panel.test.ts` (49 unchecked-index sites, all
+  array-destructure/index reads of a dynamically-lengthed array) with a
+  local `nth<T>` throw-guard helper, same convention as the prior round;
+  the one two-element destructure now caches its single `tiles(w, 2)` call
+  rather than calling it twice. Does not touch `/src` or `/data`. Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags the file,
+  no new offenders (8 → 7); main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` on the file plus the ratchet test green (11 tests);
+  `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer APPROVE, no findings. Light tier, no qa-playtester
+  dispatch. **7 files remain**: 5 `/src/sim` files (Full tier once picked
+  up) and 2 test files (`p2b-wielded-fire.test.ts`, `p2c-vs-specials.test.ts`
+  — Light tier). — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 9 → 8,
   last test file cleared.** Ground truth re-measured directly from
   `tests/fb133-unchecked-access-ratchet.test.ts`'s live
   `KNOWN_UNCHECKED_ACCESS_FILES` (the entries below this one drifted out of
