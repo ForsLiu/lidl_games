@@ -6089,6 +6089,39 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       on the allowlist. code-reviewer APPROVE, no Critical/Major
       findings. Light tier (`[polish]`, no `/data` touched) — no
       qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed 3
+      more files with real guards — `tools/fuzz-weapon-boundary.ts`
+      (`stored ?? NaN` on a possibly-unset `w.boonRanks[...]` read that's
+      only interpolated on the non-`?? NaN` branch; explicit `a !==
+      undefined`/`list[0]?.`/`second`-guard narrowing across the
+      `roster:*` boundary cases instead of trusting a paired `.length`
+      check to narrow TS; `roster:many` returns `{ pass: false, ... }`
+      instead of crashing on an empty `wieldedAttacks()` result — verified
+      inert against `tests/q21-weapon-boundary-fuzz.test.ts`'s pinned
+      `WIELD_ROSTER_HOLES`, which still records both cases `'ok'` today),
+      `tests/p6d-nine-classes.test.ts` (throw-guards after
+      `expect(...).toHaveLength(1)` calls, which don't narrow TS's type,
+      on `w.tempWalls[0]`/`spirits[0]`; a `content.enemies.enemies[0]`
+      guard in the shared `dummy()` helper; a fixed 4-element `targets`
+      literal destructured to `farTarget` instead of indexed; `dealt[i] ??
+      NaN`/`dealt[i - 1] ?? NaN` and a `chain[0]` guard, both proven
+      in-range by their loop bounds; a `live[live.length - 1]` guard in
+      the Pop Turret eviction test), `tests/terrain-anchor-quality.test.ts`
+      (`map.kind[...] ?? TerrainKind.Normal`, matching `canvas.ts`'s own
+      established fallback convention, on a read already clamped into the
+      map's bounds; a real two-branch guard in `median()`'s even/odd
+      cases, matching `terrain-cost-ledger.ts`'s `median()`/`quantile()`
+      precedent; a new local `nth<T>(arr, i)` helper — reusing
+      `terrain-high-ground.test.ts`'s established pattern — for two
+      `extraRoom[i]` parallel-array reads and one `ties[0]`). Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of
+      the 3; main `npx tsc --noEmit` clean; targeted `npx vitest run` on
+      the 3 files plus `fuzz-weapon-boundary.ts`'s 5 consumer test files
+      (217 tests total) green; `npm run test:fast` unchanged at 315 files
+      / 4548 passed / 35 skipped. 41 → **38 files remain** on the
+      allowlist. code-reviewer APPROVE, no Critical/Major/Minor/Nit
+      findings. Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

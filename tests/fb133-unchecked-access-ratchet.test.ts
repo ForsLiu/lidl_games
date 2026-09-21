@@ -66,9 +66,7 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p2d-weapon-lineage.test.ts',
   'tests/p6b-swordsman.test.ts',
   'tests/p6c-plaguebringer.test.ts',
-  'tests/p6d-nine-classes.test.ts',
   'tests/q7-data-fuzz.test.ts',
-  'tests/terrain-anchor-quality.test.ts',
   'tests/terrain-character.test.ts',
   'tests/terrain-core-placement.test.ts',
   'tests/terrain-four-gates.test.ts',
@@ -80,7 +78,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/ui-fb091-crash-log.test.ts',
   'tests/ui-fb149-falloff-wording.test.ts',
   'tools/fuzz-command-domain.ts',
-  'tools/fuzz-weapon-boundary.ts',
   'tools/status.ts',
   'tools/ui-audit.ts',
 ];

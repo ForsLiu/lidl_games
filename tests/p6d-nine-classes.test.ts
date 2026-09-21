@@ -55,7 +55,9 @@ function worldWith(classKey: string, over = {}): World {
 }
 
 function dummy(w: World, x: number, y: number, hp = 1e6): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const firstEnemy = content.enemies.enemies[0];
+  if (!firstEnemy) throw new Error('content.enemies.enemies is empty');
+  const e = spawnEnemy(w, firstEnemy.key, x, y)!;
   e.hp = hp;
   e.maxHp = hp;
   e.speed = 0;
@@ -285,7 +287,7 @@ describe('p6d: G11 — Stormcaller chain multiplier stays under x3.6', () => {
     const dealt = line.map((e) => 1e6 - e.hp);
     for (const d of dealt) expect(d).toBeGreaterThan(0);
     for (let i = 1; i < dealt.length; i++) {
-      expect(dealt[i] / dealt[i - 1]).toBeCloseTo(1 + s.passive.chainGrowth!, 4);
+      expect((dealt[i] ?? NaN) / (dealt[i - 1] ?? NaN)).toBeCloseTo(1 + s.passive.chainGrowth!, 4);
     }
   });
 
@@ -376,7 +378,9 @@ describe('p6d: Cryomancer — frost on hit, freeze at five, shatter on death', (
       chain.push(e);
     }
     w.rebuildBuckets();
-    expect(() => killEnemy(w, chain[0], 'test')).not.toThrow();
+    const first = chain[0];
+    if (!first) throw new Error('chain is empty');
+    expect(() => killEnemy(w, first, 'test')).not.toThrow();
     expect(chain.filter((e) => e.dead).length).toBeGreaterThan(100);
   });
 
@@ -409,18 +413,22 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
   it('places tiles, costs nothing, and does not count as a built tower', () => {
     const { w, gold } = castWall();
     expect(w.tempWalls).toHaveLength(1);
-    expect(w.tempWalls[0].structureIds.length).toBeGreaterThan(0);
+    const wall = w.tempWalls[0];
+    if (!wall) throw new Error('w.tempWalls[0] missing after toHaveLength(1)');
+    expect(wall.structureIds.length).toBeGreaterThan(0);
     expect(w.gold).toBe(gold);
     expect(w.goldSpent).toBe(0);
     expect(w.towersBuilt).toBe(0);
-    for (const id of w.tempWalls[0].structureIds) {
+    for (const id of wall.structureIds) {
       expect(w.structureById.get(id)!.spent).toBe(0);
     }
   });
 
   it('the tiles are gone once wallSeconds elapse', () => {
     const { w } = castWall();
-    const ids = w.tempWalls[0].structureIds.slice();
+    const firstWall = w.tempWalls[0];
+    if (!firstWall) throw new Error('w.tempWalls[0] missing after castWall()');
+    const ids = firstWall.structureIds.slice();
     const seconds = newClass('cryomancer').active2.wallSeconds!;
     for (let t = 0; t < Math.ceil(seconds * 60) + 2; t++) updateTempWalls(w, DT);
     w.compact();
@@ -457,11 +465,13 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
     const gold = w.gold;
     applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
     expect(w.tempWalls).toHaveLength(1);
-    expect(w.tempWalls[0].structureIds.length).toBeGreaterThan(0);
+    const wall = w.tempWalls[0];
+    if (!wall) throw new Error('w.tempWalls[0] missing after toHaveLength(1)');
+    expect(wall.structureIds.length).toBeGreaterThan(0);
     expect(w.gold).toBe(gold);
     expect(w.goldSpent).toBe(0);
     expect(w.towersBuilt).toBe(0);
-    for (const id of w.tempWalls[0].structureIds) {
+    for (const id of wall.structureIds) {
       const s = w.structureById.get(id)!;
       expect(s.spent).toBe(0);
       // The tile is actually occupied, not a cosmetic no-op placement.
@@ -705,7 +715,9 @@ describe('p6d: Engineer — Field Kit, Pop Turret, and the summon cap', () => {
       applyCommand(w, { k: 'class_active2' });
       const live = w.classSummons.filter((s) => s.kind === 'engineer_turret');
       expect(live.length).toBeLessThanOrEqual(cap);
-      ids.push(live[live.length - 1].id);
+      const last = live[live.length - 1];
+      if (!last) throw new Error('class_active2 did not add a turret');
+      ids.push(last.id);
     }
     const live = w.classSummons.filter((s) => s.kind === 'engineer_turret');
     expect(live).toHaveLength(cap);
@@ -794,7 +806,9 @@ describe('p6d: Animist — a manifested spirit, and the totem aura', () => {
     applyCommand(w, { k: 'class_active' });
     const spirits = w.classSummons.filter((s) => s.kind === 'animist_spirit');
     expect(spirits).toHaveLength(1);
-    expect(spirits[0].dps).toBeGreaterThan(0);
+    const spirit = spirits[0];
+    if (!spirit) throw new Error('spirits[0] missing after toHaveLength(1)');
+    expect(spirit.dps).toBeGreaterThan(0);
   });
 
   it('Manifest does nothing (but still pays) with no attacking tower in reach', () => {
@@ -1197,6 +1211,8 @@ describe('p6d: Archer Quickstep does not eat a Deadeye charge', () => {
     w.warden.x = 6;
     w.warden.y = 10;
     const targets = [dummy(w, 7, 10), dummy(w, 7, 11), dummy(w, 7.5, 10.5), dummy(w, 15, 10)];
+    const [, , , farTarget] = targets;
+    if (!farTarget) throw new Error('targets[3] missing from fixed 4-element literal');
     w.rebuildBuckets();
     w.warden.active1Charging = true;
     w.warden.active1Charge = 2;
@@ -1206,7 +1222,7 @@ describe('p6d: Archer Quickstep does not eat a Deadeye charge', () => {
     expect(w.warden.active1Charge).toBe(2);
     const struck = targets.filter((e) => e.hp < 1e6);
     expect(struck).toHaveLength(newClass('archer').active2.volleyShots!);
-    expect(targets[3].hp).toBe(1e6); // out of the volley's own radius
+    expect(farTarget.hp).toBe(1e6); // out of the volley's own radius
   });
 
   it('fb030: Quickstep travels the dash rather than teleporting', () => {

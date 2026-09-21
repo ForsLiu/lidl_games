@@ -170,7 +170,7 @@ export function boonRankBoundaryCases(content: Content = loadContent()): Boundar
     const w = newWorld(content);
     const maxRank = content.boonByKey.get(PROBE_BOON)!.maxRank;
     const r = tryRun(() => applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel }));
-    const stored = w.boonRanks[PROBE_BOON];
+    const stored = w.boonRanks[PROBE_BOON] ?? NaN;
     const inDomain = Number.isInteger(stored) && stored >= 1 && stored <= maxRank;
     const reoffered = r.threw ? false : reoffersWithin(w, PROBE_BOON);
     const verdict: Verdict = r.threw ? 'crashes' : inDomain ? 'ok' : reoffered ? 'ungated' : 'contaminated';
@@ -466,21 +466,24 @@ export function wieldRosterCases(content: Content = loadContent()): BoundaryCase
       const list = wieldedAttacks(w);
       const a = list[0];
       const base = w.content.towerByKey.get('arrow_spire')!.attack!.damage;
-      const pass = list.length === 1 && a.count === 5 && Math.abs(a.damage - base * 1.5) < 1e-9;
+      const pass = list.length === 1 && a !== undefined && a.count === 5 && Math.abs(a.damage - base * 1.5) < 1e-9;
       return { pass, note: `5 identical arrows -> ${list.length} entry, count=${a?.count}, damage=${a?.damage} (expect ${base * 1.5})` };
     }),
     rosterCase(content, 'roster:deadExcluded', (w) => {
       forcePlace(w, 'arrow_spire', 4, 4, 1);
       forcePlace(w, 'arrow_spire', 5, 4, 1);
-      w.structures[1].dead = true;
+      const second = w.structures[1];
+      if (!second) throw new Error('forcePlace did not add the second structure');
+      second.dead = true;
       const list = wieldedAttacks(w);
-      return { pass: list.length === 1 && list[0].count === 1, note: `1 live + 1 dead arrow -> count=${list[0]?.count}` };
+      return { pass: list.length === 1 && list[0]?.count === 1, note: `1 live + 1 dead arrow -> count=${list[0]?.count}` };
     }),
     rosterCase(content, 'roster:many', (w) => {
       let n = 0;
       for (let ty = 4; ty < 14; ty++) for (let tx = 4; tx < 14; tx++) forcePlace(w, 'arrow_spire', tx, ty, 1), n++;
       const [a] = wieldedAttacks(w);
       const base = w.content.towerByKey.get('arrow_spire')!.attack!.damage;
+      if (!a) return { pass: false, note: `${n} arrows -> no wielded entries` };
       const pass = a.count === n && Number.isFinite(a.damage) && Math.abs(a.damage - base * (1 + 0.1 * n)) < 1e-6;
       return { pass, note: `${n} arrows -> count=${a.count}, damage=${a.damage} (finite, +10% each)` };
     }),

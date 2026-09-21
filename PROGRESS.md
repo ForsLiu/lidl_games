@@ -5,7 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 44 → 41.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 41 → 38.**
+  Fixed 3 more files with real guards (never `!`): `tools/fuzz-weapon-
+  boundary.ts` (`stored` defaults `?? NaN` where `applyOffer` may throw
+  before assigning `w.boonRanks[...]`, harmless since the interpolated
+  detail string is never reached on that branch; `roster:duplicatesCollapse`
+  and `roster:deadExcluded` gained explicit `a !== undefined`/`list[0]?.`
+  narrowing instead of trusting the paired `list.length === 1` check to
+  narrow TS; `roster:many` throws via a guarded `second`/returns
+  `{ pass: false, ... }` on an empty `wieldedAttacks()` result instead of
+  crashing — code-reviewer confirmed this is inert under current code via
+  `tests/q21-weapon-boundary-fuzz.test.ts`'s pinned `WIELD_ROSTER_HOLES`,
+  which still records both cases `'ok'`); `tests/p6d-nine-classes.test.ts`
+  (throw-guards after `expect(...).toHaveLength(1)` calls, which don't
+  narrow TS's type, on `w.tempWalls[0]`/`spirits[0]`; a `content.enemies.
+  enemies[0]` guard in the shared `dummy()` helper; a fixed 4-element
+  `targets` literal destructured to `farTarget` instead of indexed;
+  `dealt[i] ?? NaN` / `dealt[i - 1] ?? NaN` and a `chain[0]` guard, both
+  proven in-range by their loop bounds; a `live[live.length - 1]` guard in
+  the Pop Turret eviction test); `tests/terrain-anchor-quality.test.ts`
+  (`map.kind[...] ?? TerrainKind.Normal`, matching `canvas.ts`'s own
+  established fallback convention, on a read already clamped into the map's
+  bounds; a real two-branch guard added to `median()`'s even/odd cases,
+  matching `terrain-cost-ledger.ts`'s `median()`/`quantile()` precedent; a
+  new local `nth<T>(arr, i)` helper — reusing `terrain-high-ground.test.ts`'s
+  established pattern — for two `extraRoom[i]` parallel-array reads and one
+  `ties[0]`). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the 3; main `npx tsc --noEmit` clean; targeted `npx
+  vitest run` on the 3 files plus `fuzz-weapon-boundary.ts`'s 5 consumer
+  test files (217 tests total) green; `npm run test:fast` unchanged at 315
+  files / 4548 passed / 35 skipped. 41 → **38 files remain** on the
+  allowlist. code-reviewer APPROVE, no Critical/Major/Minor/Nit findings.
+  Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+  dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 44 → 41.**
   Fixed 3 more files with real guards (never `!`): `tests/fb164-
   prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
   match or missing capture group, replacing `m![N]` reads that followed
