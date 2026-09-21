@@ -31,8 +31,9 @@
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
  * then 105, then 98, then 92, ..., then 20, then 18, then 16, then 15, then
- * 13, then 12 files remaining as of the latest). Shrink this list as files
- * are fixed; do not add to it without a reason logged in BACKLOG.md.
+ * 13, then 12, then 11 files remaining as of the latest). Shrink this list
+ * as files are fixed; do not add to it without a reason logged in
+ * BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +53,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p2c-vs-specials.test.ts',
   'tests/terrain-four-gates.test.ts',
   'tests/terrain-gate-open.test.ts',
-  'tests/terrain-generation.test.ts',
   'tests/terrain-grid.test.ts',
 ];
 

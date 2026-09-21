@@ -6403,6 +6403,42 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major findings. Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. **12 files remain** on the
       allowlist. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/terrain-generation.test.ts` (27 errors, the most varied
+      shape yet in this ratchet) with real guards (never `!`) —
+      `reachableFromGate`'s raw `cfg.tiles[map.kind[idx]].walkable` reads
+      switched to the already-exported `isWalkable(cfg, kind)` (`src/sim/
+      terrain/config.ts`, already null-safe via its own optional-chain)
+      combined with `map.kind[idx] ?? -1`, matching the `-1`-is-"no-such-
+      tile" convention `src/sim/terrain/path.ts` already established; a
+      `queue[head]` read guarded by the `head < queue.length` loop bound;
+      four `for (const [dx, dy] of [[1,0],...])`/`[x, y]` coordinate-pair
+      literals given `as const` so TS infers real tuples instead of
+      `number[]`, eliminating their undefined at the root rather than
+      guarding it; a new `tileAt(raw, kind)` helper replacing four
+      `(raw.tiles as Record<string, unknown>[])[TerrainKind.X].flag = ...`
+      mutations, proven safe by the schema's TERRAIN_KEYS.length pin; a
+      `k = m.kind[i]`/`m = maps[k]` pair of throw-guards proven safe by
+      their respective loop bounds; three `GATES[0]`/`GATES[1]` fixed-index
+      reads guarded by explicit throws (code-reviewer independently
+      confirmed `GATES` is a hardcoded 4-entry literal in `src/sim/grid.ts`,
+      so both indices are unconditionally safe). Does not touch `/src/sim`
+      or `/data` (only imports the pre-existing `isWalkable`, does not
+      modify it). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+      no longer flags the file, no new offenders (12 → 11, exact match via
+      the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on the file plus the ratchet test itself green (43
+      tests); `npm run test:fast` unchanged at 315 files / 4548 passed /
+      35 skipped; `npm run sim -- --seed 1 --policy hybrid` endHash
+      unchanged (`d6452f98`). code-reviewer APPROVE, no Critical/Major
+      findings (one Minor: the `isWalkable`/`?? -1` swap is behavior-
+      equivalent for every realizable input but not literally identical on
+      a genuinely-out-of-range index — inherent to the pre-existing `path.ts`
+      pattern being reused, not new risk; one Nit: `tileAt`'s `if (!tile)`
+      vs. the batch's `=== undefined` style elsewhere, cosmetic). Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+      **11 files remain** on the allowlist. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

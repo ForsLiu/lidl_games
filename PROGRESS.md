@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 12 → 11.**
+  Fixed `tests/terrain-generation.test.ts` (27 errors) with real guards
+  (never `!`): `reachableFromGate` switched to the already-exported
+  `isWalkable(cfg, kind)` combined with `map.kind[idx] ?? -1` (matching
+  `src/sim/terrain/path.ts`'s established -1-is-"no-such-tile" convention);
+  four coordinate-pair array literals given `as const` to eliminate their
+  undefined at the root; a `tileAt(raw, kind)` helper for four schema-pinned
+  `tiles[TerrainKind.X]` mutations; throw-guards on loop-bound-proven
+  `m.kind[i]`/`maps[k]`/`queue[head]` reads and three `GATES[0]`/`GATES[1]`
+  fixed-index reads (code-reviewer independently confirmed `GATES` is a
+  hardcoded 4-entry literal). Does not touch `/src/sim` or `/data`.
+  Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
+  the file, no new offenders (12 → 11, exact match via the ratchet test);
+  main `npx tsc --noEmit` clean; targeted `npx vitest run` green (43
+  tests); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped; `npm run sim -- --seed 1 --policy hybrid` endHash unchanged
+  (`d6452f98`). code-reviewer APPROVE, no Critical/Major findings. Light
+  tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+  — refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
   Fixed `tests/p6c-plaguebringer.test.ts` with real guards (never `!`): a
   `firstEnemyKey(w)` helper (byte-identical to the ones in `tests/p6b-
