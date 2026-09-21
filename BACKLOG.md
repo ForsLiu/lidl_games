@@ -6263,6 +6263,37 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major/Minor findings. Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, 4th round)**:
+      fixed `tests/m20b-owner-towers.test.ts` (an `nth<T>` helper and a
+      `specialAt(def, i)` helper wrapping `def.upgrades.specials[i]`,
+      replacing every unguarded `X.upgrades.specials[N]`/
+      `fireOnce(...)​[0]`/`before[i]`/`both[0]+both[1]` index; one
+      `pair[0]`/`pair[1]` Enemy-array site fixed by destructuring the
+      pair into two named consts instead of indexing) and `tests/
+      fb044-tuner-per-field.test.ts` (an `nth<T>` helper, bulk-replacing
+      every `doc.<collection>[0]`/`after.<collection>[0]` across towers/
+      classes/cores/waves, a nested `.groups[0]` double-index, and a
+      `fetchMock.mock.calls[0]` destructure). While fixing those two,
+      three more files surfaced as *new* `tsc -p tsconfig.unchecked.json`
+      offenders one at a time — `tests/fb082-poison-area-cadence.test.ts`,
+      `tests/p9c-tuner-ui.test.ts`,
+      `tests/ui-fb139-bug-report-hotkey.test.ts` — each carrying the same
+      latent unguarded `const [url, init] = fetchMock.mock.calls[0]` (or
+      `applyPoisonMock.mock.calls[0]` in fb082) destructure. Confirmed
+      genuinely reproducible (not tsc-subprocess flakiness) via repeated
+      `git stash`/direct `tsc` runs, each state checked 3x for a stable
+      file set before moving on; fixed all three with the same guard
+      idiom (`const call = mock.calls[0]; if (!call) throw ...; const
+      [url, init] = call;`). None of the 5 touch `/src/sim` or `/data`.
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` file set
+      matches the updated allowlist exactly, stable across 3 repeated
+      runs (20 → 18); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on all 5 touched files plus the ratchet test itself
+      green (60 tests); `npm run test:fast` unchanged at 315 files /
+      4548 passed / 35 skipped. code-reviewer APPROVE, no Critical/
+      Major/Minor findings. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
