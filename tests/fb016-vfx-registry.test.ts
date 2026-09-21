@@ -61,7 +61,7 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
     for (const key of realClassKeys) {
       const entry = CLASS_VFX[key];
       expect(entry, key).toBeDefined();
-      if (!entry) throw new Error(`CLASS_VFX[${key}] missing after toBeDefined()`);
+      if (entry === undefined) throw new Error(`CLASS_VFX[${key}] is undefined`);
       for (const slot of ['q', 'e'] as const) {
         expect(entry[slot].indicator.length, `${key}.${slot}.indicator`).toBeGreaterThan(0);
         expect(entry[slot].fire.length, `${key}.${slot}.fire`).toBeGreaterThan(0);
@@ -81,7 +81,7 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
     for (const key of realCoreKeys) {
       const entry = CORE_VFX[key];
       expect(entry, key).toBeDefined();
-      if (!entry) throw new Error(`CORE_VFX[${key}] missing after toBeDefined()`);
+      if (entry === undefined) throw new Error(`CORE_VFX[${key}] is undefined`);
       expect(entry.indicator.length, `${key}.indicator`).toBeGreaterThan(0);
       for (const eff of entry.effects) {
         expect(eff.vfx.length, `${key}.${eff.key}.vfx`).toBeGreaterThan(0);
@@ -247,7 +247,7 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
   it('fb021: a swing-shape basic attack (Swordsman) draws a line to its target, in the registry\'s own basic.color', () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     const swordsmanVfx = CLASS_VFX.swordsman;
-    if (!swordsmanVfx) throw new Error('CLASS_VFX.swordsman missing');
+    if (!swordsmanVfx) throw new Error('CLASS_VFX.swordsman is undefined');
     expect(swordsmanVfx.basic.shape).toBe('swing');
     const { canvas, lines } = recordingCanvas();
     const renderer = new Renderer(canvas);
@@ -267,7 +267,7 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
   it('fb021: a projectile-shape basic attack (Archer) draws a travelling shot to its target, styled by theme.ts, not a CastFx line', () => {
     const w = new World(cfg({ classKey: 'archer' }));
     const archerVfx = CLASS_VFX.archer;
-    if (!archerVfx) throw new Error('CLASS_VFX.archer missing');
+    if (!archerVfx) throw new Error('CLASS_VFX.archer is undefined');
     expect(archerVfx.basic.shape).toBe('projectile');
     const { canvas, lines } = recordingCanvas();
     const renderer = new Renderer(canvas);

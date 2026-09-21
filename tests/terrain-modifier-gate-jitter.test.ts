@@ -31,12 +31,6 @@ import { failedBands, legalMeasure } from './terrain-legality';
 
 const cfg = loadTerrain();
 
-function nth<T>(arr: readonly T[], i: number): T {
-  const v = arr[i];
-  if (v === undefined) throw new Error(`expected index ${i} to exist`);
-  return v;
-}
-
 describe('fb178 — jitterModifierGate: structural validity', () => {
   it('is deterministic: the same seed always gives the same position', () => {
     for (const seed of [0, 1, 7, 40, -1, 2 ** 31, 0xffffffff]) {
@@ -117,7 +111,8 @@ describe(`fb178 — generation constraints hold at 5 gates (4 jittered + jittere
   it('terrainLegal (every owner band at once) holds for every seed', () => {
     const bad: string[] = [];
     for (let i = 0; i < measures.length; i++) {
-      const m = nth(measures, i);
+      const m = measures[i];
+      if (m === undefined) throw new Error(`measures[${i}] out of range`);
       if (!terrainLegal(m, cfg)) {
         bad.push(`seed ${i + 1}: ${failedBands(m, cfg).join(', ')}`);
       }
@@ -164,8 +159,9 @@ describe(`fb178 — generation constraints hold at 5 gates (4 jittered + jittere
       const gates = [...jitterGates(seed), jitterModifierGate(seed)];
       for (let a = 0; a < gates.length; a++) {
         for (let b = a + 1; b < gates.length; b++) {
-          const ga = nth(gates, a);
-          const gb = nth(gates, b);
+          const ga = gates[a];
+          const gb = gates[b];
+          if (ga === undefined || gb === undefined) throw new Error('gate index out of range');
           if (ga.tx === gb.tx && ga.ty === gb.ty) {
             offenders.push(`seed ${seed}: ${ga.key} and ${gb.key} share ${ga.tx},${ga.ty}`);
           }
