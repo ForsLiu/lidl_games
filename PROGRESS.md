@@ -5,7 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 41 → 38.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 38 → 35.**
+  Fixed 3 more files with real guards (never `!`): `tests/p6d-nine-
+  classes.test.ts` (a `firstEnemyKey()` helper matching the pattern already
+  used in several sibling test files, replacing an unsafe `content.enemies
+  .enemies[0].key` read; throw-guards on `chain[0]`, `dealt[i]`/
+  `dealt[i-1]`, `w.tempWalls[0]` (twice), `live[live.length - 1]`,
+  `spirits[0]`, and `targets[3]`, each already implied safe by a preceding
+  length/loop-bound check or literal array construction in the same test);
+  `tests/fb016-vfx-registry.test.ts` (throw-guards right after
+  `expect(entry, key).toBeDefined()` calls — the `expect` call doesn't
+  narrow TS's type — plus guarded local variables for the `CLASS_VFX
+  .swordsman`/`CLASS_VFX.archer` literal property reads); `tests/ui-fb091-
+  crash-log.test.ts` (a generic `at<T>(arr: ArrayLike<T>, i): T` throw-guard
+  helper replacing unsafe indexed reads — `entries[0]`/`entries[19]`,
+  `items[0]`/`items[1]` from `querySelectorAll`, `writeText.mock
+  .calls[0][0]` — each provably in range given a preceding `.length`/count
+  assertion in the same test). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files (165 tests)
+  green; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 38 → **35 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major/Minor findings. Light tier (`[polish]`, no
+  `/src`/`/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 41 → 38.**
   Fixed 3 more files with real guards (never `!`): `tools/fuzz-weapon-
   boundary.ts` (`?? 0` on a `boonRanks` record lookup for the domain check —
   same truth table, since `Number.isInteger(undefined)` was already `false`;

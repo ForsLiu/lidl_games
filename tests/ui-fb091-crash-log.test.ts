@@ -53,6 +53,12 @@ function mountGame(): HTMLElement {
   return document.getElementById('app') as HTMLElement;
 }
 
+function at<T>(arr: ArrayLike<T>, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range`);
+  return v;
+}
+
 describe('fb091: crash capture + copy report', () => {
   beforeEach(() => {
     clearCrashLogForTest();
@@ -67,10 +73,10 @@ describe('fb091: crash capture + copy report', () => {
     for (let i = 0; i < 25; i++) recordCrash(`error ${i}`, `stack ${i}`);
     const entries = crashLogEntries();
     expect(entries.length).toBe(20);
-    expect(entries[0].message).toBe('error 5');
-    expect(entries[19].message).toBe('error 24');
-    expect(entries[19].stack).toBe('stack 24');
-    expect(typeof entries[19].time).toBe('number');
+    expect(at(entries, 0).message).toBe('error 5');
+    expect(at(entries, 19).message).toBe('error 24');
+    expect(at(entries, 19).stack).toBe('stack 24');
+    expect(typeof at(entries, 19).time).toBe('number');
   });
 
   it('installGlobalErrorHandlers captures a window "error" event with message and stack', () => {
@@ -79,8 +85,8 @@ describe('fb091: crash capture + copy report', () => {
     window.dispatchEvent(new ErrorEvent('error', { message: 'boom', error: err }));
     const entries = crashLogEntries();
     expect(entries.length).toBe(1);
-    expect(entries[0].message).toBe('boom');
-    expect(entries[0].stack).toBe(err.stack);
+    expect(at(entries, 0).message).toBe('boom');
+    expect(at(entries, 0).stack).toBe(err.stack);
   });
 
   it('installGlobalErrorHandlers captures an unhandledrejection event (Error reason)', () => {
@@ -91,8 +97,8 @@ describe('fb091: crash capture + copy report', () => {
     window.dispatchEvent(new PromiseRejectionEvent('unhandledrejection', { reason, promise: swallowed }));
     const entries = crashLogEntries();
     expect(entries.length).toBe(1);
-    expect(entries[0].message).toBe('rejected');
-    expect(entries[0].stack).toBe(reason.stack);
+    expect(at(entries, 0).message).toBe('rejected');
+    expect(at(entries, 0).stack).toBe(reason.stack);
   });
 
   it('installGlobalErrorHandlers captures an unhandledrejection event (non-Error reason)', () => {
@@ -104,8 +110,8 @@ describe('fb091: crash capture + copy report', () => {
     );
     const entries = crashLogEntries();
     expect(entries.length).toBe(1);
-    expect(entries[0].message).toBe('plain string reason');
-    expect(entries[0].stack).toBeUndefined();
+    expect(at(entries, 0).message).toBe('plain string reason');
+    expect(at(entries, 0).stack).toBeUndefined();
   });
 
   it('Game.start() wires the global error handlers at boot, not just when a test calls installGlobalErrorHandlers directly', () => {
@@ -141,8 +147,8 @@ describe('fb091: crash capture + copy report', () => {
     const { root } = openHub();
     const items = root.querySelectorAll('.sw-crashlist li');
     expect(items.length).toBe(2);
-    expect(items[0].textContent).toContain('first failure');
-    expect(items[1].textContent).toContain('second failure');
+    expect(at(items, 0).textContent).toContain('first failure');
+    expect(at(items, 1).textContent).toContain('second failure');
   });
 
   it('escapes a hostile error message rather than injecting markup', () => {
@@ -164,7 +170,7 @@ describe('fb091: crash capture + copy report', () => {
     await Promise.resolve();
 
     expect(writeText).toHaveBeenCalledTimes(1);
-    const report = writeText.mock.calls[0][0];
+    const report = at(at(writeText.mock.calls, 0), 0);
     expect(report).toContain('failure one');
     expect(report).toContain('stack one');
     expect(report).toContain('failure two');

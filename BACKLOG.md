@@ -6115,6 +6115,31 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major/Minor findings. Light tier (`[polish]`, no `/src`/
       `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
       TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tests/p6d-nine-
+      classes.test.ts` (a `firstEnemyKey()` helper matching the pattern
+      already used in several sibling test files, replacing an unsafe
+      `content.enemies.enemies[0].key` read; throw-guards on `chain[0]`,
+      `dealt[i]`/`dealt[i-1]`, `w.tempWalls[0]` (twice), `live[live.length
+      - 1]`, `spirits[0]`, and `targets[3]`, each already implied safe by
+      a preceding length/loop-bound check or literal array construction
+      in the same test), `tests/fb016-vfx-registry.test.ts` (throw-guards
+      right after `expect(entry, key).toBeDefined()` calls — the `expect`
+      call doesn't narrow TS's type — plus guarded local variables for
+      the `CLASS_VFX.swordsman`/`CLASS_VFX.archer` literal property
+      reads), `tests/ui-fb091-crash-log.test.ts` (a generic `at<T>(arr:
+      ArrayLike<T>, i): T` throw-guard helper replacing unsafe indexed
+      reads — `entries[0]`/`entries[19]`, `items[0]`/`items[1]` from
+      `querySelectorAll`, `writeText.mock.calls[0][0]` — each provably in
+      range given a preceding `.length`/count assertion in the same
+      test). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags any of the 3; main `npx tsc --noEmit` clean; targeted
+      `npx vitest run` on the 3 files (165 tests) green; `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 38 →
+      **35 files remain** on the allowlist. code-reviewer APPROVE, no
+      Critical/Major/Minor findings. Light tier (`[polish]`, no `/src`/
+      `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
+      TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
