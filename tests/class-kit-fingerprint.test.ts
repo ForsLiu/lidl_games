@@ -259,11 +259,17 @@ beforeAll(() => {
   }
 
   for (let i = 0; i < vectors.length; i++) {
+    const vi = vectors[i];
+    const tvi = vectorsByType[i];
+    if (vi === undefined || tvi === undefined) throw new Error(`vectors[${i}] out of range`);
     for (let j = i + 1; j < vectors.length; j++) {
-      const distance = l1Distance(vectors[i].vector, vectors[j].vector);
-      pairs.push({ a: vectors[i].key, b: vectors[j].key, distance });
-      const distanceByType = l1Distance(vectorsByType[i].vector, vectorsByType[j].vector);
-      pairsByType.push({ a: vectorsByType[i].key, b: vectorsByType[j].key, distance: distanceByType });
+      const vj = vectors[j];
+      const tvj = vectorsByType[j];
+      if (vj === undefined || tvj === undefined) throw new Error(`vectors[${j}] out of range`);
+      const distance = l1Distance(vi.vector, vj.vector);
+      pairs.push({ a: vi.key, b: vj.key, distance });
+      const distanceByType = l1Distance(tvi.vector, tvj.vector);
+      pairsByType.push({ a: tvi.key, b: tvj.key, distance: distanceByType });
     }
   }
 
@@ -305,7 +311,11 @@ describe.skipIf(!MEASURE)('c040: class-kit fingerprint distance by damageByType 
     // numbers relabelled: a class whose kit spans one damage type across many
     // weapon keys (or vice versa) should read a different L1 distance under
     // the two keyings for at least one pair.
-    const anyDiffers = pairsByType.some((p, i) => Math.abs(p.distance - pairs[i].distance) > 1e-9);
+    const anyDiffers = pairsByType.some((p, i) => {
+      const other = pairs[i];
+      if (other === undefined) throw new Error(`pairs[${i}] out of range`); // built by the same double loop as pairsByType
+      return Math.abs(p.distance - other.distance) > 1e-9;
+    });
     expect(anyDiffers, 'damageByType vector produced byte-identical distances to damageByWeapon').toBe(true);
   });
 });

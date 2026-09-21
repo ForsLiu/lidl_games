@@ -5,7 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-20 (scheduled routine, latest) — fb133 ratchet shrunk 61 → 56.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 56 → 50.**
+  Fixed 7 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/p6e-class-diversity.test.ts` and `tests/class-kit-
+  fingerprint.test.ts` (the shared `vectors[i]`/`vectors[j]` pairwise-loop
+  shape, already proven in range by the loop bounds); `tests/q120-order1-
+  taunt.test.ts` (a `firstEnemyKey(w)` helper replacing 12 `enemies[0].key`
+  reads); `tools/fuzz-data.ts` (`sites`/`stringSites`'s object walk, the
+  `resolve` pointer-walk, `dupe-element`'s `value[0]`, `errorLine`'s
+  `split('\n')[0]`); `tests/class-deeper-draw.test.ts`/`tests/class-line-
+  bonus.test.ts` (a `card()`/`lineCard()` guard right after
+  `expect(own.length).toBe(1)`, plus the same `firstEnemyKey` pattern);
+  `tests/class-descriptions.test.ts` (`window`'s neighbour/self reads, a
+  `text[p]` char read, a `claims[i]` read proven same-length as `found` two
+  lines above, a claim-path leaf key). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 7; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on 8 files (194 tests) green;
+  `npm run test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+  `tests/p6e-class-diversity.test.ts` itself is excluded from the fast tier
+  (its `beforeAll` runs a real 12-seed x 12-class sim sweep) — verified via
+  `tsc` plus the identical already-proven-in-range reasoning as the rest of
+  the batch, its direct `vitest run` kicked off in the background rather
+  than blocking the item on a multi-minute run (matching the earlier
+  `p10c-weapon-share.test.ts` precedent). 56 → **50 files remain** on the
+  allowlist, confirmed exactly by the ratchet test run standalone. Light
+  tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
+  — refs: BACKLOG.md fb133 Log.
+- **2026-09-20 (scheduled routine) — fb133 ratchet shrunk 61 → 56.**
   Fixed 4 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/p6a-class-framework.test.ts` (a new `firstEnemyKey(c:
   Content)` helper replacing 8 `X.content.enemies.enemies[0].key` reads

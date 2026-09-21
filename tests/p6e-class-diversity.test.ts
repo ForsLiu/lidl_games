@@ -1054,8 +1054,12 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     const pairs: { a: string; b: string; distance: number }[] = [];
     for (let i = 0; i < vectors.length; i++) {
+      const vi = vectors[i];
+      if (vi === undefined) throw new Error(`vectors[${i}] out of range`);
       for (let j = i + 1; j < vectors.length; j++) {
-        pairs.push({ a: vectors[i].key, b: vectors[j].key, distance: l1Distance(vectors[i].vector, vectors[j].vector) });
+        const vj = vectors[j];
+        if (vj === undefined) throw new Error(`vectors[${j}] out of range`);
+        pairs.push({ a: vi.key, b: vj.key, distance: l1Distance(vi.vector, vj.vector) });
       }
     }
     const failing = pairs.filter((p) => p.distance < FINGERPRINT_FLOOR);
@@ -1092,8 +1096,12 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     let failing = 0;
     for (let i = 0; i < vectors.length; i++) {
+      const vi = vectors[i];
+      if (vi === undefined) throw new Error(`vectors[${i}] out of range`);
       for (let j = i + 1; j < vectors.length; j++) {
-        if (l1Distance(vectors[i].vector, vectors[j].vector) < FINGERPRINT_FLOOR) failing++;
+        const vj = vectors[j];
+        if (vj === undefined) throw new Error(`vectors[${j}] out of range`);
+        if (l1Distance(vi.vector, vj.vector) < FINGERPRINT_FLOOR) failing++;
       }
     }
     expect(failing).toBe(28);

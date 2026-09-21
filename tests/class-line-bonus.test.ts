@@ -169,7 +169,9 @@ function cls(w: World): ClassDef {
 function lineCard(classKey: string) {
   const own = (content.boons.skillCards[classKey] ?? []).filter((c) => c.effect === 'class_line');
   expect(own.length, `${classKey} should author exactly one class_line card`).toBe(1);
-  return own[0];
+  const c = own[0];
+  if (c === undefined) throw new Error(`${classKey}: class_line card missing`); // length just asserted === 1
+  return c;
 }
 
 /** The largest bonus that card can ever contribute — every budget below is sized against it. */
@@ -204,8 +206,14 @@ function withinBudget(reading: number, budget: number, what: string): number {
  * smallest pierce-falloff tail hit into a float no-op (c009's ULP lesson).
  * Nothing here deals more than ~1e3, so nothing dies by accident either.
  */
+function firstEnemyKey(w: World): string {
+  const first = w.content.enemies.enemies[0];
+  if (first === undefined) throw new Error('content.enemies.enemies is empty');
+  return first.key;
+}
+
 function dummy(w: World, x: number, y: number, hp = 1e5): Enemy {
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(w), x, y)!;
   e.hp = hp;
   e.maxHp = Math.max(hp, e.maxHp);
   e.speed = 0;

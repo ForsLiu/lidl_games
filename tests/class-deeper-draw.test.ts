@@ -73,7 +73,9 @@ function archerA1(c: Content = content) {
 function card() {
   const own = (content.boons.skillCards.archer ?? []).filter((k) => k.effect === 'class_line');
   expect(own.length, 'the archer should author exactly one class_line card').toBe(1);
-  return own[0];
+  const c = own[0];
+  if (c === undefined) throw new Error('archer class_line card missing'); // length just asserted === 1
+  return c;
 }
 
 /** `rank * perRank` for Deeper Draw, straight off the authored card. */
@@ -100,8 +102,14 @@ function archerWorld(ranks: Record<string, number>, c: Content = content): World
  * An immovable, unarmoured punching bag deep enough that the smallest
  * pierce-falloff tail hit still shows as an hp change (c009's ULP lesson).
  */
+function firstEnemyKey(w: World): string {
+  const first = w.content.enemies.enemies[0];
+  if (first === undefined) throw new Error('content.enemies.enemies is empty');
+  return first.key;
+}
+
 function dummy(w: World, x: number, y: number): Enemy {
-  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(w), x, y)!;
   e.hp = 1e5;
   e.maxHp = Math.max(1e5, e.maxHp);
   e.speed = 0;
@@ -204,8 +212,10 @@ describe('c017 — Deeper Draw binds on shipped /data', () => {
       base + bonusAt(1),
       base + bonusAt(2),
     ]);
-    expect(readings[1]).toBeGreaterThan(readings[0]);
-    expect(readings[2]).toBeGreaterThan(readings[1]);
+    const [r0, r1, r2] = readings; // fixed 3-element map above, just asserted equal to a 3-element array
+    if (r0 === undefined || r1 === undefined || r2 === undefined) throw new Error('readings out of range');
+    expect(r1).toBeGreaterThan(r0);
+    expect(r2).toBeGreaterThan(r1);
   });
 
   it('rank 0 is exactly the pre-c017 reading, at every hold length', () => {
@@ -259,7 +269,9 @@ describe('c017 — Deeper Draw binds on shipped /data', () => {
       const w = archerWorld(ranks);
       const line = lineOfDummies(w, clampedReading() + bonusAt(card().maxRank) + 2);
       chargeFor(w, FULL);
-      return line[0].hp - line[0].e.hp;
+      const first = line[0];
+      if (first === undefined) throw new Error('lineOfDummies: budget is always > 0');
+      return first.hp - first.e.hp;
     };
     const r0 = firstHit({});
     expect(r0, 'the control shot did not land at all').toBeGreaterThan(0);
