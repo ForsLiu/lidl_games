@@ -44,6 +44,12 @@ import {
 
 const cfg = loadTerrain();
 
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 /** The authored answer per kind — the table the veto edits. */
 const AUTHORED: ReadonlyArray<{ kind: TerrainKind; key: string; blocks: boolean }> = [
   { kind: TerrainKind.Normal, key: 'normal', blocks: false },
@@ -75,30 +81,30 @@ function tilesOf(doc: Record<string, unknown>): Array<Record<string, unknown>> {
 describe('fb064q character passage: the data flag', () => {
   it('every authored kind carries an explicit blocksCharacter', () => {
     for (const t of AUTHORED) {
-      expect(cfg.tiles[t.kind].key).toBe(t.key);
-      expect(cfg.tiles[t.kind].blocksCharacter).toBe(t.blocks);
+      expect(nth(cfg.tiles, t.kind).key).toBe(t.key);
+      expect(nth(cfg.tiles, t.kind).blocksCharacter).toBe(t.blocks);
     }
     expect(cfg.tiles.length).toBe(TERRAIN_KEYS.length);
   });
 
   it('the loader refuses a tile with no blocksCharacter — the rule is never implicit', () => {
     const doc = clone();
-    delete tilesOf(doc)[TerrainKind.Rock].blocksCharacter;
+    delete nth(tilesOf(doc), TerrainKind.Rock).blocksCharacter;
     expect(() => parseTerrain(doc)).toThrow();
   });
 
   it('the loader refuses a normal tile that blocks the character (unpayable)', () => {
     const doc = clone();
-    tilesOf(doc)[TerrainKind.Normal].blocksCharacter = true;
+    nth(tilesOf(doc), TerrainKind.Normal).blocksCharacter = true;
     expect(() => parseTerrain(doc)).toThrow(/normal/);
   });
 
   it('the veto is one data line: rock may be flipped either way and still load', () => {
     for (const value of [true, false]) {
       const doc = clone();
-      tilesOf(doc)[TerrainKind.Rock].blocksCharacter = value;
+      nth(tilesOf(doc), TerrainKind.Rock).blocksCharacter = value;
       const parsed = parseTerrain(doc);
-      expect(parsed.tiles[TerrainKind.Rock].blocksCharacter).toBe(value);
+      expect(nth(parsed.tiles, TerrainKind.Rock).blocksCharacter).toBe(value);
       expect(blocksCharacter(parsed, TerrainKind.Rock)).toBe(value);
     }
   });
@@ -125,19 +131,20 @@ describe('fb064q character passage: the predicates', () => {
     const map = generateTerrain(1234, cfg);
     for (let ty = 0; ty < map.h; ty++) {
       for (let tx = 0; tx < map.w; tx++) {
-        const want = !blocksCharacter(cfg, map.kind[ty * map.w + tx]);
+        const want = !blocksCharacter(cfg, nth(map.kind, ty * map.w + tx));
         expect(canCharacterEnter(cfg, map, tx, ty)).toBe(want);
         // A float inside the tile is the same tile (b007's class of bug).
         expect(canCharacterEnter(cfg, map, tx + 0.5, ty + 0.5)).toBe(want);
       }
     }
-    for (const [x, y] of [
+    const offBoard: Array<[number, number]> = [
       [-1, 0],
       [0, -1],
       [map.w, 0],
       [0, map.h],
       [NaN, NaN],
-    ]) {
+    ];
+    for (const [x, y] of offBoard) {
       expect(canCharacterEnter(cfg, map, x, y)).toBe(true);
     }
   });
@@ -168,7 +175,7 @@ describe('fb064q character passage: the grid honours the flag', () => {
             expect(g.wardenPassable(tx, ty)).toBe(true);
             continue;
           }
-          expect(g.wardenPassable(tx, ty)).toBe(!blocksCharacter(cfg, map.kind[i]));
+          expect(g.wardenPassable(tx, ty)).toBe(!blocksCharacter(cfg, nth(map.kind, i)));
           // The map-side predicate answers the same question about the same
           // tile. It may only differ where the Grid knows something the map
           // does not — the structural override above, and off the board.
@@ -192,7 +199,9 @@ describe('fb064q character passage: the grid honours the flag', () => {
     // Every divergence is a border tile (the map says rock, the Grid says "not
     // a place") or a structural one the Grid overrode.
     for (const key of divergent) {
-      const [tx, ty] = key.split(',').map(Number);
+      const parts = key.split(',');
+      const tx = Number(nth(parts, 0));
+      const ty = Number(nth(parts, 1));
       const border = tx === 0 || ty === 0 || tx === GRID_W - 1 || ty === GRID_H - 1;
       const structural = g.terrainKind[ty * GRID_W + tx] !== map.kind[ty * GRID_W + tx];
       expect(border || structural).toBe(true);
@@ -213,7 +222,7 @@ describe('fb064q character passage: the grid honours the flag', () => {
   it('flipping rock to passable lets the Warden stand on rock and nothing else moves', () => {
     const seed = 4242;
     const doc = clone();
-    tilesOf(doc)[TerrainKind.Rock].blocksCharacter = false;
+    nth(tilesOf(doc), TerrainKind.Rock).blocksCharacter = false;
     const vetoed = parseTerrain(doc);
     // Same tiles: `blocksCharacter` is not a generator input.
     const base = generateTerrain(seed, cfg);
@@ -253,7 +262,8 @@ describe('fb064q character passage: the grid honours the flag', () => {
   it('a flat Grid still lets the Warden anywhere but the border', () => {
     const g = new Grid();
     expect(g.wardenPassable(CORE_X, CORE_Y)).toBe(true);
-    expect(g.wardenPassable(GATES[0].tx, GATES[0].ty)).toBe(true);
+    const gate0 = nth(GATES, 0);
+    expect(g.wardenPassable(gate0.tx, gate0.ty)).toBe(true);
     expect(g.wardenPassable(0, 0)).toBe(false);
     expect(g.wardenPassable(GRID_W - 1, 5)).toBe(false);
   });

@@ -24,6 +24,12 @@ import { World } from '../src/sim/world';
 import { wieldedAttacks } from '../src/sim/vswield';
 import { cfg } from './helpers';
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 const content = loadContent();
 const ARROW = content.towerByKey.get('arrow_spire')!;
 const VENOM = content.towerByKey.get('venom_spore')!;
@@ -55,7 +61,11 @@ function build(w: World, def: TowerDef, tx: number, ty: number, steps: number) {
 describe('p2a — §6.1 VS wielding formula (G3)', () => {
   it('worked example verbatim: 1×lv1 arrow + 2×lv3(engine tier 4) arrow + 1×lv1 poison', () => {
     const w = new World(cfg(), content);
-    const [a1, a2, a3, p1] = tiles(w, 4);
+    const built = tiles(w, 4);
+    const a1 = nth(built, 0);
+    const a2 = nth(built, 1);
+    const a3 = nth(built, 2);
+    const p1 = nth(built, 3);
     // Arrow's own milestone table (§5.1): +1 pierce @3 — three steps bought,
     // engine tier 4 (tier 1 is zero steps). Matches attackProfile's own rule.
     build(w, ARROW, a1.tx, a1.ty, 0); // lv1, 0 steps
@@ -90,20 +100,22 @@ describe('p2a — §6.1 VS wielding formula (G3)', () => {
 
   it('a tower type with no attack (wall) wields nothing', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, WALL, t1.tx, t1.ty, 0);
     expect(wieldedAttacks(w)).toEqual([]);
   });
 
   it('a dead structure does not feed the average', () => {
     const w = new World(cfg(), content);
-    const [t1, t2] = tiles(w, 2);
+    const built = tiles(w, 2);
+    const t1 = nth(built, 0);
+    const t2 = nth(built, 1);
     build(w, ARROW, t1.tx, t1.ty, 0);
     build(w, ARROW, t2.tx, t2.ty, 0);
     const dead = w.structureAt(t2.tx, t2.ty)!;
     dead.dead = true;
 
-    const [arrow] = wieldedAttacks(w);
+    const arrow = nth(wieldedAttacks(w), 0);
     expect(arrow.count).toBe(1);
     expect(arrow.damage).toBeCloseTo(ARROW.attack!.damage * 1.1, 6);
   });

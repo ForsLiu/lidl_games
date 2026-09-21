@@ -78,7 +78,12 @@ export function parseHandoffGateTable(text: string): Map<string, string> {
   const map = new Map<string, string>();
   const rowRe = /^\|\s*(G\d+)\s*\([^)]*\)\s*\|\s*(.+?)\s*\|\s*$/gm;
   let m: RegExpExecArray | null;
-  while ((m = rowRe.exec(text))) map.set(m[1], m[2].trim());
+  while ((m = rowRe.exec(text))) {
+    const key = m[1];
+    const val = m[2];
+    if (key === undefined || val === undefined) continue;
+    map.set(key, val.trim());
+  }
   return map;
 }
 
@@ -350,18 +355,30 @@ export function feedbackLedger(
   function bulletFor(lines: string[], lineIdx: number): { id: string; done: boolean } | null {
     for (let i = lineIdx; i >= 0; i--) {
       const line = lines[i];
+      if (line === undefined) continue;
       const m = /^(\s*)- \[([ xX])\] \((\S+?)\)/.exec(line);
       if (m) {
-        const done = m[2].toLowerCase() === 'x';
-        if (m[1].length === 0) return { done, id: m[3] };
+        const indent = m[1];
+        const mark = m[2];
+        const id = m[3];
+        if (indent === undefined || mark === undefined || id === undefined) continue;
+        const done = mark.toLowerCase() === 'x';
+        if (indent.length === 0) return { done, id };
         // A sub-item: find the parent it hangs under, and report the pair's
         // state, not the child's alone.
         for (let j = i - 1; j >= 0; j--) {
-          const p = /^- \[([ xX])\] \((\S+?)\)/.exec(lines[j]);
-          if (p) return { done: done && p[1].toLowerCase() === 'x', id: `${m[3]} (of ${p[2]})` };
-          if (/^#{1,6}\s/.test(lines[j])) break;
+          const parentLine = lines[j];
+          if (parentLine === undefined) continue;
+          const p = /^- \[([ xX])\] \((\S+?)\)/.exec(parentLine);
+          if (p) {
+            const pMark = p[1];
+            const pId = p[2];
+            if (pMark === undefined || pId === undefined) continue;
+            return { done: done && pMark.toLowerCase() === 'x', id: `${id} (of ${pId})` };
+          }
+          if (/^#{1,6}\s/.test(parentLine)) break;
         }
-        return { done, id: m[3] };
+        return { done, id };
       }
       if (i !== lineIdx && (line.trim() === '' || /^#{1,6}\s/.test(line))) return null;
     }
@@ -393,6 +410,7 @@ export function feedbackLedger(
       const hits: number[] = [];
       for (let i = 0; i < doc.lines.length; i++) {
         const l = doc.lines[i];
+        if (l === undefined) continue;
         if (l.trim().startsWith('#')) continue;
         if (needles.some((n) => l.includes('`' + n + '`') || l.includes(n + '`'))) hits.push(i);
       }
@@ -434,14 +452,17 @@ export function pendingQuestions(questionsPath: string = QUESTIONS_PATH): Pendin
   for (const b of blocks) {
     const m = /^- \*\*Q(\d+)\.\s*([\s\S]+?)\*\*/.exec(b);
     if (!m) continue;
+    const num = m[1];
+    const title = m[2];
+    if (num === undefined || title === undefined) continue;
     // qa-playtester (fb038): checking the whole block let a `(owner verdict:`
     // appearing as literal prose *inside* the bold title itself (discussing
     // the marker, not applying it) falsely mark a genuinely-open question as
     // resolved. Only text after the bold title's own closing `**` can be a
     // real verdict annotation.
     if (b.slice(m[0].length).includes('(owner verdict:')) continue;
-    const snippet = m[2].replace(/\s+/g, ' ').trim();
-    pending.push({ id: `Q${m[1]}`, snippet: snippet.length > 220 ? snippet.slice(0, 220) + '…' : snippet });
+    const snippet = title.replace(/\s+/g, ' ').trim();
+    pending.push({ id: `Q${num}`, snippet: snippet.length > 220 ? snippet.slice(0, 220) + '…' : snippet });
   }
   return pending;
 }

@@ -44,6 +44,12 @@ const ROOT = resolve(__dirname, '..');
 const AUDIT_DIR = resolve(ROOT, 'audit');
 const VIEWPORT = { width: 1920, height: 1080 };
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 /* ------------------------------------------------------------ report shape */
 
 interface CheckResult {
@@ -182,7 +188,7 @@ function samplePixel(png: PNG, x: number, y: number): Rgb {
   const cx = Math.max(0, Math.min(png.width - 1, Math.round(x)));
   const cy = Math.max(0, Math.min(png.height - 1, Math.round(y)));
   const idx = (png.width * cy + cx) << 2;
-  return [png.data[idx], png.data[idx + 1], png.data[idx + 2]];
+  return [png.data[idx] ?? 0, png.data[idx + 1] ?? 0, png.data[idx + 2] ?? 0];
 }
 
 /** `"rgb(r, g, b)"` / `"rgba(r, g, b, a)"` (the only shapes `getComputedStyle().color` returns) to an Rgb triple. */
@@ -230,8 +236,8 @@ function checkHudOverlap(dom: DomSnapshot): CheckResult[] {
   const items = dom.chrome;
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
-      const a = items[i];
-      const b = items[j];
+      const a = nth(items, i);
+      const b = nth(items, j);
       const overlaps = rectsOverlap(a.rect, b.rect);
       const area = overlaps ? overlapArea(a.rect, b.rect) : 0;
       out.push({
@@ -265,7 +271,9 @@ async function call<K extends keyof AuditMethods>(
     ({ method, args }) => {
       const api = (window as unknown as { __stonewakeAudit: Record<string, (...a: unknown[]) => unknown> })
         .__stonewakeAudit;
-      return api[method as string](...(args as unknown[]));
+      const fn = api[method as string];
+      if (!fn) throw new Error(`__stonewakeAudit.${method as string} is not defined`);
+      return fn(...(args as unknown[]));
     },
     { method: method as string, args },
   ) as Promise<ReturnType<AuditMethods[K]>>;
@@ -339,8 +347,8 @@ function paletteColorDistanceChecks(): CheckResult[] {
   const out: CheckResult[] = [];
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
-      const a = entries[i];
-      const b = entries[j];
+      const a = nth(entries, i);
+      const b = nth(entries, j);
       for (const palette of ['color', 'colorblindColor'] as const) {
         const d = colorDistance(hexToRgb(a[palette]), hexToRgb(b[palette]));
         out.push({
