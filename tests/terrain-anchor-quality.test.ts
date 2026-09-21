@@ -261,6 +261,7 @@ function buildRoomAt(map: TerrainGrid, tx: number, ty: number, r: number, normal
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const k = map.kind[y * map.w + x];
+      if (k === undefined) continue;
       if (normalOnly ? k !== TerrainKind.Normal : !isBuildable(cfg, k)) continue;
       if (x >= tx && x < tx + CORE_W && y >= ty && y < ty + CORE_H) continue;
       const dx = x + 0.5 - cx;
@@ -487,7 +488,12 @@ const fmt = (v: number): string => v.toFixed(4);
 function median(vs: readonly number[]): number {
   const a = vs.slice().sort((x, y) => x - y);
   const m = a.length >> 1;
-  return a.length % 2 === 1 ? a[m] : (a[m - 1] + a[m]) / 2;
+  const mid = a[m];
+  if (mid === undefined) throw new Error('median: empty array');
+  if (a.length % 2 === 1) return mid;
+  const lower = a[m - 1];
+  if (lower === undefined) throw new Error('median: empty array');
+  return (lower + mid) / 2;
 }
 
 /**
@@ -670,9 +676,14 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // normal case rather than an edge one (Engineer +2, tree node 22 +1), so a
     // base-radius-only ledger would understate the room every real run has.
     const rs = rows();
+    const extraRoomAt = (row: Row, i: number): number => {
+      const v = row.extraRoom[i];
+      if (v === undefined) throw new Error(`extraRoom[${i}] out of range`);
+      return v;
+    };
     const table = EXTRA_RADII.map((r, i) => {
-      const vs = rs.map((x) => x.extraRoom[i]);
-      const lo = rs.reduce((a, b) => (b.extraRoom[i] < a.extraRoom[i] ? b : a));
+      const vs = rs.map((x) => extraRoomAt(x, i));
+      const lo = rs.reduce((a, b) => (extraRoomAt(b, i) < extraRoomAt(a, i) ? b : a));
       return `r${r}: min ${Math.min(...vs)} @${lo.seed} · mean ${(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(2)} · max ${Math.max(...vs)}`;
     });
     expect(table).toEqual([
@@ -863,7 +874,9 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     // room comparison itself (not merely index order) is load-bearing here.
     const pick = suggestCoreAnchor(map, cfg, anchors);
     expect(pick).toBe(ties[1]);
-    expect(maxGateDetour(map, cfg, ties[0], CORE_W, CORE_H)).toBeGreaterThan(
+    const tie0 = ties[0];
+    if (tie0 === undefined) throw new Error('expected at least one tied anchor');
+    expect(maxGateDetour(map, cfg, tie0, CORE_W, CORE_H)).toBeGreaterThan(
       cfg.constraints.maxGateDetour,
     );
   });

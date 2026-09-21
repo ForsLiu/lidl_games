@@ -6089,6 +6089,32 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       on the allowlist. code-reviewer APPROVE, no Critical/Major
       findings. Light tier (`[polish]`, no `/data` touched) — no
       qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, latest)**:
+      fixed 3 more files with real guards (never `!`) — `tools/fuzz-
+      weapon-boundary.ts` (`?? 0` on a `boonRanks` record lookup for the
+      domain check, same truth table since `Number.isInteger(undefined)`
+      was already `false`; throw-guards on three `list[0]`/array-
+      destructure reads in the wield-roster cases, each already implied
+      safe by a preceding `list.length === 1` check — only the failure
+      mode moves from an implicit TypeError to an explicit thrown Error,
+      both resolving to the same `'crashes'` verdict via `tryRun`),
+      `tests/terrain-anchor-quality.test.ts` (an `if (k === undefined)
+      continue` guard in the room-counting scan, `median()` rewritten to
+      throw-guard on an empty array instead of silently returning
+      `undefined` typed as `number`, an `extraRoomAt(row, i)` helper for
+      indexed reads proven in range by a shared loop index, a `tie0`
+      guard before `maxGateDetour`), `tests/terrain-modifier-gate-jitter
+      .test.ts` (throw-guards on `measures[i]` and `gates[a]`/`gates[b]`
+      inside two sweep loops, each index already proven in range by its
+      own loop bound). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx
+      tsc --noEmit` clean; targeted `npx vitest run` on the 3 files plus
+      `tests/q21-weapon-boundary-fuzz.test.ts` (60 tests) green; `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped. 41 →
+      **38 files remain** on the allowlist. code-reviewer APPROVE, no
+      Critical/Major/Minor findings. Light tier (`[polish]`, no `/src`/
+      `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
+      TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
