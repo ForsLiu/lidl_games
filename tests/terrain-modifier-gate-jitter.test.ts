@@ -111,10 +111,12 @@ describe(`fb178 — generation constraints hold at 5 gates (4 jittered + jittere
   it('terrainLegal (every owner band at once) holds for every seed', () => {
     const bad: string[] = [];
     for (let i = 0; i < measures.length; i++) {
-      if (!terrainLegal(measures[i], cfg)) {
-        bad.push(`seed ${i + 1}: ${failedBands(measures[i], cfg).join(', ')}`);
+      const m = measures[i];
+      if (m === undefined) throw new Error(`measures[${i}] out of range`);
+      if (!terrainLegal(m, cfg)) {
+        bad.push(`seed ${i + 1}: ${failedBands(m, cfg).join(', ')}`);
       }
-      expect(legalMeasure(measures[i], cfg)).toBe(terrainLegal(measures[i], cfg));
+      expect(legalMeasure(m, cfg)).toBe(terrainLegal(m, cfg));
     }
     expect(bad.slice(0, 10)).toEqual([]);
   });
@@ -157,10 +159,11 @@ describe(`fb178 — generation constraints hold at 5 gates (4 jittered + jittere
       const gates = [...jitterGates(seed), jitterModifierGate(seed)];
       for (let a = 0; a < gates.length; a++) {
         for (let b = a + 1; b < gates.length; b++) {
-          if (gates[a].tx === gates[b].tx && gates[a].ty === gates[b].ty) {
-            offenders.push(
-              `seed ${seed}: ${gates[a].key} and ${gates[b].key} share ${gates[a].tx},${gates[a].ty}`,
-            );
+          const ga = gates[a];
+          const gb = gates[b];
+          if (ga === undefined || gb === undefined) throw new Error('gate index out of range');
+          if (ga.tx === gb.tx && ga.ty === gb.ty) {
+            offenders.push(`seed ${seed}: ${ga.key} and ${gb.key} share ${ga.tx},${ga.ty}`);
           }
         }
       }

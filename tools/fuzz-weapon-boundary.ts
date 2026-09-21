@@ -171,7 +171,8 @@ export function boonRankBoundaryCases(content: Content = loadContent()): Boundar
     const maxRank = content.boonByKey.get(PROBE_BOON)!.maxRank;
     const r = tryRun(() => applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel }));
     const stored = w.boonRanks[PROBE_BOON];
-    const inDomain = Number.isInteger(stored) && stored >= 1 && stored <= maxRank;
+    const storedRank = stored ?? 0;
+    const inDomain = Number.isInteger(storedRank) && storedRank >= 1 && storedRank <= maxRank;
     const reoffered = r.threw ? false : reoffersWithin(w, PROBE_BOON);
     const verdict: Verdict = r.threw ? 'crashes' : inDomain ? 'ok' : reoffered ? 'ungated' : 'contaminated';
     const detail = r.threw
@@ -466,20 +467,24 @@ export function wieldRosterCases(content: Content = loadContent()): BoundaryCase
       const list = wieldedAttacks(w);
       const a = list[0];
       const base = w.content.towerByKey.get('arrow_spire')!.attack!.damage;
-      const pass = list.length === 1 && a.count === 5 && Math.abs(a.damage - base * 1.5) < 1e-9;
+      const pass = list.length === 1 && a !== undefined && a.count === 5 && Math.abs(a.damage - base * 1.5) < 1e-9;
       return { pass, note: `5 identical arrows -> ${list.length} entry, count=${a?.count}, damage=${a?.damage} (expect ${base * 1.5})` };
     }),
     rosterCase(content, 'roster:deadExcluded', (w) => {
       forcePlace(w, 'arrow_spire', 4, 4, 1);
       forcePlace(w, 'arrow_spire', 5, 4, 1);
-      w.structures[1].dead = true;
+      const second = w.structures[1];
+      if (!second) throw new Error('expected structures[1] after two forcePlace calls');
+      second.dead = true;
       const list = wieldedAttacks(w);
-      return { pass: list.length === 1 && list[0].count === 1, note: `1 live + 1 dead arrow -> count=${list[0]?.count}` };
+      const first = list[0];
+      return { pass: list.length === 1 && first !== undefined && first.count === 1, note: `1 live + 1 dead arrow -> count=${first?.count}` };
     }),
     rosterCase(content, 'roster:many', (w) => {
       let n = 0;
       for (let ty = 4; ty < 14; ty++) for (let tx = 4; tx < 14; tx++) forcePlace(w, 'arrow_spire', tx, ty, 1), n++;
       const [a] = wieldedAttacks(w);
+      if (!a) throw new Error('expected at least one wielded attack');
       const base = w.content.towerByKey.get('arrow_spire')!.attack!.damage;
       const pass = a.count === n && Number.isFinite(a.damage) && Math.abs(a.damage - base * (1 + 0.1 * n)) < 1e-6;
       return { pass, note: `${n} arrows -> count=${a.count}, damage=${a.damage} (finite, +10% each)` };

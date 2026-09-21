@@ -5,7 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 44 → 41.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 38 → 35.**
+  Fixed 3 more files with real guards (never `!`): `tests/p6d-nine-
+  classes.test.ts` (a `firstEnemyKey()` helper matching the pattern already
+  used in several sibling test files, replacing an unsafe `content.enemies
+  .enemies[0].key` read; throw-guards on `chain[0]`, `dealt[i]`/
+  `dealt[i-1]`, `w.tempWalls[0]` (twice), `live[live.length - 1]`,
+  `spirits[0]`, and `targets[3]`, each already implied safe by a preceding
+  length/loop-bound check or literal array construction in the same test);
+  `tests/fb016-vfx-registry.test.ts` (throw-guards right after
+  `expect(entry, key).toBeDefined()` calls — the `expect` call doesn't
+  narrow TS's type — plus guarded local variables for the `CLASS_VFX
+  .swordsman`/`CLASS_VFX.archer` literal property reads); `tests/ui-fb091-
+  crash-log.test.ts` (a generic `at<T>(arr: ArrayLike<T>, i): T` throw-guard
+  helper replacing unsafe indexed reads — `entries[0]`/`entries[19]`,
+  `items[0]`/`items[1]` from `querySelectorAll`, `writeText.mock
+  .calls[0][0]` — each provably in range given a preceding `.length`/count
+  assertion in the same test). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files (165 tests)
+  green; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 38 → **35 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major/Minor findings. Light tier (`[polish]`, no
+  `/src`/`/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 41 → 38.**
+  Fixed 3 more files with real guards (never `!`): `tools/fuzz-weapon-
+  boundary.ts` (`?? 0` on a `boonRanks` record lookup for the domain check —
+  same truth table, since `Number.isInteger(undefined)` was already `false`;
+  throw-guards on three `list[0]`/array-destructure reads in the wield-roster
+  cases, each already implied safe by a preceding `list.length === 1` check,
+  so `pass` values are unchanged — only the failure mode moves from an
+  implicit TypeError to an explicit thrown Error, both resolving to the same
+  `'crashes'` verdict via `tryRun`); `tests/terrain-anchor-quality.test.ts`
+  (an `if (k === undefined) continue` guard in the room-counting scan,
+  `median()` rewritten to throw-guard on an empty array instead of silently
+  returning `undefined` typed as `number`, a new `extraRoomAt(row, i)`
+  helper for indexed reads proven in range by a shared loop index, and a
+  `tie0` guard before `maxGateDetour`); `tests/terrain-modifier-gate-jitter
+  .test.ts` (throw-guards on `measures[i]` and `gates[a]`/`gates[b]` inside
+  two sweep loops, each index already proven in range by its own loop
+  bound). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+  flags any of the 3; main `npx tsc --noEmit` clean; targeted `npx vitest
+  run` on the 3 files plus `tests/q21-weapon-boundary-fuzz.test.ts` (60
+  tests) green; `npm run test:fast` unchanged at 315 files / 4548 passed /
+  35 skipped. 41 → **38 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major/Minor findings. Light tier (`[polish]`, no
+  `/src`/`/data` touched) — no qa-playtester dispatch. — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 44 → 41.**
   Fixed 3 more files with real guards (never `!`): `tests/fb164-
   prescale-prose.test.ts` (a `group(m, i)` helper throwing on a null
   match or missing capture group, replacing `m![N]` reads that followed
