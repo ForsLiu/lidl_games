@@ -6022,6 +6022,25 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       itself, run standalone, confirms the list matches exactly). Light
       tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
       dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, later)**: fixed
+      3 more files with real guards (never `!`), none touching `/src`/
+      `/data` — `tests/f003-leak-coupling.test.ts` (a new `spawnCost(w,
+      key)` helper throwing on a missing director-cost key, replacing 6
+      unguarded `w.content.spawns.costs.<key>` reads — `costs` is
+      `z.record(num)`, genuinely partial), `tests/fb022-info-
+      surfacing.test.ts` (destructured/guarded `querySelectorAll` entries,
+      `upgrade.steps![0]`, and `modLines(...)[0]` reads with throw-guards),
+      `tests/ui-fb097-zip-archive.test.ts` (guarded `decoded[i]`/
+      `entries[i]` reads in the ZIP round-trip loop, unreachable in
+      practice since the preceding name-array `.toEqual` already proves
+      equal length/order). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+      --noEmit` clean; targeted `npx vitest run` on all 3 (52 tests) green;
+      `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+      skipped. 50 → **47 files remain** on the allowlist. code-reviewer
+      APPROVE, no findings. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

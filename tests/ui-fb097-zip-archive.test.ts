@@ -52,9 +52,12 @@ describe('fb097: buildStoreZip / crc32', () => {
     const decoded = readStoreZip(await toUint8Array(zip));
 
     expect(decoded).toHaveLength(1);
-    expect(decoded[0].name).toBe('frame-000.png');
-    expect(Array.from(decoded[0].data)).toEqual(Array.from(entries[0].data));
-    expect(decoded[0].crc).toBe(crc32(entries[0].data));
+    const [decodedEntry] = decoded;
+    const [sourceEntry] = entries;
+    if (!decodedEntry || !sourceEntry) throw new Error('expected one round-tripped entry');
+    expect(decodedEntry.name).toBe('frame-000.png');
+    expect(Array.from(decodedEntry.data)).toEqual(Array.from(sourceEntry.data));
+    expect(decodedEntry.crc).toBe(crc32(sourceEntry.data));
   });
 
   it('round-trips multiple entries in order, each with a correct CRC', async () => {
@@ -68,8 +71,11 @@ describe('fb097: buildStoreZip / crc32', () => {
 
     expect(decoded.map((d) => d.name)).toEqual(entries.map((e) => e.name));
     for (let i = 0; i < entries.length; i++) {
-      expect(Array.from(decoded[i].data)).toEqual(Array.from(entries[i].data));
-      expect(decoded[i].crc).toBe(crc32(entries[i].data));
+      const decodedEntry = decoded[i];
+      const sourceEntry = entries[i];
+      if (!decodedEntry || !sourceEntry) throw new Error(`expected entry ${i}`);
+      expect(Array.from(decodedEntry.data)).toEqual(Array.from(sourceEntry.data));
+      expect(decodedEntry.crc).toBe(crc32(sourceEntry.data));
     }
   });
 

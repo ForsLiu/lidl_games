@@ -5,7 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 56 → 50.**
+- **2026-09-21 (scheduled routine, later) — fb133 ratchet shrunk 50 → 47.**
+  Fixed 3 more files with real guards (never `!`), none touching `/src`/
+  `/data`: `tests/f003-leak-coupling.test.ts` (a new `spawnCost(w, key)`
+  helper that throws on a missing director-cost key, replacing 6 unguarded
+  `w.content.spawns.costs.<key>` reads — `costs` is `z.record(num)`, a
+  genuinely partial map); `tests/fb022-info-surfacing.test.ts` (destructured/
+  guarded `querySelectorAll` array entries, `upgrade.steps![0]`, and
+  `modLines(...)[0]` reads with throw-guards); `tests/ui-fb097-zip-
+  archive.test.ts` (guarded `decoded[i]`/`entries[i]` reads in the ZIP
+  round-trip loop, unreachable in practice since the preceding
+  `.toEqual(...names...)` already proves equal length/order). Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+  3; main `npx tsc --noEmit` clean; targeted `npx vitest run` on all 3 (52
+  tests) green; `npm run test:fast` unchanged at 315 files / 4548 passed /
+  35 skipped. 50 → **47 files remain** on the allowlist, confirmed exactly
+  by the ratchet test run standalone. Light tier (`[polish]`, no `/src`/
+  `/data` touched) — code-reviewer APPROVE, no findings; no qa-playtester
+  dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 56 → 50.**
   Fixed 7 more files with real guards (never `!`), none touching `/src`/
   `/data`: `tests/p6e-class-diversity.test.ts` and `tests/class-kit-
   fingerprint.test.ts` (the shared `vectors[i]`/`vectors[j]` pairwise-loop

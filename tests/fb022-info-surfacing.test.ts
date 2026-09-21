@@ -226,15 +226,19 @@ describe('fb022 Surface 2: Core screen + in-run Core tooltip show TD/VS effect a
     // (mirroring fb058's always-4 class-skill entries), so "VS effect" as a
     // LABEL is expected even for a Core with no VS-only field — the
     // meaningful check is that its TIP carries no real effect, unlike TD's.
-    const tdTip = entries[0].querySelector('.sw-cs-tip')!.textContent ?? '';
-    const vsTip = entries[1].querySelector('.sw-cs-tip')!.textContent ?? '';
+    const [entry0, entry1, entry2] = entries;
+    if (!entry0 || !entry1 || !entry2) throw new Error('expected at least 3 .sw-cs-skill entries');
+    const tdTip = entry0.querySelector('.sw-cs-tip')!.textContent ?? '';
+    const vsTip = entry1.querySelector('.sw-cs-tip')!.textContent ?? '';
     expect(tdTip).toContain('No effect'); // Stone Heart's base `effects` is empty; its only mechanic is the HP-bonus step below
     expect(vsTip).toContain('No effect');
-    const step1Tip = entries[2].querySelector('.sw-cs-tip')!.textContent ?? '';
+    const step1Tip = entry2.querySelector('.sw-cs-tip')!.textContent ?? '';
     expect(step1Tip).toContain('TD effect');
     expect(step1Tip).not.toContain('VS effect'); // the step itself has no VS-only field
-    expect(step1Tip).toContain(String(stoneHeart.upgrade.steps![0].coreHpBonus));
-    expect(entries[2].querySelector('.sw-cs-label')!.textContent).toContain(`${stoneHeart.upgrade.stepCost}g`);
+    const stoneHeartStep0 = stoneHeart.upgrade.steps![0];
+    if (!stoneHeartStep0) throw new Error('stone_heart has no upgrade step 0');
+    expect(step1Tip).toContain(String(stoneHeartStep0.coreHpBonus));
+    expect(entry2.querySelector('.sw-cs-label')!.textContent).toContain(`${stoneHeart.upgrade.stepCost}g`);
   });
 
   it('coreDetailMarkup groups Carnivorous Plant into both a TD (devour) and a VS (poison volley) list', () => {
@@ -447,9 +451,11 @@ describe('fb022: changing a /data value changes the displayed text with no code 
   it('mutating a synthetic Core fixture\'s upgrade step changes coreDetailMarkup\'s output', () => {
     const fixture = JSON.parse(JSON.stringify(content.cores.cores.find((c) => c.key === 'stone_heart'))) as (typeof content.cores.cores)[number];
     const before = coreDetailMarkup(fixture);
-    expect(before).toContain(String(fixture.upgrade.steps![0].coreHpBonus));
+    const fixtureStep0 = fixture.upgrade.steps![0];
+    if (!fixtureStep0) throw new Error('stone_heart fixture has no upgrade step 0');
+    expect(before).toContain(String(fixtureStep0.coreHpBonus));
 
-    fixture.upgrade.steps![0].coreHpBonus = 777;
+    fixtureStep0.coreHpBonus = 777;
     const after = coreDetailMarkup(fixture);
     expect(after).toContain('777');
     expect(after).not.toBe(before);
@@ -491,8 +497,11 @@ describe('b054: a sub-1% mod magnitude renders with enough precision to stay non
   });
 
   it('a magnitude at/above 1% still renders at the original 1-decimal precision', () => {
-    expect(modLines({ leech: 0.03 })[0].text).toBe('+3% Leech');
-    expect(modLines({ leech: 0.015 })[0].text).toBe('+1.5% Leech');
+    const line3pct = modLines({ leech: 0.03 })[0];
+    const line1_5pct = modLines({ leech: 0.015 })[0];
+    if (!line3pct || !line1_5pct) throw new Error('expected a leech mod line');
+    expect(line3pct.text).toBe('+3% Leech');
+    expect(line1_5pct.text).toBe('+1.5% Leech');
   });
 });
 
