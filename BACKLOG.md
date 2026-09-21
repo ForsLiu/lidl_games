@@ -6378,6 +6378,24 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       as a harmless out-of-scope simplification). Light tier (`[polish]`,
       no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/terrain-four-gates.test.ts` with real guards (never
+      `!`) — a local `nth<T>` throw-guard helper matching the established
+      indexable-shape convention, replacing two `const [west, north,
+      east, south] = jitterGates(seed)`/`= gates` destructures
+      (`jitterGates` returns a plain `GateDef[]`, guaranteed 4 entries at
+      runtime but not typed as a tuple), two `gates[a]`/`gates[b]`
+      pairwise-loop reads (hoisted into local `ga`/`gb` consts), and
+      `measures[i]` in a bounded `for` loop (hoisted into a local
+      `measure` const). Does not touch `/src/sim` or `/data`. Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags the
+      file, no new offenders (13 → 12, exact match via the ratchet
+      test); main `npx tsc --noEmit` clean; targeted `npx vitest run` on
+      the file plus the ratchet test itself green (16 tests); `npm run
+      test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped. code-reviewer APPROVE, no findings. Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

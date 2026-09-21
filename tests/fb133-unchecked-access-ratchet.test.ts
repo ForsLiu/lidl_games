@@ -53,7 +53,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/p2c-vs-specials.test.ts',
   'tests/p6b-swordsman.test.ts',
   'tests/p6c-plaguebringer.test.ts',
-  'tests/terrain-four-gates.test.ts',
   'tests/terrain-grid.test.ts',
 ];
 
