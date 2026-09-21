@@ -46,6 +46,12 @@ import {
 import type { TerrainGrid } from '../src/sim/terrain/types';
 
 const cfg = loadTerrain();
+
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
 const SEEDS = 100;
 
 function applied(map: TerrainGrid): Grid {
@@ -128,7 +134,7 @@ describe('validateCorePlacement (fb064h)', () => {
 
     // Near a gate: one tile outside the clearance ring is legal, one inside is
     // not, so this pins the boundary rather than "somewhere near the gate".
-    const gate = GATES[1];
+    const gate = nth(GATES, 1);
     expect(gateDistance(gate.tx, gate.ty + cfg.coreGateClearance)).toBe(cfg.coreGateClearance);
     expect(validateCorePlacement(map, cfg, gate.tx, gate.ty + cfg.coreGateClearance, reach)).toEqual(
       { ok: false, reason: 'near-gate' },
@@ -166,7 +172,7 @@ describe('validateCorePlacement (fb064h)', () => {
     const map = generateTerrain(7, cfg);
     const anchors = legalCoreAnchors(map, cfg);
     expect(anchors.length).toBeGreaterThan(0);
-    const anchor = anchors[0];
+    const anchor = nth(anchors, 0);
     expect(validateCorePlacement(map, cfg, anchor % GRID_W, (anchor / GRID_W) | 0).ok).toBe(true);
   });
 
@@ -196,7 +202,7 @@ describe('validateCorePlacement (fb064h)', () => {
     // `not-normal`: "that is a mountain" is the actionable half. Every other
     // fixture in this file breaks exactly one rule, so without this the
     // documented precedence holds by accident — swapping the two loops passes.
-    const gate = GATES[1];
+    const gate = nth(GATES, 1);
     const map = flatMap();
     const tx = gate.tx;
     const ty = gate.ty + 1;
@@ -405,7 +411,7 @@ describe('Grid.placeCore (fb064h)', () => {
     expect(g.distAt(CORE_X, CORE_Y)).toBeGreaterThan(0);
     for (const gate of GATES) {
       const path = g.gatePath(gate);
-      const last = path[path.length - 1];
+      const last = nth(path, path.length - 1);
       expect(g.tile[g.idx(last.tx, last.ty)]).toBe(TileType.Core);
     }
   });
@@ -429,7 +435,8 @@ describe('Grid.placeCore (fb064h)', () => {
     // and the gate rule is pinned on an interior gate as well — which is not
     // hypothetical, since `world.ts`'s Fourth Gate modifier writes a gate tile
     // into `grid.tile` at run construction.
-    expect(() => g.placeCore(GATES[1].tx, GATES[1].ty)).toThrow(/spawn gate|map border/);
+    const gate1 = nth(GATES, 1);
+    expect(() => g.placeCore(gate1.tx, gate1.ty)).toThrow(/spawn gate|map border/);
     const h = new Grid();
     h.tile[h.idx(10, 10)] = TileType.Gate;
     expect(() => h.placeCore(9, 9)).toThrow(/spawn gate/);
@@ -627,7 +634,7 @@ describe('a legal anchor is legal in the sim, not just in the analyzer (fb064h)'
       expect(g.allGatesReachable(), `seed ${seed}`).toBe(true);
       for (const gate of GATES) {
         const path = g.gatePath(gate);
-        const last = path[path.length - 1];
+        const last = nth(path, path.length - 1);
         expect(g.tile[g.idx(last.tx, last.ty)], `seed ${seed} gate ${gate.key}`).toBe(TileType.Core);
         // Reached on foot: no tile of the route is a breach through a structure.
         for (const step of path) expect(step.breach, `seed ${seed} gate ${gate.key}`).toBe(false);
@@ -644,10 +651,11 @@ describe('a legal anchor is legal in the sim, not just in the analyzer (fb064h)'
       // placement rebuilds two flow fields, which would push this file past the
       // fast tier's budget for no extra coverage of the invariant.
       for (let k = 0; k < anchors.length; k += 17) {
+        const anchor = nth(anchors, k);
         const g = applied(map);
-        g.placeCore(anchors[k] % GRID_W, (anchors[k] / GRID_W) | 0);
+        g.placeCore(anchor % GRID_W, (anchor / GRID_W) | 0);
         g.refresh();
-        expect(g.allGatesReachable(), `seed ${seed} anchor ${anchors[k]}`).toBe(true);
+        expect(g.allGatesReachable(), `seed ${seed} anchor ${anchor}`).toBe(true);
       }
     }
   });

@@ -6198,6 +6198,42 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Major/Minor findings. Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-21**: fixed 6 more files with real
+      guards (never `!`), none touching `/src/sim` or `/data`:
+      `tests/terrain-character.test.ts` (a generic `nth<T>` throw-guard
+      helper — widened to accept `Uint8Array` via an indexable-shape
+      constraint, not just `T[]`, since `TerrainMap.kind` is a typed
+      array — replacing every `cfg.tiles[...]`/`tilesOf(doc)[...]`/
+      `parsed.tiles[...]`/`map.kind[...]`/`GATES[0]` unguarded read; the
+      off-board coordinate array literal typed explicitly as
+      `Array<[number, number]>` instead of destructuring an inferred
+      `number[][]`), `tools/status.ts` (explicit `undefined` checks on
+      regex capture groups in `parseHandoffGateTable` and
+      `pendingQuestions`, and on `lines[i]`/`doc.lines[i]` reads across
+      `bulletFor`'s backlog-bullet walk), `tools/ui-audit.ts` (`?? 0`
+      defaults on three already-clamped `png.data[idx+N]` pixel-channel
+      reads, a `nth<T>` helper for the `items[i]`/`items[j]` and
+      `entries[i]`/`entries[j]` pairwise-loop reads, an explicit
+      not-found guard on `call()`'s `api[method]` lookup before invoking
+      it), `tests/grid.test.ts` and `tests/terrain-core-placement.test.ts`
+      (a `nth<T>` helper replacing every `GATES[0]`/`GATES[1]`/
+      `path[i]`/`path[path.length-1]`/`anchors[k]` unguarded read, each
+      already proven in range by a preceding length/loop-bound check or
+      the gate list's own fixed size), `tests/p2a-vs-wielding.test.ts`
+      (replaced three `const [a, b, ...] = tiles(w, n)` array-destructure
+      reads, each relying on `tiles()`'s own throw-if-short guarantee that
+      TS can't see, with `nth<T>` calls against the same returned array).
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags any of the 6, no new offenders (29 → 23, exact match via the
+      ratchet test); main `npx tsc --noEmit` clean; targeted `npx vitest
+      run` on all 6 files plus the ratchet test itself green; `npm run
+      test:fast` unchanged at 315 files / 4548 passed / 35 skipped.
+      Folded in two ratchet commits (35 → 32 → 29) that a prior session
+      had already pushed to `claude/dreamy-hopper-tguxo9` but never
+      merged, via a clean merge (identical base content, no conflicts),
+      rather than re-doing that work. Light tier (`[polish]`, no
+      `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
