@@ -6140,6 +6140,64 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major/Minor findings. Light tier (`[polish]`, no `/src`/
       `/data` touched) — no qa-playtester dispatch. — refs: BACKLOG-
       TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine)**: fixed 3
+      more files with real guards (never `!`) — `tests/ui-fb149-falloff-
+      wording.test.ts` (a local `nth<T>(arr, i)` throw-guard helper
+      replacing every unguarded `dealt[...]`/`struck[...]` indexed read
+      across the falloff-measurement suite, each index already proven in
+      range by a preceding `.toHaveLength`/loop-bound check), `tests/
+      equip-spec-numbers.test.ts` (throw-guards on regex capture groups —
+      `m?.[1]` plus an explicit `undefined` check — in the §7 spec-table
+      parser and the `fromQuote` inverse-scaling block, an `at(i)` cell-
+      accessor helper for the already-length-checked 8-cell table row
+      parse, `?? ''` on a `q.split(' ')[0]` that can never actually be
+      `undefined` since `split` always returns a non-empty array),
+      `tests/meta.test.ts` (a local `firstLink(node)` throw-guard helper
+      replacing every `content.treeById.get(0)!.links[0]` unguarded
+      index across the Constellation test block). Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the 3,
+      no new offenders; main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on the 3 files plus the ratchet test itself (173
+      tests) green; `npm run test:fast` unchanged at 315 files / 4548
+      passed / 35 skipped. 35 → **32 files remain** on the allowlist.
+      code-reviewer APPROVE, no Critical/Major/Minor findings. Light
+      tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, 2nd round)**:
+      fixed 3 more files with real guards (never `!`) — `tests/terrain-
+      variety.test.ts` (a throw-guard on `values[0]` in the `stats()`
+      helper, seeding the running min/max instead of repeating the
+      unguarded read; a local `nth<T>(arr, i)` throw-guard helper
+      replacing every `maps[i]`/`maps[j]` indexed read in the pairwise
+      diff-share double loop), `tests/class-active1-potency.test.ts` (a
+      `firstEnemyKey()` helper matching the pattern already used in
+      several sibling test files, replacing an unsafe `content.enemies
+      .enemies[0].key` read; a throw-guard on `potencyCard()`'s `own[0]`
+      return value; a local `nth<T>(arr, i)` helper replacing every
+      unguarded `readings[...]`/`cost[...]`/`dmg[...]`/`plain[...]`/
+      `added[0]`/`e.dots[0]`/`before[i]` indexed read across the file's
+      damage-ladder assertions), `tests/equip-spec-ledger.ts` (the
+      shared spec-ledger parsing module several other test files import,
+      not a test file itself: a throw-guard on `src[i]` in
+      `blankNonCode()`'s char scan, a `lineAt(j)` throw-guard closure
+      replacing unguarded `ls[j]` reads throughout `blockBodyIn()`, a
+      throw-guard on `hits[0]` before destructuring it, explicit
+      undefined-checks on 5 regex capture groups in the `KILLS` table
+      entry parser — none of these throw paths are reachable given the
+      existing loop bounds/length checks, so parsing behavior is
+      unchanged). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
+      no longer flags any of the 3, no new offenders; main `npx tsc
+      --noEmit` clean; targeted `npx vitest run` on the 3 files' own
+      tests plus every test file importing `equip-spec-ledger.ts`
+      (`tests/class-spec-numbers.test.ts`, `tests/equip-hasequipment-
+      roster.test.ts`, `tests/equip-spec-ledger.test.ts`, `tests/equip-
+      spec-numbers.test.ts`, `tests/fb168-ui-audit-dev-server.test.ts`)
+      plus the ratchet test itself (262 tests) green; `npm run test:fast`
+      unchanged at 315 files / 4548 passed / 35 skipped. 32 → **29 files
+      remain** on the allowlist. code-reviewer APPROVE, no Critical/
+      Major/Minor findings. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

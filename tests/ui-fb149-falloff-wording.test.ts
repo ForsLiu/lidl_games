@@ -38,6 +38,12 @@ function idle(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
 const FULL_HP = 1e7;
 
 function pin(w: World, x: number, y: number) {
@@ -97,12 +103,12 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
     for (const d of dealt) expect(d).toBeGreaterThan(0);
     // Strictly decreasing from the first, which is what "every enemy for N"
     // could not say honestly.
-    for (let i = 1; i < dealt.length; i++) expect(dealt[i]).toBeLessThan(dealt[i - 1]);
+    for (let i = 1; i < dealt.length; i++) expect(nth(dealt, i)).toBeLessThan(nth(dealt, i - 1));
     // Derived from the tuning rather than hardcoded: a `pierceFalloff` retune
     // must not redden a wording test for a reason that has nothing to do with
     // the wording.
     const { pierceFalloff, pierceFalloffFloor } = content.towers;
-    expect(dealt[4] / dealt[0]).toBeCloseTo(Math.max(pierceFalloffFloor, pierceFalloff ** 4), 6);
+    expect(nth(dealt, 4) / nth(dealt, 0)).toBeCloseTo(Math.max(pierceFalloffFloor, pierceFalloff ** 4), 6);
   });
 
   it('a line decays the same way for charge_pierce, once it pierces far enough', () => {
@@ -123,7 +129,7 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
 
     const struck = enemies.map((e) => FULL_HP - e.hp).filter((d) => d > 0);
     expect(struck.length).toBeGreaterThan(1);
-    for (let i = 1; i < struck.length; i++) expect(struck[i]).toBeLessThan(struck[i - 1]);
+    for (let i = 1; i < struck.length; i++) expect(nth(struck, i)).toBeLessThan(nth(struck, i - 1));
   });
 
   it('a blast pays aoeFullTargets in full first, then decays — charge_nova', () => {
@@ -145,9 +151,9 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
     const dealt = enemies.map((e) => FULL_HP - e.hp);
     for (const d of dealt) expect(d).toBeGreaterThan(0);
     // The first `full` all take the same amount...
-    for (let i = 1; i < full; i++) expect(dealt[i]).toBeCloseTo(dealt[0], 6);
+    for (let i = 1; i < full; i++) expect(nth(dealt, i)).toBeCloseTo(nth(dealt, 0), 6);
     // ...and everything past them takes less than that.
-    for (let i = full; i < dealt.length; i++) expect(dealt[i]).toBeLessThan(dealt[0]);
+    for (let i = full; i < dealt.length; i++) expect(nth(dealt, i)).toBeLessThan(nth(dealt, 0));
   });
 
   it('a blast decays the same way for judgement, once there is Wrath to release', () => {
@@ -163,8 +169,8 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
     applyCommand(w, { k: 'class_active2', aimX: w.warden.x + 100, aimY: w.warden.y });
     const dealt = enemies.map((e) => FULL_HP - e.hp);
     for (const d of dealt) expect(d).toBeGreaterThan(0);
-    for (let i = 1; i < full; i++) expect(dealt[i]).toBeCloseTo(dealt[0], 6);
-    for (let i = full; i < dealt.length; i++) expect(dealt[i]).toBeLessThan(dealt[0]);
+    for (let i = 1; i < full; i++) expect(nth(dealt, i)).toBeCloseTo(nth(dealt, 0), 6);
+    for (let i = full; i < dealt.length; i++) expect(nth(dealt, i)).toBeLessThan(nth(dealt, 0));
   });
 
   it.each([
@@ -218,8 +224,8 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
 
     const dealt = enemies.map((e) => FULL_HP - e.hp + e.dots.reduce((n, d) => n + d.dps, 0));
     for (const d of dealt) expect(d).toBeGreaterThan(0);
-    for (let i = 1; i < full; i++) expect(dealt[i]).toBeCloseTo(dealt[0], 4);
-    for (let i = full; i < dealt.length; i++) expect(dealt[i]).toBeLessThan(dealt[0]);
+    for (let i = 1; i < full; i++) expect(nth(dealt, i)).toBeCloseTo(nth(dealt, 0), 4);
+    for (let i = full; i < dealt.length; i++) expect(nth(dealt, i)).toBeLessThan(nth(dealt, 0));
   });
 
   it('burst_damage and frost_nova really do pay every target in full — the control', () => {
@@ -229,7 +235,7 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
     for (const classKey of ['pyromancer', 'cryomancer']) {
       const dealt = damagePerTarget(classKey, 'class_active', inRings(content.towers.aoeFullTargets + 4));
       for (const d of dealt) expect(d).toBeGreaterThan(0);
-      for (const d of dealt) expect(d).toBeCloseTo(dealt[0], 6);
+      for (const d of dealt) expect(d).toBeCloseTo(nth(dealt, 0), 6);
     }
   });
 });
@@ -311,10 +317,10 @@ describe('fb149: the clauses themselves, and the case that made one of them fals
 
     // The nearest is NOT the best off, and the profile is not monotonic — the
     // two properties a single-blast clause would assert.
-    expect(dealt[0]).toBeLessThan(Math.max(...dealt));
-    expect(dealt.some((d, i) => i > 0 && d > dealt[i - 1])).toBe(true);
+    expect(nth(dealt, 0)).toBeLessThan(Math.max(...dealt));
+    expect(dealt.some((d, i) => i > 0 && d > nth(dealt, i - 1))).toBe(true);
     // And overlap really does stack: someone takes more than one patch's worth.
-    expect(Math.max(...dealt)).toBeGreaterThan(dealt[0] * 1.5);
+    expect(Math.max(...dealt)).toBeGreaterThan(nth(dealt, 0) * 1.5);
   });
 
   it('each clause says what it claims to say, pinned to its own words', () => {

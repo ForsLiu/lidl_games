@@ -125,7 +125,21 @@ type Ranks = Record<string, number>;
 function potencyCard(classKey: string): SkillCardDef {
   const own = (content.boons.skillCards[classKey] ?? []).filter((c) => c.effect === 'active1_potency');
   expect(own.length, `${classKey} should author exactly one active1_potency card`).toBe(1);
-  return own[0];
+  const card = own[0];
+  if (card === undefined) throw new Error(`unreachable: ${classKey} has no active1_potency card`);
+  return card;
+}
+
+function firstEnemyKey(): string {
+  const def = content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
 }
 
 /**
@@ -154,7 +168,7 @@ function idle(over: Partial<TickInput> = {}): TickInput {
  * and small deltas quantise away).
  */
 function dummy(w: World, x: number, y: number, hp = 1e7): Enemy {
-  const e = spawnEnemy(w, content.enemies.enemies[0].key, x, y)!;
+  const e = spawnEnemy(w, firstEnemyKey(), x, y)!;
   e.hp = hp;
   e.maxHp = Math.max(hp, e.maxHp);
   e.speed = 0;
@@ -400,20 +414,20 @@ describe('c021 — each class card moves its own Active1, by exactly its authore
     }`, () => {
       const readings = [0, 1, 2].map((n) => c.read(potencyWorld(c.classKey, n === 0 ? {} : { [card.key]: n })));
       expect(
-        readings[0],
-        `harness: ${c.classKey}'s rank-0 control read ${readings[0]} — nothing to scale`,
+        nth(readings, 0),
+        `harness: ${c.classKey}'s rank-0 control read ${nth(readings, 0)} — nothing to scale`,
       ).toBeGreaterThan(0);
 
       if (c.deviation) {
         // The deviation is measured, not skipped: the card is asserted *flat*,
         // so wiring it up later reddens this row and forces the decision to be
         // made again on purpose.
-        expect(readings[1], `${card.key} rank 1 moved ${c.what} — the deviation is stale: ${c.deviation}`).toBeCloseTo(
-          readings[0],
+        expect(nth(readings, 1), `${card.key} rank 1 moved ${c.what} — the deviation is stale: ${c.deviation}`).toBeCloseTo(
+          nth(readings, 0),
           6,
         );
-        expect(readings[2], `${card.key} rank 2 moved ${c.what} — the deviation is stale: ${c.deviation}`).toBeCloseTo(
-          readings[0],
+        expect(nth(readings, 2), `${card.key} rank 2 moved ${c.what} — the deviation is stale: ${c.deviation}`).toBeCloseTo(
+          nth(readings, 0),
           6,
         );
         return;
@@ -423,13 +437,13 @@ describe('c021 — each class card moves its own Active1, by exactly its authore
         // The exact ratio, not "bigger": an implementation that applies the
         // card once and ignores the rank passes a `toBeGreaterThan` ladder.
         const ratio = c.ratioFor ? c.ratioFor(n, card.perRank) : 1 + card.perRank * n;
-        expect(readings[n], `${card.key} rank ${n}: ${c.what} was ${readings.join(' -> ')}`).toBeCloseTo(
-          readings[0] * ratio,
+        expect(nth(readings, n), `${card.key} rank ${n}: ${c.what} was ${readings.join(' -> ')}`).toBeCloseTo(
+          nth(readings, 0) * ratio,
           6,
         );
       }
-      expect(readings[1]).toBeGreaterThan(readings[0]);
-      expect(readings[2]).toBeGreaterThan(readings[1]);
+      expect(nth(readings, 1)).toBeGreaterThan(nth(readings, 0));
+      expect(nth(readings, 2)).toBeGreaterThan(nth(readings, 1));
     });
 
     it(`${c.classKey} ${card.key}: every other class's potency card at max rank changes nothing`, () => {
@@ -457,8 +471,8 @@ describe('c021 — correction: Blood Tithe scales its payout, and only its payou
       castActive1(w);
       return before - s.hp;
     });
-    expect(cost[0], 'harness: Blood Tithe took no HP at all').toBeGreaterThan(0);
-    expect(cost[1], 'the tithe cost now scales with the card').toBeCloseTo(cost[0], 6);
+    expect(nth(cost, 0), 'harness: Blood Tithe took no HP at all').toBeGreaterThan(0);
+    expect(nth(cost, 1), 'the tithe cost now scales with the card').toBeCloseTo(nth(cost, 0), 6);
   });
 
   it('the damage payout does scale, through towers.ts — the row the first draft missed entirely', () => {
@@ -475,12 +489,12 @@ describe('c021 — correction: Blood Tithe scales its payout, and only its payou
       return towerDamage(w, s, 100);
     });
     for (const n of [1, 2]) {
-      expect(dmg[n], `rank ${n} tithed tower damage: ${dmg.join(' -> ')}`).toBeCloseTo(
-        dmg[0] * ((1 + t * (1 + card.perRank * n)) / (1 + t)),
+      expect(nth(dmg, n), `rank ${n} tithed tower damage: ${dmg.join(' -> ')}`).toBeCloseTo(
+        nth(dmg, 0) * ((1 + t * (1 + card.perRank * n)) / (1 + t)),
         6,
       );
     }
-    expect(dmg[2]).toBeGreaterThan(dmg[1]);
+    expect(nth(dmg, 2)).toBeGreaterThan(nth(dmg, 1));
   });
 
   it('an untithed tower is untouched by the card, so the ladder is the tithe and not the tower', () => {
@@ -490,9 +504,9 @@ describe('c021 — correction: Blood Tithe scales its payout, and only its payou
       const w = potencyWorld('bloodlord', n === 0 ? {} : { [card.key]: n });
       return towerDamage(w, tower(w), 100);
     });
-    expect(plain[0], 'harness: the untithed control read nothing, so it controls for nothing').toBeGreaterThan(0);
-    expect(plain[1], 'the card moved an untithed tower — it is not the tithe being measured').toBeCloseTo(
-      plain[0],
+    expect(nth(plain, 0), 'harness: the untithed control read nothing, so it controls for nothing').toBeGreaterThan(0);
+    expect(nth(plain, 1), 'the card moved an untithed tower — it is not the tithe being measured').toBeCloseTo(
+      nth(plain, 0),
       6,
     );
   });
@@ -560,7 +574,7 @@ describe('c021 — named deviation 2: Time scales two of its four stages, and on
   function addedDot(ranks: Ranks, casts: number): number {
     const { added } = stageDots(ranks, casts);
     expect(added.length, `cast ${casts} appended ${added.length} DoT stacks, not one`).toBe(1);
-    return added[0];
+    return nth(added, 0);
   }
 
   it('the two authored dps figures are ordered as the harness assumed — pinned, since a retune flips it', () => {
@@ -700,7 +714,7 @@ describe('c021 — the card moves its named magnitude and nothing else', () => {
       read: (w) => {
         const e = dummy(w, WX + 1, WY);
         castActive1(w);
-        return e.dots[0].remaining;
+        return nth(e.dots, 0).remaining;
       },
     },
   ];
@@ -735,14 +749,14 @@ describe('c021 — the card moves its named magnitude and nothing else', () => {
       expect(useClassActive(w, WX + spacing, WY), 'harness: Chain Surge did not fire').toBe(true);
       // Every link that took damage, summed — so a card that reaches only the
       // first jump reads strictly lower than one that reaches all of them.
-      return line.reduce((sum, e, i) => sum + (before[i] - e.hp), 0);
+      return line.reduce((sum, e, i) => sum + (nth(before, i) - e.hp), 0);
     };
     const hit = (ranks: Ranks): number => {
       const w = potencyWorld('stormcaller', ranks);
       const line = [1, 2, 3].map((i) => dummy(w, WX + i * spacing, WY));
       const before = line.map((e) => e.hp);
       useClassActive(w, WX + spacing, WY);
-      return line.filter((e, i) => before[i] - e.hp > 0).length;
+      return line.filter((e, i) => nth(before, i) - e.hp > 0).length;
     };
     expect(hit({}), 'harness: the chain reached fewer than two links, so jumps are untested').toBeGreaterThan(1);
 
