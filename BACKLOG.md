@@ -6403,42 +6403,73 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       Critical/Major findings. Light tier (`[polish]`, no `/src`/`/data`
       touched) — no qa-playtester dispatch. **12 files remain** on the
       allowlist. — refs: BACKLOG-TERRAIN.md fb064t Log.
-    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
-      fixed `tests/terrain-generation.test.ts` (27 errors, the most varied
-      shape yet in this ratchet) with real guards (never `!`) —
-      `reachableFromGate`'s raw `cfg.tiles[map.kind[idx]].walkable` reads
-      switched to the already-exported `isWalkable(cfg, kind)` (`src/sim/
-      terrain/config.ts`, already null-safe via its own optional-chain)
-      combined with `map.kind[idx] ?? -1`, matching the `-1`-is-"no-such-
-      tile" convention `src/sim/terrain/path.ts` already established; a
-      `queue[head]` read guarded by the `head < queue.length` loop bound;
-      four `for (const [dx, dy] of [[1,0],...])`/`[x, y]` coordinate-pair
-      literals given `as const` so TS infers real tuples instead of
-      `number[]`, eliminating their undefined at the root rather than
-      guarding it; a new `tileAt(raw, kind)` helper replacing four
-      `(raw.tiles as Record<string, unknown>[])[TerrainKind.X].flag = ...`
-      mutations, proven safe by the schema's TERRAIN_KEYS.length pin; a
-      `k = m.kind[i]`/`m = maps[k]` pair of throw-guards proven safe by
-      their respective loop bounds; three `GATES[0]`/`GATES[1]` fixed-index
-      reads guarded by explicit throws (code-reviewer independently
-      confirmed `GATES` is a hardcoded 4-entry literal in `src/sim/grid.ts`,
-      so both indices are unconditionally safe). Does not touch `/src/sim`
-      or `/data` (only imports the pre-existing `isWalkable`, does not
-      modify it). Verified: `npx tsc --noEmit -p tsconfig.unchecked.json`
-      no longer flags the file, no new offenders (12 → 11, exact match via
-      the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
-      vitest run` on the file plus the ratchet test itself green (43
-      tests); `npm run test:fast` unchanged at 315 files / 4548 passed /
-      35 skipped; `npm run sim -- --seed 1 --policy hybrid` endHash
-      unchanged (`d6452f98`). code-reviewer APPROVE, no Critical/Major
-      findings (one Minor: the `isWalkable`/`?? -1` swap is behavior-
-      equivalent for every realizable input but not literally identical on
-      a genuinely-out-of-range index — inherent to the pre-existing `path.ts`
-      pattern being reused, not new risk; one Nit: `tileAt`'s `if (!tile)`
-      vs. the batch's `=== undefined` style elsewhere, cosmetic). Light tier
-      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
-      **11 files remain** on the allowlist. — refs: BACKLOG-TERRAIN.md
+    - **Integrator merge note (2026-09-21)**: `claude/dreamy-hopper-j9bpc9`
+      (PR #139, the three entries above, 15 → 12) and `claude/dreamy-hopper-
+      ii51en` (PR #138, the two entries below, 15 → 12) both branched from
+      the same 15-file baseline and each independently fixed
+      `tests/terrain-generation.test.ts` — j9bpc9 with a `tileAt`/
+      `isWalkable`-based guard, ii51en with the `nth<T>` helper already used
+      elsewhere in that file. Reconciled on merge by keeping ii51en's
+      `nth`-based fix (consistent with the rest of the file, which already
+      used `nth` before either branch touched it) and dropping j9bpc9's
+      `tileAt`/`isWalkable` attempt entirely, including its now-stale
+      `tileAt` helper and `isWalkable` import. The two branches' fixes were
+      otherwise disjoint (`class-active2-cdr.test.ts`, `p6b-swordsman.
+      test.ts`, `p6c-plaguebringer.test.ts` from j9bpc9; `terrain-generation.
+      test.ts`, `terrain-gate-open.test.ts`, `terrain-four-gates.test.ts`
+      from ii51en — 6 distinct files total), so the merged ratchet sits at
+      **9 files remaining** (15 − 6), matching `tests/fb133-unchecked-
+      access-ratchet.test.ts`'s post-merge `KNOWN_UNCHECKED_ACCESS_FILES`.
+      Re-verify with `npm run test:fast` before treating this count as
+      ground truth for the next ratchet item. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/terrain-generation.test.ts` and `tests/terrain-gate-
+      open.test.ts` with real guards (never `!`) — a local `nth<T>`
+      indexable-shape throw-guard helper (matching `tests/terrain-
+      character.test.ts`'s convention) replacing unguarded
+      `cfg.tiles[map.kind[...]]` reads in `reachableFromGate`,
+      `queue[head]`, four `(raw.tiles as Record<string, unknown>[])
+      [TerrainKind.*]` fixture-mutation sites, `m.kind[i]` in the
+      border-sweep hot loop, `maps[k]`, and `GATES[0]`/`GATES[1]`; a new
+      `atKey<T>` helper for a string-keyed `Record<string, Uint8Array>`
+      read; three `[dx, dy]`/`[x, y]` direction-pair array literals
+      retyped `ReadonlyArray<[number, number]>` so tuple destructuring
+      type-checks under the flag (one deduped into a shared
+      `NEIGHBOR_DIRS` const reused by two identical inline literals);
+      and, in terrain-gate-open.test.ts, guarding the single `SOUTH =
+      MODIFIER_GATES[0]` declaration whose type flowed downstream into
+      every other error in that file. Neither file touches `/src/sim` or
+      `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags either file, no new offenders (15 → 13, exact match
+      via the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on both files plus the ratchet test itself green (52
+      tests); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. code-reviewer APPROVE (one Minor: `atKey`'s
+      param retyped `Readonly<Record<string, T>>` to match the
+      established convention, fixed before commit; two Nits left as-is —
+      a nested-`nth` readability nit and the `NEIGHBOR_DIRS` dedup noted
+      as a harmless out-of-scope simplification). Light tier (`[polish]`,
+      no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/terrain-four-gates.test.ts` with real guards (never
+      `!`) — a local `nth<T>` throw-guard helper matching the established
+      indexable-shape convention, replacing two `const [west, north,
+      east, south] = jitterGates(seed)`/`= gates` destructures
+      (`jitterGates` returns a plain `GateDef[]`, guaranteed 4 entries at
+      runtime but not typed as a tuple), two `gates[a]`/`gates[b]`
+      pairwise-loop reads (hoisted into local `ga`/`gb` consts), and
+      `measures[i]` in a bounded `for` loop (hoisted into a local
+      `measure` const). Does not touch `/src/sim` or `/data`. Verified:
+      `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags the
+      file, no new offenders (13 → 12, exact match via the ratchet
+      test); main `npx tsc --noEmit` clean; targeted `npx vitest run` on
+      the file plus the ratchet test itself green (16 tests); `npm run
+      test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped. code-reviewer APPROVE, no findings. Light tier
+      (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+      dispatch. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

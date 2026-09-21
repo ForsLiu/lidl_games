@@ -5,25 +5,21 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 12 → 11.**
-  Fixed `tests/terrain-generation.test.ts` (27 errors) with real guards
-  (never `!`): `reachableFromGate` switched to the already-exported
-  `isWalkable(cfg, kind)` combined with `map.kind[idx] ?? -1` (matching
-  `src/sim/terrain/path.ts`'s established -1-is-"no-such-tile" convention);
-  four coordinate-pair array literals given `as const` to eliminate their
-  undefined at the root; a `tileAt(raw, kind)` helper for four schema-pinned
-  `tiles[TerrainKind.X]` mutations; throw-guards on loop-bound-proven
-  `m.kind[i]`/`maps[k]`/`queue[head]` reads and three `GATES[0]`/`GATES[1]`
-  fixed-index reads (code-reviewer independently confirmed `GATES` is a
-  hardcoded 4-entry literal). Does not touch `/src/sim` or `/data`.
-  Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags
-  the file, no new offenders (12 → 11, exact match via the ratchet test);
-  main `npx tsc --noEmit` clean; targeted `npx vitest run` green (43
-  tests); `npm run test:fast` unchanged at 315 files / 4548 passed / 35
-  skipped; `npm run sim -- --seed 1 --policy hybrid` endHash unchanged
-  (`d6452f98`). code-reviewer APPROVE, no Critical/Major findings. Light
-  tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
-  — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (integrator merge, latest) — fb133 ratchet at 9 files.**
+  `claude/dreamy-hopper-j9bpc9` (PR #139) and `claude/dreamy-hopper-ii51en`
+  (PR #138) both branched from the same 15-file baseline and each
+  independently fixed `tests/terrain-generation.test.ts` — j9bpc9 with a
+  `tileAt`/`isWalkable`-based guard, ii51en with the `nth<T>` helper already
+  used elsewhere in that file. Reconciled on merge by keeping ii51en's
+  `nth`-based fix (consistent with the rest of the file) and dropping
+  j9bpc9's `tileAt`/`isWalkable` attempt entirely, including its now-stale
+  `tileAt` helper and `isWalkable` import. The branches' other fixes were
+  disjoint (`class-active2-cdr.test.ts`, `p6b-swordsman.test.ts`, `p6c-
+  plaguebringer.test.ts` from j9bpc9; `terrain-generation.test.ts`,
+  `terrain-gate-open.test.ts`, `terrain-four-gates.test.ts` from ii51en — 6
+  distinct files total), so the merged ratchet sits at **9 files remaining**
+  (15 − 6), matching `tests/fb133-unchecked-access-ratchet.test.ts`'s
+  post-merge `KNOWN_UNCHECKED_ACCESS_FILES`. — refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
   Fixed `tests/p6c-plaguebringer.test.ts` with real guards (never `!`): a
   `firstEnemyKey(w)` helper (byte-identical to the ones in `tests/p6b-
@@ -58,6 +54,50 @@
   4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy hybrid`
   endHash unchanged (`d6452f98`), confirming no behavior drift.
   code-reviewer APPROVE, no Critical/Major findings. Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
+  Fixed `tests/terrain-four-gates.test.ts` with real guards (never `!`):
+  a local `nth<T>` throw-guard helper (matching the established
+  indexable-shape convention) replacing two `const [west, north, east,
+  south] = jitterGates(seed)`/`= gates` destructures (`jitterGates`
+  returns a plain `GateDef[]`, guaranteed 4 entries at runtime but not
+  typed as a tuple), two `gates[a]`/`gates[b]` pairwise-loop reads
+  (hoisted into local `ga`/`gb` consts), and `measures[i]` in a bounded
+  `for` loop (hoisted into a local `measure` const reused by both its
+  `terrainLegal`/`failedBands` call and its `legalMeasure` mirror-check).
+  Does not touch `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags the file, no new offenders
+  (13 → 12, exact match via the ratchet test); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` on the file plus the ratchet test
+  itself green (16 tests); `npm run test:fast` green, unchanged at 315
+  files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings.
+  Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+  dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 15 → 13.**
+  Fixed `tests/terrain-generation.test.ts` (a local `nth<T>` throw-guard
+  helper — matching `tests/terrain-character.test.ts`'s indexable-shape
+  convention — replacing unguarded `cfg.tiles[map.kind[...]]` reads in
+  `reachableFromGate`, `queue[head]`, `(raw.tiles as ...)[TerrainKind.*]`
+  fixture-mutation sites, `m.kind[i]` in the per-tile sweep loop,
+  `maps[k]`, and `GATES[0]`/`GATES[1]`; three `[dx, dy]`/`[x, y]`
+  direction-pair literals retyped as `ReadonlyArray<[number, number]>`
+  — one deduped into a shared `NEIGHBOR_DIRS` const — so tuple
+  destructuring type-checks under the flag) and `tests/terrain-gate-
+  open.test.ts` (the same `nth<T>` helper plus a new `atKey<T>` for a
+  string-keyed `Record<string, Uint8Array>` read, guarding the single
+  `SOUTH = MODIFIER_GATES[0]` declaration whose type flowed through
+  every other error in the file, plus a `corners` literal retyped the
+  same way). Neither file touches `/src/sim` or `/data`. Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags either file,
+  no new offenders (15 → 13, exact match via the ratchet test); main
+  `npx tsc --noEmit` clean; targeted `npx vitest run` on both files plus
+  the ratchet test itself green (52 tests); `npm run test:fast` green,
+  unchanged at 315 files / 4548 passed / 35 skipped. code-reviewer
+  APPROVE (one Minor: `atKey`'s param retyped `Readonly<Record<string,
+  T>>` to match the established convention, fixed before commit; two
+  Nits left as-is — a nested-`nth` readability nit and the `NEIGHBOR_
+  DIRS` dedup noted as harmless out-of-scope simplification). Light tier
   (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
   refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 16 → 15.**

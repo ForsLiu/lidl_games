@@ -51,8 +51,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'tests/fb037-vs-panel.test.ts',
   'tests/p2b-wielded-fire.test.ts',
   'tests/p2c-vs-specials.test.ts',
-  'tests/terrain-four-gates.test.ts',
-  'tests/terrain-gate-open.test.ts',
   'tests/terrain-grid.test.ts',
 ];
 

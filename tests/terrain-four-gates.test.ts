@@ -49,6 +49,12 @@ import { failedBands, legalMeasure } from './terrain-legality';
 
 const cfg = loadTerrain();
 
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 describe('fb156 — jitterGates: structural validity', () => {
   it('is deterministic: the same seed always gives the same 4 gates', () => {
     for (const seed of [0, 1, 7, 40, -1, 2 ** 31, 0xffffffff]) {
@@ -70,7 +76,11 @@ describe('fb156 — jitterGates: structural validity', () => {
     const eastTy = new Set<number>();
     const southTx = new Set<number>();
     for (let seed = 1; seed <= 200; seed++) {
-      const [west, north, east, south] = jitterGates(seed);
+      const gates = jitterGates(seed);
+      const west = nth(gates, 0);
+      const north = nth(gates, 1);
+      const east = nth(gates, 2);
+      const south = nth(gates, 3);
       westTy.add(west.ty);
       northTx.add(north.tx);
       eastTy.add(east.ty);
@@ -90,7 +100,10 @@ describe('fb156 — jitterGates: structural validity', () => {
     const offenders: string[] = [];
     for (let seed = 1; seed <= STRUCTURAL_SWEEP; seed++) {
       const gates = jitterGates(seed);
-      const [west, north, east, south] = gates;
+      const west = nth(gates, 0);
+      const north = nth(gates, 1);
+      const east = nth(gates, 2);
+      const south = nth(gates, 3);
       if (west.tx !== 0) offenders.push(`seed ${seed}: west.tx=${west.tx}`);
       if (north.ty !== 0) offenders.push(`seed ${seed}: north.ty=${north.ty}`);
       if (east.tx !== GRID_W - 1) offenders.push(`seed ${seed}: east.tx=${east.tx}`);
@@ -113,8 +126,10 @@ describe('fb156 — jitterGates: structural validity', () => {
       // assumed.
       for (let a = 0; a < gates.length; a++) {
         for (let b = a + 1; b < gates.length; b++) {
-          if (gates[a].tx === gates[b].tx && gates[a].ty === gates[b].ty) {
-            offenders.push(`seed ${seed}: ${gates[a].key} and ${gates[b].key} share a tile`);
+          const ga = nth(gates, a);
+          const gb = nth(gates, b);
+          if (ga.tx === gb.tx && ga.ty === gb.ty) {
+            offenders.push(`seed ${seed}: ${ga.key} and ${gb.key} share a tile`);
           }
         }
       }
@@ -159,14 +174,15 @@ describe(`fb156 — generation constraints hold at 4 jittered gates across ${SWE
   it('terrainLegal (every owner band at once) holds for every seed', () => {
     const bad: string[] = [];
     for (let i = 0; i < measures.length; i++) {
-      if (!terrainLegal(measures[i], cfg)) {
-        bad.push(`seed ${i + 1}: ${failedBands(measures[i], cfg).join(', ')}`);
+      const measure = nth(measures, i);
+      if (!terrainLegal(measure, cfg)) {
+        bad.push(`seed ${i + 1}: ${failedBands(measure, cfg).join(', ')}`);
       }
       // `legalMeasure` is the shared re-derivation every other terrain suite
       // checks itself against (fb064v) — pinning both here means a future
       // drift between `terrainLegal` and its mirror shows up on the 4-gate
       // sweep too, not only the 3-gate one.
-      expect(legalMeasure(measures[i], cfg)).toBe(terrainLegal(measures[i], cfg));
+      expect(legalMeasure(measure, cfg)).toBe(terrainLegal(measure, cfg));
     }
     expect(bad.slice(0, 10)).toEqual([]);
   });
@@ -243,10 +259,10 @@ describe('fb156 — tier modifiers that add a gate now go to 5', () => {
       const gates = [...jitterGates(seed), ...MODIFIER_GATES];
       for (let a = 0; a < gates.length; a++) {
         for (let b = a + 1; b < gates.length; b++) {
-          if (gates[a].tx === gates[b].tx && gates[a].ty === gates[b].ty) {
-            offenders.push(
-              `seed ${seed}: ${gates[a].key} and ${gates[b].key} share ${gates[a].tx},${gates[a].ty}`,
-            );
+          const ga = nth(gates, a);
+          const gb = nth(gates, b);
+          if (ga.tx === gb.tx && ga.ty === gb.ty) {
+            offenders.push(`seed ${seed}: ${ga.key} and ${gb.key} share ${ga.tx},${ga.ty}`);
           }
         }
       }

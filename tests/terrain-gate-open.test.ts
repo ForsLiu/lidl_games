@@ -63,6 +63,18 @@ import { applyRunTerrain } from '../src/sim/world';
 
 const cfg = loadTerrain();
 
+function nth<T>(arr: { readonly length: number; readonly [i: number]: T }, i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
+function atKey<T>(rec: Readonly<Record<string, T>>, key: string): T {
+  const v = rec[key];
+  if (v === undefined) throw new Error(`missing key ${key}`);
+  return v;
+}
+
 /**
  * The gate these tests open as a stand-in for `world.ts`'s Fourth Gate.
  * fb156 fixed `MODIFIER_GATES`'s own position — `south2` at (45, 31) is a
@@ -71,7 +83,7 @@ const cfg = loadTerrain();
  * the file header). `world.ts`'s own literal push, `{ key: 'south', tx: 12,
  * ty: 19 }`, is a separate, still-unfixed, out-of-scope bug.
  */
-const SOUTH = MODIFIER_GATES[0];
+const SOUTH = nth(MODIFIER_GATES, 0);
 
 /** Every border tile that is not already a gate, in a fixed order. */
 function borderTiles(): Array<readonly [number, number]> {
@@ -309,7 +321,7 @@ describe('fb065e — opening a gate after terrain is applied', () => {
         'terrainCharBlock',
       ] as const) {
         const read = (g: Grid): number[] =>
-          Array.from((g as unknown as Record<string, Uint8Array>)[mask]);
+          Array.from(atKey(g as unknown as Record<string, Uint8Array>, mask));
         expect(read(after), `${mask} seed ${seed}`).toEqual(read(before));
       }
       // And the thing the sim actually walks on.
@@ -380,12 +392,13 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     // A corner is border, and is still not an openable gate: its only interior
     // neighbour is diagonal, so the flow field never reaches it and
     // `allGatesReachable()` goes false the moment one exists.
-    for (const [cx, cy] of [
+    const corners: ReadonlyArray<[number, number]> = [
       [0, 0],
       [GRID_W - 1, 0],
       [0, GRID_H - 1],
       [GRID_W - 1, GRID_H - 1],
-    ]) {
+    ];
+    for (const [cx, cy] of corners) {
       expect(() => g.openGate(cx, cy), `corner (${cx},${cy})`).toThrow(/is a corner/);
     }
     // Already a gate is a no-op rather than an error — the Fourth Gate loop in
