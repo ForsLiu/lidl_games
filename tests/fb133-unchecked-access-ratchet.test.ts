@@ -30,9 +30,9 @@
  * a fourth session fixed `src/render/colorblind-sim.ts` — see PROGRESS.md/
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
- * then 105, then 98, then 92 files remaining as of the latest). Shrink this
- * list as files are fixed; do not add to it without a reason logged in
- * BACKLOG.md.
+ * then 105, then 98, then 92, ..., then 20, then 18, then 16 files remaining
+ * as of the latest). Shrink this list as files are fixed; do not add to it
+ * without a reason logged in BACKLOG.md.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -48,12 +48,10 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/terrain/analyze.ts',
   'src/sim/world.ts',
   'tests/class-active2-cdr.test.ts',
-  'tests/class-passive-magnitudes.test.ts',
   'tests/fb037-vs-panel.test.ts',
   'tests/fb085-enablers.test.ts',
   'tests/p2b-wielded-fire.test.ts',
   'tests/p2c-vs-specials.test.ts',
-  'tests/p2d-weapon-lineage.test.ts',
   'tests/p6b-swordsman.test.ts',
   'tests/p6c-plaguebringer.test.ts',
   'tests/terrain-four-gates.test.ts',

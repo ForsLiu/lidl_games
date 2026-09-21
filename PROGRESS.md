@@ -5,7 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 20 → 18.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 18 → 16.**
+  Fixed `tests/p2d-weapon-lineage.test.ts` (a local `nth<T>` throw-guard
+  helper replacing every unguarded `tiles(w, n)` array-destructure read
+  and `wieldedLineageText(w)[0]`, plus a new `atKey<T>` helper for the
+  `EXPECTED_SPECIAL[def.key]` regex-table lookup) and `tests/class-
+  passive-magnitudes.test.ts` (a matching `nth<T>` helper plus a
+  `firstEnemyKey()` helper, replacing every unguarded indexed/destructure
+  read across the c011 passive-magnitude suite — each index already
+  proven in range by a preceding length check or shared loop bound).
+  Neither file touches `/src/sim` or `/data`. Verified: `npx tsc --noEmit
+  -p tsconfig.unchecked.json` no longer flags either file, no new
+  offenders (18 → 16, exact match via the ratchet test); main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on both files plus the
+  ratchet test itself green (36 tests); `npm run test:fast` unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no
+  Critical/Major findings. Light tier (`[polish]`, no `/src`/`/data`
+  touched) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 20 → 18.**
   Fixed `tests/m20b-owner-towers.test.ts` (an `nth<T>` helper and a
   `specialAt(def, i)` helper wrapping `def.upgrades.specials[i]`,
   replacing every unguarded `X.upgrades.specials[N]`/`fireOnce(...)​[0]`/
