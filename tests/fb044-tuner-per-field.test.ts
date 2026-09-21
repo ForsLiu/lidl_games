@@ -22,6 +22,12 @@ function collection(key: string): CodexCollection {
   return buildCodexCollections().find((c) => c.key === key)!;
 }
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 function fieldInput(root: HTMLElement, labelText: string): HTMLInputElement | HTMLSelectElement | null {
   for (const label of Array.from(root.querySelectorAll('.sw-tuner-field'))) {
     const span = label.querySelector('.sw-tuner-field-label');
@@ -84,8 +90,8 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     const c = collection('towers');
     mountTunerPanel(root, c);
     const doc = textareaDoc(root) as { towers: { key: string; cost: number }[] };
-    const firstKey = doc.towers[0].key;
-    const before = doc.towers[0].cost;
+    const firstKey = nth(doc.towers, 0).key;
+    const before = nth(doc.towers, 0).cost;
 
     // The per-row <details> is labeled by the row's own `key` field.
     const rowDetails = Array.from(root.querySelectorAll('.sw-tuner-field-details')).find(
@@ -99,7 +105,7 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     costInput.dispatchEvent(new Event('input'));
 
     const after = textareaDoc(root) as { towers: { key: string; cost: number }[] };
-    expect(after.towers[0].cost).toBe(before + 5);
+    expect(nth(after.towers, 0).cost).toBe(before + 5);
     // Every other tower row is untouched.
     expect(after.towers.slice(1)).toEqual(doc.towers.slice(1));
   });
@@ -108,27 +114,27 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     const root = document.createElement('div');
     mountTunerPanel(root, collection('towers'));
     const doc = textareaDoc(root) as { towers: { key: string; blocks: boolean }[] };
-    const firstKey = doc.towers[0].key;
+    const firstKey = nth(doc.towers, 0).key;
     const rowDetails = Array.from(root.querySelectorAll('.sw-tuner-field-details')).find(
       (d) => d.querySelector(':scope > summary')?.textContent === `key: ${firstKey}`,
     ) as HTMLElement;
 
     const checkbox = fieldInput(rowDetails, 'blocks') as HTMLInputElement;
     expect(checkbox.type).toBe('checkbox');
-    expect(checkbox.checked).toBe(doc.towers[0].blocks);
+    expect(checkbox.checked).toBe(nth(doc.towers, 0).blocks);
 
-    checkbox.checked = !doc.towers[0].blocks;
+    checkbox.checked = !nth(doc.towers, 0).blocks;
     checkbox.dispatchEvent(new Event('change'));
 
     const after = textareaDoc(root) as { towers: { blocks: boolean }[] };
-    expect(after.towers[0].blocks).toBe(!doc.towers[0].blocks);
+    expect(nth(after.towers, 0).blocks).toBe(!nth(doc.towers, 0).blocks);
   });
 
   it('classes: an enum field (active1.kind) renders a <select> with the schema options, and changing it writes back', () => {
     const root = document.createElement('div');
     mountTunerPanel(root, collection('classes'));
     const doc = textareaDoc(root) as { classes: { key: string; active1: { kind: string } }[] };
-    const firstKey = doc.classes[0].key;
+    const firstKey = nth(doc.classes, 0).key;
     const rowDetails = Array.from(root.querySelectorAll('.sw-tuner-field-details')).find(
       (d) => d.querySelector(':scope > summary')?.textContent === `key: ${firstKey}`,
     ) as HTMLElement;
@@ -141,31 +147,31 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     expect(select.tagName).toBe('SELECT');
     const options = Array.from(select.options).map((o) => o.value);
     expect(options).toContain('burst_damage');
-    expect(options).toContain(doc.classes[0].active1.kind);
+    expect(options).toContain(nth(doc.classes, 0).active1.kind);
 
-    const otherKind = options.find((o) => o !== doc.classes[0].active1.kind)!;
+    const otherKind = options.find((o) => o !== nth(doc.classes, 0).active1.kind)!;
     select.value = otherKind;
     select.dispatchEvent(new Event('change'));
 
     const after = textareaDoc(root) as { classes: { active1: { kind: string } }[] };
-    expect(after.classes[0].active1.kind).toBe(otherKind);
+    expect(nth(after.classes, 0).active1.kind).toBe(otherKind);
   });
 
   it('cores: baseHp gets a typed widget, but the dynamic-key `effects`/`steps` records are left to the JSON editor', () => {
     const root = document.createElement('div');
     mountTunerPanel(root, collection('cores'));
     const doc = textareaDoc(root) as { cores: { key: string; baseHp: number }[] };
-    const firstKey = doc.cores[0].key;
+    const firstKey = nth(doc.cores, 0).key;
     const rowDetails = Array.from(root.querySelectorAll('.sw-tuner-field-details')).find(
       (d) => d.querySelector(':scope > summary')?.textContent === `key: ${firstKey}`,
     ) as HTMLElement;
 
     const baseHpInput = fieldInput(rowDetails, 'baseHp') as HTMLInputElement;
     expect(baseHpInput).not.toBeNull();
-    baseHpInput.value = String(doc.cores[0].baseHp + 50);
+    baseHpInput.value = String(nth(doc.cores, 0).baseHp + 50);
     baseHpInput.dispatchEvent(new Event('input'));
     const after = textareaDoc(root) as { cores: { baseHp: number }[] };
-    expect(after.cores[0].baseHp).toBe(doc.cores[0].baseHp + 50);
+    expect(nth(after.cores, 0).baseHp).toBe(nth(doc.cores, 0).baseHp + 50);
 
     // No widget anywhere claims to edit a record field by name — those stay JSON-only.
     const allLabels = Array.from(root.querySelectorAll('.sw-tuner-field-label')).map((s) => s.textContent);
@@ -186,7 +192,7 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = nth(fetchMock.mock.calls, 0);
     expect(url).toBe('/__tuner/save');
     const body = JSON.parse((init as RequestInit).body as string);
     expect(body.key).toBe('waves');
@@ -239,8 +245,8 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     const root = document.createElement('div');
     mountTunerPanel(root, collection('waves'));
     const doc = textareaDoc(root) as { waves: { wave: number; groups: { enemy: string; perGate?: number }[] }[] };
-    const waveNum = doc.waves[0].wave;
-    const before = doc.waves[0].groups[0].perGate;
+    const waveNum = nth(doc.waves, 0).wave;
+    const before = nth(nth(doc.waves, 0).groups, 0).perGate;
     expect(before, 'fixture wave 1 has a perGate on its first group').not.toBeUndefined();
 
     const waveDetails = Array.from(root.querySelectorAll('.sw-tuner-field-details')).find(
@@ -258,7 +264,7 @@ describe('Tuner per-field widgets (fb044, Q150 ORDER)', () => {
     perGateInput.dispatchEvent(new Event('input'));
 
     const after = textareaDoc(root) as { waves: { groups: { perGate?: number }[] }[] };
-    expect(after.waves[0].groups[0].perGate).toBe((before as number) + 3);
+    expect(nth(nth(after.waves, 0).groups, 0).perGate).toBe((before as number) + 3);
   });
 
   it('towers: editing a field inside an optional nested object absent from the row creates it instead of throwing', () => {

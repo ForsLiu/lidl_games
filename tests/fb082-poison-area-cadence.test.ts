@@ -181,7 +181,9 @@ describe('fb082 — a poison ground area applies on a per-second cadence, not ev
     applyPoisonMock.mockClear();
     for (let i = 0; i < 60; i++) updateAreas(w, DT);
     expect(applyPoisonMock.mock.calls.length).toBe(1);
-    const [, , dps, duration, maxStacks] = applyPoisonMock.mock.calls[0];
+    const call = applyPoisonMock.mock.calls[0];
+    if (!call) throw new Error('expected applyPoison to have been called');
+    const [, , dps, duration, maxStacks] = call;
     expect(dps).toBe(10);
     // tick (1s, the default) * POISON_STACK_CAP (3) — not the old hardcoded 1.0.
     expect(duration).toBe(3);

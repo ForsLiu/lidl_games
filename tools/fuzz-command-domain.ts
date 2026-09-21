@@ -77,17 +77,6 @@ import type { World } from '../src/sim/world';
 import { runInPhase } from './fuzz-input';
 import { scanWorld } from './invariants';
 
-function nth<T>(arr: readonly T[], i: number): T {
-  const v = arr[i];
-  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
-  return v;
-}
-
-/** The first tower type's id — content always defines at least one. */
-function firstTowerId(w: World): number {
-  return nth(w.content.towers.towers, 0).id;
-}
-
 /* ------------------------------------------------------------ generation */
 
 export const FAMILIES = ['nan', 'posInf', 'negInf', 'negative', 'fractional'] as const;
@@ -142,6 +131,18 @@ function firstUpgradableTowerId(w: World): number {
   const def = w.content.towers.towers.find((t) => maxLevel(t) > 1);
   if (!def) throw new Error('fuzz-command-domain: no tower in /data/towers.json has more than one tier');
   return def.id;
+}
+
+function firstTowerId(w: World): number {
+  const def = w.content.towers.towers[0];
+  if (!def) throw new Error('fuzz-command-domain: /data/towers.json has no towers');
+  return def.id;
+}
+
+function firstStructure(w: World): World['structures'][number] {
+  const s = w.structures[0];
+  if (!s) throw new Error('fuzz-command-domain: expected a structure to already be built');
+  return s;
 }
 
 export type Category = 'A' | 'B';
@@ -207,7 +208,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
       buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = nth(w.structures, 0);
+      const s = firstStructure(w);
       return { k: 'upgrade', tx: illegalValue(family, s.tx), ty: s.ty };
     },
   },
@@ -221,7 +222,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
       buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = nth(w.structures, 0);
+      const s = firstStructure(w);
       return { k: 'upgrade', tx: s.tx, ty: illegalValue(family, s.ty) };
     },
   },
@@ -235,7 +236,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
       buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = nth(w.structures, 0);
+      const s = firstStructure(w);
       return { k: 'sell', tx: illegalValue(family, s.tx), ty: s.ty };
     },
   },
@@ -249,7 +250,7 @@ export const FIELD_SPECS: readonly FieldSpec[] = [
       buildTower(w, firstTowerId(w), bx, by);
     },
     command: (w, family) => {
-      const s = nth(w.structures, 0);
+      const s = firstStructure(w);
       return { k: 'sell', tx: s.tx, ty: illegalValue(family, s.ty) };
     },
   },
@@ -483,7 +484,9 @@ async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T, 
     for (;;) {
       const i = next++;
       if (i >= items.length) return;
-      results[i] = await fn(nth(items, i), i);
+      const item = items[i];
+      if (item === undefined) throw new Error(`unreachable: index ${i} out of range (length ${items.length})`);
+      results[i] = await fn(item, i);
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, drain));
@@ -662,7 +665,7 @@ export function runAliasProbe(which: 'upgrade' | 'sell'): AliasProbeResult {
   const [rx, ry] = findBuildableTile(w);
   const built = buildTower(w, firstUpgradableTowerId(w), rx, ry);
   if (!built.ok) throw new Error(`fuzz-command-domain: alias probe setup build failed: ${built.reason}`);
-  const realId = nth(w.structures, 0).id;
+  const realId = firstStructure(w).id;
   const illegalTx = rx + GRID_W;
   const illegalTy = ry - 1;
   const idxMatches = w.grid.idx(illegalTx, illegalTy) === w.grid.idx(rx, ry);

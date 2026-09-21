@@ -79,7 +79,9 @@ describe('fb139: F8 opens a note box and posts a bug-report bundle', () => {
     await Promise.resolve();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error('expected fetch to have been called');
+    const [url, init] = call;
     expect(url).toBe('/__bugreport/save');
     const body = JSON.parse(init.body as string);
     expect(body.note).toBe('the boss teleported through a wall');

@@ -53,19 +53,6 @@ import {
 } from '../tools/fuzz-data';
 import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
 
-function nth<T>(arr: readonly T[], i: number): T {
-  const v = arr[i];
-  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
-  return v;
-}
-
-/** Read a record key already proven present (e.g. by `Object.keys`). */
-function atKey<T>(rec: Record<string, T>, key: string): T {
-  const v = rec[key];
-  if (v === undefined) throw new Error(`key ${key} not found`);
-  return v;
-}
-
 /* -------------------------------------------------------------- the seam */
 
 /**
@@ -108,11 +95,17 @@ vi.mock('../data/tree.json', () => ({ default: holders.tree }));
 vi.mock('../data/warden.json', () => ({ default: holders.warden }));
 vi.mock('../data/waves.json', () => ({ default: holders.waves }));
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 /** Every file pristine, except `overrideFile` which gets `override`. */
 function install(overrideFile: DataFile | null, override: JsonValue | null): void {
   for (const f of DATA_FILES) {
     const h = holders[f];
-    if (h === undefined) throw new Error(`no holder registered for data file ${f}`);
+    if (!h) throw new Error(`unreachable: no holder registered for ${f}`);
     for (const k of Object.keys(h)) delete h[k];
     Object.assign(h, f === overrideFile ? (override as object) : (pristine(f) as object));
   }
@@ -369,7 +362,7 @@ describe('q7 — every field, every wrong shape', () => {
     if (process.env.Q7_RECORD) {
       const acc = groupAccepted(trials);
       console.log('=== ACCEPTED ===');
-      for (const p of Object.keys(acc).sort()) console.log(`  '${p}': [${atKey(acc, p).map((f) => `'${f}'`).join(', ')}],`);
+      for (const p of Object.keys(acc).sort()) console.log(`  '${p}': [${(acc[p] ?? []).map((f) => `'${f}'`).join(', ')}],`);
       console.log('=== INEFFECTIVE ===');
       for (const k of ineffective) console.log(`  '${k}',`);
     }
@@ -766,7 +759,9 @@ describe('q7 — what used-to-be-accepted data now does at load (b013 closed E1/
     const root = pristine('tree') as { nodes: { id: number; stats: Record<string, number> }[] };
     const node = root.nodes.find((n) => Object.keys(n.stats).length > 0)!;
     const key = nth(Object.keys(node.stats), 0);
-    node.stats[`${key}${GARBAGE}`] = atKey(node.stats, key);
+    const value = node.stats[key];
+    if (value === undefined) throw new Error(`unreachable: ${key} missing from node.stats`);
+    node.stats[`${key}${GARBAGE}`] = value;
     delete node.stats[key];
 
     const r = await load('tree', root as unknown as JsonValue);
@@ -867,7 +862,9 @@ describe('q7 — filed defects (unskip with the fix)', () => {
     const node = root.nodes.find((n) => Object.keys(n.stats as object).length > 0)!;
     const stats = node.stats as Record<string, JsonValue>;
     const key = nth(Object.keys(stats), 0);
-    stats[`${key}${GARBAGE}`] = atKey(stats, key);
+    const value = stats[key];
+    if (value === undefined) throw new Error(`unreachable: ${key} missing from stats`);
+    stats[`${key}${GARBAGE}`] = value;
     delete stats[key];
     const r = await load('tree', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
@@ -887,7 +884,9 @@ describe('q7 — filed defects (unskip with the fix)', () => {
       const root = pristine('vsupgrades') as {
         skillCards: Record<string, { key: string; perRank: number }[]>;
       };
-      const card = nth(atKey(root.skillCards, 'archer'), 0);
+      const archerCards = root.skillCards.archer;
+      if (!archerCards) throw new Error('unreachable: vsupgrades.json has no archer skill cards');
+      const card = nth(archerCards, 0);
       card.perRank = bad;
       const r = await load('vsupgrades', root as unknown as JsonValue);
       expect(r.outcome, `perRank=${bad}`).toBe('rejected');
