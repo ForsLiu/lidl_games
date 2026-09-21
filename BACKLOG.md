@@ -6349,6 +6349,35 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       across sibling files, not fixed here). Light tier (`[polish]`, no
       `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/terrain-generation.test.ts` and `tests/terrain-gate-
+      open.test.ts` with real guards (never `!`) — a local `nth<T>`
+      indexable-shape throw-guard helper (matching `tests/terrain-
+      character.test.ts`'s convention) replacing unguarded
+      `cfg.tiles[map.kind[...]]` reads in `reachableFromGate`,
+      `queue[head]`, four `(raw.tiles as Record<string, unknown>[])
+      [TerrainKind.*]` fixture-mutation sites, `m.kind[i]` in the
+      border-sweep hot loop, `maps[k]`, and `GATES[0]`/`GATES[1]`; a new
+      `atKey<T>` helper for a string-keyed `Record<string, Uint8Array>`
+      read; three `[dx, dy]`/`[x, y]` direction-pair array literals
+      retyped `ReadonlyArray<[number, number]>` so tuple destructuring
+      type-checks under the flag (one deduped into a shared
+      `NEIGHBOR_DIRS` const reused by two identical inline literals);
+      and, in terrain-gate-open.test.ts, guarding the single `SOUTH =
+      MODIFIER_GATES[0]` declaration whose type flowed downstream into
+      every other error in that file. Neither file touches `/src/sim` or
+      `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+      longer flags either file, no new offenders (15 → 13, exact match
+      via the ratchet test); main `npx tsc --noEmit` clean; targeted `npx
+      vitest run` on both files plus the ratchet test itself green (52
+      tests); `npm run test:fast` green, unchanged at 315 files / 4548
+      passed / 35 skipped. code-reviewer APPROVE (one Minor: `atKey`'s
+      param retyped `Readonly<Record<string, T>>` to match the
+      established convention, fixed before commit; two Nits left as-is —
+      a nested-`nth` readability nit and the `NEIGHBOR_DIRS` dedup noted
+      as a harmless out-of-scope simplification). Light tier (`[polish]`,
+      no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
