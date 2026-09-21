@@ -5,6 +5,57 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-21 (integrator merge, latest) — fb133 ratchet at 9 files.**
+  `claude/dreamy-hopper-j9bpc9` (PR #139) and `claude/dreamy-hopper-ii51en`
+  (PR #138) both branched from the same 15-file baseline and each
+  independently fixed `tests/terrain-generation.test.ts` — j9bpc9 with a
+  `tileAt`/`isWalkable`-based guard, ii51en with the `nth<T>` helper already
+  used elsewhere in that file. Reconciled on merge by keeping ii51en's
+  `nth`-based fix (consistent with the rest of the file) and dropping
+  j9bpc9's `tileAt`/`isWalkable` attempt entirely, including its now-stale
+  `tileAt` helper and `isWalkable` import. The branches' other fixes were
+  disjoint (`class-active2-cdr.test.ts`, `p6b-swordsman.test.ts`, `p6c-
+  plaguebringer.test.ts` from j9bpc9; `terrain-generation.test.ts`,
+  `terrain-gate-open.test.ts`, `terrain-four-gates.test.ts` from ii51en — 6
+  distinct files total), so the merged ratchet sits at **9 files remaining**
+  (15 − 6), matching `tests/fb133-unchecked-access-ratchet.test.ts`'s
+  post-merge `KNOWN_UNCHECKED_ACCESS_FILES`. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
+  Fixed `tests/p6c-plaguebringer.test.ts` with real guards (never `!`): a
+  `firstEnemyKey(w)` helper (byte-identical to the ones in `tests/p6b-
+  swordsman.test.ts`/`tests/fb085-enablers.test.ts`) bulk-replacing 30 call
+  sites across 7 world variables; one `chain[0]` read in the 2000-enemy
+  cascade stress test guarded by an explicit throw, proven safe by the
+  preceding push loop. Does not touch `/src/sim` or `/data`. Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags the file, no new
+  offenders (13 → 12, exact match via the ratchet test); main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` green (29 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped; `npm run
+  sim -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+  code-reviewer APPROVE, no Critical/Major findings. Light tier (`[polish]`,
+  no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+  BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 15 → 13.**
+  Fixed the remaining two test files with real guards (never `!`):
+  `tests/class-active2-cdr.test.ts` (a `nth<T>` helper, byte-identical to
+  `tests/class-passive-magnitudes.test.ts`'s, guarding every fixed-length
+  array read — `casts`/`readings`/`ticksToCap`/`ages`/`means`/`uptime` — plus
+  `cdrCard`/`lineCard`'s `own[0]` and the summon-census's nested
+  `declared[k][sk]` lookup, all proven safe by a preceding assertion) and
+  `tests/p6b-swordsman.test.ts` (a `firstEnemyKey(w)` helper, byte-identical
+  to `tests/fb085-enablers.test.ts`'s, bulk-replacing 23 call sites across
+  every world variable the file uses; two `structures[0]` and two
+  `enemies[0]` reads guarded with explicit throws). Neither file touches
+  `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags either file, no new offenders
+  (15 → 13, exact match via the ratchet test); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` on both files plus the ratchet test
+  itself green (129 tests); `npm run test:fast` unchanged at 315 files /
+  4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy hybrid`
+  endHash unchanged (`d6452f98`), confirming no behavior drift.
+  code-reviewer APPROVE, no Critical/Major findings. Light tier
+  (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch. —
+  refs: BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
   Fixed `tests/terrain-four-gates.test.ts` with real guards (never `!`):
   a local `nth<T>` throw-guard helper (matching the established

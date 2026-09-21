@@ -507,6 +507,9 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     // degenerate. Both are schema-legal booleans, so the loader has to say no.
     // (The patterns skip the quotes around the key: a ZodError's `message` is
     // the JSON dump of its issues, so the key reads as \"rock\" in it.)
+    // `tiles` is schema-pinned to exactly TERRAIN_KEYS.length entries, so an
+    // index by any real TerrainKind is always present; the throw documents
+    // that invariant rather than assuming it silently.
     expect(() =>
       withConfig((raw) => {
         nth(raw.tiles as Record<string, unknown>[], TerrainKind.Rock).walkable = true;
