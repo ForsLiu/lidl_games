@@ -6122,6 +6122,28 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       allowlist. code-reviewer APPROVE, no Critical/Major/Minor/Nit
       findings. Light tier (`[polish]`, no `/src`/`/data` touched) — no
       qa-playtester dispatch.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, later)**:
+      fixed 3 more files with real guards — `tests/terrain-modifier-gate-
+      jitter.test.ts` (a new local `nth<T>(arr, i)` throw-guard helper,
+      matching the established convention already used in
+      `terrain-high-ground.test.ts`/`terrain-anchor-quality.test.ts`, for
+      `measures[i]` and a nested-loop `gates[a]`/`gates[b]` pair
+      comparison, all proven in-range by their enclosing loop bounds),
+      `tests/fb016-vfx-registry.test.ts` (throw-guards on `CLASS_VFX[key]`/
+      `CORE_VFX[key]` right after `expect(entry, key).toBeDefined()`,
+      which doesn't narrow TS's type; `CLASS_VFX.swordsman`/
+      `CLASS_VFX.archer` captured into a guarded local const reused across
+      each test), `tests/ui-fb091-crash-log.test.ts` (a local
+      `nth<T>(arr: ArrayLike<T>, i)` helper — works for both real arrays
+      and a `querySelectorAll` NodeList — for `entries[N]`/`items[N]`
+      reads following an `expect(...length).toBe(N)`, plus
+      `nth(writeText.mock.calls, 0)[0]`). Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags any of the 3; main `npx
+      tsc --noEmit` clean; targeted `npx vitest run` on the 3 files (53
+      tests) green; `npm run test:fast` unchanged at 315 files / 4548
+      passed / 35 skipped. 38 → **35 files remain** on the allowlist.
+      code-reviewer APPROVE, no Critical/Major/Minor/Nit findings. Light
+      tier (`[polish]`, tests/-only) — no qa-playtester dispatch.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

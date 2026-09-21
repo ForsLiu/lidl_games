@@ -5,7 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 41 → 38.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 38 → 35.**
+  Fixed 3 more files with real guards (never `!`): `tests/terrain-
+  modifier-gate-jitter.test.ts` (a new local `nth<T>(arr, i)` throw-guard
+  helper, matching the established convention already used in
+  `terrain-high-ground.test.ts`/`terrain-anchor-quality.test.ts`, for
+  `measures[i]` and a nested-loop `gates[a]`/`gates[b]` pair comparison,
+  all proven in-range by their enclosing loop bounds); `tests/fb016-vfx-
+  registry.test.ts` (throw-guards on `CLASS_VFX[key]`/`CORE_VFX[key]`
+  right after `expect(entry, key).toBeDefined()`, which doesn't narrow
+  TS's type; `CLASS_VFX.swordsman`/`CLASS_VFX.archer` captured into a
+  guarded local const reused across each test); `tests/ui-fb091-crash-
+  log.test.ts` (a local `nth<T>(arr: ArrayLike<T>, i)` helper — works for
+  both real arrays and a `querySelectorAll` NodeList — for `entries[N]`/
+  `items[N]` reads following an `expect(...length).toBe(N)`, plus
+  `nth(writeText.mock.calls, 0)[0]`). Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags any of the 3; main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the 3 files (53 tests)
+  green; `npm run test:fast` unchanged at 315 files / 4548 passed / 35
+  skipped. 38 → **35 files remain** on the allowlist. code-reviewer
+  APPROVE, no Critical/Major/Minor/Nit findings. Light tier (`[polish]`,
+  tests/-only) — no qa-playtester dispatch. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine, earlier) — fb133 ratchet shrunk 41 → 38.**
   Fixed 3 more files with real guards (never `!`): `tools/fuzz-weapon-
   boundary.ts` (`stored` defaults `?? NaN` where `applyOffer` may throw
   before assigning `w.boonRanks[...]`, harmless since the interpolated
