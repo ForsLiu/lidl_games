@@ -21,6 +21,12 @@ import { cfg } from './helpers';
 const content = loadContent();
 const plaguebringer = content.classByKey.get('plaguebringer')! as ClassDef;
 
+function firstEnemyKey(w: World): string {
+  const def = w.content.enemies.enemies[0];
+  if (!def) throw new Error('expected at least one enemy definition');
+  return def.key;
+}
+
 function idleInput(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
 }
@@ -104,7 +110,7 @@ describe('p6c: Poison Barrel — a ground zone that ticks poison for its own dur
     run.world.gold = 1e6;
     run.world.phase = 'act1_wave'; // updateEnemies (and so tickDots) only runs here / act2, not act1_build
     run.world.warden.attackCooldown = 1e9; // suppress the basic attack so only the zone can deal damage
-    const e = spawnEnemy(run.world, run.world.content.enemies.enemies[0].key, run.world.warden.x + 1, run.world.warden.y)!;
+    const e = spawnEnemy(run.world, firstEnemyKey(run.world), run.world.warden.x + 1, run.world.warden.y)!;
     e.hp = 1000;
     e.maxHp = 1000;
     e.speed = 0; // stays put, so it can't wander out of the fixed ground zone
@@ -124,7 +130,7 @@ describe('p6c: Poison Barrel — a ground zone that ticks poison for its own dur
     run.world.gold = 1e6;
     run.world.phase = 'act1_wave';
     run.world.warden.attackCooldown = 1e9;
-    const far = spawnEnemy(run.world, run.world.content.enemies.enemies[0].key, run.world.warden.x + 10, run.world.warden.y)!;
+    const far = spawnEnemy(run.world, firstEnemyKey(run.world), run.world.warden.x + 10, run.world.warden.y)!;
     far.hp = 1000;
     far.maxHp = 1000;
     far.speed = 0;
@@ -147,7 +153,7 @@ describe('p6c: Poison Barrel — a ground zone that ticks poison for its own dur
 describe('p6c: Poison Boost — doubles the remaining poison damage on all live enemies', () => {
   it('doubles an existing poison stack\'s dps in place, leaving its remaining time alone', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -162,7 +168,7 @@ describe('p6c: Poison Boost — doubles the remaining poison damage on all live 
 
   it('leaves a non-poison DoT (Bleeding) untouched', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -174,9 +180,9 @@ describe('p6c: Poison Boost — doubles the remaining poison damage on all live 
 
   it('a dead enemy and an enemy with no poison are both handled without throwing', () => {
     const w = worldWith();
-    const dead = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const dead = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     dead.dead = true;
-    spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y);
+    spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y);
     w.rebuildBuckets();
     expect(() => applyCommand(w, { k: 'class_active2' })).not.toThrow();
   });
@@ -185,9 +191,9 @@ describe('p6c: Poison Boost — doubles the remaining poison damage on all live 
 describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to the nearest enemy, once', () => {
   it('deals exactly the unfinished total to the nearest live enemy, unmitigated by armor', () => {
     const w = worldWith();
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
-    const farther = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 10, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
+    const farther = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 10, w.warden.y)!;
     for (const e of [dying, nearest, farther]) {
       e.hp = 1e6;
       e.maxHp = 1e6;
@@ -207,8 +213,8 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
 
   it('does nothing when the dying enemy carries no DoT', () => {
     const w = worldWith();
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
     nearest.hp = 1e6;
     nearest.maxHp = 1e6;
     w.rebuildBuckets();
@@ -219,8 +225,8 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
   it('does not fire for a class other than Plaguebringer', () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.gold = 1e6;
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const nearest = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const nearest = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
     nearest.hp = 1e6;
     nearest.maxHp = 1e6;
     w.rebuildBuckets();
@@ -231,7 +237,7 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
 
   it('no other live enemy: the death resolves cleanly with no throw', () => {
     const w = worldWith();
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyDot(w, dying, 'poison', 10, 3, 'test');
     expect(() => damageEnemy(w, dying, 1e9, 'test', { pure: true, dot: true })).not.toThrow();
@@ -239,7 +245,7 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
 
   it('a splitting enemy still spawns its children when killed via the transfer', () => {
     const w = worldWith();
-    const dying = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const dying = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     const splitterDef = w.content.enemies.enemies.find((d) => (d.splitInto ?? 0) > 0);
     if (!splitterDef) return; // no splitting enemy authored — nothing to assert
     const nearest = spawnEnemy(w, splitterDef.key, w.warden.x + 2, w.warden.y)!;
@@ -265,14 +271,16 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
     for (let i = 0; i < 2000; i++) {
       const x = 4 + (i % 300) * 0.01;
       const y = 4 + Math.floor(i / 300) * 0.01;
-      const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+      const e = spawnEnemy(w, firstEnemyKey(w), x, y)!;
       e.hp = 0.001;
       e.maxHp = 1e6;
       chain.push(e);
     }
     w.rebuildBuckets();
     for (const e of chain) applyDot(w, e, 'poison', 1, 1, 'test'); // 1 unfinished damage each, dwarfs 0.001 hp
-    expect(() => damageEnemy(w, chain[0], 1e9, 'test', { pure: true, dot: true })).not.toThrow();
+    const first = chain[0];
+    if (!first) throw new Error('expected the 2000-enemy chain built above to be non-empty');
+    expect(() => damageEnemy(w, first, 1e9, 'test', { pure: true, dot: true })).not.toThrow();
     expect(chain.every((e) => e.dead)).toBe(true);
   });
 });
@@ -280,8 +288,8 @@ describe('p6c: G9 second half — Spreading Plague transfers unfinished DoT to t
 describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
   it('a poison DoT sourced from a real tower key is boosted in Act I', () => {
     const w = worldWith();
-    const boosted = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const baseline = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
+    const boosted = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const baseline = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
     boosted.hp = 1e6;
     boosted.maxHp = 1e6;
     baseline.hp = 1e6;
@@ -297,7 +305,7 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
   it('the same tower-sourced poison is not boosted once huntsWarden (VS) is true', () => {
     const w = worldWith();
     w.phase = 'act2'; // huntsWarden derives from phase
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -305,7 +313,7 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
     const vsDps = e.dots.find((d) => d.type === 'poison')!.dps;
 
     const w2 = worldWith();
-    const e2 = spawnEnemy(w2, w2.content.enemies.enemies[0].key, w2.warden.x + 1, w2.warden.y)!;
+    const e2 = spawnEnemy(w2, firstEnemyKey(w2), w2.warden.x + 1, w2.warden.y)!;
     e2.hp = 1e6;
     e2.maxHp = 1e6;
     w2.rebuildBuckets();
@@ -324,8 +332,8 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
     // Same base magnitude (8 dps, no powerMul contributions authored on
     // Plaguebringer), applied once from that exact non-tower source and once
     // from a real tower key — only the tower-sourced one is boosted.
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    const e2 = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 2, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
+    const e2 = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y)!;
     w.rebuildBuckets();
     applyDot(w, e, 'poison', 8, 1, zone.source);
     applyDot(w, e2, 'poison', 8, 1, 'venom_spore');
@@ -346,8 +354,8 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
     wOther.warden.y = 10;
     expect(buildTower(wOther, venomSpore.id, 10, 10).ok).toBe(true);
 
-    const ePlague = spawnEnemy(wPlague, wPlague.content.enemies.enemies[0].key, 12, 10)!;
-    const eOther = spawnEnemy(wOther, wOther.content.enemies.enemies[0].key, 12, 10)!;
+    const ePlague = spawnEnemy(wPlague, firstEnemyKey(wPlague), 12, 10)!;
+    const eOther = spawnEnemy(wOther, firstEnemyKey(wOther), 12, 10)!;
     for (const e of [ePlague, eOther]) {
       e.hp = 1e6;
       e.maxHp = 1e6;
@@ -378,20 +386,20 @@ describe('p6c: replay-hash determinism with Poison Barrel, Poison Boost and a Sp
 
     const a = new Run(cfg({ classKey: 'plaguebringer' }));
     a.world.gold = 1e6;
-    const eA = spawnEnemy(a.world, a.world.content.enemies.enemies[0].key, a.world.warden.x + 1, a.world.warden.y)!;
+    const eA = spawnEnemy(a.world, firstEnemyKey(a.world), a.world.warden.x + 1, a.world.warden.y)!;
     eA.hp = 1e6;
     eA.maxHp = 1e6;
-    const nearA = spawnEnemy(a.world, a.world.content.enemies.enemies[0].key, a.world.warden.x + 2, a.world.warden.y)!;
+    const nearA = spawnEnemy(a.world, firstEnemyKey(a.world), a.world.warden.x + 2, a.world.warden.y)!;
     nearA.hp = 1e6;
     nearA.maxHp = 1e6;
     for (const input of log) a.step(input);
 
     const b = new Run(cfg({ classKey: 'plaguebringer' }));
     b.world.gold = 1e6;
-    const eB = spawnEnemy(b.world, b.world.content.enemies.enemies[0].key, b.world.warden.x + 1, b.world.warden.y)!;
+    const eB = spawnEnemy(b.world, firstEnemyKey(b.world), b.world.warden.x + 1, b.world.warden.y)!;
     eB.hp = 1e6;
     eB.maxHp = 1e6;
-    const nearB = spawnEnemy(b.world, b.world.content.enemies.enemies[0].key, b.world.warden.x + 2, b.world.warden.y)!;
+    const nearB = spawnEnemy(b.world, firstEnemyKey(b.world), b.world.warden.x + 2, b.world.warden.y)!;
     nearB.hp = 1e6;
     nearB.maxHp = 1e6;
     for (const input of log) b.step(input);
@@ -416,7 +424,7 @@ describe('p6c: QA-precedent guard — w.dying freezes Poison Barrel/Poison Boost
 
   it('useClassActive2 (Poison Boost) is a no-op while dying', () => {
     const w = worldWith();
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();
@@ -438,7 +446,7 @@ describe('p6c: basic attack — range high, dmg low, spd medium, no AoE', () => 
   it('the basic attack fires and damages a lone enemy at Plaguebringer\'s longer range', () => {
     const w = new World(cfg({ classKey: 'plaguebringer' }));
     w.gold = 1e6;
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + plaguebringer.basicAttack.range - 0.1, w.warden.y)!;
+    const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + plaguebringer.basicAttack.range - 0.1, w.warden.y)!;
     e.hp = 1e6;
     e.maxHp = 1e6;
     w.rebuildBuckets();

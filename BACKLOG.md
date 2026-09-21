@@ -6384,6 +6384,25 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       (`[polish]`, no `/src`/`/data` touched) — no qa-playtester dispatch.
       **13 files remain** on the allowlist. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/p6c-plaguebringer.test.ts` with real guards (never `!`) —
+      a `firstEnemyKey(w)` helper, byte-identical to the ones already in
+      `tests/p6b-swordsman.test.ts`/`tests/fb085-enablers.test.ts`,
+      bulk-replacing 30 call sites of `X.content.enemies.enemies[0].key`
+      across every world variable the file uses (`w`, `w2`, `wOther`,
+      `wPlague`, `run.world`, `a.world`, `b.world`); one `chain[0]` read in
+      the 2000-enemy cascade stress test guarded by an explicit throw,
+      proven safe by the preceding 2000-iteration `chain.push` loop. Does
+      not touch `/src/sim` or `/data`. Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags the file, no new offenders
+      (13 → 12, exact match via the ratchet test); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on the file plus the ratchet test
+      itself green (29 tests); `npm run test:fast` unchanged at 315 files /
+      4548 passed / 35 skipped; `npm run sim -- --seed 1 --policy hybrid`
+      endHash unchanged (`d6452f98`). code-reviewer APPROVE, no
+      Critical/Major findings. Light tier (`[polish]`, no `/src`/`/data`
+      touched) — no qa-playtester dispatch. **12 files remain** on the
+      allowlist. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

@@ -5,6 +5,21 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 13 → 12.**
+  Fixed `tests/p6c-plaguebringer.test.ts` with real guards (never `!`): a
+  `firstEnemyKey(w)` helper (byte-identical to the ones in `tests/p6b-
+  swordsman.test.ts`/`tests/fb085-enablers.test.ts`) bulk-replacing 30 call
+  sites across 7 world variables; one `chain[0]` read in the 2000-enemy
+  cascade stress test guarded by an explicit throw, proven safe by the
+  preceding push loop. Does not touch `/src/sim` or `/data`. Verified: `npx
+  tsc --noEmit -p tsconfig.unchecked.json` no longer flags the file, no new
+  offenders (13 → 12, exact match via the ratchet test); main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` green (29 tests); `npm run
+  test:fast` unchanged at 315 files / 4548 passed / 35 skipped; `npm run
+  sim -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+  code-reviewer APPROVE, no Critical/Major findings. Light tier (`[polish]`,
+  no `/src`/`/data` touched) — no qa-playtester dispatch. — refs:
+  BACKLOG.md fb133 Log.
 - **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 15 → 13.**
   Fixed the remaining two test files with real guards (never `!`):
   `tests/class-active2-cdr.test.ts` (a `nth<T>` helper, byte-identical to
