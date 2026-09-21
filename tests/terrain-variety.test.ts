@@ -68,6 +68,12 @@ const INTERIOR = (GRID_W - 2) * (GRID_H - 2);
 const maps: TerrainMap[] = [];
 for (let s = 1; s <= SWEEP; s++) maps.push(generateTerrain(s, cfg));
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
 /** The flat arena `generateTerrain` falls back to: rock border, normal inside. */
 function flatKinds(): Uint8Array {
   const kind = new Uint8Array(TILES).fill(TerrainKind.Normal);
@@ -113,8 +119,10 @@ function stats(values: readonly number[]): {
   // `RangeError: too many arguments` somewhere around 100k entries, so the
   // helper would break on the day someone raises `SWEEP` — which is the one
   // edit this file invites. (QA.)
-  let min = values[0];
-  let max = values[0];
+  const first = values[0];
+  if (first === undefined) throw new Error('stats() called with an empty array');
+  let min = first;
+  let max = first;
   for (const v of values) {
     if (v < min) min = v;
     if (v > max) max = v;
@@ -171,12 +179,12 @@ describe(`fb064l — seeds produce varied maps, measured over ${SWEEP} seeds`, (
     let worst = 1;
     for (let i = 0; i < SWEEP; i++) {
       for (let j = i + 1; j < SWEEP; j++) {
-        if (maps[i].seed === maps[j].seed) {
+        if (nth(maps, i).seed === nth(maps, j).seed) {
           sameKey++;
-          expect(maps[i].hash).toBe(maps[j].hash); // same key => same map
+          expect(nth(maps, i).hash).toBe(nth(maps, j).hash); // same key => same map
           continue;
         }
-        const f = diffShare(maps[i].kind, maps[j].kind);
+        const f = diffShare(nth(maps, i).kind, nth(maps, j).kind);
         sum += f;
         pairs++;
         if (f < worst) worst = f;
@@ -194,8 +202,8 @@ describe(`fb064l — seeds produce varied maps, measured over ${SWEEP} seeds`, (
     // is *explained*: one of the two seeds was regenerated. (QA bug 2.)
     for (let i = 0; i < SWEEP; i++) {
       for (let j = i + 1; j < SWEEP; j++) {
-        if (maps[i].seed !== maps[j].seed) continue;
-        expect(maps[i].attempts > 1 || maps[j].attempts > 1, `seeds ${i + 1}/${j + 1}`).toBe(true);
+        if (nth(maps, i).seed !== nth(maps, j).seed) continue;
+        expect(nth(maps, i).attempts > 1 || nth(maps, j).attempts > 1, `seeds ${i + 1}/${j + 1}`).toBe(true);
       }
     }
     expect(sum / pairs).toBeGreaterThanOrEqual(0.3);

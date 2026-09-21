@@ -125,19 +125,31 @@ export function blockBodyIn(text: string, anchor: RegExp): Block {
   const ls = text.split('\n');
   const hits = ls.map((l, i) => [l, i] as const).filter(([l]) => /^\s*(it|describe)\(/.test(l) && anchor.test(l));
   if (hits.length !== 1) return { title: '', body: '', codeBody: '', ancestors: [], matches: hits.length };
-  const [line, i] = hits[0];
-  const indent = /^\s*/.exec(line)![0];
+  const hit = hits[0];
+  if (hit === undefined) throw new Error('unreachable: hits.length === 1, checked above');
+  const [line, i] = hit;
+  const indentMatch = /^\s*/.exec(line);
+  if (indentMatch === null) throw new Error('unreachable: /^\\s*/ always matches');
+  const indent = indentMatch[0];
+  const lineAt = (j: number): string => {
+    const v = ls[j];
+    if (v === undefined) throw new Error(`unreachable: index ${j} out of range`);
+    return v;
+  };
   // The end is the first line back at the block's own indentation, whatever it
   // says — and anything at that column that is not a closer is an error rather
   // than a swallow.
   let end = -1;
   for (let j = i + 1; j < ls.length; j++) {
-    if (ls[j].trim() === '') continue;
-    if (/^\s*/.exec(ls[j])![0].length > indent.length) continue;
-    if (!/^\s*\}/.test(ls[j])) {
+    const lj = lineAt(j);
+    if (lj.trim() === '') continue;
+    const ljIndentMatch = /^\s*/.exec(lj);
+    if (ljIndentMatch === null) throw new Error('unreachable: /^\\s*/ always matches');
+    if (ljIndentMatch[0].length > indent.length) continue;
+    if (!/^\s*\}/.test(lj)) {
       throw new Error(
         `spec-ledger: the block at line ${i + 1} does not close - line ${j + 1} is back at its indentation ` +
-          `but is not a closer: "${ls[j].trim()}"`,
+          `but is not a closer: "${lj.trim()}"`,
       );
     }
     end = j;
@@ -148,10 +160,13 @@ export function blockBodyIn(text: string, anchor: RegExp): Block {
   const ancestors: string[] = [];
   let want = indent.length;
   for (let j = i - 1; j >= 0 && want > 0; j--) {
-    if (ls[j].trim() === '') continue;
-    const w = /^\s*/.exec(ls[j])![0].length;
-    if (w < want && /^\s*(describe|it)[.(]/.test(ls[j])) {
-      ancestors.push(ls[j].trim());
+    const lj = lineAt(j);
+    if (lj.trim() === '') continue;
+    const ljIndentMatch = /^\s*/.exec(lj);
+    if (ljIndentMatch === null) throw new Error('unreachable: /^\\s*/ always matches');
+    const w = ljIndentMatch[0].length;
+    if (w < want && /^\s*(describe|it)[.(]/.test(lj)) {
+      ancestors.push(lj.trim());
       want = w;
     }
   }
@@ -294,6 +309,7 @@ export function blankNonCode(src: string): string {
   let mode: 'code' | 'line' | 'block' | "'" | '"' | '`' = 'code';
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
+    if (ch === undefined) throw new Error('unreachable: i < src.length');
     const next = src[i + 1];
     if (mode === 'code') {
       if (ch === '/' && next === '/') {
@@ -412,7 +428,21 @@ export function killEntries(src: string): KillEntry[] {
         const del = /delete r\.(\w+)\.mods\.(\w+)/.exec(entry);
         const measure = /measure: signal\.(\w+)/.exec(entry);
         if (name && classKey && del && measure) {
-          out.push({ name: name[2], classKey: classKey[2], slot: del[1], key: del[2], measure: measure[1] });
+          const nameVal = name[2];
+          const classKeyVal = classKey[2];
+          const slotVal = del[1];
+          const keyVal = del[2];
+          const measureVal = measure[1];
+          if (
+            nameVal === undefined ||
+            classKeyVal === undefined ||
+            slotVal === undefined ||
+            keyVal === undefined ||
+            measureVal === undefined
+          ) {
+            throw new Error('spec-ledger: a KILLS entry regex matched but a capture group is missing');
+          }
+          out.push({ name: nameVal, classKey: classKeyVal, slot: slotVal, key: keyVal, measure: measureVal });
         }
       }
     }
