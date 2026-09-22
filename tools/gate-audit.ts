@@ -403,6 +403,32 @@ export function staleKnownHoles(
 }
 
 export const BACKLOG_PATH = resolve(REPO_ROOT, 'BACKLOG-QUALITY.md');
+/**
+ * fb182: BACKLOG-QUALITY.md's own done items now get archived out to keep it
+ * under the token-economy line budget, so a `qNN` this tool marked done
+ * years ago can vanish from `BACKLOG_PATH` entirely rather than staying a
+ * `- [x]` line forever. `staleHoleRefs`'s default read includes this file
+ * too — the same fix `tools/status.ts`'s `backlogPaths()` already applied
+ * for the feedback ledger (fb178) — so an archived id still reads as done.
+ */
+export const BACKLOG_DONE_PATH = resolve(REPO_ROOT, 'docs/BACKLOG-DONE.md');
+
+/**
+ * `docs/BACKLOG-DONE.md` is one file holding every lane's archive
+ * concatenated under its own `## BACKLOG-*.md` heading. The main `BACKLOG.md`
+ * archive section carries bare `q<digits>` owner-verdict ids of its own
+ * (`q91`, `q102`, ...) that collide with this lane's `qNN` id namespace, so
+ * `staleHoleRefs` must only ever see the one section that is actually this
+ * lane's archive — never the whole file — or a main-lane `q91` could read as
+ * "this lane's q91 shipped" by pure coincidence of numbering.
+ */
+export function extractArchiveSection(doneText: string, heading: string): string {
+  const start = doneText.indexOf(`\n${heading}\n`);
+  if (start === -1) return '';
+  const bodyStart = start + heading.length + 2;
+  const next = doneText.indexOf('\n## ', bodyStart);
+  return next === -1 ? doneText.slice(bodyStart) : doneText.slice(bodyStart, next);
+}
 
 /** `{ q12: true, q16: false, ... }` from BACKLOG-QUALITY.md's own `- [x] (q12) ...` / `- [ ] (q16) ...` lines. */
 export function backlogCheckboxes(text: string): Record<string, boolean> {
@@ -441,7 +467,11 @@ export function backlogCheckboxes(text: string): Record<string, boolean> {
  */
 export function staleHoleRefs(
   holes: Record<string, string> = KNOWN_HOLES,
-  backlogText: string = readFileSync(BACKLOG_PATH, 'utf8'),
+  backlogText: string = readFileSync(BACKLOG_PATH, 'utf8') +
+    '\n' +
+    (existsSync(BACKLOG_DONE_PATH)
+      ? extractArchiveSection(readFileSync(BACKLOG_DONE_PATH, 'utf8'), '## BACKLOG-QUALITY.md')
+      : ''),
 ): string[] {
   const done = backlogCheckboxes(backlogText);
   const flagged: string[] = [];
