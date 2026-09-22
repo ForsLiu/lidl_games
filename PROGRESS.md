@@ -5,7 +5,60 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (integrator merge, latest) — fb133 ratchet at 9 files.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 7 → 6.**
+  Fixed `tests/p2c-vs-specials.test.ts` (55 unchecked-index sites) with the
+  same `nth<T>` throw-guard helper — single/two-tile `tiles()` destructures
+  (the two-tile cases each caching a single `tiles(w, 2)` call rather than
+  calling it twice), `w.areas`/`w.gems` last-element reads, and an
+  `enemies[0]` hoisted into a reused local. Does not touch `/src` or
+  `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags the file, no new offenders (7 → 6); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` plus the ratchet test green (17 tests);
+  `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer APPROVE, no findings. Light tier, no qa-playtester
+  dispatch. **6 files remain**: 5 `/src/sim` files (Full tier once picked
+  up) and `tests/p2b-wielded-fire.test.ts` (the last test file, Light
+  tier). — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 8 → 7.**
+  Fixed `tests/fb037-vs-panel.test.ts` (49 unchecked-index sites, all
+  array-destructure/index reads of a dynamically-lengthed array) with a
+  local `nth<T>` throw-guard helper, same convention as the prior round;
+  the one two-element destructure now caches its single `tiles(w, 2)` call
+  rather than calling it twice. Does not touch `/src` or `/data`. Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags the file,
+  no new offenders (8 → 7); main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` on the file plus the ratchet test green (11 tests);
+  `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer APPROVE, no findings. Light tier, no qa-playtester
+  dispatch. **7 files remain**: 5 `/src/sim` files (Full tier once picked
+  up) and 2 test files (`p2b-wielded-fire.test.ts`, `p2c-vs-specials.test.ts`
+  — Light tier). — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 9 → 8,
+  last test file cleared.** Ground truth re-measured directly from
+  `tests/fb133-unchecked-access-ratchet.test.ts`'s live
+  `KNOWN_UNCHECKED_ACCESS_FILES` (the entries below this one drifted out of
+  sync with the file on disk after the integrator merge reconciled to 9;
+  9 was confirmed correct). Fixed `tests/terrain-grid.test.ts` (37
+  unchecked-index sites, the last test file on the list) with real guards
+  (never `!`): a local `nth<T>` throw-guard helper for fixed-index reads of
+  `GATES` and `path[path.length - 1]`; `?? 0`/`?? -1` defaults on `Grid`
+  typed-array reads already proven in-range by their loop's own bound; a
+  raw `cfg.tiles[kind].walkable/buildable/highGround` read swapped for the
+  existing `isWalkable`/`isBuildable`/`isHighGround(cfg, kind)` helpers;
+  two `Record<string, Fn>` dynamic-method lookups given an explicit
+  `if (x === undefined) throw` before their `.call(...)`. Does not touch
+  `/src/sim`, `/src/render`, `/src/ui` or `/data`. Verified: `npx tsc
+  --noEmit -p tsconfig.unchecked.json` no longer flags the file, no new
+  offenders (9 → 8, exact match via the ratchet test); main `npx tsc
+  --noEmit` clean; targeted `npx vitest run` on the file plus the ratchet
+  test itself green (36 tests); `npm run test:fast` green, unchanged at
+  315 files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings.
+  Light tier (`[polish]`, no `/src`/`/data` touched) — no qa-playtester
+  dispatch. **8 files remain**: 5 `/src/sim` files (`enemies.ts`, `grid.ts`,
+  `run.ts`, `terrain/analyze.ts`, `world.ts` — Full tier once picked up) and
+  3 test files (`fb037-vs-panel.test.ts`, `p2b-wielded-fire.test.ts`,
+  `p2c-vs-specials.test.ts` — Light tier). — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (integrator merge) — fb133 ratchet at 9 files.**
   `claude/dreamy-hopper-j9bpc9` (PR #139) and `claude/dreamy-hopper-ii51en`
   (PR #138) both branched from the same 15-file baseline and each
   independently fixed `tests/terrain-generation.test.ts` — j9bpc9 with a
