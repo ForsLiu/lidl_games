@@ -464,7 +464,7 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
 /** fb019: an Act I gate position for a manually spawned enemy, cycling gates so a multi-count spawn spreads out. */
 function gateSpawnPoint(w: World, i: number): { x: number; y: number } {
   const gate = w.gates[i % Math.max(1, w.gates.length)] ?? GATES[0];
-  if (!gate) throw new Error('gateSpawnPoint: no gates available');
+  if (!gate) throw new Error('gateSpawnPoint: GATES is empty (unreachable)');
   const jitterX = w.rng.spawns.range(-0.25, 0.25);
   const jitterY = w.rng.spawns.range(-0.25, 0.25);
   return { x: gate.tx + 0.5 + jitterX, y: gate.ty + 0.5 + jitterY };
@@ -708,13 +708,15 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
         // stack) into the shortest-remaining stack rather than dropping it,
         // so no damage is lost, only its timing is folded into another
         // stack's remaining window.
-        let shortest = wd.dots[0];
-        if (!shortest) throw new Error('damageWarden: dots array empty despite cap reached');
+        let shortest = 0;
         for (let i = 1; i < wd.dots.length; i++) {
           const candidate = wd.dots[i];
-          if (candidate && candidate.remaining < shortest.remaining) shortest = candidate;
+          const current = wd.dots[shortest];
+          if (candidate && current && candidate.remaining < current.remaining) shortest = i;
         }
-        shortest.dps += dmg / shortest.remaining;
+        const shortestDot = wd.dots[shortest];
+        if (!shortestDot) throw new Error('damageWarden: shortest index out of range (unreachable)');
+        shortestDot.dps += dmg / shortestDot.remaining;
       }
       return;
     }
@@ -799,15 +801,15 @@ export function startWave(w: World): void {
   w.waveStartTick = w.tick;
 }
 
-function buildSpawnQueue(w: World, wave: number): number[][] {
+function buildSpawnQueue(w: World, wave: number): [defId: number, gateIdx: number, originWave: number][] {
   const content = w.content;
   const table = content.waves.waves;
   // Waves past the authored table (Long Watch modifier) repeat the last entry
   // with continued HP scaling.
   const pastTable = wave > table.length;
   const def = table[Math.min(wave, table.length) - 1];
-  if (!def) throw new Error(`buildSpawnQueue: no wave data for wave ${wave}`);
-  const queue: number[][] = [];
+  if (!def) throw new Error('buildSpawnQueue: waves table is empty (unreachable)');
+  const queue: [defId: number, gateIdx: number, originWave: number][] = [];
   const gateCount = w.gates.length;
   for (const g of def.groups) {
     const e = content.enemyByKey.get(g.enemy)!;
@@ -857,15 +859,10 @@ function updateAct1Wave(w: World, dt: number): void {
       // p3b: a stacked fight's queue holds more than one wave's spawns
       // interleaved, so each triple carries its own true origin wave rather
       // than the current fight's base `w.wave`.
-      const entry = w.spawnQueue.shift();
-      if (!entry) break;
-      const [defId, gateIdx, originWave] = entry;
-      if (defId === undefined || gateIdx === undefined || originWave === undefined) {
-        throw new Error('buildSpawnQueue: spawn queue entry missing a field');
-      }
+      const [defId, gateIdx, originWave] = w.spawnQueue.shift()!;
       const def = content.enemyById.get(defId)!;
       const gate = w.gates[gateIdx] ?? GATES[0];
-      if (!gate) throw new Error('updateAct1Wave: no gates available');
+      if (!gate) throw new Error('updateAct1Wave: GATES is empty (unreachable)');
       const jitterX = w.rng.spawns.range(-0.25, 0.25);
       const jitterY = w.rng.spawns.range(-0.25, 0.25);
       w.spawnedByWave[originWave] = (w.spawnedByWave[originWave] ?? 0) + 1;
@@ -937,8 +934,9 @@ function completeWave(w: World): void {
     // cleared, not one per stack.
     const items = w.content.equipment.items;
     if (items.length > 0) {
-      const item = items[w.rng.drops.int(items.length)];
-      if (item) w.equipmentFound.push(item.key);
+      const picked = items[w.rng.drops.int(items.length)];
+      if (!picked) throw new Error('completeWave: equipment item index out of range (unreachable)');
+      w.equipmentFound.push(picked.key);
     }
   }
   w.wave = lastWave;
@@ -1223,8 +1221,9 @@ export function hashWorld(w: World): string {
   // for a stable field order; `secondWind` is the one non-numeric member.
   for (const k of Object.keys(w.derived).sort()) {
     const v = (w.derived as unknown as Record<string, number | boolean>)[k];
+    if (v === undefined) throw new Error(`hashWorld: Derived field '${k}' missing (unreachable)`);
     if (typeof v === 'boolean') h.bool(v);
-    else h.num(v ?? 0);
+    else h.num(v);
   }
   // p-core-b: `w.core` is `Derived`'s sibling for Core numbers (folded from
   // `coreKey`/`coreStep`, already hashed above) — hashed the same generic way
@@ -1232,8 +1231,9 @@ export function hashWorld(w: World): string {
   // a field this hash does not cover would otherwise regress silently.
   for (const k of Object.keys(w.core).sort()) {
     const v = (w.core as unknown as Record<string, number | boolean>)[k];
+    if (v === undefined) throw new Error(`hashWorld: core field '${k}' missing (unreachable)`);
     if (typeof v === 'boolean') h.bool(v);
-    else h.num(v ?? 0);
+    else h.num(v);
   }
   h.int(w.enemies.length);
   for (const e of w.enemies) {

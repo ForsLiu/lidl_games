@@ -5010,7 +5010,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       still passes; `npx vitest run tests/terrain-describe.test.ts` (37/37)
       and `npm run test:fast` (313 files / 4538 passed / 35 skipped) both
       green.
-- [ ] (fb133) [polish] `tsconfig.json` is `strict` without
+- [x] (fb133) [polish] `tsconfig.json` is `strict` without
       `noUncheckedIndexedAccess`, which is why `cfg.tiles[i].key` typechecked
       as safe and fb064t's `TypeError` shipped. Acceptance: flag enabled;
       the resulting errors fixed with real guards (not `!`), count recorded
@@ -6715,51 +6715,90 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       bugs filed. Full tier. **2 files remain, both `/src/sim`**:
       `src/sim/enemies.ts`, `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
-    - **Ratchet shrunk further 2026-09-22 (scheduled routine)**: fixed
-      `src/sim/run.ts` (39 unchecked-index-access sites) with real guards
-      (never `!`). Shapes: `equipItemCommand`'s owned-count check got
-      `?? 0`; `gateSpawnPoint` and `updateAct1Wave`'s gate-fallback
-      (`w.gates[i] ?? GATES[0]`) got a `throw` after the fallback since
-      `GATES` is a fixed non-empty literal and `w.gates` defaults to a copy
-      of it — unreachable in practice; `tickWardenDots`'s per-tick `wd.dots[i]`
-      read (loop bound captured before iterating, array never mutated
-      mid-loop) got `if (!d) continue`; `damageWarden`'s DoT-stack-cap merge
-      loop was rewritten from index-tracking (`wd.dots[shortest]`) to
-      reference-tracking (`let shortest = wd.dots[0]; if (!shortest) throw`,
-      then compare/reassign the object directly) — same `<` tie-break
-      semantics, unreachable throw since the branch only runs once
-      `wd.dots.length >= cap` and `cap > 0`; `buildSpawnQueue`'s `def` throws
-      if `table[...]` is out of range (schema-enforced `.min(1)`, `wave >= 1`
-      at every call site — unreachable); `updateAct1Wave`'s spawn-queue
-      dequeue guards the shifted `[defId, gateIdx, originWave]` triple with
-      `=== undefined` checks (not falsy, so a real `0` gate/wave index isn't
-      misidentified as missing) since `buildSpawnQueue` only ever pushes
-      3-element tuples; the wave-clear equipment-drop pick, `damageSince`,
-      `topWeaponShare`, the run-state hash function's `w.derived`/`w.core`/
-      accumulator loops, and `buildReport`'s three copy-loops all got `?? 0`
-      defaults — every one iterates `Object.keys(sameObject)`, so the
-      default can never actually fire on real content. Does not touch
-      `/data`.
-      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
-      flags the file (only `src/sim/enemies.ts` remains); main `npx tsc
-      --noEmit` clean; `tests/fb133-unchecked-access-ratchet.test.ts` green;
-      `npm run sim -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`);
-      `npm run test:fast` green, 315 files / 4548 passed / 35 skipped (one
-      `tests/q13-perf-ratio.test.ts` timing-stability failure during the
-      first run was a host-CPU-contention flake from concurrent background
-      processes — passed clean in isolation and on the qa-playtester's own
-      full `test:fast` rerun). code-reviewer APPROVE (no Critical/Major/Minor
-      findings — independently re-traced every guard's unreachability,
-      confirmed the index-to-reference rewrite preserves the original merge
-      target and tie-break). qa-playtester PASS — reconfirmed the endHash
-      plus two more seed/policy combos (seed 2 maxbuild `69c6f658`, seed 3
-      turtle `1ea055ba`) byte-identical against a `git stash` baseline
-      including every sub-field, ran a 10-file targeted suite covering Time
-      Lord's `time_flow` DoT-stack-cap merge path plus spawn-queue/Act I/II
-      determinism (150/150 pass), and a full `test:fast` rerun (315/4548
-      green, no flake recurrence) — no bugs filed. Full tier. **1 file
-      remains, all `/src/sim`**: `src/sim/enemies.ts`. — refs:
-      BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet closed 2026-09-22 (scheduled routine)**: fixed the last 2
+      files (~135 `error TS` sites) with real guards, closing the allowlist
+      to empty. `src/sim/enemies.ts`: `kitBuildMul`'s `for...in` sum defaults
+      `?? 0` (own-key read); `triggerBurningExplode`/`tickDotSplash`'s
+      radius-query loops guard `list[i]`/`scratch[i]` with `if (!x) continue`
+      (`World.enemiesInRadius`'s output array is dense by construction —
+      confirmed by reading its `.push()`/`.length = 0` implementation);
+      `evictionIndex`/`applyDot`'s `e.dots[i]` reads take the same
+      `if (!d) continue` guard, and the two "index a slot this function's own
+      loop just proved exists" reads (`evictionIndex`'s `bestDot`,
+      `applyDot`'s post-loop `shortest` read) changed from index-comparison
+      to a local-variable read, one kept as `!bestDot` (an intentional part
+      of the tie-break, not an error case) and the other a
+      `throw` (a genuinely-unreachable post-loop state, matching
+      `tiers.ts`/`rng.ts`'s existing "throw on an already-guaranteed
+      invariant" convention); `tickDots`' per-stack loop and `flowAim`'s
+      `field.next[...]`/`w.grid.occ[next]` reads (already proven in-range by
+      a preceding bounds/`inBounds` check) get the same treatment;
+      `updateGroundUnreachable`'s `navFieldFor(...).next[...]` read defaults
+      `?? -1`, preserving its existing "no path" semantics. `src/sim/run.ts`:
+      `equipItemCommand`'s `ownedEquipment[itemKey]` defaults `?? 0`;
+      `gateSpawnPoint`/`updateAct1Wave` throw if `GATES` (a non-empty
+      literal array the type system can't see as such) somehow indexed
+      empty; `tickWardenDots` takes the same enemies.ts-style per-stack
+      guard; `damageWarden`'s Time Lord DoT-merge shortest-stack search
+      moved to reference comparison, same tie-break; `buildSpawnQueue`
+      throws if the (loader-validated, non-empty) waves table indexes empty;
+      `completeWave`'s random-equipment-drop index throws on the same
+      already-length-checked invariant; `hashWorld`/`damageSince`/
+      `topWeaponShare`/`buildReport`'s per-key record reads all default
+      `?? 0` (own-key reads from `Object.keys(...)` of the same record), and
+      `hashWorld`'s two `Derived`/`w.core` generic-field loops throw instead
+      (their cast bypasses the type system entirely, so an actual missing
+      field would be a real hashing bug worth failing loudly on, not masking
+      with a default — Q74/Q78/m19a's own gap class). **Root cause, not just
+      indexing:** `World.spawnQueue` (`src/sim/world.ts`) was typed
+      `number[][]` for a value that is always pushed and read as a 3-element
+      `[defId, gateIdx, originWave]` triple (`buildSpawnQueue`'s two push
+      sites, `updateAct1Wave`'s destructure) — retyped to a proper 3-tuple,
+      which fixed the destructure's per-position `| undefined` widening at
+      the source instead of guarding each read; every existing 3-element
+      call site (`tests/p3b-multi-summon.test.ts`,
+      `tests/b073-act1-alive-cap.test.ts`, `tests/p8a-wave-content.test.ts`)
+      was already tuple-shaped, only `tests/practice.test.ts` and
+      `tests/progress.test.ts` had 2-element test fixtures (both only ever
+      read `.length`, never the tuple contents, so a placeholder
+      `originWave` was appended). With both files clean, flipped
+      `noUncheckedIndexedAccess: true` directly onto the main
+      `tsconfig.json` (no more shadow config needed) and deleted
+      `tsconfig.unchecked.json` and `tests/fb133-unchecked-access-ratchet
+      .test.ts` as now-redundant scaffolding — `.github/workflows/ci.yml`'s
+      `fast` job already runs `npm run build` (`tsc --noEmit && vite build`)
+      against the main config on every push, which is a strictly wider net
+      than the retired ratchet test's own `tsc -p tsconfig.unchecked.json`
+      check (also now covers `tools/`, `vite.config.ts`, `vitest.config.ts`
+      per the main config's own `include`). Verified: `npx tsc --noEmit`
+      clean on the flipped main config; `npm run test:fast` green at 314
+      files / 4547 passed / 35 skipped (one file/test fewer than the prior
+      315/4548 baseline — the retired ratchet test itself); `npm run sim
+      -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+      code-reviewer REQUEST-CHANGES→APPROVE (one Major: this BACKLOG/
+      PROGRESS update was missing on first pass, added here; one Minor
+      style-consistency note on `throw` vs. `?? 0` for the same invariant
+      class, left as-is — both are equally sound, picking one convention is
+      a future nice-to-have, not a bug; one Nit on `gateSpawnPoint`'s and
+      `updateAct1Wave`'s duplicated "GATES is empty" throw, left as-is,
+      harmless duplication). qa-playtester PASS — confirmed `npx tsc
+      --noEmit` clean, `endHash` identical (`d6452f98`) both on the working
+      tree and independently on a `git stash`/rerun/`stash pop` of the
+      pre-fix tree, ran `--class time_lord` (exercises the Warden DoT
+      eviction/merge path) and `--mods longwatch` (exercises
+      `buildSpawnQueue`'s past-table repeat with its boss-row skip) without
+      error, traced every new guard's unreachability against
+      `e.dots`/`wd.dots` (push-only/overwrite-only, never sparse),
+      `w.gates` (always ≥4, `GATES.slice()`), `content.waves.waves`
+      (zod `.min(1)`), and `Derived`/`CoreState` (zero optional fields),
+      and independently reran `test:fast` (314/4547/35, matching) plus the
+      two touched test files directly (26/26). No bugs filed. Full tier,
+      `/src/sim`. **fb133 done — `KNOWN_UNCHECKED_ACCESS_FILES` allowlist
+      is empty, flag is on the main config, ratchet scaffolding retired.**
+      (Supersedes the same-day "Ratchet shrunk further" session, which
+      independently closed only `src/sim/run.ts` before this session closed
+      the allowlist the rest of the way — refs: BACKLOG-TERRAIN.md fb064t
+      Log.)
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

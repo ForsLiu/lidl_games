@@ -114,7 +114,7 @@ describe('practice tool', () => {
     expect(w.buildTimer).toBe(0);
 
     w.phase = 'act1_wave';
-    w.spawnQueue = [[1, 0], [1, 1]];
+    w.spawnQueue = [[1, 0, 1], [1, 1, 1]];
     spawnEnemy(w, 'husk', 6, 6);
     dev(w, 'skip_wave');
     expect(w.spawnQueue.length).toBe(0);
