@@ -348,7 +348,7 @@ function kitBuildMul(w: World): number {
   let sum = 0;
   let count = 0;
   for (const key in w.typeMasteryRanks) {
-    sum += w.typeMasteryRanks[key];
+    sum += w.typeMasteryRanks[key] ?? 0;
     count++;
   }
   if (count === 0) return 1;
@@ -726,7 +726,7 @@ function triggerBurningExplode(w: World, e: Enemy): void {
     const list = w.enemiesInRadius(e.x, e.y, radius, burningExplodeScratch);
     for (let i = 0; i < list.length; i++) {
       const other = list[i];
-      if (other.dead) continue;
+      if (!other || other.dead) continue;
       damageEnemy(w, other, dmg, t.key, { fromX: e.x, fromY: e.y });
     }
     w.emit('explosion', e.x, e.y, radius, 0);
@@ -971,12 +971,13 @@ function evictionIndex(e: Enemy, arriving: string, arrivingLive: number): number
   let bestCount = 0;
   for (let i = 0; i < e.dots.length; i++) {
     const d = e.dots[i];
-    if (d.type === arriving) continue;
+    if (!d || d.type === arriving) continue;
     let count = 0;
     for (const o of e.dots) if (o.type === d.type) count++;
     if (count <= arrivingLive) continue;
     if (count < bestCount) continue;
-    if (count > bestCount || best < 0 || d.remaining < e.dots[best].remaining) {
+    const bestDot = best >= 0 ? e.dots[best] : undefined;
+    if (count > bestCount || !bestDot || d.remaining < bestDot.remaining) {
       best = i;
       bestCount = count;
     }
@@ -1021,9 +1022,10 @@ export function applyDot(
   let shortest = -1;
   for (let i = 0; i < e.dots.length; i++) {
     const d = e.dots[i];
-    if (d.type !== type) continue;
+    if (!d || d.type !== type) continue;
     live++;
-    if (shortest < 0 || d.remaining < e.dots[shortest].remaining) shortest = i;
+    const shortestDot = shortest >= 0 ? e.dots[shortest] : undefined;
+    if (!shortestDot || d.remaining < shortestDot.remaining) shortest = i;
   }
 
   // The per-enemy cap is shared across types: it exists so a 350-strong horde
@@ -1053,6 +1055,7 @@ export function applyDot(
   if (shortest < 0) return;
 
   const d = e.dots[shortest];
+  if (!d) throw new Error('applyDot: shortest index out of range (unreachable)');
   if (def.refresh === 'strongest') {
     // V2's original burn rule: the stronger application wins, and the longer
     // timer wins. No shipped row uses it after p10a flipped Burning to
@@ -1206,7 +1209,7 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
   const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
   for (let i = 0; i < list.length; i++) {
     const n = list[i];
-    if (n === e || n.dead) continue;
+    if (!n || n === e || n.dead) continue;
     // The spread carries the row's effects, so it carries the row's immunity.
     if (immuneToDot(w, n, type)) continue;
     if (acc.shred > 0) shredArmor(n, acc.shred);
@@ -1253,6 +1256,7 @@ function tickDots(w: World, e: Enemy, dt: number): void {
     // skipped it).
     if (e.dead) break;
     const d = e.dots[i];
+    if (!d) continue;
     // The tick is clipped to the time actually left, not skipped when the stack
     // runs out mid-frame. §3 states each row as a *total* — 120% over 3 s — and
     // paying only whole frames delivered that total minus one frame, which at a
@@ -1590,7 +1594,7 @@ function updateGroundUnreachable(w: World, e: Enemy, def: EnemyDef, dt: number, 
   const reachable =
     !w.grid.inBounds(tx, ty) ||
     (tx === Math.floor(w.warden.x) && ty === Math.floor(w.warden.y)) ||
-    w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
+    (w.navFieldFor(false).next[ty * GRID_W + tx] ?? -1) >= 0;
   if (reachable || beelineHitsStructure(w, e, def, target)) {
     e.bossUnreachableTime = 0;
     return;
@@ -2048,14 +2052,14 @@ function flowAim(w: World, e: Enemy, target: { x: number; y: number }): void {
     return;
   }
   const field = w.navFieldFor(false);
-  const next = field.next[ty * GRID_W + tx];
+  const next = field.next[ty * GRID_W + tx] ?? -1;
   if (next < 0) {
     outX = target.x;
     outY = target.y;
     return;
   }
   aimHadStep = true;
-  aimBreach = w.grid.occ[next] !== 0;
+  aimBreach = (w.grid.occ[next] ?? 0) !== 0;
   outX = (next % GRID_W) + 0.5;
   outY = ((next / GRID_W) | 0) + 0.5;
 }
@@ -2079,7 +2083,7 @@ function separation(w: World, e: Enemy): void {
   let n = 0;
   for (let i = 0; i < scratch.length; i++) {
     const o = scratch[i];
-    if (o.id === e.id || o.dead || o.boss) continue;
+    if (!o || o.id === e.id || o.dead || o.boss) continue;
     const dx = e.x - o.x;
     const dy = e.y - o.y;
     const d = Math.sqrt(dx * dx + dy * dy);

@@ -5,7 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
+- **2026-09-22 (scheduled routine, latest) — fb133 CLOSED: `noUncheckedIndexedAccess`
+  is on the main `tsconfig.json`.** Fixed the last 2 files on the ratchet
+  allowlist (`src/sim/enemies.ts`, `src/sim/run.ts`, ~135 `error TS` sites)
+  with real guards, never `!`: DoT-stack application/eviction/ticking
+  (`applyDot`/`evictionIndex`/`tickDots` in enemies.ts,
+  `tickWardenDots`/`damageWarden`'s Time Lord merge in run.ts) and enemy
+  pathing (`flowAim`/`separation`/`updateGroundUnreachable`) got
+  loop-bound-proven `if (!x) continue`/`?? default` guards; a handful of
+  genuinely-unreachable post-loop reads (`applyDot`'s `shortest` slot,
+  `buildSpawnQueue`'s waves-table row, `completeWave`'s random-equipment
+  pick, `hashWorld`'s two generic `Derived`/`core` field loops) throw
+  instead, matching `tiers.ts`/`rng.ts`'s existing "throw on an
+  already-guaranteed invariant" convention. Root-caused rather than papered
+  over one spot: `World.spawnQueue` was typed `number[][]` for a value
+  always pushed/read as a 3-element `[defId, gateIdx, originWave]` triple —
+  retyped to a real 3-tuple (`src/sim/world.ts`), which fixed the
+  destructure at the source; two test fixtures with 2-element placeholder
+  arrays (`tests/practice.test.ts`, `tests/progress.test.ts`) got a third
+  element added (both tests only ever read `.length`, so intent is
+  unchanged). With both files clean, flipped `noUncheckedIndexedAccess:
+  true` directly onto `tsconfig.json` and deleted the now-redundant
+  scaffolding (`tsconfig.unchecked.json`,
+  `tests/fb133-unchecked-access-ratchet.test.ts`) — CI's `fast` job already
+  runs `npm run build` (`tsc --noEmit && vite build`) against the main
+  config on every push, a strictly wider net than the retired shadow-config
+  test. Verified: `npx tsc --noEmit` clean; `npm run test:fast` green at
+  314 files / 4547 passed / 35 skipped (one file/test fewer than the prior
+  315/4548 baseline — the retired ratchet test itself, accounted for); sim
+  endHash unchanged (`d6452f98`), independently re-confirmed by
+  qa-playtester via `git stash` comparison. code-reviewer REQUEST-CHANGES
+  (one Major: this PROGRESS/BACKLOG update missing on first pass, added
+  here) → APPROVE on the code itself; two Minor/Nit notes (a `throw`-vs-
+  `?? 0` style-consistency observation and a small duplicated-guard nit)
+  left as-is, both harmless. Full tier. **fb133 done.** — refs: BACKLOG.md
+  fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
   Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
   `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`
   overlay-copy loops and the Dijkstra bucket-pop inner loop got inline

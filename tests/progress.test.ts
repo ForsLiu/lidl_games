@@ -48,7 +48,7 @@ describe('run progress', () => {
   it('waveRemaining counts what is standing plus what is still queued', () => {
     const w = world();
     expect(waveRemaining(w)).toBe(0);
-    w.spawnQueue = [[1, 0], [1, 1], [2, 2]];
+    w.spawnQueue = [[1, 0, 1], [1, 1, 1], [2, 2, 1]];
     expect(waveRemaining(w)).toBe(3);
   });
 
