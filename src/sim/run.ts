@@ -629,7 +629,7 @@ export function tickWardenDots(w: World, dt: number): void {
   for (let i = 0; i < n; i++) {
     if (w.outcome !== 'running') break;
     const d = wd.dots[i];
-    if (!d) throw new Error('tickWardenDots: dot slot out of range');
+    if (!d) continue;
     const step = Math.min(dt, d.remaining);
     d.remaining -= dt;
     const dead = d.remaining <= 0;
@@ -708,17 +708,13 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
         // stack) into the shortest-remaining stack rather than dropping it,
         // so no damage is lost, only its timing is folded into another
         // stack's remaining window.
-        let shortest = 0;
+        let shortest = wd.dots[0];
+        if (!shortest) throw new Error('damageWarden: dots array empty despite cap reached');
         for (let i = 1; i < wd.dots.length; i++) {
-          const cur = wd.dots[i];
-          const best = wd.dots[shortest];
-          if (cur && best && cur.remaining < best.remaining) shortest = i;
+          const candidate = wd.dots[i];
+          if (candidate && candidate.remaining < shortest.remaining) shortest = candidate;
         }
-        // `cap >= 1` is loader-enforced (content.ts: `maxStacksPerEnemy: num.int().min(1)`),
-        // and this branch only runs when `wd.dots.length >= cap`, so index 0 always exists.
-        const stack = wd.dots[shortest];
-        if (!stack) throw new Error('damageWarden: dot stack index out of range');
-        stack.dps += dmg / stack.remaining;
+        shortest.dps += dmg / shortest.remaining;
       }
       return;
     }
@@ -810,9 +806,7 @@ function buildSpawnQueue(w: World, wave: number): number[][] {
   // with continued HP scaling.
   const pastTable = wave > table.length;
   const def = table[Math.min(wave, table.length) - 1];
-  // `table.length >= 1` is loader-enforced (content.ts: `waves: z.array(...).min(1)`)
-  // and `wave >= 1`, so this index always falls in range.
-  if (!def) throw new Error('buildSpawnQueue: wave index out of range');
+  if (!def) throw new Error(`buildSpawnQueue: no wave data for wave ${wave}`);
   const queue: number[][] = [];
   const gateCount = w.gates.length;
   for (const g of def.groups) {
@@ -867,7 +861,7 @@ function updateAct1Wave(w: World, dt: number): void {
       if (!entry) break;
       const [defId, gateIdx, originWave] = entry;
       if (defId === undefined || gateIdx === undefined || originWave === undefined) {
-        throw new Error('updateAct1Wave: malformed spawn queue entry');
+        throw new Error('buildSpawnQueue: spawn queue entry missing a field');
       }
       const def = content.enemyById.get(defId)!;
       const gate = w.gates[gateIdx] ?? GATES[0];
@@ -1082,9 +1076,9 @@ export function topWeaponShare(w: World, damage: Record<string, number>): { key:
   let best = 0;
   for (const key of Object.keys(damage)) {
     if (!w.content.towerByKey.has(key)) continue;
-    const amount = damage[key] ?? 0;
-    if (amount > best) {
-      best = amount;
+    const value = damage[key] ?? 0;
+    if (value > best) {
+      best = value;
       bestKey = key;
     }
   }

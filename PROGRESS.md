@@ -6,35 +6,45 @@
 ## Current state — SPEC-FINAL
 
 - **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 2 → 1,
-  `src/sim/run.ts` cleared.** Fixed `src/sim/run.ts` (39 unchecked-index
-  sites) with real guards (never `!`): `gateSpawnPoint`/`updateAct1Wave`'s
-  `GATES[0]` fallback and `buildSpawnQueue`'s wave-table index both throw
-  on an already-guaranteed-non-empty invariant (`GATES`'s fixed literal,
-  the loader's `waves.min(1)`); `updateAct1Wave`'s spawn-queue-entry
-  destructure and `damageWarden`'s shortest-remaining-DoT-stack merge loop
-  get explicit `undefined` checks, unreachable given `buildSpawnQueue`'s
-  always-full-triple pushes and `maxStacksPerEnemy`'s loader-enforced
-  `>= 1` floor; `tickWardenDots`'s per-tick dot read throws on the same
-  loop-bound invariant; `equipItemCommand`'s `ownedEquipment` check is a
-  true semantic no-op (`undefined > 0` and `0 > 0` both false); the
-  endHash builder and `buildReport`'s `Object.keys()`-driven loops get
-  `?? 0` defaults, genuine no-ops since the read key always comes from
-  that same record. Does not touch `/data`. Verified: `npx tsc --noEmit
-  -p tsconfig.unchecked.json` no longer flags the file; main tsc clean;
-  `tests/fb133-unchecked-access-ratchet.test.ts` green with `run.ts`
-  removed from the allowlist; `npm run test:fast` green (315/4548 passed/
-  35 skipped, unchanged); sim endHash unchanged (`d6452f98`) and
-  independently re-confirmed across 3 seed/policy combos via a `git
-  worktree` diff against unmodified HEAD. code-reviewer APPROVE (one
-  Minor fixed: `tickWardenDots`'s unreachable-slot guard switched from
-  `continue` to `throw` to match this diff's own convention),
-  qa-playtester PASS — no bugs filed. Full tier. **Ratchet allowlist down
-  to 1 file: `src/sim/enemies.ts`.** Observation logged, not fixed (out of
-  scope for this `[polish]` item): `tests/p10d-run-length.test.ts`'s T1/T5
-  companion gate (p12d) reads red (T1 33.3% vs band [55%,90%]; T5 37.5%
-  vs ceiling 20%) — ruled out as caused by this diff via the unchanged
-  endHash and test:fast baseline; flagged for the next P10-balance
-  session. — refs: BACKLOG.md fb133 Log.
+  last non-`enemies.ts` file cleared.** Fixed `src/sim/run.ts` (39
+  unchecked-index sites) with real guards (never `!`). Shapes:
+  `equipItemCommand`'s owned-count check got `?? 0`; `gateSpawnPoint` and
+  `updateAct1Wave`'s gate-fallback (`w.gates[i] ?? GATES[0]`) got a `throw`
+  after the fallback (`GATES` is a fixed non-empty literal, `w.gates`
+  defaults to a copy of it — unreachable); `tickWardenDots`'s per-tick
+  `wd.dots[i]` read got `if (!d) continue` (loop bound captured before
+  iterating, array never mutated mid-loop); `damageWarden`'s DoT-stack-cap
+  merge loop was rewritten from index-tracking to reference-tracking
+  (`let shortest = wd.dots[0]; if (!shortest) throw`, then compare/reassign
+  the object directly) — identical `<` tie-break semantics, throw
+  unreachable since the branch only runs once `wd.dots.length >= cap > 0`;
+  `buildSpawnQueue`'s `def` throw is unreachable (schema-enforced
+  `waves.min(1)`, `wave >= 1` at every call site); `updateAct1Wave`'s
+  spawn-queue dequeue guards the shifted triple with `=== undefined` checks
+  (not falsy, so a real `0` gate/wave index isn't misread as missing) since
+  `buildSpawnQueue` only ever pushes 3-element tuples; the wave-clear
+  equipment-drop pick, `damageSince`, `topWeaponShare`, the run-state hash
+  function's `w.derived`/`w.core`/accumulator loops, and `buildReport`'s
+  three copy-loops all got `?? 0` defaults — every one iterates
+  `Object.keys(sameObject)`, so the default can never actually fire on real
+  content. Does not touch `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags the file (only `enemies.ts`
+  remains); main `npx tsc --noEmit` clean; `tests/fb133-unchecked-access-
+  ratchet.test.ts` green; `npm run sim --seed 1 --policy hybrid` endHash
+  unchanged (`d6452f98`); `npm run test:fast` green, 315 files / 4548
+  passed / 35 skipped (one `tests/q13-perf-ratio.test.ts` timing-stability
+  failure on the first run was a host-CPU-contention flake from concurrent
+  background processes — passed clean in isolation and on qa-playtester's
+  own full rerun). code-reviewer APPROVE (no findings — independently
+  re-traced every guard's unreachability, confirmed the index-to-reference
+  rewrite preserves the original merge target and tie-break). qa-playtester
+  PASS — reconfirmed the endHash plus two more seed/policy combos (seed 2
+  maxbuild `69c6f658`, seed 3 turtle `1ea055ba`) byte-identical against a
+  `git stash` baseline, ran a 10-file targeted suite covering Time Lord's
+  `time_flow` DoT-stack-cap merge path plus spawn-queue/Act I/II
+  determinism (150/150 pass), and a full `test:fast` rerun (315/4548 green,
+  no flake recurrence) — no bugs filed. Full tier. **1 file remains, all
+  `/src/sim`**: `enemies.ts`. — refs: BACKLOG.md fb133 Log.
 - **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
   Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
   `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`

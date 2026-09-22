@@ -31,8 +31,9 @@
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
  * then 105, then 98, then 92, ..., then 20, then 18, then 16, then 15, then
- * 13, then 12, then 9, then 8, then 7, then 6, then 5, then 3 files remaining
- * as of the latest). Shrink this list
+ * 13, then 12, then 9, then 8, then 7, then 6, then 5, then 3, then 2, then 1
+ * file remaining (`src/sim/run.ts` closed 2026-09-22) as of the latest).
+ * Shrink this list
  * as files are fixed; do not add to it without a reason logged in
  * BACKLOG.md.
  *
@@ -59,9 +60,7 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
-const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
-  'src/sim/enemies.ts',
-];
+const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = ['src/sim/enemies.ts'];
 
 // qa-playtester (fb133): under heavy host contention a slow `tsc` subprocess
 // can hit `timeout` and get SIGTERM-killed mid-run; execFileSync's catch
