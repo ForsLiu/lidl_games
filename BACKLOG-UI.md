@@ -152,6 +152,21 @@ not already expose it) logs that need below instead of reaching into
       — refs: fb167, `src/render/canvas.ts`'s camera-activation block,
       `src/sim/sundering.ts`.
 
+### Actionable (filed 2026-09-22)
+
+- [ ] (fb201) [polish] every Active1 damage sentence in `src/ui/class-info.ts`
+      omits the §6.3 "Active1 potency" skill card the sim multiplies in
+      (`active1PotencyMul`, applied at every Active1 damage site in
+      `src/sim/classes.ts`), so after taking the card the in-run tooltip
+      under-states the real number by up to x1.5. fb062 (2026-09-22, code
+      review) added `ClassLiveContext.active1PotencyMul` and wired it into
+      Poison Barrel's sentence only. Acceptance: every Active1 sentence whose
+      sim fire path reads `active1PotencyMul` multiplies its damage figures by
+      `live.active1PotencyMul`; a test per kind drives `classLiveContext`
+      through a World with the class's potency card at rank 2 and matches the
+      sentence against the sim's own fired damage — refs: SPEC-FINAL §6.3,
+      §11, fb062.
+
 ### Blocked out of Scope
 
 - [x] (fb085) [feat] low priority: **DONE 2026-09-18 from the main lane**

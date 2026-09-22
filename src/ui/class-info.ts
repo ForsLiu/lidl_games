@@ -16,7 +16,8 @@
  * file header's own stated rule.
  */
 
-import type { ClassDef, ClassEffect } from '../sim/content';
+import { loadContent, type ClassDef, type ClassEffect } from '../sim/content';
+import { dotDpsFor } from '../sim/damagetypes';
 import {
   AOE_FALLOFF_CLAUSE,
   LINE_FALLOFF_CLAUSE,
@@ -83,6 +84,14 @@ export interface ClassLiveContext {
    * authored base.
    */
   areaMul?: number;
+  /**
+   * fb062 (code review): `active1PotencyMul(w)` (sim/progression.ts) — the
+   * §6.3 "Active1 potency" skill card, which `firePoisonBarrel` (and every
+   * other Active1 damage site) multiplies its seed by. Optional for the same
+   * pre-run reason as `areaMul`; only Poison Barrel's sentence reads it so
+   * far (the other Active1 sentences are a filed follow-up).
+   */
+  active1PotencyMul?: number;
 }
 
 /**
@@ -202,7 +211,26 @@ function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const dps = liveDamageValue(eff.damage, live);
+  // fb062 (owner feedback `feature-poison-barrel-mechanic`): name the real
+  // mechanic, not a flat rate — "Poisons every enemy inside the circle each
+  // second: each application deals 9.6 poison damage over 3 s (up to 3
+  // stacks)." Each application is §3's Poison row seeded by the skill's own
+  // (live-scaled) `damage`: `ratio x seed` over the row's `duration`, capped
+  // at its `maxStacks` — exactly what `firePoisonBarrel`'s zone hands
+  // `updateAreas` through `dotDpsFor` (classes.ts). Read off the loaded
+  // damage-type row, so a retune of Poison moves the sentence with it.
+  const seed = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
+  const poison = loadContent().damageTypeByKey.get('poison');
+  const window = poison?.duration ?? 0;
+  // The sim's own conversion (`dotDpsFor`, the zone's `dps:` line) times the
+  // stack's window — the same function, not a restated ratio. The zone path
+  // applies each stack for Poison's row duration under the engine's 3-stack
+  // poison cap (`POISON_STACK_CAP`, combat.ts), which the row's `maxStacks`
+  // states and x001 pins equal.
+  const perApplication = poison ? dotDpsFor(poison, seed) * window : 0;
+  const stacks = poison?.maxStacks ?? 0;
+  const tick = eff.groundTickSeconds ?? 1;
+  const cadence = tick === 1 ? 'each second' : `every ${trimNum(tick)}s`;
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
   // fb061: a hold/release charge — the cloud's radius and lifetime lerp from
   // their zero-charge floors (`minRadius`/`minGroundDurationSeconds`) to the
@@ -213,7 +241,10 @@ function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldow
   const radius = liveAreaValue(eff.radius, live);
   const fullDuration = eff.groundDurationSeconds ?? 0;
   const minDuration = eff.minGroundDurationSeconds ?? fullDuration;
-  return `Hold to charge, then release to drop a poison cloud: ${trimNum(minRadius)} tiles for ${trimNum(minDuration)}s released immediately, up to ${trimNum(radius)} tiles for ${trimNum(fullDuration)}s at a full ${trimNum(eff.chargeCapSeconds ?? 0)}s hold, dealing ${trimNum(dps)} damage/s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  return (
+    `Hold to charge, then release to drop a poison cloud: ${trimNum(minRadius)} tiles for ${trimNum(minDuration)}s released immediately, up to ${trimNum(radius)} tiles for ${trimNum(fullDuration)}s at a full ${trimNum(eff.chargeCapSeconds ?? 0)}s hold. ` +
+    `Poisons every enemy inside the circle ${cadence}: each application deals ${trimNum(perApplication)} poison damage over ${trimNum(window)}s (up to ${stacks} stacks).${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`
+  );
 }
 
 function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {

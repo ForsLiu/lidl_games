@@ -14,6 +14,7 @@ import { active2CdrFactor, classAttackPowerMul, classMoveSpeedMul } from '../sim
 import type { ClassDef } from '../sim/content';
 import { coreMoveSpeedMul } from '../sim/cores';
 import { hasEquipment } from '../sim/equipment';
+import { active1PotencyMul } from '../sim/progression';
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
 import type { ClassLiveContext } from './class-info';
@@ -50,6 +51,8 @@ export function classLiveContext(w: World, cls: ClassDef): ClassLiveContext {
     // the exact factor `classArea(w, radius)` (classes.ts, module-private)
     // applies to every AoE-radius/width Active field — no recomposition needed.
     areaMul: w.derived.areaMul,
+    // fb062 (code review): the Active1 potency card `firePoisonBarrel` applies.
+    active1PotencyMul: active1PotencyMul(w),
   };
 }
 

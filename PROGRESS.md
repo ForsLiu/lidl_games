@@ -5,6 +5,19 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-22 (owner-directed session) — fb062 CLOSED (last clause): the
+  Poison Barrel tooltip states the real mechanic.** `poisonBarrelSentence`
+  (`src/ui/class-info.ts`) now says "Poisons every enemy inside the circle
+  each second: each application deals N poison damage over 3s (up to 3
+  stacks)" (owner wording; N = 4.8 at base on shipped data), N being the
+  sim's own `dotDpsFor` conversion of the live seed — Power, flat Atk and the
+  Active1 potency card (new `ClassLiveContext.active1PotencyMul`, code-review
+  finding) — after fb061's charge clause. Follow-up filed: fb201 (the other
+  Active1 sentences omit potency too). The UI-lane repro `it.skip` in
+  `tests/class-poison-barrel-mechanic.test.ts` is un-skipped and extended.
+  Light tier (UI). — refs: owner feedback `feature-poison-barrel-mechanic`,
+  BACKLOG-CONTENT.md fb062.
+
 - **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
   CONTENT.md fb061 CLOSED: Poison Barrel is a hold/release charge skill.**
   `ground_poison` joined Circle Slash's hold/release model (`isChargeKind`;

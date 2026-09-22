@@ -377,6 +377,18 @@ are still blocked by the separate SPEC-FINAL.md wall above).
   per-application/3s-window/3-stack-cap mechanic the fix below makes exact.
   `tests/class-poison-barrel-mechanic.test.ts` carries an `it.skip`
   documenting the exact current (wrong) string as the UI lane's repro.
+  **CLOSED 2026-09-22 (owner-directed session, full repository scope):**
+  `poisonBarrelSentence` now reads "…Poisons every enemy inside the circle
+  each second: each application deals N poison damage over 3s (up to 3
+  stacks)…" after fb061's charge clause (N = 4.8 at base on shipped data —
+  the owner's 9.6 assumed an unscaled damage of 8) — N is the sim's own
+  `dotDpsFor(poison, seed) x duration` with the seed live: Power, flat Atk
+  and (code review) the Active1 potency card, now carried on
+  `ClassLiveContext.active1PotencyMul`; window and cap off the loaded Poison
+  row, cadence off `groundTickSeconds`. The other Active1 sentences still
+  omit potency — filed as fb201 (BACKLOG-UI.md). The `it.skip` is un-skipped and asserts the owner's
+  whole sentence plus a live-number case; the flat "damage/s" framing is
+  asserted gone. fb062 is now complete in all three clauses.
 - **`tests/p6e-class-diversity.test.ts` (main lane) — two live exact-count
   pins measured against the pre-fix, 2.5x-overshooting Poison Barrel; found
   by code-reviewer on the fix below.** Plaguebringer's own-kit VS-share

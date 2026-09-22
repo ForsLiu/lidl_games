@@ -12,7 +12,9 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { classAttackPowerMul } from '../src/sim/classes';
+import { characterDamage, classAttackPowerMul } from '../src/sim/classes';
+import { dotDpsFor } from '../src/sim/damagetypes';
+import { active1PotencyMul } from '../src/sim/progression';
 import { World } from '../src/sim/world';
 import { Hud, type HudCallbacks } from '../src/ui/hud';
 import { cfg } from './helpers';
@@ -118,19 +120,25 @@ describe('fb063: bottom bar tooltips are sentence-form with live numbers', () =>
     expect(tip.innerHTML).not.toContain(`${String(rawDamage)} damage`);
   });
 
-  it("plaguebringer: Poison Barrel's tooltip embeds a live-resolved damage/s number", () => {
+  it("plaguebringer: Poison Barrel's tooltip embeds the live per-application poison total (fb062: the owner's per-application wording, which replaced the flat damage/s)", () => {
     const w = new World(cfg({ classKey: 'plaguebringer' }));
     w.derived.atkFlat = 4;
     w.derived.powerMul = 2;
+    // fb062 (code review): the Active1 potency card the sim multiplies in.
+    w.skillCardRanks['plaguebringer_active1_potency'] = 2;
     const cls = w.content.classByKey.get('plaguebringer')!;
     const { root, hud } = mountHud();
     hud.buildTowerBar(w);
     hud.update(w);
     const tip = root.querySelector('#sw-bb-a1-tip') as HTMLElement;
-    const damageMul = classAttackPowerMul(w, cls);
-    const liveDps = (cls.active1.damage + w.derived.atkFlat) * damageMul;
+    // Exactly what `firePoisonBarrel` seeds each application with.
+    const poison = w.content.damageTypeByKey.get('poison')!;
+    const seed = characterDamage(w, cls, cls.active1.damage) * active1PotencyMul(w);
+    expect(active1PotencyMul(w)).toBeGreaterThan(1);
+    const perApplication = dotDpsFor(poison, seed) * poison.duration!;
     expect(tip.innerHTML).toContain('poison cloud');
-    expect(tip.innerHTML).toContain(`${String(liveDps)} damage/s`);
+    expect(tip.innerHTML).toContain(`each application deals ${String(Math.round(perApplication * 100) / 100)} poison damage over ${poison.duration}s`);
+    expect(classAttackPowerMul(w, cls)).toBe(2);
   });
 
   it("time_lord: Time's tooltip embeds live-resolved per-stage DoT numbers and the CDR-scaled recharge", () => {

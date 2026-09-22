@@ -25,7 +25,9 @@
  * class-*`/`equip-*` only) — filed as a UI-lane follow-up in this file's own
  * Log rather than edited from here. This file's own tooltip case documents
  * the current mismatch (red) as the UI lane's repro rather than silently
- * skipping it.
+ * skipping it. **Closed 2026-09-22** (owner-directed session, full repository
+ * scope): the sentence now states the per-application total, window and
+ * stack cap, and the case below runs.
  *
  * fb061 (§4.1 amended, owner feedback `feature-plaguebringer-charge`): the
  * Barrel is now a hold/release charge skill whose radius and lifetime scale
@@ -233,8 +235,8 @@ describe('fb062: Poison Barrel deals zero direct/normal damage and never lifeste
   });
 });
 
-describe('fb062: tooltip text — blocked outside this lane\'s Scope, filed for the UI lane', () => {
-  // `poisonBarrelSentence` (src/ui/class-info.ts) is out of this lane's Scope
+describe('fb062: tooltip text — the owner\'s sentence-form wording, live numbers', () => {
+  // History: `poisonBarrelSentence` (src/ui/class-info.ts) was out of this lane's Scope
   // (src/ui/** is not in the create/edit list), so this acceptance clause
   // cannot be closed from here (working rule 6: never leave a red assertion
   // in the committed suite — `.skip` with the measured/current reading
@@ -247,11 +249,28 @@ describe('fb062: tooltip text — blocked outside this lane\'s Scope, filed for 
   // 3-tile poison cloud dealing 2.4 damage/s for 5s. ... Cooldown 7s." — a
   // flat continuous-rate framing that names neither the per-application
   // total, the 3s window, nor the 3-stack cap.
-  it.skip('the sentence names the per-application total, the 3s window and the 3-stack cap (UI-lane repro, not fixed here)', async () => {
+  it('the sentence names the per-application total, the 3s window and the 3-stack cap, in the owner\'s wording (fb062, closed 2026-09-22)', async () => {
     const { activeSkillMarkup } = await import('../src/ui/class-info');
     const perApplication = dotDpsFor(poisonDef, plaguebringer.active1.damage) * poisonDef.duration!;
     const markup = activeSkillMarkup(plaguebringer, 'active1');
     expect(markup).toContain(`${Math.round(perApplication * 100) / 100} poison damage over ${poisonDef.duration}`);
     expect(markup).toMatch(/up to 3 stacks/);
+    // The owner's sentence shape ("Poisons every enemy inside the circle each
+    // second: each application deals N poison damage over 3 s (up to 3
+    // stacks)"), with every number read off /data rather than restated.
+    expect(markup).toContain(
+      `Poisons every enemy inside the circle each second: each application deals ${Math.round(perApplication * 100) / 100} poison damage over ${poisonDef.duration}s (up to ${poisonDef.maxStacks} stacks).`,
+    );
+    // And the old flat-rate framing is gone.
+    expect(markup).not.toMatch(/damage\/s/);
+  });
+
+  it('the per-application number is live: a run\'s own Power and flat Atk move it (fb062 "live numbers")', async () => {
+    const { activeSkillMarkup } = await import('../src/ui/class-info');
+    const live = { cdr: 0, atkFlat: 1, damageMul: 2 };
+    const seed = (plaguebringer.active1.damage + live.atkFlat) * live.damageMul;
+    const perApplication = (poisonDef.ratio ?? 0) * seed;
+    const markup = activeSkillMarkup(plaguebringer, 'active1', live);
+    expect(markup).toContain(`each application deals ${Math.round(perApplication * 100) / 100} poison damage`);
   });
 });
