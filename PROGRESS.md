@@ -5,7 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 CLOSED: `noUncheckedIndexedAccess`
+- **2026-09-22 (scheduled routine, latest) — BACKLOG-UI.md fb151 CLOSED: Dash
+  Slash's VFX now matches its hit line.** `fireDashSlash` (`src/sim/classes.ts`)
+  emitted its `class_active2` cast event using `resolveDashTarget`'s clamped
+  physical-travel endpoint, not the wider `hitRange` line `lineHit` actually
+  damaged (which can exceed travel distance on a G9 mid-charge Circle Slash
+  merge, or clamp shorter than the hit line against a wall) — so the rendered
+  slash under-drew the real damage corridor (qa-playtester's fb112 repro: a
+  Warden dashing into a wall shows no slash at all while enemies past it still
+  die). This was exactly the "main-lane companion" the UI lane's own fb151
+  entry asked for: the render side (`canvas.ts`) needed no change, since it
+  already draws whatever segment the event carries — the bug was entirely in
+  what got emitted. Fix: emit `before.x/y + dir * hitRange` (the same `before`/
+  `dir`/`hitRange` values `lineHit` used two lines earlier) instead of
+  `target`. Two new regression cases in `tests/p6b-swordsman.test.ts`: the
+  unmerged case (hitRange === dashRange, unaffected) and a G9-merged full
+  charge (dashRange 5 + circle radius 4 = hitRange 9, previously emitted only
+  ~5); reverting only the fix reproduces the original bug exactly. code-
+  reviewer APPROVE (one Minor, unrelated scratch files from its own
+  investigation, deleted before commit); qa-playtester PASS, independently
+  re-driving 11 aim angles, the item's own wall repro, and a partial-charge
+  merge, and confirming no other `class_active2` emit site shares the bug
+  class. `npm run test:fast` green (314/9 skipped, unchanged). Full tier. —
+  refs: BACKLOG-UI.md fb151, fb112.
+- **2026-09-22 (scheduled routine) — fb133 CLOSED: `noUncheckedIndexedAccess`
   is on the main `tsconfig.json`.** Fixed the last 2 files on the ratchet
   allowlist (`src/sim/enemies.ts`, `src/sim/run.ts`, ~135 `error TS` sites)
   with real guards, never `!`: DoT-stack application/eviction/ticking

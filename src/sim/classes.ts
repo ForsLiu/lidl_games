@@ -460,7 +460,14 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const before = { x: wd.x, y: wd.y };
   const target = resolveDashTarget(w, dir.x * dashRange, dir.y * dashRange);
   startDashTravel(w, target, duration);
-  w.emit('class_active2', before.x, before.y, target.x, target.y);
+  // fb151 (BACKLOG-UI.md, qa-playtester repro): the emitted segment must be
+  // the corridor `lineHit` above actually damaged (`hitRange`, from `before`
+  // along `dir`), not `target` — `resolveDashTarget`'s clamped *travel*
+  // endpoint, which is shorter than the hit line whenever a mid-charge merge
+  // widens `hitRange` past `dashRange` or a wall clamps travel short of it.
+  // `canvas.ts`'s `class_active2` draw already renders whatever segment it
+  // is given; the bug was entirely in what got emitted here.
+  w.emit('class_active2', before.x, before.y, before.x + dir.x * hitRange, before.y + dir.y * hitRange);
 }
 
 /**
