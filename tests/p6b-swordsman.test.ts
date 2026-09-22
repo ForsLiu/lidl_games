@@ -235,6 +235,59 @@ describe('p6b: Dash Slash — mouse-aimed line, own cooldown, moves the Warden',
     expect(() => applyCommand(w, { k: 'class_active2' })).not.toThrow();
     expect(w.warden.active2Cooldown).toBeGreaterThan(0);
   });
+
+  /**
+   * fb151 (BACKLOG-UI.md, qa-playtester repro): the emitted `class_active2`
+   * fx segment must match `lineHit`'s real hit corridor (`hitRange`), not
+   * `resolveDashTarget`'s clamped travel endpoint — the VFX previously drew
+   * shorter than what it actually damaged.
+   */
+  it('the emitted class_active2 segment matches the plain (unmerged) hit line, not just the travel target', () => {
+    const w = worldWith();
+    const startX = w.warden.x;
+    const startY = w.warden.y;
+    applyCommand(w, { k: 'class_active2', aimX: startX + 100, aimY: startY });
+    const travel = w.warden.dashTravel;
+    if (!travel) throw new Error('expected a dashTravel to have started');
+    const fx = [...w.fx].reverse().find((f) => f.k === 'class_active2');
+    if (!fx) throw new Error('expected a class_active2 fx event');
+    expect(fx.x).toBeCloseTo(startX, 5);
+    expect(fx.y).toBeCloseTo(startY, 5);
+    // Unmerged, hitRange === dashRange, so the emitted segment lands exactly
+    // on the travel target — this is the case that already worked pre-fix.
+    expect(fx.a).toBeCloseTo(travel.x1, 5);
+    expect(fx.b).toBeCloseTo(travel.y1, 5);
+  });
+
+  it('a G9 merge widens the emitted segment past the (shorter) clamped travel target, and it reaches the struck enemy', () => {
+    const w = worldWith();
+    const startX = w.warden.x;
+    const startY = w.warden.y;
+    // dashRange 5, full-charge circle radius 4 -> hitRange 9 (same figures as
+    // the G9 describe block below); placed at 8.5, inside the merged hit
+    // range but well beyond the dash travel distance alone.
+    const e = spawnEnemy(w, firstEnemyKey(w), startX + 8.5, startY)!;
+    e.hp = DUMMY_HP;
+    e.maxHp = DUMMY_HP;
+    w.rebuildBuckets();
+    for (let t = 0; t < 250; t++) updateWarden(w, held(true), 1 / 60);
+    expect(w.warden.active1Charging).toBe(true);
+    const hpBefore = e.hp;
+    applyCommand(w, { k: 'class_active2', aimX: startX + 100, aimY: startY });
+    expect(e.hp).toBeLessThan(hpBefore); // the real hit line reached the enemy
+
+    const travel = w.warden.dashTravel;
+    if (!travel) throw new Error('expected a dashTravel to have started');
+    const fx = [...w.fx].reverse().find((f) => f.k === 'class_active2');
+    if (!fx) throw new Error('expected a class_active2 fx event');
+    const emittedLength = Math.hypot(fx.a - fx.x, fx.b - fx.y);
+    const travelLength = Math.hypot(travel.x1 - startX, travel.y1 - startY);
+    // Pre-fix bug: the emitted segment equalled travelLength (~5), well short
+    // of the enemy at 8.5 — the player would see no slash reach it at all.
+    expect(travelLength).toBeLessThan(8.5);
+    expect(emittedLength).toBeCloseTo(9, 1);
+    expect(fx.a).toBeCloseTo(startX + 9, 1);
+  });
 });
 
 describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack", () => {
