@@ -6,6 +6,26 @@
 ## Current state — SPEC-FINAL
 
 - **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
+  CONTENT.md fb061 CLOSED: Poison Barrel is a hold/release charge skill.**
+  `ground_poison` joined Circle Slash's hold/release model (`isChargeKind`;
+  a bare Command declines), firing on release with `poisonBarrelValues`
+  lerping radius 5 -> 10 and lifetime 8 -> 14 s over a 2 s hold (all in
+  `data/classes.json`; poison/s and the 1 s cadence untouched), a charge
+  ring in `canvas.ts`, and loader rules for the charge cap, radius floor and
+  (review finding) a tick no longer than the quick-release lifetime.
+  SPEC-FINAL §4.1 amended per the owner. The 2026-09-17 attempt's wall — two
+  out-of-lane test files hardcoding instant fire — is gone under full scope:
+  those tests (p6c, fb085, the §4 ledger, the per-Active harnesses, the UI
+  falloff/area suites) now fire through hold/release with every assertion
+  kept (a first-pass p6c fixture edit that let the new rules mask fb082's
+  was caught by review and restored). Review also caught the scripted-bot
+  harness's stale charge-kind list (bots had stopped casting the Barrel) —
+  fixed via the sim's exported `isChargeKind`, pinned in fb123. fb060's
+  render frame-budget timing case moved to the perf tier. Readings: Q216.
+  Full tier. — refs: SPEC-FINAL §4.1, owner feedback
+  `feature-plaguebringer-charge`.
+
+- **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
   CONTENT.md fb056 CLOSED: the 15 class equipment sets ship.** Plaguebringer
   (6), Time Lord (6) and the Swordsman completion (3) are in
   `data/equipment.json`, spec'd as SPEC-FINAL §7.1 (the owner's table

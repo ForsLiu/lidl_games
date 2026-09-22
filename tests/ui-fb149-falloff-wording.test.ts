@@ -200,13 +200,24 @@ describe('fb149: the mechanism, measured before any wording is chosen', () => {
     // patch, which both kinds drop at the caster's own position.
     const enemies = Array.from({ length: full + 3 }, (_, i) => pin(w, w.warden.x + 0.2 + i * 0.08, w.warden.y));
     w.rebuildBuckets();
-    applyCommand(w, {
-      k: which === 'active1' ? 'class_active' : 'class_active2',
-      aimX: w.warden.x + aimDx,
-      aimY: w.warden.y + aimDy,
-    });
+    const aim = { aimX: w.warden.x + aimDx, aimY: w.warden.y + aimDy };
+    if (eff.kind === 'ground_poison') {
+      // fb061: Poison Barrel is a hold/release charge kind — a bare Command
+      // arms nothing — so it is fired the way this file fires Circle Slash
+      // above, released immediately (the smallest cloud, which still covers
+      // every probe here).
+      tickClassCharge(w, cls, idle({ ...aim, active1Held: true }), 1 / 60);
+      tickClassCharge(w, cls, idle({ ...aim, active1Held: false }), 1 / 60);
+    } else {
+      applyCommand(w, { k: which === 'active1' ? 'class_active' : 'class_active2', ...aim });
+    }
     expect(w.areas.length).toBeGreaterThan(0);
     expect(eff.groundDurationSeconds ?? 3).toBeGreaterThan(1);
+    // fb061: the lifetime that landed is charge-scaled (Poison Barrel's
+    // released-immediately cloud lives `minGroundDurationSeconds`, not
+    // `groundDurationSeconds`), so the "neither field dies mid-call" claim
+    // below is checked on the fields themselves, not only on the authored max.
+    for (const a of w.areas) expect(a.remaining).toBeGreaterThan(1);
     // Exactly ONE tick, so each enemy is touched by the field once and the
     // reading is the scale itself rather than an accumulation. A `'burn'`
     // field damages directly while a `'poison'` field applies a DoT instead

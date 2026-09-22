@@ -246,20 +246,44 @@ closed).
       SPEC-FINAL §4.2 (designer-fill addition), §13 (census), §14 (G8),
       owner feedback `feature-class-voltbolt`.
 
-- [ ] (fb061) [feat] normal priority: Plaguebringer's Active1 Poison
-      Barrel becomes a charge skill (same hold/release model as Circle
-      Slash): hold up to 2s ⚖ charge, scaling cloud radius x1->x2 ⚖ and
-      duration from a base 8s (up from 5s) to a 14s ⚖ max; poison per
-      second unchanged; Active2 Poison Boost stays instant. Interacts with
-      `fb062`'s cadence pin (must stay 1s regardless of charge level).
-      Acceptance: hold/release works with a charge indicator ring; radius
-      and duration scale with charge level per test; numbers land in
-      `/data` only — refs: SPEC-FINAL §4.1 (Plaguebringer, amends), owner
-      feedback `feature-plaguebringer-charge`. **See the 2026-09-17 Finding
-      immediately below: attempted and reverted this session — blocked by
-      two out-of-Scope test files (`tests/p6c-plaguebringer.test.ts`,
-      `tests/fb085-enablers.test.ts`) that hardcode the pre-amend
-      instant-fire behaviour, not by a `/data` authoring wall.**
+- [x] (fb061) [feat] normal priority: **DONE 2026-09-22 (main-lane session,
+      full repository scope — the out-of-Scope test-file wall the Finding
+      below names no longer applied).** Plaguebringer's Active1 Poison Barrel
+      is a hold/release charge skill on Circle Slash's model: `ground_poison`
+      joined `isChargeKind` (a bare `class_active` Command now declines, pays
+      nothing), the Barrel fires on release from `tickClassCharge`, and
+      `poisonBarrelValues(eff, charge)` (classes.ts, exported for the
+      renderer) lerps the cloud radius `minRadius` 5 -> `radius` 10 (x1 -> x2)
+      and lifetime `minGroundDurationSeconds` 8 -> `groundDurationSeconds` 14
+      over `chargeCapSeconds` 2 — all authored in `data/classes.json`; poison
+      per second and fb062's 1 s cadence untouched. `canvas.ts`'s
+      `drawChargeIndicator` draws the charge-scaled cloud ring (Area
+      included); the class sentence states both ends. Loader: a `ground_poison`
+      row must author a positive `chargeCapSeconds`, a `minRadius` no larger
+      than `radius`, and (review finding) a `groundTickSeconds` no longer than
+      the zero-charge lifetime — otherwise a quick-release cloud expired
+      before its first application. SPEC-FINAL §4.1 amended (owner text).
+      Tests re-fired through hold/release, never weakened: p6c's three
+      bare-Command casts now assert the Command declines *and* a hold fires
+      it; fb085's placeholder flipped to the shipped 8 <= 14; the §4 ledger
+      (c008) re-hashed with five `match` rows (2 s, r5, r10, 8 s, 14 s)
+      replacing the 5 s one; class-area-stat/ui-fb115 split zero vs full
+      charge; class-kit-whiff/liveness gained a CHARGE_KINDS check that the
+      bare Command declines for all three hold kinds; a new charge-ring
+      render test; q7 holes regenerated. **Review (full tier):**
+      code-reviewer REQUEST-CHANGES, both Majors fixed test-first — the
+      scripted-bot harness (`tests/helpers.ts`) kept a stale charge-kind list,
+      so every scripted G8/G14/G23 run stopped casting the Barrel (it now reads
+      the sim's exported `isChargeKind`; `fb123-charge-kind-bot-coverage` adds
+      Plaguebringer under all 8 policies, red before the fix), and a first-pass
+      p6c edit had let fb061's new loader rules mask fb082's (fixtures now
+      built on a floor-free row with exact messages). Minors taken: loader
+      refuses a non-positive `minRadius` and a default-1 s tick above the
+      floor; cadence and Sleeve Sword/Armor non-interaction pinned. Two
+      fb056 behaviour tests re-fired through hold/release; fb060's
+      frame-budget timing case moved to the perf tier after it read over
+      budget at host load ~13. Readings: QUESTIONS Q216. — refs: SPEC-FINAL
+      §4.1 (amended), owner feedback `feature-plaguebringer-charge`.
 
 ### Finding 2026-09-17 — fb061 attempted and reverted: blocked by out-of-Scope test files, not a data wall
 

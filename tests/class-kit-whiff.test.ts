@@ -259,7 +259,8 @@ function cost(w: World): string {
 
 /**
  * Holds a charge Active to full and releases it — Circle Slash / Deadeye
- * Draw's only firing path (their Command deliberately reports nothing, p6b).
+ * Draw's only firing path, and (fb061) Poison Barrel's (their Command
+ * deliberately reports nothing, p6b).
  * Held at 60 Hz rather than in one giant `dt`, c005's convention: a harness
  * that takes a path no real run takes stops being evidence about real runs.
  */
@@ -273,11 +274,14 @@ function chargeAndRelease(w: World): void {
   tickClassCharge(w, cls, idle({ ...aim, active1Held: false }), 1 / 60);
 }
 
+/** The hold/release Active1 kinds (`isChargeKind`, classes.ts) — fb061 added `ground_poison`. */
+const CHARGE_KINDS: ReadonlySet<string> = new Set(['charge_nova', 'charge_pierce', 'ground_poison']);
+
 function fire(w: World, slot: 1 | 2): boolean | null {
   const cls = w.content.classByKey.get(w.cfg.classKey)!;
   const eff = slot === 1 ? cls.active1 : cls.active2;
-  if (eff.kind === 'charge_nova' || eff.kind === 'charge_pierce') {
-    // QA: returning a bare `null` here would make the two charge rows'
+  if (CHARGE_KINDS.has(eff.kind)) {
+    // QA: returning a bare `null` here would make the three charge rows'
     // `reports` axis a literal that never consults the sim. p6b's actual rule
     // is that a charge kind's *Command* must decline — it must not fire and
     // must not bill, because the fire event is time-shifted to release — so
@@ -295,7 +299,7 @@ function fire(w: World, slot: 1 | 2): boolean | null {
 interface WhiffRow {
   classKey: string;
   slot: 1 | 2;
-  /** `useClassActive`'s return; `null` for the two charge kinds, which fire from `tickClassCharge`. */
+  /** `useClassActive`'s return; `null` for the three charge kinds, which fire from `tickClassCharge`. */
   reports: boolean | null;
   /** Did the cast consume cooldown/ammo/charge? */
   pays: boolean;
@@ -324,8 +328,8 @@ const ROWS: readonly WhiffRow[] = [
   },
   {
     classKey: 'plaguebringer',
-    slot: 1, // Poison Barrel (ground_poison)
-    reports: true,
+    slot: 1, // Poison Barrel (ground_poison) — a hold/release charge kind since fb061
+    reports: null,
     pays: true,
     acts: true,
     why: 'a ground cloud needs no target: it lands on empty dirt and ticks there for its duration',

@@ -175,6 +175,11 @@ function baseEffect(kind: string, over: Record<string, unknown> = {}): ClassEffe
   return { name: 'test', kind, cooldownSeconds: 1, radius: 0, damage: 0, ...over } as unknown as ClassEffect;
 }
 
+/** A copy of the raw classes document, for rows the shipped data does not author (fb085(c), fb061). */
+function classesDoc(): { classes: { key: string; active1: Record<string, unknown> }[] } {
+  return JSON.parse(JSON.stringify(content.raw.classes)) as { classes: { key: string; active1: Record<string, unknown> }[] };
+}
+
 describe('fb085(b): Madness King/Voltbolt Active kinds + REQUIRED_EFFECT_FIELDS', () => {
   const WELL_FORMED: Record<string, Record<string, unknown>> = {
     mind_manipulation: {
@@ -427,22 +432,101 @@ describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attac
 /* ------------------------------------------------------------------------ */
 
 describe('fb085(c): a zero-charge duration floor beside groundDurationSeconds on ClassEffectSchema', () => {
-  it('is optional and absent on every currently-shipped ground_poison row', () => {
+  // Was "is optional and absent on every currently-shipped ground_poison row"
+  // — a deliberate placeholder until fb061 authored the field. fb061 (§4.1
+  // amended, owner feedback `feature-plaguebringer-charge`) now ships it, so
+  // the "shipped" half flips to the authored shape and the "optional" half is
+  // proven on a synthetic row instead.
+  it('fb061 ships it on Poison Barrel: an 8 s floor at or below its 14 s groundDurationSeconds ceiling', () => {
     const plaguebringer = content.classByKey.get('plaguebringer')!;
     expect(plaguebringer.active1.kind).toBe('ground_poison');
-    expect(plaguebringer.active1.minGroundDurationSeconds).toBeUndefined();
+    expect(plaguebringer.active1.minGroundDurationSeconds).toBe(8);
+    expect(plaguebringer.active1.groundDurationSeconds).toBe(14);
+    expect(plaguebringer.active1.minGroundDurationSeconds!).toBeLessThanOrEqual(plaguebringer.active1.groundDurationSeconds!);
+  });
+
+  it('is still optional in the schema: a ground_poison row without it loads, and reads back absent', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2 });
+    expect(() => validateClassEffect(eff, 'x')).not.toThrow();
+    // Through the real loader too (zod schema + validateClassEffect), not only
+    // the validator in isolation.
+    const doc = classesDoc();
+    const row = doc.classes.find((c) => c.key === 'plaguebringer')!;
+    delete row.active1.minGroundDurationSeconds;
+    const c = loadContent({ classes: doc });
+    expect(c.classByKey.get('plaguebringer')!.active1.minGroundDurationSeconds).toBeUndefined();
   });
 
   it('loads clean when authored at or below groundDurationSeconds (fb061\'s 8s -> 14s shape)', () => {
-    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8 });
+    // fb061: `chargeCapSeconds` is now required on every `ground_poison` row
+    // (a hold/release charge kind), so these fixtures author it — the floor is
+    // the only thing under test here.
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(eff, 'x')).not.toThrow();
-    const equal = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 8 });
+    const equal = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 8, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(equal, 'x')).not.toThrow();
   });
 
   it('refuses a floor above its own ceiling — unpayable data (rule 4)', () => {
-    const eff = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 14 });
+    // `chargeCapSeconds` authored so the refusal can only be the floor's.
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 14, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(eff, 'x')).toThrow(/minGroundDurationSeconds/);
+  });
+});
+
+describe('fb061: ground_poison is a hold/release charge kind — the loader refuses a row it cannot charge', () => {
+  it('refuses a groundTickSeconds above the zero-charge lifetime floor — a quick-release cloud would expire before its first application (fb061 review finding)', () => {
+    // fb082's rule compared the tick only against the full-charge lifetime;
+    // with fb061's floor a tick between 8 s and 14 s loaded clean yet a
+    // released-at-once cloud never poisoned anything.
+    const eff = baseEffect('ground_poison', {
+      groundDurationSeconds: 14,
+      minGroundDurationSeconds: 8,
+      groundTickSeconds: 10,
+      chargeCapSeconds: 2,
+    });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/minGroundDurationSeconds/);
+    const atFloor = baseEffect('ground_poison', {
+      groundDurationSeconds: 14,
+      minGroundDurationSeconds: 8,
+      groundTickSeconds: 8,
+      chargeCapSeconds: 2,
+    });
+    expect(() => validateClassEffect(atFloor, 'x')).not.toThrow();
+  });
+
+  it('refuses a ground_poison row with no chargeCapSeconds, instead of charging it on the generic 3 s fallback', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8 });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/chargeCapSeconds/);
+    // And through the real loader, on the shipped row with just that key removed.
+    const doc = classesDoc();
+    delete doc.classes.find((c) => c.key === 'plaguebringer')!.active1.chargeCapSeconds;
+    expect(() => loadContent({ classes: doc })).toThrow(/chargeCapSeconds/);
+  });
+
+  it('refuses a non-positive chargeCapSeconds on a ground_poison row', () => {
+    for (const cap of [0, -2]) {
+      const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: cap });
+      expect(() => validateClassEffect(eff, 'x'), `chargeCapSeconds ${cap}`).toThrow(/chargeCapSeconds/);
+    }
+  });
+
+  it('refuses a zero-charge minRadius above the full-charge radius — holding would shrink the cloud', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 5, minRadius: 10 });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/minRadius/);
+    const doc = classesDoc();
+    const row = doc.classes.find((c) => c.key === 'plaguebringer')!;
+    row.active1.minRadius = (row.active1.radius as number) + 1;
+    expect(() => loadContent({ classes: doc })).toThrow(/minRadius/);
+  });
+
+  it('accepts a minRadius at or below radius, and a row that leaves minRadius unauthored (no radius scaling)', () => {
+    for (const minRadius of [5, 10]) {
+      const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 10, minRadius });
+      expect(() => validateClassEffect(eff, 'x'), `minRadius ${minRadius}`).not.toThrow();
+    }
+    const unscaled = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 10 });
+    expect(() => validateClassEffect(unscaled, 'x')).not.toThrow();
   });
 });
 

@@ -501,17 +501,40 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
 }
 
 /**
- * §4.1 Poison Barrel (p6c, Q119): "a circle of poison on the ground for 5 s,
+ * fb061 (§4.1 amended, owner feedback `feature-plaguebringer-charge`): Poison
+ * Barrel's cloud radius and lifetime at a given hold — Circle Slash's own
+ * charge model (`circleSlashValues`), lerping each from its zero-charge floor
+ * (`minRadius`, `minGroundDurationSeconds`) up to the full-charge value
+ * (`radius`, `groundDurationSeconds`) at `chargeCapSeconds`. An absent floor
+ * means that value does not scale with charge. Poison per second is untouched
+ * by charge (the owner's "poison per second unchanged"), and so is the 1 s
+ * application cadence (fb062). Exported for the renderer's charge ring, the
+ * same render-imports-a-pure-sim-helper precedent `circleSlashValues` set.
+ */
+export function poisonBarrelValues(eff: ClassEffect, chargeSeconds: number): { radius: number; durationSeconds: number } {
+  const cap = eff.chargeCapSeconds ?? 0;
+  const fraction = cap > 0 ? clamp(chargeSeconds / cap, 0, 1) : 1;
+  const fullDuration = eff.groundDurationSeconds ?? 5;
+  return {
+    radius: lerp(eff.minRadius ?? eff.radius, eff.radius, fraction),
+    durationSeconds: lerp(eff.minGroundDurationSeconds ?? fullDuration, fullDuration, fraction),
+  };
+}
+
+/**
+ * §4.1 Poison Barrel (p6c, Q119): "a circle of poison on the ground,
  * applying poison damage every second." Reuses the same `GroundArea('poison')`
  * mechanism `vsspecials.ts`'s Venom Spore poison trail and `combat.ts`'s
  * Mortar burning patch already spawn (`w.areas`, ticked by `updateAreas`) —
  * self-centered on the Warden the same way Circle Slash is, since §4.1 gives
  * Poison Barrel no aim direction the way Dash Slash's "mouse direction" does.
+ * fb061: fired on release of a hold (`tickClassCharge`), sized by the charge.
  */
-function firePoisonBarrel(w: World, cls: ClassDef): void {
+function firePoisonBarrel(w: World, cls: ClassDef, chargeSeconds: number): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const radius = classArea(w, eff.radius);
+  const charged = poisonBarrelValues(eff, chargeSeconds);
+  const radius = classArea(w, charged.radius);
   const seed = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
   // fb062 (SPEC-FINAL §3: Poison "totals 120% of the triggering damage over
   // 3 s"): `updateAreas`' poison branch (combat.ts) feeds this `dps` straight
@@ -528,7 +551,7 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     y: wd.y,
     radius,
     dps: poisonDef ? dotDpsFor(poisonDef, seed) : seed,
-    remaining: eff.groundDurationSeconds ?? 5,
+    remaining: charged.durationSeconds,
     type: 'poison',
     source: 'class_active',
     acc: 0,
@@ -1831,7 +1854,7 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls) return false;
 
-  // A charge-kind Active1 (Circle Slash, Deadeye Draw) fires on release,
+  // A charge-kind Active1 (Circle Slash, Deadeye Draw, fb061's Poison Barrel) fires on release,
   // driven every tick by `TickInput.active1Held` through `tickClassCharge` —
   // the keydown that pushes this Command is what starts the hold, but the
   // fire event is time-shifted to release, so the Command itself must not
@@ -1851,9 +1874,6 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   switch (cls.active1.kind) {
     case 'burst_damage':
       fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(w, cls), active1PotencyMul(w), classLineBonus(w));
-      break;
-    case 'ground_poison':
-      firePoisonBarrel(w, cls);
       break;
     case 'repair_heal':
       fireFieldKit(w, cls, aimX, aimY);
@@ -1927,8 +1947,9 @@ export function activeCooldownSeconds(w: World, cls: ClassDef, which: 'active1' 
 }
 
 /** Held on `TickInput.active1Held` and fired on release, rather than by its own Command. */
-function isChargeKind(kind: ClassEffect['kind']): boolean {
-  return kind === 'charge_nova' || kind === 'charge_pierce';
+export function isChargeKind(kind: ClassEffect['kind']): boolean {
+  // fb061: Poison Barrel joins Circle Slash/Deadeye Draw's hold/release model.
+  return kind === 'charge_nova' || kind === 'charge_pierce' || kind === 'ground_poison';
 }
 
 /**
@@ -2074,6 +2095,8 @@ export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: n
       // also equipped, charge rate is moot (already instant-max), so the
       // armor's bonus becomes a damage multiplier instead.
       fireCircleSlash(w, cls, wd.active1Charge, hasEquipment(w, 'swordsman_armor') && hasEquipment(w, 'sleeve_sword'));
+    } else if (cls.active1.kind === 'ground_poison') {
+      firePoisonBarrel(w, cls, wd.active1Charge);
     } else {
       fireDeadeyeDraw(w, cls, wd.active1Charge, input.aimX, input.aimY);
     }

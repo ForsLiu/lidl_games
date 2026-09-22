@@ -33,6 +33,24 @@
  * unguarded plain-`Stats` shape the existing `attackSpeed`/`moveSpeedPct`
  * fallback rows already record. Added by `Q7_RECORD=1`, not hand-edited.
  *
+ * Regenerated 2026-09-22 (fb061, §4.1 amended by owner feedback
+ * `feature-plaguebringer-charge`): Poison Barrel became a hold/release charge
+ * skill, so `data/classes.json`'s plaguebringer `active1` now authors
+ * `minGroundDurationSeconds` (the 8 s zero-charge lifetime floor, fb085(c)'s
+ * field, shipped for the first time), plus `minRadius`/`chargeCapSeconds`,
+ * whose canonical paths were already in this census from Swordsman's Circle
+ * Slash and did not move. `minGroundDurationSeconds` is
+ * `num.positive().optional()`, so `negative`/`zero` are already closed;
+ * `fractional` is an ordinary tune, and `drop-key`/`rename-key` are the
+ * field's documented optional reading (absent = the zone lasts its full
+ * `groundDurationSeconds` whatever the hold), so all three are left open. The
+ * loader's new fb061 rule (a `ground_poison` row needs a positive
+ * `chargeCapSeconds`, and a `minRadius` no larger than `radius`) closes
+ * nothing this census can see: `sites()` mutates a canonical path at its
+ * first occurrence only, which for both keys is Swordsman's `charge_nova`
+ * row, where `negative`/`zero` are still accepted as before. One additive
+ * line, nothing else moved.
+ *
  * Regenerated 2026-09-17 (fb129, rule 4): `data/terrain.json` gained
  * `highGround.surfaceBlockCap` (BACKLOG.md fb129 — the seconds a submerged
  * Burrower may be held under a high tile it cannot surface on before the
@@ -385,6 +403,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.markRewindSeconds': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.maxCharges': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.minDamage': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.minGroundDurationSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.minRadius': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.moveMulWhileCharging': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.name': ['to-string', 'empty-string'],

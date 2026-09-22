@@ -204,9 +204,16 @@ function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const dps = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  // fb115: `firePoisonBarrel`'s `GroundArea.radius` is `classArea(w, eff.radius)`.
+  // fb061: a hold/release charge — the cloud's radius and lifetime lerp from
+  // their zero-charge floors (`minRadius`/`minGroundDurationSeconds`) to the
+  // full-charge values at `chargeCapSeconds`, exactly `poisonBarrelValues`
+  // (classes.ts); an absent floor means that value does not scale.
+  // fb115: `firePoisonBarrel`'s `GroundArea.radius` is `classArea(w, <charged radius>)`.
+  const minRadius = liveAreaValue(eff.minRadius ?? eff.radius, live);
   const radius = liveAreaValue(eff.radius, live);
-  return `Drops a ${trimNum(radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  const fullDuration = eff.groundDurationSeconds ?? 0;
+  const minDuration = eff.minGroundDurationSeconds ?? fullDuration;
+  return `Hold to charge, then release to drop a poison cloud: ${trimNum(minRadius)} tiles for ${trimNum(minDuration)}s released immediately, up to ${trimNum(radius)} tiles for ${trimNum(fullDuration)}s at a full ${trimNum(eff.chargeCapSeconds ?? 0)}s hold, dealing ${trimNum(dps)} damage/s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {

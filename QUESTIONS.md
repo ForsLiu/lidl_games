@@ -1825,3 +1825,24 @@ Q200 did not collide and are unchanged below).
   with the Locket) — whoever ships a `cdr` source >= 0.125 must revisit this.
   — refs: SPEC-FINAL §7.1, §4.2 (Time Lord), owner feedback
   `feature-class-equipment-sets`, fb013, BACKLOG-CONTENT.md fb056.
+
+- **Q216. [fb061] Poison Barrel charge — readings chosen and logged.** (1)
+  "Radius x1 -> x2" reads x1 as the shipped r5, so the cloud spans r5
+  (instant release) to r10 (full 2 s hold); radius and lifetime (8 -> 14 s)
+  both lerp linearly with the hold, Circle Slash's own `circleSlashValues`
+  shape. (2) The cooldown starts at release, exactly as a Circle Slash
+  release; a full hold makes the cycle ~9 s while a cloud lasts up to 14 s, so
+  clouds can overlap — flagged for a balance pass (the amended kit is up to
+  4x the area and 1.6-2.8x the lifetime; unmeasured at G8 until a
+  balance-analyst run, which working rule 8 keeps out of this item). (3) The
+  loader now refuses a `ground_poison` row without a positive
+  `chargeCapSeconds`, with a non-positive or over-ceiling `minRadius`, or whose
+  (authored or default 1 s) tick exceeds the zero-charge lifetime — the
+  quick-release cloud must be able to poison at least once. (4) SPEC-FINAL
+  §4.1's Plaguebringer Active1 text is amended to the owner's order and the
+  §4 hash re-pinned (c008). (5) Code review found the scripted-bot harness
+  (`tests/helpers.ts`) kept its own stale charge-kind list, so every scripted
+  G8/G14/G23 run silently stopped casting the Barrel; it now reads the sim's
+  exported `isChargeKind`, and `fb123-charge-kind-bot-coverage` pins
+  Plaguebringer under every policy. — refs: SPEC-FINAL §4.1, owner feedback
+  `feature-plaguebringer-charge`, BACKLOG-CONTENT.md fb061.

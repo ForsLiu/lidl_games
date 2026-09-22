@@ -144,7 +144,7 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     basic: { shape: 'swing', fire: 'sword-swing arc sweeping toward the target', color: '#e0c46c', impact: 'slash' },
   },
   plaguebringer: {
-    q: { indicator: 'ground ring at the Warden', fire: 'poison nova pulse (ground patch renders via the existing area layer)', color: '#7ac74f' },
+    q: { indicator: 'cloud ring at the Warden, radius grows with hold (fb061)', fire: 'poison nova pulse (ground patch renders via the existing area layer)', color: '#7ac74f' },
     e: { indicator: 'none — global, no target', fire: 'pulse at the Warden as every live poison stack doubles', color: '#4fae2f' },
     passive: { cue: 'jump line to the next poisoned corpse-adjacent enemy (Spreading Plague)', color: '#7ac74f' },
     basic: { shape: 'projectile', fire: 'poison glob lobbed at the target', color: '#7ac74f', impact: 'splash' },

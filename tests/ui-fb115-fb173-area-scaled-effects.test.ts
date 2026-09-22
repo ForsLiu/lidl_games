@@ -23,8 +23,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { tickClassCharge, useClassActive, useClassActive2 } from '../src/sim/classes';
-import { loadContent } from '../src/sim/content';
+import { tickClassCharge, useClassActive, useClassActive2, poisonBarrelValues } from '../src/sim/classes';
+import { loadContent, type ClassEffect } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import type { TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
@@ -84,6 +84,10 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
     kind: string;
     classKey: string;
     which: 'active1' | 'active2';
+    /** Distinguishes two rows of one kind (fb061: Poison Barrel's two charge ends). */
+    variant?: string;
+    /** The authored `/data` radius this row fires at; defaults to the slot's own `radius`. */
+    authored?: (eff: ClassEffect) => number;
     setup?: (w: World) => void;
     fire: (w: World, cls: ReturnType<typeof content.classByKey.get>) => void;
     template: (radius: number) => string;
@@ -95,12 +99,36 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
       fire: (w) => void useClassActive(w),
       template: (r) => `everything within ${trimNum(r)} tiles`,
     },
+    // fb061 (§4.1 amended): Poison Barrel is a hold/release charge kind whose
+    // radius lerps from `minRadius` (released immediately) to `radius` (a full
+    // `chargeCapSeconds` hold), and its sentence now prints both ends — so
+    // each end is fired for real and must appear, Area included, in its own
+    // half of the sentence.
     {
       kind: 'ground_poison',
       classKey: 'plaguebringer',
       which: 'active1',
-      fire: (w) => void useClassActive(w),
-      template: (r) => `Drops a ${trimNum(r)}-tile poison cloud`,
+      variant: 'released at zero charge',
+      authored: (eff) => eff.minRadius ?? eff.radius,
+      fire: (w, cls) => {
+        // A held tick of `dt` 0 accrues no charge: exactly the "released
+        // immediately" end the sentence prints.
+        tickClassCharge(w, cls!, idle({ active1Held: true }), 0);
+        tickClassCharge(w, cls!, idle({ active1Held: false }), 1 / 60);
+      },
+      template: (r) => `poison cloud: ${trimNum(r)} tiles for`,
+    },
+    {
+      kind: 'ground_poison',
+      classKey: 'plaguebringer',
+      which: 'active1',
+      variant: 'at full charge',
+      fire: (w, cls) => {
+        const cap = cls!.active1.chargeCapSeconds ?? 3;
+        tickClassCharge(w, cls!, idle({ active1Held: true }), cap * 2);
+        tickClassCharge(w, cls!, idle({ active1Held: false }), 1 / 60);
+      },
+      template: (r) => `up to ${trimNum(r)} tiles for`,
     },
     {
       kind: 'frost_nova',
@@ -165,25 +193,30 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
     // `class-area-stat.test.ts` names for the identical reason). The claim is
     // always "authored x whatever areaMul the run really has", never a
     // hardcoded 1/2, matching that file's own convention.
-    it(`${c.kind} (${c.classKey}): the sim-fired radius appears in the sentence at baseline Area`, () => {
+    const name = `${c.kind} (${c.classKey}${c.variant ? `, ${c.variant}` : ''})`;
+    const authoredOf = (cls: NonNullable<ReturnType<typeof content.classByKey.get>>): number => {
+      const eff = c.which === 'active1' ? cls.active1 : cls.active2;
+      return c.authored ? c.authored(eff) : eff.radius;
+    };
+    it(`${name}: the sim-fired radius appears in the sentence at baseline Area`, () => {
       const w = areaWorld(c.classKey, 0);
       c.setup?.(w);
       const cls = content.classByKey.get(c.classKey)!;
       c.fire(w, cls);
       const fired = lastFxRadiusOrZoneOrAura(w, c.kind);
-      const authored = c.which === 'active1' ? cls.active1.radius : cls.active2.radius;
+      const authored = authoredOf(cls);
       expect(fired).toBeCloseTo(authored * w.derived.areaMul, 10);
       const live = classLiveContext(w, cls);
       expect(activeSkillMarkup(cls, c.which, live)).toContain(c.template(fired));
     });
 
-    it(`${c.kind} (${c.classKey}): +100% Area widens both the sim fire AND the sentence by the same factor`, () => {
+    it(`${name}: +100% Area widens both the sim fire AND the sentence by the same factor`, () => {
       const w = areaWorld(c.classKey, 1);
       c.setup?.(w);
       const cls = content.classByKey.get(c.classKey)!;
       c.fire(w, cls);
       const fired = lastFxRadiusOrZoneOrAura(w, c.kind);
-      const authored = c.which === 'active1' ? cls.active1.radius : cls.active2.radius;
+      const authored = authoredOf(cls);
       expect(fired).toBeCloseTo(authored * w.derived.areaMul, 10);
       const live = classLiveContext(w, cls);
       const sentence = activeSkillMarkup(cls, c.which, live);
@@ -411,6 +444,41 @@ describe('fb115: drawChargeIndicator scales the live charge_nova preview by area
     new Renderer(canvas).draw(w, view());
     const previewed = arcs.find((a) => Math.abs(a.x - w.warden.x * TILE) < 0.01 && a.r > TILE);
     expect(previewed!.r).toBeCloseTo((cls.active1.radius ?? 0) * TILE, 1);
+  });
+});
+
+describe('fb061: drawChargeIndicator previews Poison Barrel\'s charge-scaled cloud', () => {
+  // The owner's "hold/release works with a charge indicator ring": the ring
+  // drawn while holding is the cloud `firePoisonBarrel` would drop at this
+  // exact charge — `poisonBarrelValues`' lerp, Area included — and it grows
+  // with the hold.
+  function ringAt(charge: number, area: number): { r: number; expected: number } {
+    const w = areaWorld('plaguebringer', area);
+    const cls = content.classByKey.get('plaguebringer')!;
+    w.warden.active1Charging = true;
+    w.warden.active1Charge = charge;
+    const { canvas, arcs } = recordingCanvas();
+    new Renderer(canvas).draw(w, view());
+    const ring = arcs.find((a) => Math.abs(a.x - w.warden.x * TILE) < 0.01 && Math.abs(a.y - w.warden.y * TILE) < 0.01 && a.r > TILE);
+    expect(ring, 'a charge-indicator ring must be drawn while holding Poison Barrel').toBeDefined();
+    return { r: ring!.r, expected: poisonBarrelValues(cls.active1, charge).radius * w.derived.areaMul * TILE };
+  }
+
+  it('at zero and full charge the ring is the radius that would land, and it grows with the hold', () => {
+    const cap = content.classByKey.get('plaguebringer')!.active1.chargeCapSeconds ?? 0;
+    expect(cap).toBeGreaterThan(0);
+    const low = ringAt(0, 0);
+    const high = ringAt(cap, 0);
+    expect(low.r).toBeCloseTo(low.expected, 1);
+    expect(high.r).toBeCloseTo(high.expected, 1);
+    expect(high.r).toBeGreaterThan(low.r * 1.5);
+  });
+
+  it('scales with Area like the fired cloud does', () => {
+    const cap = content.classByKey.get('plaguebringer')!.active1.chargeCapSeconds ?? 0;
+    const boosted = ringAt(cap, 1);
+    expect(boosted.r).toBeCloseTo(boosted.expected, 1);
+    expect(boosted.r).toBeGreaterThan(ringAt(cap, 0).r * 1.9);
   });
 });
 

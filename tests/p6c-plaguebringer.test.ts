@@ -1,7 +1,9 @@
 /**
  * p6c — SPEC-FINAL §4.1's Plaguebringer kit (verbatim): Spreading Plague
- * (on-death unfinished-DoT transfer), Poison Barrel (a 5 s ground poison
- * zone), Poison Boost (doubles all live enemies' remaining poison damage),
+ * (on-death unfinished-DoT transfer), Poison Barrel (a ground poison zone —
+ * since fb061's §4.1 amendment a hold/release charge skill whose radius and
+ * lifetime scale with the hold, 8 s -> 14 s on shipped data), Poison Boost
+ * (doubles all live enemies' remaining poison damage),
  * Miasma (tower passive, +10% poison damage). Gate G9's second half is
  * Spreading Plague: "an enemy dying with unfinished DoT deals exactly the
  * unfinished total to the nearest enemy, once" — the third describe block
@@ -9,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { poisonBarrelValues, tickClassCharge, useClassActive } from '../src/sim/classes';
 import { loadContent, validateClassEffect, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { applyDamageType } from '../src/sim/damagetypes';
 import { applyDot, damageEnemy, dotOutstanding, dotStacks, spawnEnemy } from '../src/sim/enemies';
@@ -30,6 +33,23 @@ function firstEnemyKey(w: World): string {
 function idleInput(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
 }
+
+/**
+ * fb061: Poison Barrel fires on the release of a held Active1 key, the same
+ * `TickInput.active1Held` path Circle Slash takes — `holdTicks` real
+ * `Run.step` ticks held, then one released. Returns the charge the release
+ * actually used (read off the Warden on the last held tick), so a caller can
+ * derive the zone's radius/lifetime from `poisonBarrelValues` at that charge.
+ */
+function holdAndRelease(run: Run, holdTicks: number): number {
+  for (let t = 0; t < holdTicks; t++) run.step(idleInput({ active1Held: true }));
+  const charge = run.world.warden.active1Charge;
+  run.step(idleInput());
+  return charge;
+}
+
+/** A hold past the authored cap (c005's `Math.ceil(cap * 60) + 1`) — the full-charge end; one tick is the other. */
+const FULL_HOLD_TICKS = Math.ceil((plaguebringer.active1.chargeCapSeconds ?? 3) * 60) + 1;
 
 function worldWith(over = {}): World {
   const w = new World(cfg({ classKey: 'plaguebringer', ...over }));
@@ -67,14 +87,27 @@ describe('p6c: the loader rejects a ground_poison row missing groundDurationSeco
     expect(() => validateClassEffect(boost, 'x')).not.toThrow();
   });
 
+  /**
+   * fb061 (code review): the shipped row now authors a zero-charge lifetime
+   * floor, and fb061's own rules (tick vs floor, floor vs ceiling) would reject
+   * these fb082 fixtures first — so fb082's own two rules would go untested.
+   * They are checked on the row with the floor removed, and against their
+   * exact messages, so only fb082's rule can satisfy each assertion.
+   */
+  function floorless(over: Partial<ClassEffect>): ClassEffect {
+    const eff = { ...plaguebringer.active1, ...over } as ClassEffect;
+    delete (eff as Record<string, unknown>).minGroundDurationSeconds;
+    return eff;
+  }
+
   it('fb082: rejects a ground_poison row whose groundTickSeconds exceeds groundDurationSeconds', () => {
     // qa-playtester finding: `updateAreas`' cadence gate (combat.ts) never
     // crosses a threshold larger than the zone's own remaining lifetime, so
     // an authored `groundTickSeconds` past `groundDurationSeconds` would
     // silently, permanently disable the mechanic — a loader rule that
     // refuses unpayable data beats a comment saying it must be valid.
-    const tooSlow = { ...plaguebringer.active1, groundTickSeconds: (plaguebringer.active1.groundDurationSeconds ?? 5) + 1 } as ClassEffect;
-    expect(() => validateClassEffect(tooSlow, 'x')).toThrow(/groundTickSeconds/);
+    const tooSlow = floorless({ groundTickSeconds: (plaguebringer.active1.groundDurationSeconds ?? 5) + 1 });
+    expect(() => validateClassEffect(tooSlow, 'x')).toThrow(/groundTickSeconds must not exceed groundDurationSeconds/);
   });
 
   it('fb082: rejects a non-positive groundDurationSeconds even with groundTickSeconds left unauthored', () => {
@@ -85,12 +118,19 @@ describe('p6c: the loader rejects a ground_poison row missing groundDurationSeco
     // never cross even that default cadence, so the zone would be
     // permanently inert. Checked independently of whether `groundTickSeconds`
     // happens to be authored.
-    const zero = { ...plaguebringer.active1, groundDurationSeconds: 0 } as ClassEffect;
+    const zero = floorless({ groundDurationSeconds: 0 });
     delete (zero as Record<string, unknown>).groundTickSeconds;
-    expect(() => validateClassEffect(zero, 'x')).toThrow(/groundDurationSeconds/);
-    const negative = { ...plaguebringer.active1, groundDurationSeconds: -5 } as ClassEffect;
+    expect(() => validateClassEffect(zero, 'x')).toThrow(/groundDurationSeconds must be positive/);
+    const negative = floorless({ groundDurationSeconds: -5 });
     delete (negative as Record<string, unknown>).groundTickSeconds;
-    expect(() => validateClassEffect(negative, 'x')).toThrow(/groundDurationSeconds/);
+    expect(() => validateClassEffect(negative, 'x')).toThrow(/groundDurationSeconds must be positive/);
+  });
+
+  it('fb061 review: a floor below the default 1 s tick is refused even with no tick authored, and a ground_poison minRadius must be positive', () => {
+    const noTick = { ...plaguebringer.active1, minGroundDurationSeconds: 0.5 } as ClassEffect;
+    delete (noTick as Record<string, unknown>).groundTickSeconds;
+    expect(() => validateClassEffect(noTick, 'x')).toThrow(/must not exceed minGroundDurationSeconds/);
+    expect(() => validateClassEffect({ ...plaguebringer.active1, minRadius: 0 } as ClassEffect, 'x')).toThrow(/minRadius must be positive/);
   });
 
   it('fb082: accepts groundTickSeconds exactly equal to groundDurationSeconds', () => {
@@ -99,8 +139,10 @@ describe('p6c: the loader rejects a ground_poison row missing groundDurationSeco
     // landing on the same frame still delivers the one scheduled application
     // (Venom Spore's own trail blob is built this way: tickSeconds ===
     // remaining exactly).
-    const exact = { ...plaguebringer.active1, groundTickSeconds: plaguebringer.active1.groundDurationSeconds } as ClassEffect;
+    const exact = floorless({ groundTickSeconds: plaguebringer.active1.groundDurationSeconds });
     expect(() => validateClassEffect(exact, 'x')).not.toThrow();
+    // fb061: with the floor authored, the boundary the tick may equal is the
+    // floor (a quick release) — pinned in fb085-enablers' fb061 block.
   });
 });
 
@@ -116,7 +158,16 @@ describe('p6c: Poison Barrel — a ground zone that ticks poison for its own dur
     e.speed = 0; // stays put, so it can't wander out of the fixed ground zone
     run.world.rebuildBuckets();
 
+    // fb061: a bare Command no longer fires it — Poison Barrel is a charge
+    // kind, so the Command declines exactly as Circle Slash's does (p6b): it
+    // reports false, drops no zone and bills no cooldown...
+    expect(useClassActive(run.world), 'a bare Command fired Poison Barrel instead of arming a hold').toBe(false);
     run.step(idleInput({ cmds: [{ k: 'class_active' }] }));
+    expect(run.world.warden.active1Cooldown).toBe(0);
+    expect(run.world.areas.some((a) => a.type === 'poison')).toBe(false);
+
+    // ...and a hold/release is what fires it, shortest real hold here.
+    holdAndRelease(run, 1);
     expect(run.world.warden.active1Cooldown).toBeGreaterThan(0);
     expect(run.world.areas.some((a) => a.type === 'poison' && !a.dead)).toBe(true);
 
@@ -125,28 +176,112 @@ describe('p6c: Poison Barrel — a ground zone that ticks poison for its own dur
     expect(dotStacks(e, 'poison')).toBeGreaterThan(0);
   });
 
-  it('does not poison an enemy standing outside the zone radius', () => {
+  // fb061: the radius the zone lands at depends on the hold, so "outside" is
+  // measured against the radius that actually landed, at both ends of the
+  // charge — the shortest real hold, and one held past the cap (where the
+  // cloud is widest, so an outside enemy is the strictest case).
+  it.each([
+    ['the shortest real hold', 1],
+    ['a full-charge hold', FULL_HOLD_TICKS],
+  ])('does not poison an enemy standing outside the zone radius — %s', (_label, holdTicks) => {
     const run = new Run(cfg({ classKey: 'plaguebringer' }));
     run.world.gold = 1e6;
     run.world.phase = 'act1_wave';
     run.world.warden.attackCooldown = 1e9;
-    const far = spawnEnemy(run.world, firstEnemyKey(run.world), run.world.warden.x + 10, run.world.warden.y)!;
+    // The cloud this hold will land (one 60 Hz tick of charge per held tick).
+    const landing = poisonBarrelValues(plaguebringer.active1, Math.min(holdTicks / 60, plaguebringer.active1.chargeCapSeconds ?? 3));
+    // Pre-fb061 this enemy stood at +10 against a r5 cloud: twice the radius.
+    const outside = Math.max(10, landing.radius * run.world.derived.areaMul * 2);
+    const far = spawnEnemy(run.world, firstEnemyKey(run.world), run.world.warden.x + outside, run.world.warden.y)!;
     far.hp = 1000;
     far.maxHp = 1000;
     far.speed = 0;
     run.world.rebuildBuckets();
 
-    run.step(idleInput({ cmds: [{ k: 'class_active' }] }));
+    const used = holdAndRelease(run, holdTicks);
+    const zone = run.world.areas.find((a) => a.type === 'poison' && !a.dead);
+    // Not vacuous: a zone really landed, at the radius this charge sizes it
+    // to, and the enemy really is outside it.
+    expect(zone, 'the release dropped no cloud').toBeDefined();
+    expect(zone!.radius).toBeCloseTo(poisonBarrelValues(plaguebringer.active1, used).radius * run.world.derived.areaMul, 9);
+    expect(outside).toBeGreaterThan(zone!.radius);
     for (let t = 0; t < 120; t++) run.step(idleInput());
     expect(far.hp).toBe(1000);
   });
 
-  it('the zone stops mattering once its own duration (5s) has elapsed', () => {
+  // Was "the zone stops mattering once its own duration (5s) has elapsed":
+  // fb061 made the lifetime charge-dependent — `minGroundDurationSeconds`
+  // (8 s) at no charge up to `groundDurationSeconds` (14 s) at full charge —
+  // so it is checked at both ends, and on both sides of the boundary: still
+  // alive just before its charge-scaled lifetime, dead just after.
+  it.each([
+    ['the shortest real hold (~8 s zone)', 1],
+    ['a full-charge hold (14 s zone)', FULL_HOLD_TICKS],
+  ])('the zone stops mattering once its own charge-scaled duration has elapsed — %s', (_label, holdTicks) => {
     const run = new Run(cfg({ classKey: 'plaguebringer' }));
     run.world.gold = 1e6;
-    run.step(idleInput({ cmds: [{ k: 'class_active' }] }));
-    for (let t = 0; t < 400; t++) run.step(idleInput()); // well past 5s
-    expect(run.world.areas.every((a) => a.dead)).toBe(true);
+    const used = holdAndRelease(run, holdTicks);
+    const lifetime = poisonBarrelValues(plaguebringer.active1, used).durationSeconds;
+    const eff = plaguebringer.active1;
+    const cap = eff.chargeCapSeconds ?? 3;
+    if (holdTicks === 1) {
+      // One 60 Hz tick of charge: the lifetime sits one tick's share of the
+      // 8 s -> 14 s lerp above the `minGroundDurationSeconds` floor.
+      expect(used).toBeCloseTo(1 / 60, 12);
+      const floor = eff.minGroundDurationSeconds ?? eff.groundDurationSeconds!;
+      expect(lifetime).toBeCloseTo(floor + (eff.groundDurationSeconds! - floor) * (1 / 60 / cap), 9);
+    } else {
+      // Held past the cap: exactly the full-charge `groundDurationSeconds`.
+      expect(used).toBe(cap);
+      expect(lifetime).toBe(eff.groundDurationSeconds);
+    }
+    const zone = run.world.areas.find((a) => a.type === 'poison' && !a.dead);
+    expect(zone, 'the release dropped no cloud').toBeDefined();
+    // The zone really carries that lifetime (the release tick already spent one `dt`).
+    expect(zone!.remaining).toBeCloseTo(lifetime - 1 / 60, 9);
+    // The release tick already spent one `dt` of the lifetime.
+    const ticksLeft = Math.round(lifetime * 60) - 1;
+    for (let t = 0; t < ticksLeft - 2; t++) run.step(idleInput());
+    expect(run.world.areas.some((a) => a.type === 'poison' && !a.dead), 'the zone died before its charge-scaled lifetime').toBe(true);
+    for (let t = 0; t < 4; t++) run.step(idleInput());
+    expect(run.world.areas.every((a) => a.dead), 'the zone outlived its charge-scaled lifetime').toBe(true);
+  });
+
+  it('the charge really scales it: a full hold lands a wider, longer-lived zone than the shortest one', () => {
+    const land = (holdTicks: number) => {
+      const run = new Run(cfg({ classKey: 'plaguebringer' }));
+      run.world.gold = 1e6;
+      holdAndRelease(run, holdTicks);
+      return run.world.areas.find((a) => a.type === 'poison' && !a.dead)!;
+    };
+    const short = land(1);
+    const full = land(FULL_HOLD_TICKS);
+    const eff = plaguebringer.active1;
+    expect(full.radius).toBeCloseTo(eff.radius, 9);
+    expect(full.radius).toBeGreaterThan(short.radius);
+    expect(full.remaining).toBeGreaterThan(short.remaining);
+    // Poison per second is untouched by charge (§4.1 amended: "poison per
+    // second is unchanged"), and so is the 1 s cadence (fb062).
+    expect(full.dps).toBeCloseTo(short.dps, 9);
+    expect(full.tickSeconds).toBe(short.tickSeconds);
+    expect(full.tickSeconds).toBe(eff.groundTickSeconds);
+  });
+
+  it("Sleeve Sword / Swordsman Armor never touch a Plaguebringer's hold: their charge rules stay charge_nova-only (fb061 review)", () => {
+    const eff = plaguebringer.active1;
+    const hold = (equipment: string[]) => {
+      const w = new World(cfg({ classKey: 'plaguebringer', equipment }));
+      w.gold = 1e6;
+      for (let t = 0; t < 30; t++) tickClassCharge(w, plaguebringer, idleInput({ active1Held: true }), 1 / 60);
+      const charge = w.warden.active1Charge;
+      tickClassCharge(w, plaguebringer, idleInput({ active1Held: false }), 1 / 60);
+      return { charge, radius: w.areas.find((a) => a.type === 'poison' && !a.dead)!.radius, areaMul: w.derived.areaMul };
+    };
+    const bare = hold([]);
+    const both = hold(['sleeve_sword', 'swordsman_armor']);
+    expect(bare.charge).toBeCloseTo(0.5, 9);
+    expect(both.charge).toBeCloseTo(0.5, 9); // no instant-max, no attack-speed charge rate
+    expect(both.radius).toBeCloseTo(poisonBarrelValues(eff, 0.5).radius * both.areaMul, 9);
   });
 });
 
@@ -325,8 +460,11 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
   it('does not boost Poison Barrel\'s own zone: its GroundArea is sourced "class_active", not a tower key', () => {
     const w = worldWith();
     expect(w.content.towerByKey.has('class_active')).toBe(false);
-    applyCommand(w, { k: 'class_active' });
+    // fb061: fired by a hold/release, not a bare Command.
+    tickClassCharge(w, plaguebringer, idleInput({ active1Held: true }), 1 / 60);
+    tickClassCharge(w, plaguebringer, idleInput({ active1Held: false }), 1 / 60);
     const zone = w.areas.find((a) => a.type === 'poison' && !a.dead)!;
+    expect(zone, 'the release dropped no cloud').toBeDefined();
     expect(zone.source).toBe('class_active');
 
     // Same base magnitude (8 dps, no powerMul contributions authored on
@@ -377,11 +515,16 @@ describe('p6c: Miasma — all towers +10% poison damage, Act I only', () => {
 describe('p6c: replay-hash determinism with Poison Barrel, Poison Boost and a Spreading Plague transfer in the log', () => {
   it('two independent runs from the same input log reach an identical end-state hash', () => {
     const log: TickInput[] = [];
+    // fb061: Poison Barrel is held from t=10 and released at t=70 (a 1 s,
+    // mid-cap charge), the input shape a real key produces — the keydown's
+    // `class_active` Command on the first held tick (which declines) plus
+    // `active1Held` for as long as the key is down.
     for (let t = 0; t < 400; t++) {
       const cmds: Command[] = [];
-      if (t === 10) cmds.push({ k: 'class_active' }); // Poison Barrel
+      if (t === 10) cmds.push({ k: 'class_active' }); // Poison Barrel's keydown
       if (t === 200) cmds.push({ k: 'class_active2' }); // Poison Boost
-      log.push({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds });
+      const active1Held = t >= 10 && t < 70;
+      log.push({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held, cmds });
     }
 
     const a = new Run(cfg({ classKey: 'plaguebringer' }));
@@ -406,6 +549,7 @@ describe('p6c: replay-hash determinism with Poison Barrel, Poison Boost and a Sp
 
     expect(a.hash()).toBe(b.hash());
     expect(hashWorld(a.world)).toBe(hashWorld(b.world));
+    // The released Barrel (not the declined keydown Command) is what billed this.
     expect(a.world.warden.active1Cooldown).toBeGreaterThan(0);
     expect(a.world.warden.active2Cooldown).toBeGreaterThan(0);
   });
@@ -420,6 +564,34 @@ describe('p6c: QA-precedent guard — w.dying freezes Poison Barrel/Poison Boost
     applyCommand(w, { k: 'class_active' });
     expect(w.areas.length).toBe(before);
     expect(w.warden.active1Cooldown).toBe(0);
+  });
+
+  it('fb061: the hold/release that actually fires Poison Barrel is frozen while dying too', () => {
+    // Since fb061 the bare Command above declines for every charge kind
+    // whether or not the Warden is dying, so on its own it no longer proves
+    // the dying guard. The real firing path is `updateWarden` ->
+    // `tickClassCharge`, which the defeat slow-mo beat freezes (run.ts) — a
+    // full hold and release driven through it must drop nothing and bill
+    // nothing...
+    const drive = (w: World): void => {
+      for (let t = 0; t < FULL_HOLD_TICKS; t++) updateWarden(w, idleInput({ active1Held: true }), 1 / 60);
+      updateWarden(w, idleInput({ active1Held: false }), 1 / 60);
+    };
+    const dying = worldWith();
+    dying.phase = 'act2';
+    dying.dying = 'defeat_warden';
+    drive(dying);
+    expect(dying.areas.some((a) => a.type === 'poison')).toBe(false);
+    expect(dying.warden.active1Cooldown).toBe(0);
+    expect(dying.warden.active1Charging).toBe(false);
+
+    // ...while the identical drive on a live Warden does fire it, so the
+    // freeze above is the guard at work, not a harness that fires nothing.
+    const alive = worldWith();
+    alive.phase = 'act2';
+    drive(alive);
+    expect(alive.areas.some((a) => a.type === 'poison' && !a.dead)).toBe(true);
+    expect(alive.warden.active1Cooldown).toBeGreaterThan(0);
   });
 
   it('useClassActive2 (Poison Boost) is a no-op while dying', () => {

@@ -1,7 +1,8 @@
 /** Shared test utilities. Keep these deterministic — no Math.random, no Date. */
 
 import { Run } from '../src/sim/run';
-import { loadContent } from '../src/sim/content';
+import { loadContent, type ClassEffect } from '../src/sim/content';
+import { isChargeKind } from '../src/sim/classes';
 import { Rng } from '../src/sim/rng';
 import { emptyInput, type Command, type RunConfig, type RunReport, type TickInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
@@ -78,7 +79,14 @@ export function runWithPolicy(
   return { report: run.report(), run };
 }
 
-const CHARGE_KINDS = new Set(['charge_nova', 'charge_pierce']);
+/**
+ * fb061 (code review): read off the sim's own `isChargeKind` rather than a
+ * test-local copy — a stale copy here (still `charge_nova`/`charge_pierce`
+ * only after Poison Barrel became a hold/release skill) made every scripted
+ * G8/G14/G23 run silently stop casting it. `tests/fb123-charge-kind-bot-
+ * coverage.test.ts` pins every charge kind per policy.
+ */
+const CHARGE_KINDS = { has: (kind: string): boolean => isChargeKind(kind as ClassEffect['kind']) };
 /** Structure-targeting kinds (Field Kit, Blood Tithe, Death Pact) default an omitted aim to the Warden's own tile, not the enemy's — see `tests/p6e-class-diversity.test.ts`'s header for why an aim override is skipped for these. */
 const STRUCTURE_TARGET_KINDS = new Set(['repair_heal', 'blood_tithe', 'death_pact']);
 

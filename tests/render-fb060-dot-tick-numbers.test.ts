@@ -198,38 +198,6 @@ describe('fb060: density cutoff above 150 DoT carriers', () => {
   });
 });
 
-describe('fb060 perf: a 300-enemy burning horde stays inside a frame budget', () => {
-  it('ingest+update+draw for 300 DoT carriers fits well inside 16.7ms/frame with the density cutoff live', () => {
-    const w = new World(cfg({ practice: true }));
-    w.warden.attackCooldown = 1e9;
-    const key = firstEnemyKey(w);
-    for (let i = 0; i < 300; i++) {
-      const x = 1 + (i % 34);
-      const y = 1 + (Math.floor(i / 34) % 18);
-      const e = spawnEnemy(w, key, x, y)!;
-      applyDot(w, e, 'burning', 5, 30, 'test');
-    }
-    w.rebuildBuckets();
-
-    const v = view();
-    const { canvas } = recordingCanvas();
-    const renderer = new Renderer(canvas);
-    // Warm up the JIT first, same convention as tests/a10-performance.test.ts.
-    for (let i = 0; i < 30; i++) {
-      updateEnemies(w, 1 / 60);
-      renderer.ingest(w, v);
-      renderer.update(1 / 60, v);
-      renderer.draw(w, v);
-    }
-    const iterations = 120;
-    const started = performance.now();
-    for (let i = 0; i < iterations; i++) {
-      updateEnemies(w, 1 / 60);
-      renderer.ingest(w, v);
-      renderer.update(1 / 60, v);
-      renderer.draw(w, v);
-    }
-    const perFrame = (performance.now() - started) / iterations;
-    expect(perFrame, `${perFrame.toFixed(3)} ms/frame with 300 DoT-carrying enemies`).toBeLessThan(16.7);
-  });
-});
+// The 300-enemy frame-budget timing case moved to
+// tests/render-fb060-dot-tick-perf.test.ts (vitest.perf.config.ts, 2026-09-22):
+// a wall-clock budget read under fast-tier contention is a harness reading.

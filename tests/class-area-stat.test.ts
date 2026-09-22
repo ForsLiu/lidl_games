@@ -120,11 +120,41 @@ describe('c001: the Area stat reaches every self-centered class Active radius', 
       fire: (w) => void useClassActive(w),
       observe: (w) => lastFxRadius(w, 'class_active'),
     },
+    // fb061 (§4.1 amended): Poison Barrel is a hold/release charge kind now,
+    // so it is fired the way Circle Slash is (below) and measured at BOTH
+    // ends of its charge — the cloud's radius lerps from the authored
+    // zero-charge floor `minRadius` up to `radius` at `chargeCapSeconds`, and
+    // Area has to scale whichever of the two actually lands.
     {
-      name: 'Plaguebringer Poison Barrel (ground_poison)',
+      name: 'Plaguebringer Poison Barrel (ground_poison, released at zero charge)',
+      classKey: 'plaguebringer',
+      authored: (w) => {
+        const eff = w.content.classByKey.get('plaguebringer')!.active1;
+        return eff.minRadius ?? eff.radius;
+      },
+      fire: (w) => {
+        const cls = w.content.classByKey.get('plaguebringer')!;
+        // A held tick of `dt` 0 accrues no charge at all: the key pressed and
+        // let go inside one frame, i.e. exactly the zero-charge endpoint the
+        // authored floor describes (a real 60 Hz hold's shortest release,
+        // one tick, sits 1/60 s past it).
+        tickClassCharge(w, cls, idle({ active1Held: true }), 0);
+        tickClassCharge(w, cls, idle({ active1Held: false }), 1 / 60);
+      },
+      observe: (w) => w.areas.find((a) => a.type === 'poison' && !a.dead)!.radius,
+    },
+    {
+      name: 'Plaguebringer Poison Barrel (ground_poison, at full charge)',
       classKey: 'plaguebringer',
       authored: (w) => w.content.classByKey.get('plaguebringer')!.active1.radius,
-      fire: (w) => void useClassActive(w),
+      fire: (w) => {
+        const cls = w.content.classByKey.get('plaguebringer')!;
+        const cap = cls.active1.chargeCapSeconds ?? 3;
+        // Same idiom as the Circle Slash row: hold past the cap, release —
+        // `poisonBarrelValues` clamps the fraction to 1.
+        tickClassCharge(w, cls, idle({ active1Held: true }), cap * 2);
+        tickClassCharge(w, cls, idle({ active1Held: false }), 1 / 60);
+      },
       observe: (w) => w.areas.find((a) => a.type === 'poison' && !a.dead)!.radius,
     },
     {

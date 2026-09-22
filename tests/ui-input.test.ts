@@ -925,3 +925,30 @@ describe('canvas resolution (playtest: the game looked blurry)', () => {
     expect(canvas.width).toBeGreaterThanOrEqual(GRID_W * TILE);
   });
 });
+
+describe('fb061 QA: a sub-frame tap of Active1 still casts a charge-kind Active', () => {
+  it('a keydown and keyup inside one frame still report the key held for that tick, then released', async () => {
+    const { gatherInput } = await import('../src/ui/input');
+    const { defaultKeyBindings } = await import('../src/ui/keybindings');
+    const bindings = defaultKeyBindings();
+    const keys = new Set<string>();
+    const queue: import('../src/sim/types').Command[] = [];
+    const down = makeKeyDownHandler({ keys, queue: queue as never, bindings });
+    down(new KeyboardEvent('keydown', { key: bindings.active1 }));
+    keys.delete(bindings.active1); // keyup before the next frame gathers
+    const tap = gatherInput(keys, queue.splice(0), 0, 0, false, bindings);
+    expect(tap.cmds.some((c) => c.k === 'class_active')).toBe(true);
+    expect(tap.active1Held, 'the tap must read as a one-tick hold, or a charge kind drops it').toBe(true);
+    const next = gatherInput(keys, queue.splice(0), 0, 0, false, bindings);
+    expect(next.active1Held).toBe(false); // the release
+
+    // And the sim casts from exactly that input pair: a Plaguebringer drops a cloud.
+    const { Run } = await import('../src/sim/run');
+    const { cfg } = await import('./helpers');
+    const run = new Run(cfg({ classKey: 'plaguebringer' }));
+    run.step(tap);
+    run.step(next);
+    expect(run.world.areas.filter((a) => a.type === 'poison' && !a.dead).length).toBe(1);
+    expect(run.world.warden.active1Cooldown).toBeGreaterThan(0);
+  });
+});

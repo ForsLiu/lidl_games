@@ -15,7 +15,7 @@ import {
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
-import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
+import { characterBasicRange, circleSlashValues, classArmorBonus, poisonBarrelValues } from '../sim/classes';
 import type { ClassDef } from '../sim/content';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
@@ -1977,7 +1977,7 @@ export class Renderer {
 
   /**
    * fb016: a charge-kind Active1 (Circle Slash's nova, Deadeye Draw's shot
-   * line) is the one Active shape with real pre-fire state to preview —
+   * line, and since fb061 Poison Barrel's cloud) is the one Active shape with real pre-fire state to preview —
    * `w.warden.active1Charging`/`active1Charge` — so this is the only "aim
    * indicator" backed by live sim state rather than a fire-moment flash.
    * Every other kind fires atomically from a Command with no held phase to
@@ -2007,6 +2007,14 @@ export class Renderer {
       // real one the moment any Area source (an item, a boon) is live. `w.derived`
       // is public sim state, not a re-derivation of a private helper.
       const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
+      ctx.beginPath();
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (cls.active1.kind === 'ground_poison') {
+      // fb061: Poison Barrel's hold previews the cloud it will drop — the same
+      // charge-lerped radius `firePoisonBarrel` sizes the zone with, Area
+      // included, so the ring is the footprint that actually lands.
+      const { radius } = poisonBarrelValues(cls.active1, wd.active1Charge);
       ctx.beginPath();
       ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
       ctx.stroke();

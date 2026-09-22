@@ -39,6 +39,17 @@ describe('fb123 — charge-kind Active1 fires under every stock policy', () => {
     ).toBeGreaterThan(0);
   });
 
+  // fb061 (code review): Poison Barrel joined the hold/release kinds, and the
+  // scripted harness's own copy of the charge-kind list went stale — every
+  // G8/G14/G23 run silently stopped casting it (class_active 641 -> 0).
+  it.each(PLAYED_POLICIES)('plaguebringer (Poison Barrel, ground_poison) lands class_active damage under %s', (policy) => {
+    const { report } = runScripted(cfg({ seed: 1, classKey: 'plaguebringer', policy }), policy, 60 * 60 * 20);
+    expect(
+      report.damageByWeapon['class_active'] ?? 0,
+      `${policy}: damageByWeapon = ${JSON.stringify(report.damageByWeapon)}`,
+    ).toBeGreaterThan(0);
+  });
+
   it.each(PLAYED_POLICIES)('swordsman (Circle Slash, charge_nova) lands class_active damage under %s', (policy) => {
     const { report } = runScripted(cfg({ seed: 1, classKey: 'swordsman', policy }), policy, 60 * 60 * 20);
     expect(

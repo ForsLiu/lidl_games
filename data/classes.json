@@ -73,10 +73,13 @@
         "name": "Poison Barrel",
         "kind": "ground_poison",
         "cooldownSeconds": 7,
-        "radius": 5,
+        "radius": 10,
+        "minRadius": 5,
         "damage": 40,
-        "groundDurationSeconds": 5,
-        "groundTickSeconds": 1
+        "groundDurationSeconds": 14,
+        "minGroundDurationSeconds": 8,
+        "groundTickSeconds": 1,
+        "chargeCapSeconds": 2
       },
       "active2": {
         "name": "Poison Boost",

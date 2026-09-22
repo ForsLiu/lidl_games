@@ -36,6 +36,7 @@ import {
   characterDamage,
   circleSlashValues,
   classBasicAttack,
+  tickClassCharge,
   tickAmmoRecharge,
   updateClassPassives,
   useClassActive,
@@ -173,6 +174,16 @@ function lastFx(w: World, k: string): { x: number; y: number; a: number; b: numb
   return fx;
 }
 
+/**
+ * fb061: Poison Barrel is a hold/release charge skill — a bare Command
+ * declines — so a zero-charge cloud is a hold and release on the same instant
+ * (the same `tickClassCharge` path the input loop drives).
+ */
+function releaseBarrel(w: World): void {
+  tickClassCharge(w, plaguebringer, held(true), 0);
+  tickClassCharge(w, plaguebringer, held(false), 0);
+}
+
 /** Holds Circle Slash past its charge cap. */
 function chargeFully(w: World): void {
   const cap = swordsman.active1.chargeCapSeconds ?? 3;
@@ -215,7 +226,7 @@ describe('fb056 §7.1 Plaguebringer set — every Effect clause, item worn vs no
       const w = worldOf('plaguebringer', equipment);
       const x0 = w.warden.x;
       const y0 = w.warden.y;
-      applyCommand(w, { k: 'class_active' });
+      releaseBarrel(w);
       const cloud = only(w.areas.filter((a) => a.type === 'poison' && !a.dead));
       expect(cloud.x).toBe(x0);
       w.warden.x = x0 + 5; // the character walks away from her cloud
@@ -918,8 +929,8 @@ describe('fb056 §7.1 (a) "if not <class>": the fallback replaces the line for e
     const areaFallback = fallbackMod('bracer_of_the_whirlwind', 'area');
     const worn = worldOf('plaguebringer', SWORD_SET);
     const bare = worldOf('plaguebringer');
-    applyCommand(worn, { k: 'class_active' });
-    applyCommand(bare, { k: 'class_active' });
+    releaseBarrel(worn);
+    releaseBarrel(bare);
     const cloud = only(worn.areas).radius;
     const bareCloud = only(bare.areas).radius;
     expect(cloud).toBeCloseTo(bareCloud * (1 + areaFallback), 9);

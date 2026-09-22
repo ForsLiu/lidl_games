@@ -105,7 +105,7 @@ const content = loadContent();
  * newline-normalised. Regenerate deliberately, never reflexively: a change
  * here means §4 moved and every `spec` below has to be re-read against it.
  */
-const SPEC_4_SHA256 = 'e12eae96e2b2ba9cebf1f055aaf28f44abfa66e627d815aa45f2de6e738107d6';
+const SPEC_4_SHA256 = '9a98417f1aee4a0677fce183a6436909cbca0ae864c6ec68c5c9da842a346a34';
 
 /** §3's own Burning row — Pyro's "3 Burning" is stated in units of it. */
 const BURNING = content.damageTypeByKey.get('burning');
@@ -350,13 +350,65 @@ const LEDGER: readonly Figure[] = [
       absentKey: /target|transfer|fanOut|spread|nearest|count/i,
     },
   },
+  // fb061 (§4.1 amended by owner feedback `feature-plaguebringer-charge`):
+  // Poison Barrel became a hold/release charge skill. The one duration figure
+  // §4.1 used to state ("a circle of poison on the ground for 5 s", read at
+  // `groundDurationSeconds`) became a charge-lerped pair — the 8 s floor at no
+  // charge and the 14 s full-charge ceiling, which keeps that same field — and
+  // the amendment states three more: the 2 s charge cap and both ends of the
+  // ×1 → ×2 radius (r5 → r10). Every one is a row, each on its own field.
   {
     cls: 'plaguebringer',
     clause: 'Poison Barrel',
-    figure: 'a circle of poison on the ground for 5 s',
+    figure: 'hold to charge, up to 2 s ⚖',
+    quote: 'up to 2 s ⚖',
+    spec: 2,
+    path: ['active1', 'chargeCapSeconds'],
+    status: { kind: 'match' },
+    note:
+      'fb061: authored rather than left to `tickClassCharge`\'s generic 3 s fallback — the loader ' +
+      'now refuses a `ground_poison` row without a positive `chargeCapSeconds`.',
+  },
+  {
+    cls: 'plaguebringer',
+    clause: 'Poison Barrel',
+    figure: 'radius ×1 → ×2 ⚖ (r5 → r10): r5 at no charge',
+    quote: '×1 → ×2 ⚖ (r5 → r10)',
     spec: 5,
+    path: ['active1', 'minRadius'],
+    status: { kind: 'match' },
+    note: "The ×1 end: the zero-charge floor `poisonBarrelValues` lerps up from — the pre-fb061 cloud's own radius.",
+  },
+  {
+    cls: 'plaguebringer',
+    clause: 'Poison Barrel',
+    figure: 'radius ×1 → ×2 ⚖ (r5 → r10): r10 at full charge',
+    quote: '×1 → ×2 ⚖ (r5 → r10)',
+    spec: 10,
+    path: ['active1', 'radius'],
+    status: { kind: 'match' },
+    note: 'The ×2 end, reached at `chargeCapSeconds`: twice the r5 row above.',
+  },
+  {
+    cls: 'plaguebringer',
+    clause: 'Poison Barrel',
+    figure: 'duration from 8 s ⚖ at no charge',
+    spec: 8,
+    path: ['active1', 'minGroundDurationSeconds'],
+    status: { kind: 'match' },
+    note: "fb061 raised the base duration 5 s -> 8 s; fb085(c)'s zero-charge floor field carries it.",
+  },
+  {
+    cls: 'plaguebringer',
+    clause: 'Poison Barrel',
+    figure: 'duration to 14 s ⚖ at full charge',
+    quote: 'to 14 s ⚖ at\nfull charge',
+    spec: 14,
     path: ['active1', 'groundDurationSeconds'],
     status: { kind: 'match' },
+    note:
+      'The field the pre-fb061 "for 5 s" row read: `groundDurationSeconds` is now the full-charge ' +
+      'lifetime, the ceiling the 8 s floor lerps up to.',
   },
   {
     cls: 'plaguebringer',
@@ -1843,7 +1895,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     // Every `in_code` row anchors into `/src` so a stale pointer goes red, but
     // the `spec` column had nothing holding it to its source — and §17 keeps
     // the nine filled classes open to owner veto. Pinning §4's text means a
-    // spec edit forces a ledger re-read instead of leaving 89 rows silently
+    // spec edit forces a ledger re-read instead of leaving 93 rows silently
     // asserting a superseded figure. It also closes the obvious way to launder
     // a drift: editing `spec` instead of adding a status.
     expect(SPEC_4_TEXT.startsWith('## 4. Characters'), 'the §4 slice does not start at §4').toBe(true);
@@ -1892,7 +1944,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 65 match · 18 retuned · 1 elsewhere · 5 in code · 0 unimplemented · 0 defect', () => {
+  it('census: 69 match · 18 retuned · 1 elsewhere · 5 in code · 0 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1917,15 +1969,17 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // the last unimplemented row (Blood Tithe's VS-share lifesteal). fb126
       // moved three rule-4 literals (Thousand Cuts' base stack, Long Draw's
       // pierce rate, Time Flow's base window) from in_code into /data fields,
-      // each now a match.
-      match: 65,
+      // each now a match. fb061 (§4.1 amended) replaced Poison Barrel's one
+      // "for 5 s" match with five: the 2 s charge cap, the r5/r10 radius ends
+      // and the 8 s/14 s duration ends.
+      match: 69,
       retuned: 18,
       elsewhere: 1,
       in_code: 5,
       unimplemented: 0,
       defect: 0,
     });
-    expect(LEDGER).toHaveLength(89);
+    expect(LEDGER).toHaveLength(93);
   });
 
   it('every authorised deviation names a backlog item or Q-number that can be looked up', () => {

@@ -106,8 +106,12 @@ Tower passive *Wind Slash*: all towers +10% attack speed, effective in VS.
 **Plaguebringer (Poison)** — range high, dmg low, spd medium, AoE no, move
 medium. Passive *Spreading Plague*: if any DoT on an enemy is unfinished
 when it dies, deal the total unfinished damage to the nearest enemy once.
-Active1 *Poison Barrel*: a circle of poison on the ground for 5 s, applying
-poison damage every second.
+Active1 *Poison Barrel*: hold to charge (Circle Slash's hold/release model,
+up to 2 s ⚖), then release a circle of poison on the ground, applying
+poison damage every second. The charge scales the cloud's radius
+×1 → ×2 ⚖ (r5 → r10) and its duration from 8 s ⚖ at no charge to 14 s ⚖ at
+full charge; poison per second is unchanged (amended by owner feedback
+`feature-plaguebringer-charge`, fb061; Active2 stays instant).
 Active2 *Poison Boost*: double the remaining poison damage on all enemies.
 Tower passive: all towers +10% poison damage.
 
