@@ -5,7 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 7 → 6.**
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 6 → 5,
+  last test file cleared.** Fixed `tests/p2b-wielded-fire.test.ts` (90
+  unchecked-index sites) with the same `nth<T>` throw-guard helper —
+  single/two-tile `tiles()` destructures (two-tile cases caching a single
+  `tiles(w, 2)` call, read via `nth` at indices 0/1, named `tt` rather than
+  `pair` to avoid colliding with each body's own `pair` damage-delta
+  local), plus 4 further sites where a `Record<string, number>` read
+  (`w.damageByWeapon['arrow_spire']`) needed a `?? 0` default matching its
+  own write-site convention. Does not touch `/src` or `/data`. Verified:
+  `npx tsc --noEmit -p tsconfig.unchecked.json` no longer flags the file,
+  no new offenders (6 → 5); main `npx tsc --noEmit` clean; targeted
+  `npx vitest run` (20 tests) plus the ratchet test green; `npm run
+  test:fast` green, unchanged at 315 files / 4548 passed / 35 skipped.
+  code-reviewer APPROVE, no findings. Light tier, no qa-playtester
+  dispatch. **5 files remain, all `/src/sim`** (Full tier once picked up):
+  `enemies.ts`, `grid.ts`, `run.ts`, `terrain/analyze.ts`, `world.ts` — no
+  test files left on the allowlist. — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 7 → 6.**
   Fixed `tests/p2c-vs-specials.test.ts` (55 unchecked-index sites) with the
   same `nth<T>` throw-guard helper — single/two-tile `tiles()` destructures
   (the two-tile cases each caching a single `tiles(w, 2)` call rather than
