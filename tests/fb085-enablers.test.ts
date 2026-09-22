@@ -33,6 +33,7 @@ import {
   enemyAttackSpeedMul,
   applyDot,
   effectiveSpeed,
+  madnessAttackSpeedMul,
   madnessMoveTarget,
   madnessPerStackBonus,
   registerMadnessAttack,
@@ -285,6 +286,11 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyMadness(e, 2 / 60); // exactly 2 ticks
+    // fb057: `updateEnemies` now also runs a mad enemy's own madness attack
+    // (`updateMadnessAttack`), and each attack registers a stack. Its clock is
+    // parked so this row measures the decay and the expiry reset alone — the
+    // attacks' own stacking is tests/class-madness-king.test.ts's.
+    e.madnessAttackCooldown = 1e9;
     registerMadnessAttack(e);
     expect(e.madnessStacks).toBe(1);
     updateEnemies(w, DT);
@@ -331,7 +337,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     expect(madnessPerStackBonus(otherWorld)).toEqual({ attackSpeed: 0, moveSpeed: 0 });
   });
 
-  it('madnessStacks raises enemyAttackSpeedMul/effectiveSpeed by the per-stack bonus, multiplicatively', () => {
+  it('madnessStacks raise the madness attacks\' own cadence (madnessAttackSpeedMul) and a non-elite\'s effectiveSpeed, multiplicatively — never enemyAttackSpeedMul, never an elite\'s speed (fb057)', () => {
     const doc = JSON.parse(JSON.stringify(content.raw.classes)) as { classes: { key: string; passive: Record<string, unknown> }[] };
     const row = doc.classes.find((c) => c.key === 'animist')!;
     row.passive = {
@@ -349,10 +355,29 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
 
     const baseAtkMul = enemyAttackSpeedMul(w, e);
+    const baseMadMul = madnessAttackSpeedMul(w, e);
     const baseSpeed = effectiveSpeed(w, e);
+    expect(baseMadMul, 'with no stacks the madness cadence is the ordinary one').toBeCloseTo(baseAtkMul, 12);
     e.madnessStacks = 3;
-    expect(enemyAttackSpeedMul(w, e)).toBeCloseTo(baseAtkMul * 1.3, 6);
+    expect(madnessAttackSpeedMul(w, e)).toBeCloseTo(baseMadMul * 1.3, 6);
     expect(effectiveSpeed(w, e)).toBeCloseTo(baseSpeed * 1.3, 6);
+    // fb057 (§4.2 designer note): "the bonus never speeds up damage to
+    // structures or the character" — `enemyAttackSpeedMul` prices exactly
+    // those cooldowns, so the stacks must not reach it. This used to assert
+    // the opposite (fb085 pre-wired the stacks into it ahead of the owner's
+    // note), which is the contradiction fb057 removed.
+    expect(enemyAttackSpeedMul(w, e), 'madness stacks sped up an attack on a structure/the character').toBeCloseTo(
+      baseAtkMul,
+      12,
+    );
+
+    // ...and "madness never increases their movement speed" for an elite/boss.
+    const elite = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y, { elite: true })!;
+    const eliteSpeed = effectiveSpeed(w, elite);
+    elite.madnessStacks = 3;
+    expect(effectiveSpeed(w, elite), "madness stacks sped up an elite's movement").toBeCloseTo(eliteSpeed, 12);
+    // The elite's own madness attacks still speed up — only its movement is exempt.
+    expect(madnessAttackSpeedMul(w, elite)).toBeCloseTo(enemyAttackSpeedMul(w, elite) * 1.3, 6);
   });
 });
 

@@ -70,6 +70,11 @@
       { "key": "time_lord_active1_potency", "name": "Time Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Time's DoT damage +25%" },
       { "key": "time_lord_active2_cdr", "name": "Time Lock Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Time Lock cooldown -25%" },
       { "key": "time_lord_lock_duration", "name": "Lingering Stasis", "effect": "class_line", "maxRank": 2, "perRank": 2, "desc": "Time Lock zone lasts 2s longer" }
+    ],
+    "madness_king": [
+      { "key": "madness_king_active1_potency", "name": "Crushing Will", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Mind Manipulation's elite/boss ticks deal +25% damage" },
+      { "key": "madness_king_active2_cdr", "name": "Spreading Madness Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Spreading Madness cooldown -25%" },
+      { "key": "madness_king_whisper_cap", "name": "Louder Whispers", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Whispers can hold 1 more enemy mad at once" }
     ]
   }
 }

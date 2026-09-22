@@ -184,6 +184,14 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
       fire: (w) => void useClassActive2(w),
       template: (r) => `summons within ${trimNum(r)} tiles`,
     },
+    {
+      // fb057: `fireSpreadingMadness` fires at `classArea(w, eff.radius)`.
+      kind: 'spreading_madness',
+      classKey: 'madness_king',
+      which: 'active2',
+      fire: (w) => void useClassActive2(w, w.warden.x, w.warden.y),
+      template: (r) => `every enemy within ${trimNum(r)} tiles of the cursor`,
+    },
   ];
 
   for (const c of CASES) {
@@ -323,7 +331,12 @@ function lastFxRadiusOrZoneOrAura(w: World, kind: string): number {
     case 'recall_totem':
       return w.classSummons.find((s) => s.isAura)!.auraRadius!;
     default:
-      return lastFxRadius(w, kind === 'judgement' || kind === 'time_lock' || kind === 'recall_totem' ? 'class_active2' : 'class_active');
+      return lastFxRadius(
+        w,
+        kind === 'judgement' || kind === 'time_lock' || kind === 'recall_totem' || kind === 'spreading_madness'
+          ? 'class_active2'
+          : 'class_active',
+      );
   }
 }
 
@@ -377,7 +390,7 @@ function view(over: Partial<ViewState> = {}): ViewState {
 const TILE = 32; // matches src/render/canvas.ts's TILE constant
 
 describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Area-scales', () => {
-  it('is exactly the 9-member set this file\'s own classes.ts audit found', () => {
+  it('is exactly the 10-member set this file\'s own classes.ts audit found (9, plus fb057\'s spreading_madness)', () => {
     expect(new Set(AREA_SCALED_ACTIVE_KINDS)).toEqual(
       new Set([
         'burst_damage',
@@ -389,6 +402,7 @@ describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Are
         'judgement',
         'time_mark',
         'time_lock',
+        'spreading_madness',
       ]),
     );
   });
@@ -410,6 +424,8 @@ describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Are
       'blood_tithe',
       'dash_heal',
       'poison_boost',
+      // fb057: Mind Manipulation's radius is `nearestEnemy`'s pick radius.
+      'mind_manipulation',
     ]) {
       expect(AREA_SCALED_ACTIVE_KINDS.has(unscaled as never)).toBe(false);
     }

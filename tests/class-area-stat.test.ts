@@ -197,6 +197,14 @@ describe('c001: the Area stat reaches every self-centered class Active radius', 
       observe: (w) => w.classSummons.find((s) => s.isAura)!.auraRadius!,
     },
     {
+      // fb057: `fireSpreadingMadness` maddens every enemy in `classArea(w, radius)`.
+      name: 'Madness King Spreading Madness (spreading_madness circle)',
+      classKey: 'madness_king',
+      authored: (w) => w.content.classByKey.get('madness_king')!.active2.radius,
+      fire: (w) => void useClassActive2(w, w.warden.x, w.warden.y),
+      observe: (w) => lastFxRadius(w, 'class_active2'),
+    },
+    {
       name: 'Pyro Flame Road (dash_trail burn patches)',
       classKey: 'pyromancer',
       authored: (w) => w.content.classByKey.get('pyromancer')!.active2.dashWidth ?? 0,

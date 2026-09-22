@@ -8,7 +8,8 @@
  * the gap ("So can the p7a skill-card branches (`classLineBonus`) inside
  * Thousand Cuts, Frost Touch and Spreading Plague") and it was never filed
  * until c016. It is also bigger than those three — `classLineBonus` is read at
- * **twelve** call sites, exactly one per class, spread over three files:
+ * **twelve** call sites (thirteen since fb057), exactly one per class, spread
+ * over three files:
  *
  *   | class         | card              | call site                           |
  *   | swordsman     | Deeper Cuts       | `classes.ts` `passiveOnHit`         |
@@ -23,6 +24,7 @@
  *   | animist       | Kindred Spirits   | `classes.ts` `fireManifestSpirit`   |
  *   | paladin       | Righteous Fury    | `classes.ts` `fireJudgement`        |
  *   | time_lord     | Lingering Stasis  | `classes.ts` `fireTimeLock`         |
+ *   | madness_king  | Louder Whispers   | `enemies.ts` `applyWhispersMadness` |
  *
  * Every one of those is a bare `+ classLineBonus(w)` inside an expression that
  * is already correct without it, so deleting the term leaves the whole suite
@@ -557,6 +559,34 @@ const ROWS: Row[] = [
       throw new Error(`harness budget: the Time Lock zone outlived ${budget} ticks and never expired`);
     },
   },
+  {
+    classKey: 'madness_king',
+    card: 'madness_king_whisper_cap',
+    observable: 'enemies Whispers holds mad at once',
+    dir: 'up',
+    // fb057: `applyWhispersMadness` caps the passive at `madnessCap +
+    // classLineBonus(w)` concurrently mad enemies. Each dummy takes one real
+    // basic attack: it steps onto the parked Warden's own spot (distance 0,
+    // so the nearest-enemy pick is it and no other) and back — the Warden
+    // itself never leaves the shared spot (c014). The crowd is sized past the
+    // rank-2 cap so running out reads as a shortfall, not a dead branch.
+    measure: (ranks, c) => {
+      const w = lineWorld('madness_king', ranks, c);
+      const budget = budgetFor('madness_king', cls(w).passive.madnessCap ?? 0);
+      const crowd = lineOfDummies(w, budget, 1);
+      for (const { e } of crowd) {
+        const [x, y] = [e.x, e.y];
+        e.x = w.warden.x;
+        e.y = w.warden.y;
+        w.rebuildBuckets();
+        attack(w);
+        e.x = x;
+        e.y = y;
+        w.rebuildBuckets();
+      }
+      return withinBudget(crowd.filter(({ e }) => e.madnessRemaining > 0).length, budget, 'Whispers targets');
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ the census */
@@ -576,7 +606,7 @@ describe('c016 — every class_line skill card is on trial', () => {
     cards.filter((c) => c.effect === 'class_line').map((c) => ({ classKey, card: c })),
   );
 
-  it('the twelve authored class_line cards are exactly the rows measured below', () => {
+  it('the thirteen authored class_line cards are exactly the rows measured below', () => {
     expect(authored.map((a) => `${a.classKey}:${a.card.key}`).sort()).toEqual(
       ROWS.map((r) => `${r.classKey}:${r.card}`).sort(),
     );

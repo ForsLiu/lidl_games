@@ -78,7 +78,9 @@ describe('fb013: Time Lord loads with the §4.2 kit', () => {
     expect(timeLord.active1.kind).toBe('time_mark');
     expect(timeLord.active2.kind).toBe('time_lock');
     expect(timeLord.towerPassive.kind).toBe('chronal_surge');
-    expect(content.classes.classes.length).toBe(12);
+    // fb057 added Madness King as the 13th after it; Time Lord stays the 12th row.
+    expect(content.classes.classes.length).toBe(13);
+    expect(content.classes.classes[11]?.key).toBe('time_lord');
   });
 
   it('the dormant charDotSpeedMul flag ships present and off (1 = normal speed)', () => {

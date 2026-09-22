@@ -33,7 +33,7 @@
  *     palisades when their timer runs out.
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
-import type { ClassDef, ClassEffect, TowerDef } from './content';
+import type { ClassDef, ClassEffect, EnemyDef, TowerDef } from './content';
 import { applyHealingToWarden, coreMoveSpeedMul } from './cores';
 import { applyDamageType, dotDpsFor } from './damagetypes';
 import {
@@ -44,6 +44,10 @@ import {
   applySlow,
   damageEnemy,
   dotOutstanding,
+  enemyHitOnEnemies,
+  applyMadness,
+  madnessPerStackBonus,
+  MADNESS_SOURCE,
   TAUNT_TOTEM,
   TAUNT_WARDEN,
 } from './enemies';
@@ -124,6 +128,8 @@ interface BurstEffect {
 const NO_ON_HIT: readonly string[] = [];
 const BLEEDING_ON_HIT: readonly string[] = ['bleeding'];
 const FROST_ON_HIT: readonly string[] = ['frost', 'frost_track'];
+/** fb057 (§4.2 Madness King *Whispers*): every hit puts its target into madness (`applyWhispersMadness`, enemies.ts). */
+const WHISPERS_ON_HIT: readonly string[] = ['whispers'];
 
 /**
  * p7a (§6.3): Swordsman's "Deeper Cuts" skill card ("Thousand Cuts applies 2
@@ -143,6 +149,7 @@ function passiveOnHit(w: World, cls: ClassDef): readonly string[] {
     return total === 1 ? BLEEDING_ON_HIT : Array(total).fill('bleeding');
   }
   if (cls.passive.kind === 'frost_touch') return FROST_ON_HIT;
+  if (cls.passive.kind === 'whispers') return WHISPERS_ON_HIT;
   return NO_ON_HIT;
 }
 
@@ -1532,6 +1539,155 @@ function tickTimeLockZone(w: World, z: TimeLockZone): void {
   }
 }
 
+/* --------------------------------------------- fb057: §4.2 Madness King */
+
+/**
+ * fb057 (§4.2 Madness King *Mind Manipulation*): "converts the enemy closest
+ * to the cursor into a teammate: it fights for the character, attacking the
+ * nearest enemy until it dies; when no enemies remain / the wave is cleared,
+ * it dies. If it was in madness when converted, it keeps its currently
+ * stacked attack-speed and movement-speed bonus permanently." The pick is the
+ * live enemy nearest the aim point within the Active's own `radius` (a cast
+ * on empty ground whiffs and still pays its charge — c007's whiff policy).
+ * The convert leaves the enemy roster *without* dying (no bounty, no gem, no
+ * kill credit: it was recruited, not slain) and re-enters as a `'converted'`
+ * `ClassSummon` carrying its own enemy attack (`hitDamage`, contact cadence,
+ * contact reach) and walking speed, with its madness stacks' bonus frozen in.
+ *
+ * Elite/boss branch: "cannot be converted; instead, for 1 s they take (their
+ * own attack damage + the character's basic-attack damage) every 0.33 s (3
+ * ticks) and are slowed 90% for that second" — a `MindTick` train
+ * (`updateMindTicks`), each tick a kit hit (Active1 potency applies, Whispers
+ * rides it like any other Active damage instance).
+ */
+function fireMindManipulation(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
+  const wd = w.warden;
+  const eff = cls.active1;
+  const ax = aimX ?? wd.x;
+  const ay = aimY ?? wd.y;
+  const target = w.nearestEnemy(ax, ay, eff.radius);
+  if (!target || target.dead) return;
+  const def = target.def as EnemyDef;
+  // Economy A (code review): see `enemyHitOnEnemies`.
+  const enemyHit = enemyHitOnEnemies(w, def, target.buffPower);
+  if (target.elite || target.boss) {
+    const ticks = Math.max(1, Math.round(eff.eliteConvertTicks ?? 1));
+    const tickSeconds = eff.eliteConvertTickSeconds ?? 0;
+    const basicHit = characterDamage(w, cls, cls.basicAttack.dps * cls.basicAttack.interval);
+    // "slowed 90% for that second" (QA): its own timed slow, not `applySlow`,
+    // whose strongest-amount/longest-duration merge would hold 90% for as
+    // long as any weaker slow (a frost aura) kept being reapplied.
+    target.mindSlowAmount = clamp(eff.eliteConvertSlowAmount ?? 0, 0, 0.9);
+    target.mindSlowRemaining = Math.max(target.mindSlowRemaining, ticks * tickSeconds);
+    w.mindTicks.push({
+      enemyId: target.id,
+      ticksLeft: ticks,
+      timer: tickSeconds,
+      tickSeconds,
+      damage: (enemyHit + basicHit) * active1PotencyMul(w),
+    });
+    w.emit('class_active', target.x, target.y, 0, 1);
+    return;
+  }
+  const bonus = madnessPerStackBonus(w);
+  const stacks = target.madnessRemaining > 0 ? target.madnessStacks : 0;
+  const sp = w.content.spawns;
+  w.classSummons.push({
+    id: w.newId(),
+    x: target.x,
+    y: target.y,
+    dps: 0,
+    range: target.radius + sp.contactPadding,
+    interval: sp.contactInterval / (1 + stacks * bonus.attackSpeed),
+    aoe: 0,
+    attackCooldown: 0,
+    remaining: CONVERTED_LIFETIME,
+    speed: target.speed * (1 + stacks * bonus.moveSpeed),
+    hitDamage: enemyHit,
+    kind: 'converted',
+  });
+  target.dead = true;
+  w.deadEnemies = true;
+  w.emit('class_active', target.x, target.y, 0, 0);
+}
+
+/**
+ * A converted teammate has no timer of its own — it lives until the wave is
+ * cleared (`updateConvertedSummon`) — so its `remaining` is a finite sentinel
+ * the shared summon loop can decrement without ever reaching 0 in a run.
+ */
+const CONVERTED_LIFETIME = 1e9;
+
+/** fb057 (§4.2 Madness King *Spreading Madness*): "makes every enemy in a circle (r4 ⚖ at the cursor) go mad for 10 s". */
+function fireSpreadingMadness(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
+  const wd = w.warden;
+  const eff = cls.active2;
+  const cx = aimX ?? wd.x;
+  const cy = aimY ?? wd.y;
+  const radius = classArea(w, eff.radius);
+  for (const e of w.enemiesInRadius(cx, cy, radius)) {
+    if (e.dead) continue;
+    applyMadness(e, eff.madnessDurationSeconds ?? 0);
+    // "Active2's madness does not count toward the passive's cap" (QA): once
+    // Spreading Madness holds an enemy the passive had, its slot frees.
+    if (e.madnessRemaining > 0) e.madnessFromPassive = false;
+  }
+  w.emit('class_active2', cx, cy, radius, 0);
+}
+
+/**
+ * fb057: a converted teammate's own tick — walks straight at the nearest
+ * enemy until it is in reach, then strikes on its own cadence for its own
+ * enemy attack (`MADNESS_SOURCE`: an enemy killing an enemy). "When no
+ * enemies remain / the wave is cleared, it dies": no live enemy on the field
+ * and nothing left to spawn.
+ */
+function updateConvertedSummon(w: World, s: ClassSummon, dt: number): void {
+  const target = w.nearestEnemy(s.x, s.y, Infinity);
+  if (!target) {
+    if (w.spawnQueue.length === 0) s.remaining = 0;
+    return;
+  }
+  const d2 = dist2(s.x, s.y, target.x, target.y);
+  const reach = s.range + target.radius;
+  if (d2 > reach * reach) {
+    const n = normalize(target.x - s.x, target.y - s.y);
+    const step = (s.speed ?? 0) * dt;
+    const nx = clamp(s.x + n.x * step, 0.4, GRID_W - 0.4);
+    const ny = clamp(s.y + n.y * step, 0.4, GRID_H - 0.4);
+    if (w.grid.passable(Math.floor(nx), Math.floor(ny))) {
+      s.x = nx;
+      s.y = ny;
+    }
+    return;
+  }
+  if (s.attackCooldown > 0) return;
+  s.attackCooldown = s.interval;
+  w.emit('madness_hit', s.x, s.y, target.x, target.y);
+  damageEnemy(w, target, s.hitDamage ?? 0, MADNESS_SOURCE, { fromX: s.x, fromY: s.y });
+}
+
+/** fb057: Mind Manipulation's elite/boss tick trains — see `fireMindManipulation`. */
+function updateMindTicks(w: World, cls: ClassDef, dt: number): void {
+  if (w.mindTicks.length === 0 || w.dying) return;
+  const onHit = passiveOnHit(w, cls);
+  for (const t of w.mindTicks) {
+    t.timer -= dt;
+    while (t.ticksLeft > 0 && t.timer <= 0) {
+      t.ticksLeft--;
+      t.timer += t.tickSeconds;
+      const e = w.enemies.find((x) => x.id === t.enemyId);
+      if (!e || e.dead) {
+        t.ticksLeft = 0;
+        break;
+      }
+      damageEnemy(w, e, t.damage, 'class_active');
+      if (!e.dead) applyEffects(w, e, { onHit });
+    }
+  }
+  w.mindTicks = w.mindTicks.filter((t) => t.ticksLeft > 0);
+}
+
 /* ------------------------------------------------- p6d: per-tick class state */
 
 // Reused across ticks rather than allocated per burning enemy — Contagious
@@ -1583,6 +1739,8 @@ export function updateClassPassives(w: World, dt: number): void {
   if (cls.active1.kind === 'time_mark') updateTimeLordHistory(w, cls, dt);
   // fb056 (§7.1) Blightweaver Band: poison contact spread.
   if (classEquipmentActive(w, 'blightweaver_band')) updateBlightweaverBand(w, dt);
+  // fb057: Mind Manipulation's elite/boss tick trains.
+  if (cls.active1.kind === 'mind_manipulation') updateMindTicks(w, cls, dt);
 
   switch (cls.passive.kind) {
     case 'contagious_flame':
@@ -1797,6 +1955,11 @@ export function updateClassSummons(w: World, dt: number): void {
       continue;
     }
     s.attackCooldown = tickCooldown(s.attackCooldown, dt);
+    if (s.kind === 'converted') {
+      updateConvertedSummon(w, s, dt);
+      if (s.remaining <= 0) expired = true;
+      continue;
+    }
     if (s.attackCooldown > 0) continue;
     const target = w.nearestEnemy(s.x, s.y, s.range);
     if (!target) continue;
@@ -1898,6 +2061,9 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
       break;
     case 'time_mark':
       fireTimeMark(w, cls);
+      break;
+    case 'mind_manipulation':
+      fireMindManipulation(w, cls, aimX, aimY);
       break;
     default:
       // Same bug class as the legacy branch above: an unhandled kind (or one
@@ -2013,6 +2179,9 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
       break;
     case 'time_lock':
       fireTimeLock(w, cls, aimX, aimY);
+      break;
+    case 'spreading_madness':
+      fireSpreadingMadness(w, cls, aimX, aimY);
       break;
     default:
       // Guarded so a future mismatch (e.g. a charge kind authored onto Active2

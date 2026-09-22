@@ -16,8 +16,9 @@ describe('fb108: every class Active resolves to a sentence, not the bare fallbac
   const w = new World(cfg());
   const classes = [...w.content.classByKey.values()];
 
-  it('data/classes.json actually has all 12 classes loaded (sanity, not vacuous)', () => {
-    expect(classes.length).toBe(12);
+  it('data/classes.json actually has all 13 classes loaded (sanity, not vacuous)', () => {
+    // fb057: Madness King is the 13th.
+    expect(classes.length).toBe(13);
   });
 
   const seenKinds = new Set<string>();
@@ -35,8 +36,8 @@ describe('fb108: every class Active resolves to a sentence, not the bare fallbac
     }
   }
 
-  it('covered every kind actually authored in data/classes.json (24 total, per fb108\'s own scan)', () => {
-    expect(seenKinds.size).toBe(24);
+  it('covered every kind actually authored in data/classes.json (26 total: fb108\'s own scan of 24, plus fb057\'s two)', () => {
+    expect(seenKinds.size).toBe(26);
   });
 
   it("engineer active2 (summon_turret): embeds a live-resolved cooldown, not the raw /data one", () => {

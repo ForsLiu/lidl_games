@@ -195,31 +195,74 @@ closed).
       `cdr` source ever ships). `npx tsc --noEmit` clean — refs: SPEC-FINAL
       §7.1, §8.1, owner feedback `feature-class-equipment-sets`.
 
-- [ ] (fb057) [feat] normal priority: new class #13, Madness King (visible
-      roster, 4th alongside Swordsman/Plaguebringer/Time Lord) — full kit
-      per the owner feedback file: Passive "Whispers" (3s madness on hit,
-      cap 5 concurrent from the passive), Active1 "Mind Manipulation" (3
-      charges, converts non-elite/boss targets to fight for the character
-      until death/wave-clear, keeps a converted target's stacked
-      speed/attack-speed madness bonus permanently; elite/boss branch: 3
-      ticks of (their attack + character basic-attack) damage over 1s plus
-      90% slow instead), Active2 "Spreading Madness" (r4 ⚖ AoE 10s
-      madness), Tower passive "Frenzied Aim" (linear attack-speed ramp by
-      proximity, max bonus = character's total attack-speed bonus +10% at
-      point-blank). Madness status: mad enemy attacks nearest other enemy
-      in r3 (or self + random-walk in r1 if none), +10%/+10% atk-speed/
-      move-speed per madness attack, stacking, lost at expiry; elites
-      never gain the movement change and keep normal pathing. Housekeeping:
-      roster becomes 13 (SPEC-FINAL §4.2/§13 census, G8 diversity clause
-      ->=10/13, Codex, dev profile, class-select, attack-sprite registry).
-      Acceptance: tests per the feedback's "Done when" list (passive cap
-      then-expiry, conversion fight/death/permanent-bonus-keep, elite
-      3-tick+slow branch, Active2 targeting + self-attack fallback +
-      stacking reset + elite movement exception, tower passive scaling
-      formula, VFX registry entries for teammate/self attacks with visible
-      ramp, replay determinism) — refs: SPEC-FINAL §4.2 (designer-fill
-      addition), §13 (census), §14 (G8), owner feedback
+- [x] (fb057) [feat] normal priority: **DONE 2026-09-22 (main-lane session,
+      full repository scope).** Madness King is class #13 and the fourth
+      normal-profile class (`NORMAL_PROFILE_CLASS_KEYS`, bands high/low/low/
+      no/high). **Kit** (`data/classes.json`, SPEC-FINAL §4.2 row added):
+      *Whispers* (3 s on-hit madness via the shared `onHit` fan-out, cap 5
+      tracked by `Enemy.madnessFromPassive`, Active2's madness takes no
+      slot; class-line card "Louder Whispers" +1 cap/rank); the **Madness**
+      status (`updateMadnessAttack`, enemies.ts: a mad enemy walks to and
+      strikes the nearest other enemy within r3 at its contact cadence, else
+      itself while wandering r1 around where it went mad; each attack +10%/
+      +10% atk/move, reset at expiry; the bonus never speeds its attacks on
+      structures or the character — `enemyAttackSpeedMul` no longer folds it
+      in; elites keep pathing and never gain the move bonus; damage source
+      `madness`, kit-attributed, never kit-power-scaled); *Mind Manipulation*
+      (3 charges/8 s; the enemy nearest the cursor within r2 leaves the
+      roster without a kill and fights as a `'converted'` `ClassSummon`
+      keeping its madness bonus until the wave is cleared; elites/bosses
+      instead take 3 ticks of their attack + the basic hit over 0.99 s and a
+      90% slow via `w.mindTicks`); *Spreading Madness* (r4 at the cursor,
+      10 s, 12 s ⚖ cooldown); *Frenzied Aim* (`frenziedAimMul`, towers.ts:
+      linear from 0 at max range to the character's attack-speed bonus +10%
+      point-blank). Unlock quest `mob_mentality` (200 lifetime enemy-on-enemy
+      kills, `w.enemyOnEnemyKills`: madness/converted kills and Spreading
+      Plague transfers, so it is reachable before the class exists). VFX:
+      CLASS_VFX row + crown impact, `MADNESS_VFX` teammate/self strikes with
+      a stack-driven brightness ramp. **Housekeeping:** roster 13 across §4/
+      §13/§14 G8 (78 pairs), content census, ~30 roster-counting tests each
+      given a real Madness King row (never an exemption), c008 re-hashed with
+      16 new rows. New `tests/class-madness-king.test.ts` (41 cases: the
+      owner's whole "Done when" list incl. replay determinism). A QA-style
+      test caught a real bug before commit: the wander re-anchored every tick
+      (drift without bound) — fixed with `madnessAnchorX/Y`, hashed. Excluded
+      G8 suite (`p6e-class-diversity`) carries an `it.skip('madness_king')`
+      "never measured" pin, like p10v's precedent. **Review/QA (full tier):**
+      code-reviewer REQUEST-CHANGES, Major fixed: an enemy's hit on *another
+      enemy* is economy A per the owner's Q180 override (`enemyHitOnEnemies`
+      scales it by `numberScale`; madness had hit 10x harder than authored).
+      qa-playtester PASS on every acceptance clause (two replay-verified
+      hybrid runs with ~2,000 Actives each, 26 adapted suites green), plus
+      fixes test-first for its two small Majors — Spreading Madness now frees
+      a Whispers slot it takes over, and the elite 90% slow is its own timed
+      status instead of inheriting a frost aura's duration. Its third (a
+      converted teammate freezes at walls) and the review's Minors are fb202.
+      Readings: QUESTIONS Q217.
+      — refs: SPEC-FINAL §4.2, §13, §14 G8, owner feedback
       `feature-class-madness-king`.
+
+- [ ] (fb202) [polish] fb057 code-review follow-ups, none blocking: (a) the
+      Madness status's r3 search / r1 wander are still enemies.ts literals —
+      author them on the `whispers` row (rule 4); (b) `updateMadnessAttack`
+      and `madnessMoveTarget` scan every enemy per mad enemy per tick
+      (measured 2.4 ms/tick at 350 mad of 350) — use `nearestEnemy`'s spatial
+      index with a module-level filter; (c) a converted teammate walks a
+      straight line with an all-or-nothing passability check (can stall on a
+      maze wall) and treats "only submerged enemies left" as "none left";
+      (d) Whispers-cap bookkeeping when Spreading Madness extends a
+      passive-mad enemy (it keeps its slot) and when Whispers extends an
+      Active2-mad one (no slot); (e) whether self-kills should count toward
+      `mob_mentality` (Q217(13)); (e2) madness stacks are unbounded under
+      repeated Whispers refreshes (QA: 2,509 stacks on a tanky target over
+      60 s, and a convert keeps them) — cap them; (f) the basic-attack projectile reuses
+      Engineer's `bolt` shape — the owner asked for a distinct crown/scepter
+      projectile (only the impact is distinct); (g) the DPS panel shows the raw
+      `madness` source key; (h) measure Madness King's G8 band (the excluded
+      p6e suite pins it `it.skip` "never measured", and its 78-pair failing
+      count pin moves on the next full-tier run). Acceptance: each of (a)-(g)
+      fixed with a test, (h) measured and pinned — refs: fb057 review,
+      SPEC-FINAL §4.2, §14 G8.
 
 - [ ] (fb059) [feat] normal priority: new class #14, Voltbolt (visible
       roster) — hitscan basic attack (normal damage type, no travel time);

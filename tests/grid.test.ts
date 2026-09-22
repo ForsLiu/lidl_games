@@ -148,9 +148,12 @@ describe('content', () => {
     // fb013 added `chrono_veteran` (Time Lord's unlock quest), the 10th; p7h
     // added the 4 §5.5 Core-unlock quests (Q148: a separate content bucket
     // from §8.4's 8-12 class-quest range, not double-counted against it).
-    expect(c.quests.quests).toHaveLength(14);
-    // SPEC-FINAL §13's eleven plus fb013's owner-directed 12th (Time Lord).
-    expect(c.classes.classes).toHaveLength(12);
+    // fb057 added `mob_mentality` (Madness King's unlock quest), the 11th
+    // class quest.
+    expect(c.quests.quests).toHaveLength(15);
+    // SPEC-FINAL §13's eleven plus fb013's owner-directed 12th (Time Lord)
+    // and fb057's 13th (Madness King).
+    expect(c.classes.classes).toHaveLength(13);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
     expect(c.tree.nodes.filter((n) => n.kind === 'keystone')).toHaveLength(3);
     // §13: "12+ equipment" — p7d retired the relic affix table this used to pin.

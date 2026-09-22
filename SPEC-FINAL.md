@@ -82,7 +82,7 @@ all damage; statuses affect the character only when a source is authored.
 **Status** — frozen: cannot move 3 s, +30% damage taken. frost: −30% attack
 speed and movement speed for 3 s.
 
-## 4. Characters (12 classes)
+## 4. Characters (13 classes)
 
 Framework: each class = archetype bands (low/medium/high, mapped to numbers
 in `data/classes.json` ⚖) + **Passive** + **Active1 (Q)** + **Active2 (E)**
@@ -129,12 +129,17 @@ Tower passive: all towers +10% poison damage.
 | **Animist** | med/low/med/no/med | aura effects also affect summons; summon cap +1 | *Manifest*: summon a walking spirit of any built tower type (30% of its stats at highest upgrade), 20 s, cap 3 | *Recall Totem*: place a totem — character & summons near it +15% atk spd; in TD it taunts nearby enemies | all towers +10% area |
 | **Paladin** | low/med/low/yes/low | +30 defense after standing still 1 s; blocked damage charges Wrath | *Clarion Taunt*: enemies in r6 target the Paladin 4 s; 60% of damage taken stores into Wrath | *Judgement*: release Wrath as a holy nova (stored ×1.5 as normal damage) | all towers +10% HP and +5 defense |
 | **Time Lord** | med/med/med/no/med | *Time Flow*: damage taken becomes a 4 s DoT after one armor mitigation (a dormant "character DoT 100% faster" flag ships disabled, reserved for future equipment) | *Time*: r7 four-stage mark per enemy, advanced one stage per cast — unmarked→past rewinds to a 3 s-ago position + DoT, past→present stun-locks 3 s + DoT, present→future −20% atk/move speed (deferred if stunned/frozen) + DoT equal to remaining HP, future→executed instant-kill (elites/bosses: −50% current HP instead); 3 charges/6 s recharge | *Time Lock*: 5 s no-exit zone at the cursor, immune to Time's rewind-pull, DoT over 10 s; recasting while one exists teleports its enemies into the new zone and detonates their remaining DoT as one burst; 2 charges/10 s recharge | every 2 TD waves, all towers gain one free uncapped bonus level: +10% range, +10% AoE area |
+| **Madness King** | high/low/low/no/high | *Whispers*: every basic attack (and each damage instance from an Active) puts the target into madness for 3 s; cap 5 enemies mad from the passive at once (at the cap, new hits apply nothing until one lapses or dies; Active2's madness takes no slot). **Madness**: a mad enemy attacks the nearest other enemy within r3, else itself while random-walking within r1; each attack grants it +10% attack speed and +10% movement speed, stacking, lost when madness ends — the bonus never speeds its attacks on structures or the character; elites keep their pathing and never gain the movement bonus | *Mind Manipulation*: converts the enemy nearest the cursor (pick r2 ⚖) into a teammate that attacks the nearest enemy and dies when the wave is cleared, keeping any madness bonus it had; elites/bosses instead take (their attack + the character's basic-attack damage) 3 times over 1 s and are slowed 90%; 3 charges/8 s ⚖ recharge | *Spreading Madness*: every enemy within r4 ⚖ of the cursor goes mad for 10 s; 12 s ⚖ cooldown | *Frenzied Aim*: each tower's attack speed rises linearly from 0% at its max range to (the character's total attack-speed bonus +10%) at point-blank, from its nearest enemy each tick |
 
 Unlocks: Swordsman, Archer, Engineer free; others via quests (§8.4). Time Lord
 added post-1.0-draft via owner feedback (`feature-class-timelord`, fb013,
 QUESTIONS.md Q139) — a 12th class past this section's original nine-row
 template, unlocked by the `chrono_veteran` quest (§8.4) rather than the
-template's default quest-per-class pattern.
+template's default quest-per-class pattern. Madness King added the same way
+(owner feedback `feature-class-madness-king`, fb057, QUESTIONS Q217) — a 13th
+class, the fourth in the normal-profile roster, unlocked by `mob_mentality`
+(200 lifetime enemies killed by other enemies — a mad or converted enemy's
+kill, or a Spreading Plague corpse transfer).
 
 ## 5. Towers (10; `data/towers.json`)
 
@@ -498,7 +503,7 @@ content hash in RunConfig; `npm test` green gates every commit.
 
 ## 13. Content totals at 1.0
 
-12 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses ·
+13 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses ·
 20 enemies · 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses ·
 VS upgrade pool per §6.3 · Codex & Tuner · §10.5 terrain generation
 (`data/terrain.json`).
@@ -514,7 +519,7 @@ VS upgrade pool per §6.3 · Codex & Tuner · §10.5 terrain generation
 | G5 | Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. |
 | G6 | Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. |
 | G7 | Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. |
-| G8 | At T3 (reference tier, p12b): every class clears 35–70% win rate (scripted kit bot). Diversity, replacing the old "top damage source differs across ≥9 of 12 classes" clause (BALANCE DIRECTION v2 §D): pairwise class-kit fingerprint distance (damage-source/type vector, G22's method) is ≥0.15 for every one of the 66 class pairs. (Own-kit VS damage share is tracked separately as a BALANCE.md target, not a G8 clause — Q175/Q193 found the original ≥35%-of-VS-damage own-kit clause fought the game's own wielded-weapon design and restated it as ≥15% from TD wave 12 for the nine classes with a damaging VS Active; bloodlord/engineer/animist are exempt and measured for the record only.) Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. |
+| G8 | At T3 (reference tier, p12b): every class clears 35–70% win rate (scripted kit bot). Diversity, replacing the old "top damage source differs across ≥9 of 12 classes" clause (BALANCE DIRECTION v2 §D): pairwise class-kit fingerprint distance (damage-source/type vector, G22's method) is ≥0.15 for every one of the 78 class pairs. (Own-kit VS damage share is tracked separately as a BALANCE.md target, not a G8 clause — Q175/Q193 found the original ≥35%-of-VS-damage own-kit clause fought the game's own wielded-weapon design and restated it as ≥15% from TD wave 12 for the nine classes with a damaging VS Active; bloodlord/engineer/animist are exempt and measured for the record only.) Companion checks (not replacements for the T3 band): T1 win rate in [55%,90%] with ≥25% close-win share; T5 win rate in [5%,20%]. |
 | G9 | Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. |
 | G10 | Archer: dps-optimal charge finite (2–6 s); full charge one-shots any non-elite at mid scaling. |
 | G11 | Stormcaller: max chain multiplier ≤ ×3.6. |

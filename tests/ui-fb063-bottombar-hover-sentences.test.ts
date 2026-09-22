@@ -19,7 +19,8 @@ import { World } from '../src/sim/world';
 import { Hud, type HudCallbacks } from '../src/ui/hud';
 import { cfg } from './helpers';
 
-const NORMAL_PROFILE_CLASSES = ['swordsman', 'plaguebringer', 'time_lord'] as const;
+// fb057: Madness King is the fourth normal-profile class.
+const NORMAL_PROFILE_CLASSES = ['swordsman', 'plaguebringer', 'time_lord', 'madness_king'] as const;
 
 function mountHud(overrides: Partial<HudCallbacks> = {}): { root: HTMLElement; hud: Hud; cb: HudCallbacks } {
   const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
@@ -177,5 +178,38 @@ describe('fb063: bottom bar tooltips are sentence-form with live numbers', () =>
     hud.update(w);
     const tip = root.querySelector('#sw-bb-a2-tip') as HTMLElement;
     expect(tip.innerHTML).toContain(`${cls.active2.maxCharges} charges`);
+  });
+
+  it("madness_king: Mind Manipulation's tooltip reads maxCharges, the CDR-scaled recharge and the elite branch's /data shape", () => {
+    const w = new World(cfg({ classKey: 'madness_king' }));
+    w.derived.cdr = 0.5;
+    const cls = w.content.classByKey.get('madness_king')!;
+    const { root, hud } = mountHud();
+    hud.buildTowerBar(w);
+    hud.update(w);
+    const tip = root.querySelector('#sw-bb-a1-tip') as HTMLElement;
+    const liveRecharge = (cls.active1.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+    const rawRecharge = cls.active1.rechargeSeconds ?? 0;
+    expect(liveRecharge).not.toBe(rawRecharge);
+    expect(tip.innerHTML).toContain(cls.active1.name);
+    expect(tip.innerHTML).toContain(`${cls.active1.maxCharges} charges`);
+    expect(tip.innerHTML).toContain(`${String(liveRecharge)}s to recharge each`);
+    expect(tip.innerHTML).not.toContain(`${String(rawRecharge)}s to recharge each`);
+    expect(tip.innerHTML).toContain(`${cls.active1.eliteConvertTicks} times`);
+    expect(tip.innerHTML).toContain(`slowed ${String((cls.active1.eliteConvertSlowAmount ?? 0) * 100)}%`);
+  });
+
+  it("madness_king: Spreading Madness's tooltip reads the CDR-scaled cooldown and the authored madness duration", () => {
+    const w = new World(cfg({ classKey: 'madness_king' }));
+    w.derived.cdr = 0.5;
+    const cls = w.content.classByKey.get('madness_king')!;
+    const { root, hud } = mountHud();
+    hud.buildTowerBar(w);
+    hud.update(w);
+    const tip = root.querySelector('#sw-bb-a2-tip') as HTMLElement;
+    const liveCd = cls.active2.cooldownSeconds * (1 - w.derived.cdr);
+    expect(tip.innerHTML).toContain(cls.active2.name);
+    expect(tip.innerHTML).toContain(`Cooldown ${String(liveCd)}s`);
+    expect(tip.innerHTML).toContain(`mad for ${String(cls.active2.madnessDurationSeconds)}s`);
   });
 });

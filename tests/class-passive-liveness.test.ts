@@ -478,6 +478,20 @@ const signal = {
     damageWarden(w, w.derived.maxHp * 0.2);
     return w.warden.dots.length;
   },
+
+  /**
+   * Madness King *Whispers* (fb057): seconds of madness a single character
+   * attack left on its target. Route 1 — `passiveOnHit` hands the basic
+   * attack's hit the `whispers` onHit key, which `applyOnHit` resolves into
+   * `applyWhispersMadness` (enemies.ts).
+   */
+  whispers(c: Content, classKey = 'madness_king'): number {
+    const w = passiveWorld(classKey, c);
+    const e = dummy(w, WX + 1, WY); // inside every class's basic range (min 2.5)
+    attack(w);
+    expect(w.warden.attackCooldown, 'the basic attack never fired, so there is nothing to read').toBeLessThan(1e9);
+    return e.madnessRemaining;
+  },
 };
 
 /** Long enough that `updateGuardianStance`'s ledger has cleared `stanceSeconds`. */
@@ -689,6 +703,17 @@ describe('c006 — passives dispatched by `passive.kind`', () => {
     const control = hit('engineer');
     expect(control.atImpact).toBeGreaterThan(0);
     expect(control.dots).toBe(0);
+  });
+
+  it('madness_king Whispers: a character attack drives its target mad, the Engineer attack does not', () => {
+    expect(signal.whispers(content)).toBeGreaterThan(0);
+    expect(signal.whispers(content, 'engineer')).toBe(0);
+    // The status is madness and not some other lingering state: the mad
+    // enemy's Whispers flag is what the passive's cap counts.
+    const w = passiveWorld('madness_king');
+    const e = dummy(w, WX + 1, WY);
+    attack(w);
+    expect(e.madnessFromPassive, 'Whispers applied madness without claiming a cap slot').toBe(true);
   });
 });
 
@@ -983,6 +1008,7 @@ const KILLS: readonly Kill[] = [
     mutate: (r) => delete r.passive.kind,
   },
   { name: 'Time Flow', classKey: 'time_lord', measure: signal.timeFlow, mutate: (r) => delete r.passive.kind },
+  { name: 'Whispers', classKey: 'madness_king', measure: signal.whispers, mutate: (r) => delete r.passive.kind },
 ];
 
 describe('c006 — the harness fails when a passive loses its binding', () => {
@@ -1005,7 +1031,7 @@ describe('c006 — the harness fails when a passive loses its binding', () => {
 /* ------------------------------------------------------------- the census */
 
 describe('c006 — every class is on trial', () => {
-  it('all twelve passives have a case above, and a kill row under it', () => {
+  it('all thirteen passives have a case above, and a kill row under it', () => {
     // The failure this guards is a new class shipping with an untested
     // passive, which is exactly how the slot got to 12 rows and 0 tests. Keep
     // these in sync by adding a case, never by adding a key.
@@ -1022,6 +1048,7 @@ describe('c006 — every class is on trial', () => {
       'animist',
       'paladin',
       'time_lord',
+      'madness_king',
     ];
     const authored = content.classes.classes.map((c) => c.key);
     expect([...authored].sort()).toEqual([...covered].sort());

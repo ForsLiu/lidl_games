@@ -150,6 +150,7 @@ import {
   buildTower,
   effectiveTowerAoe,
   effectiveTowerRange,
+  frenziedAimMul,
   LINE_HALF_WIDTH,
   maxLevel,
   updateTowers,
@@ -267,6 +268,25 @@ function animist(c: Content, o: WorldOpts = {}): World {
   if (o.phase) w.phase = o.phase;
   if (o.area || o.towerArea) {
     w.stats.addAll('test:area', { area: o.area ?? 0, towerArea: o.towerArea ?? 0 });
+    w.recomputeDerived();
+  }
+  return w;
+}
+
+/**
+ * fb057: a Madness King world for the two footprints only that class can
+ * produce (Spreading Madness's circle, Frenzied Aim's distance scale). Madness
+ * King cannot field Wide Grove — it is the Animist's tower passive — so the
+ * world grafts the Animist's tower-passive `mods` **from the Content under
+ * test** onto its own stat block: the shipped Content carries Wide Grove's
+ * `towerArea`, `noGrove` does not. That is the same one-key difference every
+ * other row measures, asked of a footprint an Animist world cannot reach.
+ */
+function madnessKing(c: Content, o: WorldOpts = {}): World {
+  const w = animist(c, { ...o, classKey: 'madness_king' });
+  const grove = c.classByKey.get('animist')!.towerPassive.mods;
+  if (Object.keys(grove).length > 0) {
+    w.stats.addAll('test:wide-grove-graft', grove);
     w.recomputeDerived();
   }
   return w;
@@ -653,12 +673,16 @@ const CARRIERS: ReadonlyArray<{ fn: string; sites: Record<string, number> }> = [
   // Plaguebringer wearer (`classEquipmentActive`), so they can never co-occur
   // with Wide Grove (the Animist's own tower passive) and have no Grove
   // consumer to measure; `equip-class-sets-behaviour.test.ts` measures both.
-  { fn: 'classArea', sites: { 'src/sim/classes.ts': 20 } },
+  // fb057: 20 -> 21, `fireSpreadingMadness`'s circle — its CONSUMERS row is
+  // "Madness King's *Spreading Madness* circle".
+  { fn: 'classArea', sites: { 'src/sim/classes.ts': 21 } },
   {
     fn: 'effectiveTowerAoe',
     sites: { 'src/sim/classes.ts': 2, 'src/sim/towers.ts': 2, 'src/sim/vswield.ts': 5 },
   },
-  { fn: 'effectiveTowerRange', sites: { 'src/sim/towers.ts': 1 } },
+  // fb057: 1 -> 2, `frenziedAimMul`'s distance scale — its CONSUMERS row is
+  // "Madness King's *Frenzied Aim* distance scale, off a Frost Obelisk's aura range".
+  { fn: 'effectiveTowerRange', sites: { 'src/sim/towers.ts': 2 } },
   { fn: 'wieldedRangeFor', sites: { 'src/sim/vswield.ts': 3 } },
   { fn: 'wieldedSplashFor', sites: { 'src/sim/vswield.ts': 1 } },
   // Not an `areaMul` read itself: it is how `effectiveTowerAoe` reaches a
@@ -1078,6 +1102,38 @@ const CONSUMERS: readonly Consumer[] = [
       return before - next.hp;
     },
   },
+  {
+    // fb057: `fireSpreadingMadness` maddens every enemy in `classArea(w,
+    // radius)` — a class Active's footprint, so the character route. Read
+    // off its own cast event, which carries the radius it fired at.
+    site: "Madness King's *Spreading Madness* circle",
+    read: R_CLASS_AREA,
+    route: 'character',
+    measure: (c, o) => {
+      const w = madnessKing(c, { ...o, phase: 'act1_wave' });
+      expect(useClassActive2(w, w.warden.x, w.warden.y), 'harness cast no Spreading Madness').toBe(true);
+      const cast = [...w.fx].reverse().find((f) => f.k === 'class_active2');
+      expect(cast, 'harness cast no Spreading Madness').toBeDefined();
+      return cast!.a;
+    },
+  },
+  {
+    // fb057: `frenziedAimMul` scales its bonus by the nearest enemy's
+    // distance as a fraction of `effectiveTowerRange` — so an aura tower's
+    // range, which `towerAreaMul` widens, is the ruler. A fixed enemy half
+    // way out reads a larger closeness (and so a larger cadence factor) when
+    // the ruler is longer.
+    site: "Madness King's *Frenzied Aim* distance scale, off a Frost Obelisk's aura range",
+    read: R_TOWER_RANGE,
+    route: 'tower',
+    measure: (c, o) => {
+      const w = madnessKing(c, o);
+      const p = placeProbed(w, FROST);
+      const base = c.towerByKey.get(FROST)!.attack!.range;
+      dummy(w, p.x + base * 0.5, p.y);
+      return frenziedAimMul(w, p.s);
+    },
+  },
 ];
 
 /**
@@ -1460,6 +1516,11 @@ const STILL_WIDENED: readonly string[] = [
   "an Arrow Spire's line half-width, at its §5.2 pierce milestone",
   "Electric's inherent AoE, off a Tesla Coil's own hit",
   "Burning's splash, off an Ember Brazier's own burn",
+  // fb057: a towerArea source lengthens the ruler Frenzied Aim measures an
+  // aura tower's nearest enemy against — a tower's own range, as §4.2's
+  // "all towers" covers. (Spreading Madness's circle, a class Active, reads
+  // `area` through `classArea` and is not widened.)
+  "Madness King's *Frenzied Aim* distance scale, off a Frost Obelisk's aura range",
 ];
 
 /**
@@ -1494,7 +1555,7 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
     expect(leaking, 'the leak set moved — update LEAKING_TODAY and say which fix moved it').toEqual(LEAKING_TODAY);
   });
 
-  it('all nine tower-route footprints §4.2 claims are widened; none stopped', () => {
+  it('all ten tower-route footprints §4.2 claims are widened; none stopped', () => {
     const towers = CONSUMERS.filter((c) => c.route === 'tower');
     const stillWidened = towers.filter((c) => c.measure(content) > c.measure(noGrove)).map((c) => c.site);
     expect(
@@ -1507,7 +1568,8 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
       'a genuine tower attack is no longer widened by "All towers +10% area" — see STOPPED_WIDENING_BOTH',
     ).toEqual(STOPPED_WIDENING_BOTH.filter((s) => towers.some((c) => c.site === s)));
     expect(stopped, 'STOPPED_WIDENING_BOTH is supposed to be empty today').toHaveLength(0);
-    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(9);
+    // fb057: 9 -> 10, Madness King's Frenzied Aim distance scale.
+    expect(towers.length, 'a tower-route consumer was added or dropped').toBe(10);
   });
 
   it('the four read-names CONSUMERS still tags on both routes are all genuinely closed today', () => {
@@ -1628,6 +1690,10 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
   const CLASS_SPECIFIC: readonly string[] = [
     "the Animist's *Manifest* spirit, cloned from a Mortar",
     "the Animist's *Recall Totem* aura radius",
+    // fb057: the same structural reason, for Madness King's kit — a Time Lord
+    // casts no Spreading Madness and fields no Frenzied Aim.
+    "Madness King's *Spreading Madness* circle",
+    "Madness King's *Frenzied Aim* distance scale, off a Frost Obelisk's aura range",
   ];
 
   /**
@@ -1686,7 +1752,7 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
     expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(16);
   });
 
-  it('the two class-specific rows really are Animist Actives, and fb083 tells them apart, not something quietly dropped', () => {
+  it('the class-specific rows really are other classes\' kits (the Animist\'s two Actives, fb057\'s two Madness King footprints), and fb083 tells them apart, not something quietly dropped', () => {
     // Whether each one widens under the Animist is c013's finding, re-read
     // here via `STILL_WIDENED` rather than restated: the Manifest spirit is a
     // literal tower-clone (still widens), the Recall Totem reads the

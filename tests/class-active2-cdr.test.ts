@@ -427,8 +427,9 @@ function foreignRanks(classKey: string): Ranks {
 /* --------------------------------------------------- the twelve cast ladders */
 
 describe("c019 — every active2_cdr card raises its own class's cast rate", () => {
-  it('all twelve classes are covered, and each authors exactly one active2_cdr card', () => {
-    expect(CLASS_KEYS.length).toBe(12);
+  it('all thirteen classes are covered, and each authors exactly one active2_cdr card', () => {
+    // fb057: Madness King's *Spreading Madness Cooldown* is the 13th ladder.
+    expect(CLASS_KEYS.length).toBe(13);
     for (const k of CLASS_KEYS) expect(cdrCard(k).maxRank, `${k} cdr maxRank`).toBeGreaterThanOrEqual(2);
   });
 

@@ -1281,6 +1281,9 @@ export function hashWorld(w: World): string {
     // enemy's redirected target and stacked atk/move-speed bonus both fork
     // the tick the instant a divergence appears.
     h.num(e.madnessRemaining).int(e.madnessStacks);
+    // fb057: the Whispers cap's membership flag and the madness-attack clock.
+    h.int(e.madnessFromPassive ? 1 : 0).num(e.madnessAttackCooldown).num(e.madnessAnchorX).num(e.madnessAnchorY);
+    h.num(e.mindSlowAmount).num(e.mindSlowRemaining);
     h.int(e.posHistory.length);
     for (const p of e.posHistory) h.num(p.x).num(p.y);
   }
@@ -1297,6 +1300,8 @@ export function hashWorld(w: World): string {
   h.int(w.classSummons.length);
   for (const s of w.classSummons) {
     h.int(s.id).num(s.x).num(s.y).num(s.remaining).num(s.attackCooldown);
+    // fb057: a converted teammate's own walking speed and hit.
+    if (s.kind === 'converted') h.num(s.speed ?? 0).num(s.hitDamage ?? 0).num(s.interval);
   }
   h.int(w.corpses.length);
   for (const c of w.corpses) h.int(c.id).num(c.x).num(c.y).num(c.remaining);
@@ -1312,6 +1317,11 @@ export function hashWorld(w: World): string {
   // fb056 starts populating one, at the cost of a different (still fully
   // deterministic) byte layout than before, which is safe: nothing compares
   // this hash against a stored literal, only against another run's own.
+  // fb057: Mind Manipulation's elite/boss tick trains gate future damage/CC,
+  // and the enemy-on-enemy kill tally feeds a quest.
+  h.int(w.mindTicks.length);
+  for (const t of w.mindTicks) h.int(t.enemyId).int(t.ticksLeft).num(t.timer).num(t.damage);
+  h.int(w.enemyOnEnemyKills);
   h.int(w.timeLockZones.length);
   for (const z of w.timeLockZones) {
     h.int(z.id).num(z.x).num(z.y).num(z.radius).num(z.remaining).num(z.dotSeconds).num(z.dps);

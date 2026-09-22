@@ -268,6 +268,12 @@ const WORD_NUMBERS: readonly { cls: string; slot: Slot; word: string; why: strin
     word: 'one',
     why: '"gain one free uncapped bonus level" counts levels per interval; the interval itself is the `2` claim.',
   },
+  {
+    cls: 'madness_king',
+    slot: 'passive',
+    word: 'once',
+    why: '"mad from Whispers at once" means concurrently — the idiom scoping the `5` cap to live madness, not a count of its own.',
+  },
 ];
 
 /* -------------------------------------------------------------- the ledger */
@@ -600,6 +606,66 @@ const LEDGER: readonly Claim[] = [
     // two nouns and the first draft could not tell.
     keywords: ['AoE area'],
     status: { kind: 'field', path: ['towerPassive', 'bonusAoeMul'], as: 'pct' },
+  },
+
+  /* ----------------------------------------------------- §4.2 Madness King */
+  {
+    cls: 'madness_king',
+    slot: 'passive',
+    token: '3 s',
+    means: 'seconds of madness one Whispers hit applies',
+    keywords: ['basic attack', 'madness'],
+    status: { kind: 'field', path: ['passive', 'madnessDurationSeconds'] },
+  },
+  {
+    cls: 'madness_king',
+    slot: 'passive',
+    token: '5',
+    means: 'enemies Whispers may hold mad at once (the cap)',
+    keywords: ['at most', 'mad from Whispers'],
+    status: { kind: 'field', path: ['passive', 'madnessCap'] },
+  },
+  {
+    cls: 'madness_king',
+    slot: 'passive',
+    token: '3',
+    means: 'tiles a mad enemy searches for another enemy to attack',
+    keywords: ['nearest other enemy', 'tiles'],
+    status: {
+      kind: 'in_code',
+      value: 3,
+      file: 'src/sim/enemies.ts',
+      valueAnchor: /^const MADNESS_TARGET_RADIUS = (\d+(?:\.\d+)?);$/,
+      // Both readers: the movement redirect (`madnessMoveTarget`) and the
+      // madness attack's own victim search (`updateMadnessAttack`).
+      anchors: [/^let bestD2 = MADNESS_TARGET_RADIUS \* MADNESS_TARGET_RADIUS;$/],
+      absentKey: /radius|range|reach|within|target/i,
+      knownKeys: ['basicAttack.range', 'active1.radius', 'active2.radius'],
+      authorised: 'fb085 (the Madness enabler, which shipped the r3 search as an engine constant) / fb057',
+      why:
+        "§4.2's shared Madness status states r3 for both of Madness King's madness sources, and `whispers` " +
+        'authors no field for it — the one figure in this sentence that a rebalance would have to make in code ' +
+        '(c008 records the same rule-4 debt from the spec side).',
+    },
+  },
+  {
+    cls: 'madness_king',
+    slot: 'passive',
+    token: '+10%',
+    // One numeral for two fields: "+10% attack and move speed". Bound to the
+    // attack-speed half; `madnessMoveSpdPerStack` is authored equal beside it
+    // and c008's ledger pins both halves against §4.2 separately.
+    means: 'attack speed a mad enemy gains per madness attack (move speed authored equal)',
+    keywords: ['attack and move speed', 'per attack'],
+    status: { kind: 'field', path: ['passive', 'madnessAtkSpdPerStack'], as: 'pct' },
+  },
+  {
+    cls: 'madness_king',
+    slot: 'towerPassive',
+    token: '+10%',
+    means: 'the flat point-blank bonus on top of the character attack-speed bonus',
+    keywords: ['attack-speed bonus', 'point-blank'],
+    status: { kind: 'field', path: ['towerPassive', 'frenziedAimFlatBonus'], as: 'pct' },
   },
 ];
 
@@ -1056,7 +1122,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
         ).toBeUndefined();
       }
     }
-    expect(described.length, 'SPEC-FINAL §13 ships 12 classes x 2 described slots').toBe(24);
+    expect(described.length, 'SPEC-FINAL §13 ships 13 classes x 2 described slots').toBe(26);
     // Every declared word-number belongs to a slot that exists.
     for (const w of WORD_NUMBERS) {
       expect(described, `WORD_NUMBERS names ${w.cls}.${w.slot}, which is not a described slot`).toContain(
@@ -1066,7 +1132,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
     }
   });
 
-  it('census: 31 field · 0 sibling · 3 in code · 1 prose, over 22 sentences, 2 wordless, 4 word-numbers', () => {
+  it('census: 35 field · 0 sibling · 1 in code · 1 prose, over 24 sentences, 2 wordless, 5 word-numbers', () => {
     // The census is the barrier: a new deviation cannot be absorbed into an
     // existing status, and closing one — fb127/c010 moved Conduction's two
     // numbers onto its own passive row, so its former `sibling` claims are
@@ -1081,6 +1147,9 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       sentences: new Set(LEDGER.map((c) => `${c.cls}.${c.slot}`)).size,
       wordless: NO_NUMBER.length,
       wordNumbers: WORD_NUMBERS.length,
-    }).toEqual({ field: 31, sibling: 0, in_code: 0, prose: 1, sentences: 22, wordless: 2, wordNumbers: 4 });
+    // fb057: Madness King's two sentences add four `field` claims, one
+    // `in_code` (Whispers' "within 3 tiles" is enemies.ts's
+    // MADNESS_TARGET_RADIUS) and one declared word-number ("at once").
+    }).toEqual({ field: 35, sibling: 0, in_code: 1, prose: 1, sentences: 24, wordless: 2, wordNumbers: 5 });
   });
 });

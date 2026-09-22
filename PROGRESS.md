@@ -19,6 +19,18 @@
   BACKLOG-CONTENT.md fb062.
 
 - **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
+  CONTENT.md fb057 CLOSED: Madness King is class #13 (4th visible).** Full
+  kit per owner feedback (Whispers + the Madness status, Mind Manipulation
+  with converted teammates and the elite tick branch, Spreading Madness,
+  Frenzied Aim), unlock quest `mob_mentality`, VFX registry entries with a
+  stack ramp, roster 13 through SPEC-FINAL §4/§13/§14 G8 and every
+  roster-counting test (each gains a real Madness King row). New
+  `tests/class-madness-king.test.ts` (41 cases). G8 for the new class is
+  unmeasured (excluded p6e suite pins it as never-measured) — a balance pass
+  is the next step. Full tier. — refs: SPEC-FINAL §4.2, owner feedback
+  `feature-class-madness-king`, QUESTIONS Q217.
+
+- **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
   CONTENT.md fb061 CLOSED: Poison Barrel is a hold/release charge skill.**
   `ground_poison` joined Circle Slash's hold/release model (`isChargeKind`;
   a bare Command declines), firing on release with `poisonBarrelValues`

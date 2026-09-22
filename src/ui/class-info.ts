@@ -289,6 +289,30 @@ function timeLockSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
   );
 }
 
+/**
+ * fb057 (§4.2 Madness King *Mind Manipulation*): the pick radius is a
+ * target-search radius around the cursor (`nearestEnemy`), never Area-scaled;
+ * the elite/boss ticks' damage is mostly the *target's* own attack, so the
+ * sentence names the shape rather than a number it cannot know pre-cast.
+ */
+function mindManipulationSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const recharge = liveCooldownValue(eff.rechargeSeconds ?? 0, live, cooldownFactor);
+  const ticks = eff.eliteConvertTicks ?? 0;
+  const window = ticks * (eff.eliteConvertTickSeconds ?? 0);
+  return (
+    `Converts the enemy nearest the cursor (within ${trimNum(eff.radius)} tiles) into a teammate that fights for you until the wave is cleared, keeping any madness speed bonus it had built up. ` +
+    `An elite or boss cannot be converted: it instead takes its own attack damage plus your basic-attack damage ${ticks} times over ${trimNum(window)}s and is slowed ${formatPct(eff.eliteConvertSlowAmount ?? 0)} meanwhile. ` +
+    `${eff.maxCharges ?? 1} charges, ${trimNum(recharge)}s to recharge each.`
+  );
+}
+
+/** fb057 (§4.2 Madness King *Spreading Madness*): `fireSpreadingMadness`'s radius is `classArea(w, eff.radius)`. */
+function spreadingMadnessSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const radius = liveAreaValue(eff.radius, live);
+  return `Drives every enemy within ${trimNum(radius)} tiles of the cursor mad for ${trimNum(eff.madnessDurationSeconds ?? 0)}s: each attacks the nearest other enemy (or itself), speeding up with every attack. Cooldown ${trimNum(cd)}s.`;
+}
+
 /** `summon_turret`/`ice_wall`: turns a `/data` tower key like `arrow_spire` into "Arrow Spire" — no tower-lookup table is threaded into this file, so this is a display-name approximation, not a `content.towerByKey` name. */
 function humanizeKey(key: string): string {
   return key
@@ -472,6 +496,8 @@ const ACTIVE_SENTENCES: Partial<
   recall_totem: recallTotemSentence,
   clarion_taunt: clarionTauntSentence,
   judgement: judgementSentence,
+  mind_manipulation: mindManipulationSentence,
+  spreading_madness: spreadingMadnessSentence,
 };
 
 /**

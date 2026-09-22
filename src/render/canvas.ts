@@ -50,6 +50,8 @@ import {
   ACTIVE_KIND_SHAPE,
   AREA_SCALED_ACTIVE_KINDS,
   CLASS_VFX,
+  MADNESS_VFX,
+  madnessRampColor,
   CORE_VFX,
   type BasicImpactShape,
   type VfxShape,
@@ -873,6 +875,17 @@ export class Renderer {
           this.pushBasicImpact(entry.basic.impact, e.a, e.b, entry.basic.color);
           break;
         }
+        // fb057 (§4.2 Madness King): the Madness status's two attack shapes
+        // (MADNESS_VFX) and the stack ramp that brightens with each attack.
+        case 'madness_hit':
+          this.pushCast('line', e.x, e.y, e.a, e.b, MADNESS_VFX.teammate.color);
+          break;
+        case 'madness_ramp':
+          this.pushCast('point', e.x, e.y, 0, 0, madnessRampColor(e.a));
+          break;
+        case 'madness_self':
+          this.pushCast('nova', e.x, e.y, 0.35 + 0.05 * Math.min(10, e.a), 0, madnessRampColor(e.a));
+          break;
         case 'core_plant':
           this.pushCast('point', e.x, e.y, 0, 0, coreEffectColor(w.coreKey, 'devour', '#7ac74f'));
           break;
@@ -1911,6 +1924,20 @@ export class Renderer {
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(px, py, 3 + (1 - t) * 9, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (b.shape === 'crown') {
+        // fb057 Madness King: a three-point crown stamped on the target.
+        const s = 5 + (1 - t) * 2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px - s, py + s * 0.5);
+        ctx.lineTo(px - s, py - s * 0.5);
+        ctx.lineTo(px - s * 0.5, py);
+        ctx.lineTo(px, py - s);
+        ctx.lineTo(px + s * 0.5, py);
+        ctx.lineTo(px + s, py - s * 0.5);
+        ctx.lineTo(px + s, py + s * 0.5);
+        ctx.closePath();
         ctx.stroke();
       }
     }

@@ -12,7 +12,7 @@
  * own comments record it biting p6b twice, both times as a cooldown consumed
  * by a kind the switch never matched.
  *
- * **What "live" means here, precisely.** Each of the 24 Actives (12 classes x
+ * **What "live" means here, precisely.** Each of the 26 Actives (13 classes x
  * Active1/Active2) is fired once in a real `World` that has been given
  * whatever the Active needs to act on — an enemy, a built tower, a corpse, a
  * poison stack, banked Wrath — and must change at least one entry of
@@ -132,6 +132,10 @@ function observe(w: World): string {
       e.tauntKind,
       e.timeMarkStage,
       e.timeLockZoneId,
+      // fb057: Spreading Madness's whole product — the madness status it
+      // installs (Mind Manipulation's is the summon below, or its elite tick
+      // train's slow).
+      e.madnessRemaining,
       e.dots.map((d) => [d.type, d.dps, d.remaining]),
     ]),
     areas: w.areas.map((a) => [a.id, a.type, a.x, a.y, a.radius, a.dps, a.remaining, a.dead]),
@@ -375,6 +379,18 @@ const CASES: readonly KitCase[] = [
     setup: (w) => void dummy(w, WX + 2, WY),
     fire: (w) => useClassActive2(w, WX + 2, WY),
   },
+  {
+    classKey: 'madness_king',
+    slot: 1, // Mind Manipulation (mind_manipulation) — needs an enemy near the cursor to recruit
+    setup: (w) => void dummy(w, WX + 2, WY),
+    fire: (w) => useClassActive(w, WX + 2, WY),
+  },
+  {
+    classKey: 'madness_king',
+    slot: 2, // Spreading Madness (spreading_madness)
+    setup: (w) => void dummy(w, WX + 2, WY),
+    fire: (w) => useClassActive2(w, WX + 2, WY),
+  },
 ];
 
 /** The hold/release Active1 kinds (`isChargeKind`, classes.ts) — fb061 added `ground_poison`. */
@@ -388,8 +404,8 @@ function label(c: KitCase, cls: ClassDef): string {
 /* ------------------------------------------------------------------- tests */
 
 describe('c005: every §4 class Active changes something observable', () => {
-  it('covers all 24 Actives — every class, both slots, exactly once', () => {
-    expect(content.classes.classes).toHaveLength(12);
+  it('covers all 26 Actives — every class, both slots, exactly once', () => {
+    expect(content.classes.classes).toHaveLength(13);
     const seen = CASES.map((c) => `${c.classKey}:${c.slot}`);
     expect(new Set(seen).size, 'a duplicated case row').toBe(seen.length);
     const wanted = content.classes.classes.flatMap((c) => [`${c.key}:1`, `${c.key}:2`]);

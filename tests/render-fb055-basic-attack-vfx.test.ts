@@ -98,13 +98,20 @@ function view(over: Partial<ViewState> = {}): ViewState {
   };
 }
 
-describe('fb055: the VFX registry gives the three visible classes distinct basic-attack impacts', () => {
-  it('registers a distinct impact kind for each of Swordsman/Plaguebringer/Time Lord', () => {
+describe('fb055: the VFX registry gives the four visible classes distinct basic-attack impacts', () => {
+  it('registers a distinct impact kind for each of Swordsman/Plaguebringer/Time Lord/Madness King', () => {
     expect(classVfx('swordsman').basic.impact).toBe('slash');
     expect(classVfx('plaguebringer').basic.impact).toBe('splash');
     expect(classVfx('time_lord').basic.impact).toBe('ripple');
-    const kinds = [classVfx('swordsman').basic.impact, classVfx('plaguebringer').basic.impact, classVfx('time_lord').basic.impact];
-    expect(new Set(kinds).size).toBe(3); // three distinct kind strings, not one shape recolored
+    // fb057: the fourth visible class's "distinct crown/scepter projectile".
+    expect(classVfx('madness_king').basic.impact).toBe('crown');
+    const kinds = [
+      classVfx('swordsman').basic.impact,
+      classVfx('plaguebringer').basic.impact,
+      classVfx('time_lord').basic.impact,
+      classVfx('madness_king').basic.impact,
+    ];
+    expect(new Set(kinds).size).toBe(4); // four distinct kind strings, not one shape recolored
   });
 
   it('a hidden class (e.g. Pyromancer) registers no impact kind, unchanged by fb055', () => {
@@ -166,6 +173,24 @@ describe('fb055: firing a basic attack actually draws the distinct shapes', () =
     renderer.draw(w, view());
     const ripple = arcs.find((c) => Math.abs(c.x - 9 * TILE) < 0.01 && Math.abs(c.y - 6 * TILE) < 0.01);
     expect(ripple, 'a ripple impact must draw an arc at the target').toBeDefined();
+  });
+
+  it('Madness King lands a crown impact (a stroked three-point outline) around the target (fb057)', () => {
+    const w = new World(cfg({ classKey: 'madness_king' }));
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'class_basic', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    const tx = 9 * TILE;
+    const ty = 6 * TILE;
+    // The tracer runs along y = ty (a horizontal shot), so only the crown's
+    // own vertices sit off that line within a few pixels of the target.
+    const crownPoints = lines.filter(
+      (p) => Math.abs(p.x - tx) < 10 && Math.abs(p.y - ty) > 0.01 && Math.abs(p.y - ty) < 10,
+    );
+    expect(crownPoints.length, 'a crown impact must draw its points around the target').toBeGreaterThanOrEqual(4);
+    expect(crownPoints.every((p) => p.color === classVfx('madness_king').basic.color)).toBe(true);
   });
 
   it('reducedFlash dims the new impact effects instead of removing them', () => {

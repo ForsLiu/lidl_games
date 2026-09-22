@@ -442,6 +442,24 @@ const signal = {
     };
     return Math.max(0, aoe(classKey) - aoe(CONTROL));
   },
+
+  /**
+   * Madness King *Frenzied Aim* (fb057): how much faster a spire's cadence
+   * runs with an enemy one tile off it than with nobody in range, under the
+   * same class. Measured against the class's own no-enemy reading rather than
+   * a control class, because the clause is *about* the enemy's distance —
+   * and because every other class's reading is then exactly 0, Wind Slash's
+   * flat cadence bonus included.
+   */
+  frenziedAim(c: Content, classKey: string): number {
+    const speed = (withEnemy: boolean): number => {
+      const w = towerWorld(classKey, c);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
+      if (withEnemy) dummy(w, s.tx + 1.5, s.ty + 0.5);
+      return attackSpeedFor(w, s);
+    };
+    return Math.max(0, speed(true) - speed(false));
+  },
 };
 
 /* ------------------------------------------------ the twelve tower passives */
@@ -656,6 +674,53 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     // ...and a second interval is worth more than the first, so a surge that
     // fires once and then stops is red too.
     expect(reachAfter('time_lord', SURGE_INTERVAL * 2)).toBeGreaterThan(reachAfter('time_lord', SURGE_INTERVAL));
+  });
+
+  it('Madness King *Frenzied Aim* — a spire fires faster the closer its nearest enemy stands', () => {
+    expect(signal.frenziedAim(content, 'madness_king')).toBeGreaterThan(0);
+    expect(signal.frenziedAim(content, SPEED_CONTROL)).toBe(0);
+
+    // Direction, not magnitude: nearer is faster, and an enemy at the very
+    // edge of the spire's reach is worth (almost) nothing.
+    const speedAt = (dx: number): number => {
+      const w = towerWorld('madness_king');
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
+      dummy(w, s.tx + 0.5 + dx, s.ty + 0.5);
+      return attackSpeedFor(w, s);
+    };
+    const probe = towerWorld('madness_king');
+    const range = effectiveTowerRange(probe, probe.content.towerByKey.get(SPIRE)!);
+    const bare = (() => {
+      const w = towerWorld('madness_king');
+      return attackSpeedFor(w, place(w, SPIRE, BUILD_TX, BUILD_TY));
+    })();
+    expect(speedAt(0.5), 'a nearer enemy did not speed the spire more').toBeGreaterThan(speedAt(range / 2));
+    expect(speedAt(range / 2), 'a mid-range enemy did not speed the spire at all').toBeGreaterThan(bare);
+    expect(speedAt(range - 1e-6), 'an enemy at the edge of reach is worth no bonus').toBeCloseTo(bare, 5);
+
+    // The behavioural half, Wind Slash's way: the cadence multiplier has one
+    // consumer, the cooldown, so it is measured as ticks to the Nth shot
+    // against a class that authors no cadence bonus, same enemy, same tile.
+    const interval = content.towerByKey.get(SPIRE)!.attack!.interval;
+    const ticksToNthShot = (k: string): number => {
+      const wo = towerWorld(k);
+      const s = place(wo, SPIRE, BUILD_TX, BUILD_TY);
+      dummy(wo, s.tx + 1.5, s.ty + 0.5, 1e9);
+      s.cooldown = interval;
+      let fired = 0;
+      let t = 0;
+      while (fired < 3 && t < 1e6) {
+        const before = s.damageDealt;
+        updateTowers(wo, DT);
+        t++;
+        if (s.damageDealt > before) fired++;
+      }
+      expect(fired, 'the spire never reached the shot count the window was sized for').toBe(3);
+      return t;
+    };
+    expect(ticksToNthShot('madness_king'), 'Frenzied Aim did not fire the spire sooner').toBeLessThan(
+      ticksToNthShot(SPEED_CONTROL),
+    );
   });
 });
 
@@ -894,11 +959,19 @@ const KILLS: readonly Kill[] = [
     measure: signal.chronalAoe,
     mutate: (r) => void (r.towerPassive.bonusAoeMul = 0),
   },
+  // fb057: `kind`-driven like Chronal Surge, so the mutation is its one field.
+  // Zeroed, not deleted: the loader refuses a `frenzied_aim` row without it.
+  {
+    name: 'Frenzied Aim',
+    classKey: 'madness_king',
+    measure: signal.frenziedAim,
+    mutate: (r) => void (r.towerPassive.frenziedAimFlatBonus = 0),
+  },
 ];
 
 describe('c009: the negative control — each signal dies with its own binding', () => {
-  it('covers all twelve tower passives, every clause of each', () => {
-    expect(content.classes.classes.length).toBe(12);
+  it('covers all thirteen tower passives, every clause of each', () => {
+    expect(content.classes.classes.length).toBe(13);
     expect(new Set(KILLS.map((k) => k.classKey)).size).toBe(content.classes.classes.length);
     // Every shipped `mods` key and every `chronal_surge` field is somebody's
     // mutation target, so a *fourteenth* clause authored on an existing row
@@ -911,14 +984,16 @@ describe('c009: the negative control — each signal dies with its own binding',
       authored.size,
       `data/classes.json authors ${authored.size} towerPassive mods keys; add the new one to KILLS below and bump this count`,
     ).toBe(13);
-    // One row per authored `mods` key, plus Chronal Surge's two fields, plus
-    // the extra clause-halves that share a key with a sibling row (today only
-    // Deep Winter's `frozen` half, which rides `towerDamageVsChilled`).
+    // One row per authored `mods` key, plus Chronal Surge's two fields and
+    // (fb057) Frenzied Aim's one, plus the extra clause-halves that share a
+    // key with a sibling row (today only Deep Winter's `frozen` half, which
+    // rides `towerDamageVsChilled`).
     const SHARED_KEY_ROWS = ['Deep Winter (frozen)'];
     expect(KILLS.map((k) => k.name)).toEqual(expect.arrayContaining(SHARED_KEY_ROWS));
-    expect(KILLS.length, 'one KILLS row per authored mods key, plus Chronal Surge’s two fields').toBe(
-      authored.size + 2 + SHARED_KEY_ROWS.length,
-    );
+    expect(
+      KILLS.length,
+      'one KILLS row per authored mods key, plus Chronal Surge’s two fields and Frenzied Aim’s one',
+    ).toBe(authored.size + 2 + 1 + SHARED_KEY_ROWS.length);
     // The `mods` count above cannot see a `kind`-driven field, so pin Chronal
     // Surge's shape too: a third bonus added to the only such row would
     // otherwise be invisible to both assertions.
@@ -930,6 +1005,17 @@ describe('c009: the negative control — each signal dies with its own binding',
       .towerPassive;
     expect(rawTl.kind).toBe('chronal_surge');
     expect(Object.keys(rawTl).filter((k) => k.startsWith('bonus')).sort()).toEqual(['bonusAoeMul', 'bonusRangeMul']);
+    // fb057: the second `kind`-driven row, pinned the same way — a second
+    // field authored onto Frenzied Aim would be invisible to the mods count.
+    const rawMk = (content.raw.classes as { classes: RawClassRow[] }).classes.find((c) => c.key === 'madness_king')!
+      .towerPassive;
+    expect(rawMk.kind).toBe('frenzied_aim');
+    expect(
+      Object.keys(rawMk)
+        .filter((k) => !['name', 'description', 'mods', 'kind'].includes(k))
+        .sort(),
+    ).toEqual(['frenziedAimFlatBonus']);
+    expect(Object.keys(rawMk.mods)).toEqual([]);
   });
 
   for (const k of KILLS) {

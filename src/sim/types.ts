@@ -401,6 +401,32 @@ export interface Enemy {
    * `madnessRemaining` lapses (`tickTimers`) — never decremented on its own.
    */
   madnessStacks: number;
+  /**
+   * fb057 (§4.2 Madness King *Whispers*): whether the live madness counts
+   * against the passive's own concurrency cap ("5 enemies mad from the
+   * passive at once") — set when *Whispers* applied it, cleared when the
+   * status lapses. Active2's own madness never sets it (its designer note:
+   * "does not count toward the passive's cap").
+   */
+  madnessFromPassive: boolean;
+  /**
+   * fb057: the cadence of this enemy's *madness* attacks (on another enemy,
+   * or on itself) — a separate clock from `attackCooldown`, because the
+   * madness stacks' attack-speed bonus speeds only these ("the bonus never
+   * speeds up damage to structures or the character", §4.2 designer note).
+   */
+  madnessAttackCooldown: number;
+  /**
+   * fb057: where this enemy went mad — "random-walks within r1 of where it
+   * went mad" (§4.2) wanders around this point, not around its current one
+   * (which drifted without bound, qa: 2.2 tiles over 10 s). Set when a madness
+   * starts from none; a refresh keeps the original anchor.
+   */
+  madnessAnchorX: number;
+  madnessAnchorY: number;
+  /** fb057 (QA): Mind Manipulation's elite/boss slow — its own window, the strongest slow wins in `effectiveSpeed`. */
+  mindSlowAmount: number;
+  mindSlowRemaining: number;
 }
 
 /**
@@ -659,7 +685,29 @@ export interface ClassSummon {
   auraRadius?: number;
   /** Recall Totem only (Q120 ORDER 1): its per-tick taunt re-tag's decay window. */
   auraTauntTickSeconds?: number;
+  /**
+   * fb057 (§4.2 Madness King *Mind Manipulation*): a converted enemy walks
+   * (tiles/s) toward the nearest enemy until it is in reach — every other
+   * summon stands where it was placed and leaves this unset.
+   */
+  speed?: number;
+  /** fb057: a converted enemy's own damage per attack (its enemy attack), un-scaled by the character's Power. */
+  hitDamage?: number;
   kind: string;
+}
+
+/**
+ * fb057 (§4.2 Madness King *Mind Manipulation*, elite/boss branch): "for 1 s
+ * they take (their own attack damage + the character's basic-attack damage)
+ * every 0.33 s (3 ticks)" — one pending tick train per struck elite/boss.
+ */
+export interface MindTick {
+  enemyId: number;
+  ticksLeft: number;
+  /** Seconds until the next tick lands. */
+  timer: number;
+  tickSeconds: number;
+  damage: number;
 }
 
 /** §4.2 Necromancer: "kills leave corpses 6 s" — what *Raise* consumes. */

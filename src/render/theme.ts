@@ -197,6 +197,7 @@ const STYLES: Record<string, ProjectileStyle> = {
   stormcaller: { color: classBasicColor('stormcaller'), shape: 'spark', size: 3, trail: 0.6 },
   animist: { color: classBasicColor('animist'), shape: 'dart', size: 3, trail: 1.4 },
   time_lord: { color: classBasicColor('time_lord'), shape: 'orb', size: 4, trail: 1.2 },
+  madness_king: { color: classBasicColor('madness_king'), shape: 'bolt', size: 5, trail: 1.4 },
 };
 
 /**

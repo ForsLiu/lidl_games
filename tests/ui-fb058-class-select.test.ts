@@ -4,7 +4,7 @@
  * fb058 (SPEC-FINAL §4, §11, owner feedback `feature-class-select-redesign`):
  * the Hub's Class-select screen — a horizontal row of tall class cards
  * (`.sw-classcard`), a normal profile limited to Swordsman/Plaguebringer/
- * Time Lord, a dev-only "show hidden classes" setting that reveals the rest,
+ * Time Lord (plus fb057's Madness King), a dev-only "show hidden classes" setting that reveals the rest,
  * a band/number stats panel for the selected class, and four hover-only
  * entries (passive/tower passive/Active1/Active2) whose tooltip markup is
  * `class-info.ts`'s existing fb022/fb026 sentence-form text with live /data
@@ -59,16 +59,19 @@ function classDetail(root: HTMLElement): HTMLElement {
   return panel.querySelector<HTMLElement>('.sw-classdetail')!;
 }
 
-describe('fb058: Class-select screen — normal profile shows exactly 3 classes', () => {
-  it('renders exactly 3 class cards, one per NORMAL_PROFILE_CLASS_KEYS entry, with showHiddenClasses off', () => {
+describe('fb058: Class-select screen — normal profile shows exactly 4 classes', () => {
+  it('renders exactly 4 class cards, one per NORMAL_PROFILE_CLASS_KEYS entry, with showHiddenClasses off', () => {
+    // fb057: Madness King joined the visible roster as its 4th card
+    // ("alongside Swordsman, Plaguebringer, Time Lord").
     const { root } = openHub();
     const cards = [...root.querySelectorAll<HTMLElement>('.sw-classcard[data-class]')];
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     expect(new Set(cards.map((c) => c.dataset.class))).toEqual(new Set(NORMAL_PROFILE_CLASS_KEYS));
+    expect([...NORMAL_PROFILE_CLASS_KEYS].sort()).toEqual(['madness_king', 'plaguebringer', 'swordsman', 'time_lord']);
   });
 
-  it('the 12-class roster stays fully defined in content.classes regardless of what the screen shows', () => {
-    expect(content.classes.classes.length).toBeGreaterThanOrEqual(12);
+  it('the 13-class roster stays fully defined in content.classes regardless of what the screen shows', () => {
+    expect(content.classes.classes.length).toBeGreaterThanOrEqual(13);
   });
 });
 
@@ -105,7 +108,7 @@ describe('fb058: the dev "show hidden classes" toggle reveals the full roster', 
     hub.openTab('run');
 
     const cards = [...root.querySelectorAll<HTMLElement>('.sw-classcard[data-class]')];
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(4);
     expect(new Set(cards.map((c) => c.dataset.class))).toEqual(new Set(NORMAL_PROFILE_CLASS_KEYS));
     const detail = classDetail(root);
     expect([...detail.querySelectorAll('.sw-cs-skill')]).toHaveLength(4);
