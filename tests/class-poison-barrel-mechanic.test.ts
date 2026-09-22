@@ -25,11 +25,20 @@
  * class-*`/`equip-*` only) — filed as a UI-lane follow-up in this file's own
  * Log rather than edited from here. This file's own tooltip case documents
  * the current mismatch (red) as the UI lane's repro rather than silently
- * skipping it.
+ * skipping it. **Closed 2026-09-22** (owner-directed session, full repository
+ * scope): the sentence now states the per-application total, window and
+ * stack cap, and the case below runs.
+ *
+ * fb061 (§4.1 amended, owner feedback `feature-plaguebringer-charge`): the
+ * Barrel is now a hold/release charge skill whose radius and lifetime scale
+ * with the hold, so every cast here goes through `active1Held` + release, and
+ * every count that follows from the lifetime is re-derived from
+ * `poisonBarrelValues` at the charge actually used. The per-application
+ * magnitude and the 1 s cadence this file pins are untouched by charge.
  */
 import { describe, expect, it } from 'vitest';
 
-import { characterDamage } from '../src/sim/classes';
+import { characterDamage, poisonBarrelValues } from '../src/sim/classes';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { dotDpsFor } from '../src/sim/damagetypes';
 import { applyDot, dotStacks, spawnEnemy } from '../src/sim/enemies';
@@ -47,8 +56,41 @@ function idle(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
 }
 
-/** A fresh Run with Poison Barrel cast on a stationary, effectively-immortal enemy standing inside it. */
-function castOnPinnedEnemy() {
+/** 60 Hz, the `Run.step` tick every step count below is measured in. */
+const DT = 1 / 60;
+
+/**
+ * The shortest real hold (one 60 Hz tick) and a full one (past the authored
+ * `chargeCapSeconds`, c005's `Math.ceil(cap * 60) + 1` idiom) — the two ends
+ * of fb061's charge, which sets the zone's lifetime and so its application
+ * count.
+ */
+const HOLDS: ReadonlyArray<readonly [string, number]> = [
+  ['released after the shortest real hold (one tick)', 1],
+  ['released at full charge', Math.ceil((plaguebringer.active1.chargeCapSeconds ?? 3) * 60) + 1],
+];
+
+/**
+ * How many 1 s applications a zone of `lifetimeSeconds` lands: one per
+ * `groundTickSeconds` of its own clock, the last one allowed on the very frame
+ * it expires (`updateAreas` checks the cadence before marking a poison area
+ * dead, fb082). Derived from the data, never hardcoded — fb061 made the
+ * lifetime charge-dependent.
+ */
+function applicationsFor(lifetimeSeconds: number): number {
+  return Math.floor(lifetimeSeconds / (plaguebringer.active1.groundTickSeconds ?? 1) + 1e-9);
+}
+
+/**
+ * A fresh Run with Poison Barrel cast on a stationary, effectively-immortal
+ * enemy standing inside it. fb061: Poison Barrel is a hold/release charge
+ * kind, so the cast is `holdTicks` real `Run.step` ticks with `active1Held`
+ * set, then the release tick that fires it — the same path a player's held
+ * key takes. Returns the charge the release actually used (read off the
+ * Warden on the last held tick), so every lifetime-derived count below is
+ * `poisonBarrelValues` at that charge.
+ */
+function castOnPinnedEnemy(holdTicks = 1) {
   const run = new Run(cfg({ classKey: 'plaguebringer' }));
   run.world.gold = 1e6;
   run.world.phase = 'act1_wave'; // updateEnemies (and so tickDots) only runs here / act2
@@ -61,8 +103,12 @@ function castOnPinnedEnemy() {
   e.speed = 0;
   e.armor = 500; // deliberately high — poison ignores armor (SPEC-FINAL §3); a formula bug that routed through armor would show up here
   run.world.rebuildBuckets();
-  run.step(idle({ cmds: [{ k: 'class_active' }] }));
-  return { run, e };
+  for (let t = 0; t < holdTicks; t++) run.step(idle({ active1Held: true }));
+  const chargeSeconds = run.world.warden.active1Charge;
+  expect(run.world.areas.some((a) => a.type === 'poison'), 'harness: the Barrel fired before its release').toBe(false);
+  run.step(idle()); // the release tick: the Barrel lands here, and this tick already runs `updateAreas`
+  expect(run.world.areas.some((a) => a.type === 'poison' && !a.dead), 'harness: the release dropped no cloud').toBe(true);
+  return { run, e, chargeSeconds };
 }
 
 describe('fb062: Poison Barrel applications are seeded at §3\'s 120%-of-damage-over-3s, not a flat rate', () => {
@@ -109,24 +155,35 @@ describe('fb062: Poison Barrel applications are seeded at §3\'s 120%-of-damage-
     expect(total).not.toBeCloseTo(seed * 3, 1); // the pre-fix (bug) reading
   });
 
-  it('the real Poison Barrel zone (firePoisonBarrel) delivers 5 applications x 1.2x seed each, not 5 x 3x seed', () => {
-    // End-to-end: casts the real Active through `useClassActive`, not a
-    // hand-fed `applyDot` — this is the case that actually exercises the
-    // bug (`firePoisonBarrel`'s own `dps:` line), not just the formula in
-    // isolation. groundDurationSeconds=5 / groundTickSeconds=1 means exactly
-    // 5 applications land (t=1..5s, none evicted since the 3s duration keeps
+  it.each(HOLDS)('the real Poison Barrel zone (firePoisonBarrel) delivers lifetime/cadence applications x 1.2x seed each, not x 3x seed — %s', (_label, holdTicks) => {
+    // End-to-end: casts the real Active through its real hold/release path
+    // (fb061), not a hand-fed `applyDot` — this is the case that actually
+    // exercises the bug (`firePoisonBarrel`'s own `dps:` line), not just the
+    // formula in isolation. The zone lives `poisonBarrelValues`' charge-
+    // scaled lifetime (8 s at no charge -> 14 s at full on shipped data) and
+    // applies once per `groundTickSeconds`, so exactly `applicationsFor(life)`
+    // applications land (t=1..N s, none evicted since the 3s duration keeps
     // at most 3 concurrent — under the cap the whole time), each paying out
     // its own dps over its own full 3s lifetime with none lost, so the
     // eventual total (once every stack has fully decayed) is exactly
-    // 5 x one application's total.
-    const { run, e } = castOnPinnedEnemy();
+    // N x one application's total.
+    const { run, e, chargeSeconds } = castOnPinnedEnemy(holdTicks);
+    const lifetime = poisonBarrelValues(plaguebringer.active1, chargeSeconds).durationSeconds;
+    const zone = run.world.areas.find((a) => a.type === 'poison' && !a.dead)!;
+    // The zone really carries that lifetime (one release-tick `dt` already spent).
+    expect(zone.remaining).toBeCloseTo(lifetime - DT, 9);
+    const applications = applicationsFor(lifetime);
+    expect(applications).toBeGreaterThan(3); // past the stack cap, so the no-eviction claim above is exercised
     const seed = characterDamage(run.world, plaguebringer, plaguebringer.active1.damage) * active1PotencyMul(run.world);
     const perApplication = dotDpsFor(poisonDef, seed) * poisonDef.duration!;
 
-    for (let t = 0; t < 700; t++) run.step(idle()); // ~11.7s: comfortably past the 5th application's own 3s decay (ends ~t=8s)
+    // Comfortably past the last application's own 3s decay (lands at t=N s).
+    const settle = Math.ceil((lifetime + poisonDef.duration! + 1) / DT);
+    for (let t = 0; t < settle; t++) run.step(idle());
+    expect(run.world.areas.every((a) => a.dead || a.type !== 'poison'), 'the zone outlived its charge-scaled lifetime').toBe(true);
     const total = 1e9 - e.hp;
-    expect(total).toBeCloseTo(5 * perApplication, 4);
-    expect(total).not.toBeCloseTo(5 * seed * 3, 1); // the pre-fix (bug) reading
+    expect(total).toBeCloseTo(applications * perApplication, 4);
+    expect(total).not.toBeCloseTo(applications * seed * 3, 1); // the pre-fix (bug) reading
   });
 });
 
@@ -178,8 +235,8 @@ describe('fb062: Poison Barrel deals zero direct/normal damage and never lifeste
   });
 });
 
-describe('fb062: tooltip text — blocked outside this lane\'s Scope, filed for the UI lane', () => {
-  // `poisonBarrelSentence` (src/ui/class-info.ts) is out of this lane's Scope
+describe('fb062: tooltip text — the owner\'s sentence-form wording, live numbers', () => {
+  // History: `poisonBarrelSentence` (src/ui/class-info.ts) was out of this lane's Scope
   // (src/ui/** is not in the create/edit list), so this acceptance clause
   // cannot be closed from here (working rule 6: never leave a red assertion
   // in the committed suite — `.skip` with the measured/current reading
@@ -192,11 +249,28 @@ describe('fb062: tooltip text — blocked outside this lane\'s Scope, filed for 
   // 3-tile poison cloud dealing 2.4 damage/s for 5s. ... Cooldown 7s." — a
   // flat continuous-rate framing that names neither the per-application
   // total, the 3s window, nor the 3-stack cap.
-  it.skip('the sentence names the per-application total, the 3s window and the 3-stack cap (UI-lane repro, not fixed here)', async () => {
+  it('the sentence names the per-application total, the 3s window and the 3-stack cap, in the owner\'s wording (fb062, closed 2026-09-22)', async () => {
     const { activeSkillMarkup } = await import('../src/ui/class-info');
     const perApplication = dotDpsFor(poisonDef, plaguebringer.active1.damage) * poisonDef.duration!;
     const markup = activeSkillMarkup(plaguebringer, 'active1');
     expect(markup).toContain(`${Math.round(perApplication * 100) / 100} poison damage over ${poisonDef.duration}`);
     expect(markup).toMatch(/up to 3 stacks/);
+    // The owner's sentence shape ("Poisons every enemy inside the circle each
+    // second: each application deals N poison damage over 3 s (up to 3
+    // stacks)"), with every number read off /data rather than restated.
+    expect(markup).toContain(
+      `Poisons every enemy inside the circle each second: each application deals ${Math.round(perApplication * 100) / 100} poison damage over ${poisonDef.duration}s (up to ${poisonDef.maxStacks} stacks).`,
+    );
+    // And the old flat-rate framing is gone.
+    expect(markup).not.toMatch(/damage\/s/);
+  });
+
+  it('the per-application number is live: a run\'s own Power and flat Atk move it (fb062 "live numbers")', async () => {
+    const { activeSkillMarkup } = await import('../src/ui/class-info');
+    const live = { cdr: 0, atkFlat: 1, damageMul: 2 };
+    const seed = (plaguebringer.active1.damage + live.atkFlat) * live.damageMul;
+    const perApplication = (poisonDef.ratio ?? 0) * seed;
+    const markup = activeSkillMarkup(plaguebringer, 'active1', live);
+    expect(markup).toContain(`each application deals ${Math.round(perApplication * 100) / 100} poison damage`);
   });
 });

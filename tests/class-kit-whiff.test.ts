@@ -1,6 +1,6 @@
 /**
- * c007 (BACKLOG-CONTENT, lane `content`) — **the whiff policy for the 24
- * class Actives**, pinned.
+ * c007 (BACKLOG-CONTENT, lane `content`) — **the whiff policy for the 26
+ * class Actives** (24 at c007; fb057's Madness King added two), pinned.
  *
  * c005 proved every Active is live *when it has something to act on*. This
  * file asks the opposite question, which c005's report loop explicitly does
@@ -15,7 +15,7 @@
  * Wall "still pays its cooldown when no tile could be placed"). A refactor
  * could flip the other five in either direction and nothing would notice.
  *
- * **The measured policy, and it is uniform: casting always costs.** All 24
+ * **The measured policy, and it is uniform: casting always costs.** All 26
  * pay in full, with no exception and no partial refund — a `repair_heal`
  * with no tower in radius is billed exactly what a repair that landed is
  * billed. That is a coherent rule and this file is where it now lives.
@@ -38,11 +38,11 @@
  *   - `acts` — did the cast change anything about the world? Measured as a
  *     diff of `snapshot()` below.
  * A row with `pays: true, acts: false` is a pure whiff: paid for nothing.
- * **Thirteen of the 24 are**, in an empty world; the other eleven still do
+ * **Fifteen of the 26 are**, in an empty world; the other eleven still do
  * something, because what they do does not need a target at all (drop a
  * cloud, dash, open a window, plant a totem, raise a wall). Those eleven are
  * not evidence of anything being wrong, and saying so per row is the point of
- * the table. The 13/11 split is asserted below, not just written here, so the
+ * the table. The 15/11 split is asserted below, not just written here, so the
  * prose and the table cannot drift apart.
  *
  * **The observable set is c005's, plus `w.tempWalls`** (Ice Wall's product,
@@ -55,7 +55,7 @@
  *   - `wd.wrathStored` — `fireJudgement` zeroes the bank *before* its own
  *     `rawWrath > 0` guard, so a Judgement with `applyAoE` deleted still
  *     moves it. Spent input, not product.
- * Neither field moves in any of the 24 empty-world casts, so excluding them
+ * Neither field moves in any of the 26 empty-world casts, so excluding them
  * costs the table nothing and buys the control runs at the bottom their
  * strictness.
  *
@@ -189,6 +189,9 @@ function snapshot(w: World): string {
       e.tauntKind,
       e.timeMarkStage,
       e.timeLockZoneId,
+      // fb057: c005's own addition, kept field for field — Spreading
+      // Madness's product is the madness status it installs.
+      e.madnessRemaining,
       e.dots.map((d) => [d.type, d.dps, d.remaining]),
     ]),
     areas: w.areas.map((a) => [a.id, a.type, a.x, a.y, a.radius, a.dps, a.remaining, a.dead]),
@@ -259,7 +262,8 @@ function cost(w: World): string {
 
 /**
  * Holds a charge Active to full and releases it — Circle Slash / Deadeye
- * Draw's only firing path (their Command deliberately reports nothing, p6b).
+ * Draw's only firing path, and (fb061) Poison Barrel's (their Command
+ * deliberately reports nothing, p6b).
  * Held at 60 Hz rather than in one giant `dt`, c005's convention: a harness
  * that takes a path no real run takes stops being evidence about real runs.
  */
@@ -273,11 +277,14 @@ function chargeAndRelease(w: World): void {
   tickClassCharge(w, cls, idle({ ...aim, active1Held: false }), 1 / 60);
 }
 
+/** The hold/release Active1 kinds (`isChargeKind`, classes.ts) — fb061 added `ground_poison`. */
+const CHARGE_KINDS: ReadonlySet<string> = new Set(['charge_nova', 'charge_pierce', 'ground_poison']);
+
 function fire(w: World, slot: 1 | 2): boolean | null {
   const cls = w.content.classByKey.get(w.cfg.classKey)!;
   const eff = slot === 1 ? cls.active1 : cls.active2;
-  if (eff.kind === 'charge_nova' || eff.kind === 'charge_pierce') {
-    // QA: returning a bare `null` here would make the two charge rows'
+  if (CHARGE_KINDS.has(eff.kind)) {
+    // QA: returning a bare `null` here would make the three charge rows'
     // `reports` axis a literal that never consults the sim. p6b's actual rule
     // is that a charge kind's *Command* must decline — it must not fire and
     // must not bill, because the fire event is time-shifted to release — so
@@ -295,7 +302,7 @@ function fire(w: World, slot: 1 | 2): boolean | null {
 interface WhiffRow {
   classKey: string;
   slot: 1 | 2;
-  /** `useClassActive`'s return; `null` for the two charge kinds, which fire from `tickClassCharge`. */
+  /** `useClassActive`'s return; `null` for the three charge kinds, which fire from `tickClassCharge`. */
   reports: boolean | null;
   /** Did the cast consume cooldown/ammo/charge? */
   pays: boolean;
@@ -324,8 +331,8 @@ const ROWS: readonly WhiffRow[] = [
   },
   {
     classKey: 'plaguebringer',
-    slot: 1, // Poison Barrel (ground_poison)
-    reports: true,
+    slot: 1, // Poison Barrel (ground_poison) — a hold/release charge kind since fb061
+    reports: null,
     pays: true,
     acts: true,
     why: 'a ground cloud needs no target: it lands on empty dirt and ticks there for its duration',
@@ -498,6 +505,22 @@ const ROWS: readonly WhiffRow[] = [
     acts: true,
     why: 'the zone is a placed volume (`w.timeLockZone`) that exists and ticks down before any enemy walks into it',
   },
+  {
+    classKey: 'madness_king',
+    slot: 1, // Mind Manipulation (mind_manipulation) — ammo-gated like Time
+    reports: true,
+    pays: true,
+    acts: false,
+    why: 'the pick finds no enemy near the cursor, so nothing is recruited or crushed — and it is billed a charge, not a cooldown',
+  },
+  {
+    classKey: 'madness_king',
+    slot: 2, // Spreading Madness (spreading_madness)
+    reports: true,
+    pays: true,
+    acts: false,
+    why: 'madness is a status on an enemy, so a circle with no enemy in it maddens nothing; the cast flash is fx only',
+  },
 ];
 
 function label(row: WhiffRow, cls: ClassDef): string {
@@ -507,9 +530,9 @@ function label(row: WhiffRow, cls: ClassDef): string {
 
 /* ------------------------------------------------------------------- tests */
 
-describe('c007: the whiff policy of all 24 class Actives', () => {
-  it('covers all 24 Actives exactly once, each with a rationale', () => {
-    expect(content.classes.classes).toHaveLength(12);
+describe('c007: the whiff policy of all 26 class Actives', () => {
+  it('covers all 26 Actives exactly once, each with a rationale', () => {
+    expect(content.classes.classes).toHaveLength(13);
     const seen = ROWS.map((r) => `${r.classKey}:${r.slot}`);
     expect(new Set(seen).size, 'a duplicated row').toBe(seen.length);
     const wanted = content.classes.classes.flatMap((c) => [`${c.key}:1`, `${c.key}:2`]);
@@ -520,8 +543,10 @@ describe('c007: the whiff policy of all 24 class Actives', () => {
     // The measurement this file exists to pin, asserted rather than only
     // written in the header — a row flipped without the prose following it is
     // exactly how the two drift apart.
-    expect(ROWS.filter((r) => r.pays), 'the whole point: casting always costs').toHaveLength(24);
-    expect(ROWS.filter((r) => !r.acts), 'pure whiffs — paid in full, changed nothing').toHaveLength(13);
+    expect(ROWS.filter((r) => r.pays), 'the whole point: casting always costs').toHaveLength(26);
+    // fb057: Madness King's two Actives both need an enemy to act on, so both
+    // join the pure whiffs (13 -> 15); the need-no-target group is unchanged.
+    expect(ROWS.filter((r) => !r.acts), 'pure whiffs — paid in full, changed nothing').toHaveLength(15);
     expect(ROWS.filter((r) => r.acts), 'act on an empty board because they need no target').toHaveLength(11);
   });
 

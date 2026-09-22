@@ -1825,3 +1825,82 @@ Q200 did not collide and are unchanged below).
   with the Locket) — whoever ships a `cdr` source >= 0.125 must revisit this.
   — refs: SPEC-FINAL §7.1, §4.2 (Time Lord), owner feedback
   `feature-class-equipment-sets`, fb013, BACKLOG-CONTENT.md fb056.
+
+- **Q216. [fb061] Poison Barrel charge — readings chosen and logged.** (1)
+  "Radius x1 -> x2" reads x1 as the shipped r5, so the cloud spans r5
+  (instant release) to r10 (full 2 s hold); radius and lifetime (8 -> 14 s)
+  both lerp linearly with the hold, Circle Slash's own `circleSlashValues`
+  shape. (2) The cooldown starts at release, exactly as a Circle Slash
+  release; a full hold makes the cycle ~9 s while a cloud lasts up to 14 s, so
+  clouds can overlap — flagged for a balance pass (the amended kit is up to
+  4x the area and 1.6-2.8x the lifetime; unmeasured at G8 until a
+  balance-analyst run, which working rule 8 keeps out of this item). (3) The
+  loader now refuses a `ground_poison` row without a positive
+  `chargeCapSeconds`, with a non-positive or over-ceiling `minRadius`, or whose
+  (authored or default 1 s) tick exceeds the zero-charge lifetime — the
+  quick-release cloud must be able to poison at least once. (4) SPEC-FINAL
+  §4.1's Plaguebringer Active1 text is amended to the owner's order and the
+  §4 hash re-pinned (c008). (5) Code review found the scripted-bot harness
+  (`tests/helpers.ts`) kept its own stale charge-kind list, so every scripted
+  G8/G14/G23 run silently stopped casting the Barrel; it now reads the sim's
+  exported `isChargeKind`, and `fb123-charge-kind-bot-coverage` pins
+  Plaguebringer under every policy. — refs: SPEC-FINAL §4.1, owner feedback
+  `feature-plaguebringer-charge`, BACKLOG-CONTENT.md fb061.
+
+- **Q217. [fb057] Madness King — readings the owner text leaves open, chosen
+  and logged (CLAUDE.md working rule 5; every [designer note] in the owner
+  feedback built as written).** (1) **Unlock quest reachability.** The
+  designer-fill "200 enemies killed by other enemies (lifetime)" would be
+  unreachable if only Madness King's own madness counted (the class it
+  unlocks). `enemy_on_enemy_kills` also counts Spreading Plague corpse
+  transfers — literally one enemy's death killing another — so the quest is
+  reachable from the Plaguebringer; mad/converted kills count too.
+  (2) **"Attack" damage and cadence.** A mad or converted enemy's attack is
+  the same hit it lands on the character (`enemyCoreDamage` x buff power) at
+  `spawns.contactInterval`, sped by its madness stacks for madness attacks
+  only; `enemyAttackSpeedMul` no longer folds the stacks in (fb085's
+  pre-wired seam did), because the designer note says the bonus "never
+  speeds up damage to structures or the character". Damage source `madness`:
+  kit-attributed (`isKitSource`), never kit-power-scaled — the magnitude is
+  the enemy's, not an authored kit number. (3) **Converted teammate**: an
+  invulnerable `ClassSummon` (kind `converted`) walking straight at the
+  nearest enemy; it leaves the roster without a kill, bounty or gem (it was
+  recruited, not slain) and dies when no live enemy remains *and* nothing is
+  left to spawn (the wave is cleared). (4) **Pick radius** for "the enemy
+  closest to the cursor": `active1.radius` 2 ⚖ (a whiff pays its charge,
+  c007's policy). (5) **Unstated numbers ⚖**: Active2 cooldown 12 s; bands
+  range 6, dps 30, interval 1.2857, move +0.3 (Plaguebringer/Time Lord/
+  Swordsman's own band values for high/low/slow/high). (6) **Frenzied Aim**
+  reads the nearest enemy in range each tick; a negative character bonus
+  floors at no bonus. (7) **Whispers vs Active2**: an enemy already mad from
+  Spreading Madness is not re-flagged by a Whispers hit (no cap slot), and a
+  Whispers refresh on its own target takes no second slot. (8) **G8 at 13
+  classes**: 78 pairs; the §14 own-kit-share note's "nine classes with a
+  damaging VS Active" is unchanged pending a measurement (Madness King's only
+  kit damage is the elite branch). (9) **Madness wander** anchors at the
+  spot the madness began (`madnessAnchorX/Y`, set on a fresh application,
+  kept on refresh) — fb085's seam re-anchored every tick, so an alone mad
+  enemy drifted without bound (QA test, fixed). (10) Mind Manipulation's
+  elite window is 3 x 0.33 s = 0.99 s against §4.2's "over 1 s" — the owner's
+  own cadence, recorded as a `retuned` row in c008 rather than rounded.
+  (11) **Economy (code review Major).** An enemy's hit on *another enemy* (a
+  mad strike, a converted teammate's, the enemy half of the elite tick) is
+  damage dealt to enemies — economy A per the owner's Q180 OVERRIDE — so it
+  is `enemyCoreDamage x (1 + buff) x numberScale` (`enemyHitOnEnemies`);
+  the same enemy's hit on a structure or the character stays economy B.
+  Without it madness hit 10x harder relative to enemy HP than authored (a mad
+  husk killed itself in ~4 strikes). The boss slam's enemy splash made the
+  opposite, logged choice (boss.ts); this one follows the override. (12)
+  Whispers is effectively TD-only: VS has no class basic attack and Madness
+  King's Actives deal damage only on the elite branch. (13) A mad enemy's
+  *self*-kill counts toward `enemy_on_enemy_kills` (it is still an
+  enemy-inflicted, madness-caused death); the review's stricter "other
+  enemies only" reading is filed with its other Minors as fb202. (14)
+  QA: Mind Manipulation's elite/boss 90% slow is its own timed status
+  (`mindSlowAmount/Remaining`; the strongest slow wins in `effectiveSpeed`,
+  each on its own clock) — `applySlow`'s longest-duration merge held 90% for
+  as long as a frost aura kept reapplying a weaker slow. It deliberately does
+  not honour `slowImmune`: the owner text slows elites *and bosses*. (15) QA:
+  Spreading Madness frees a Whispers slot it takes over.
+  — refs: SPEC-FINAL §4.2, §13, §14 G8,
+  owner feedback `feature-class-madness-king`, BACKLOG-CONTENT.md fb057.

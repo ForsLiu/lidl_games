@@ -33,6 +33,40 @@
  * unguarded plain-`Stats` shape the existing `attackSpeed`/`moveSpeedPct`
  * fallback rows already record. Added by `Q7_RECORD=1`, not hand-edited.
  *
+ * Regenerated 2026-09-22 (fb061, §4.1 amended by owner feedback
+ * `feature-plaguebringer-charge`): Poison Barrel became a hold/release charge
+ * skill, so `data/classes.json`'s plaguebringer `active1` now authors
+ * `minGroundDurationSeconds` (the 8 s zero-charge lifetime floor, fb085(c)'s
+ * field, shipped for the first time), plus `minRadius`/`chargeCapSeconds`,
+ * whose canonical paths were already in this census from Swordsman's Circle
+ * Slash and did not move. `minGroundDurationSeconds` is
+ * `num.positive().optional()`, so `negative`/`zero` are already closed;
+ * `fractional` is an ordinary tune, and `drop-key`/`rename-key` are the
+ * field's documented optional reading (absent = the zone lasts its full
+ * `groundDurationSeconds` whatever the hold), so all three are left open. The
+ * loader's new fb061 rule (a `ground_poison` row needs a positive
+ * `chargeCapSeconds`, and a `minRadius` no larger than `radius`) closes
+ * nothing this census can see: `sites()` mutates a canonical path at its
+ * first occurrence only, which for both keys is Swordsman's `charge_nova`
+ * row, where `negative`/`zero` are still accepted as before. One additive
+ * line, nothing else moved.
+ *
+ * Regenerated 2026-09-22 (fb057): Madness King (class #13) lands its kit's
+ * fields on the shapes fb085 pre-wired for them — `passive.madnessDurationSeconds`
+ * / `madnessCap` / `madnessAtkSpdPerStack` / `madnessMoveSpdPerStack`
+ * (Whispers), `active1.eliteConvertTicks` / `eliteConvertTickSeconds` /
+ * `eliteConvertSlowAmount` (Mind Manipulation), `active2.madnessDurationSeconds`
+ * (Spreading Madness) and `towerPassive.frenziedAimFlatBonus` (Frenzied Aim).
+ * All nine are bare `num.optional()` required-by-kind fields — `drop-key`/
+ * `rename-key` are already refused by `REQUIRED_EFFECT_FIELDS`/
+ * `REQUIRED_PASSIVE_FIELDS`, while `negative`/`zero`/`fractional` stay open,
+ * the same unguarded shape as every sibling kit number above (fb057 changed
+ * no loader rule, so no floor moved). `vsupgrades.skillCards.madness_king[]`
+ * is the new class's three cards, the same five-row / four-verdict shape
+ * every other class's card block already has (`perRank` keeps only
+ * `fractional`, fb121's `<= 0` refusal applying to it unchanged). Additive
+ * lines only; nothing existing moved, `INEFFECTIVE` unchanged.
+ *
  * Regenerated 2026-09-17 (fb129, rule 4): `data/terrain.json` gained
  * `highGround.surfaceBlockCap` (BACKLOG.md fb129 — the seconds a submerged
  * Burrower may be held under a high tile it cannot surface on before the
@@ -371,6 +405,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.compoundPerSecond': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.cooldownSeconds': ['fractional'],
   'classes.classes[].active1.damage': ['zero', 'fractional'],
+  'classes.classes[].active1.eliteConvertSlowAmount': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.eliteConvertTickSeconds': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.eliteConvertTicks': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.groundDurationSeconds': ['fractional'],
   'classes.classes[].active1.groundTickSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.knockback': ['negative', 'zero', 'fractional'],
@@ -385,6 +422,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.markRewindSeconds': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.maxCharges': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.minDamage': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.minGroundDurationSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.minRadius': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.moveMulWhileCharging': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.name': ['to-string', 'empty-string'],
@@ -410,6 +448,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.dashWidth': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.groundDurationSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.healPerEnemy': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active2.madnessDurationSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.maxCharges': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.name': ['to-string', 'empty-string'],
   'classes.classes[].active2.overloadExtraChains': ['negative', 'zero', 'fractional'],
@@ -452,6 +491,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].passive.frenzyTdMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.frenzyVsMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.kind': ['drop-key', 'rename-key'],
+  'classes.classes[].passive.madnessAtkSpdPerStack': ['negative', 'zero', 'fractional'],
+  'classes.classes[].passive.madnessCap': ['negative', 'zero', 'fractional'],
+  'classes.classes[].passive.madnessDurationSeconds': ['negative', 'zero', 'fractional'],
+  'classes.classes[].passive.madnessMoveSpdPerStack': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.mods': ['drop-key', 'rename-key'],
   'classes.classes[].passive.mods.buildRange': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.mods.leech': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -470,6 +513,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].towerPassive.bonusAoeMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].towerPassive.bonusRangeMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].towerPassive.description': ['to-string', 'empty-string'],
+  'classes.classes[].towerPassive.frenziedAimFlatBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].towerPassive.kind': ['drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods': ['drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods.towerArea': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -925,6 +969,11 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'vsupgrades.skillCards.engineer[].maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.skillCards.engineer[].name': ['to-string', 'empty-string'],
   'vsupgrades.skillCards.engineer[].perRank': ['fractional'],
+  'vsupgrades.skillCards.madness_king[].desc': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.madness_king[].key': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.madness_king[].maxRank': ['negative', 'zero', 'fractional'],
+  'vsupgrades.skillCards.madness_king[].name': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.madness_king[].perRank': ['fractional'],
   'vsupgrades.skillCards.necromancer[].desc': ['to-string', 'empty-string'],
   'vsupgrades.skillCards.necromancer[].key': ['to-string', 'empty-string'],
   'vsupgrades.skillCards.necromancer[].maxRank': ['negative', 'zero', 'fractional'],
@@ -1139,6 +1188,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'vsupgrades.skillCards.engineer[].effect': 'checked',
   'vsupgrades.skillCards.engineer[].key': 'open',
   'vsupgrades.skillCards.engineer[].name': 'open',
+  'vsupgrades.skillCards.madness_king[].desc': 'open',
+  'vsupgrades.skillCards.madness_king[].effect': 'checked',
+  'vsupgrades.skillCards.madness_king[].key': 'open',
+  'vsupgrades.skillCards.madness_king[].name': 'open',
   'vsupgrades.skillCards.necromancer[].desc': 'open',
   'vsupgrades.skillCards.necromancer[].effect': 'checked',
   'vsupgrades.skillCards.necromancer[].key': 'open',

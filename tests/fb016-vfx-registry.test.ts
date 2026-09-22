@@ -57,7 +57,7 @@ const realCoreKeys = content.cores.cores.map((c) => c.key);
 
 describe('fb016: the VFX registry covers every real class and Core', () => {
   it('has a CLASS_VFX row for every class, with populated q/e/passive fields', () => {
-    expect(realClassKeys.length).toBe(12); // SPEC-FINAL §13, fb013
+    expect(realClassKeys.length).toBe(13); // SPEC-FINAL §13, fb013, fb057
     for (const key of realClassKeys) {
       const entry = CLASS_VFX[key];
       expect(entry, key).toBeDefined();

@@ -16,7 +16,8 @@
  * file header's own stated rule.
  */
 
-import type { ClassDef, ClassEffect } from '../sim/content';
+import { loadContent, type ClassDef, type ClassEffect } from '../sim/content';
+import { dotDpsFor } from '../sim/damagetypes';
 import {
   AOE_FALLOFF_CLAUSE,
   LINE_FALLOFF_CLAUSE,
@@ -83,6 +84,14 @@ export interface ClassLiveContext {
    * authored base.
    */
   areaMul?: number;
+  /**
+   * fb062 (code review): `active1PotencyMul(w)` (sim/progression.ts) — the
+   * §6.3 "Active1 potency" skill card, which `firePoisonBarrel` (and every
+   * other Active1 damage site) multiplies its seed by. Optional for the same
+   * pre-run reason as `areaMul`; only Poison Barrel's sentence reads it so
+   * far (the other Active1 sentences are a filed follow-up).
+   */
+  active1PotencyMul?: number;
 }
 
 /**
@@ -202,11 +211,40 @@ function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const dps = liveDamageValue(eff.damage, live);
+  // fb062 (owner feedback `feature-poison-barrel-mechanic`): name the real
+  // mechanic, not a flat rate — "Poisons every enemy inside the circle each
+  // second: each application deals 9.6 poison damage over 3 s (up to 3
+  // stacks)." Each application is §3's Poison row seeded by the skill's own
+  // (live-scaled) `damage`: `ratio x seed` over the row's `duration`, capped
+  // at its `maxStacks` — exactly what `firePoisonBarrel`'s zone hands
+  // `updateAreas` through `dotDpsFor` (classes.ts). Read off the loaded
+  // damage-type row, so a retune of Poison moves the sentence with it.
+  const seed = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
+  const poison = loadContent().damageTypeByKey.get('poison');
+  const window = poison?.duration ?? 0;
+  // The sim's own conversion (`dotDpsFor`, the zone's `dps:` line) times the
+  // stack's window — the same function, not a restated ratio. The zone path
+  // applies each stack for Poison's row duration under the engine's 3-stack
+  // poison cap (`POISON_STACK_CAP`, combat.ts), which the row's `maxStacks`
+  // states and x001 pins equal.
+  const perApplication = poison ? dotDpsFor(poison, seed) * window : 0;
+  const stacks = poison?.maxStacks ?? 0;
+  const tick = eff.groundTickSeconds ?? 1;
+  const cadence = tick === 1 ? 'each second' : `every ${trimNum(tick)}s`;
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  // fb115: `firePoisonBarrel`'s `GroundArea.radius` is `classArea(w, eff.radius)`.
+  // fb061: a hold/release charge — the cloud's radius and lifetime lerp from
+  // their zero-charge floors (`minRadius`/`minGroundDurationSeconds`) to the
+  // full-charge values at `chargeCapSeconds`, exactly `poisonBarrelValues`
+  // (classes.ts); an absent floor means that value does not scale.
+  // fb115: `firePoisonBarrel`'s `GroundArea.radius` is `classArea(w, <charged radius>)`.
+  const minRadius = liveAreaValue(eff.minRadius ?? eff.radius, live);
   const radius = liveAreaValue(eff.radius, live);
-  return `Drops a ${trimNum(radius)}-tile poison cloud dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s.${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`;
+  const fullDuration = eff.groundDurationSeconds ?? 0;
+  const minDuration = eff.minGroundDurationSeconds ?? fullDuration;
+  return (
+    `Hold to charge, then release to drop a poison cloud: ${trimNum(minRadius)} tiles for ${trimNum(minDuration)}s released immediately, up to ${trimNum(radius)} tiles for ${trimNum(fullDuration)}s at a full ${trimNum(eff.chargeCapSeconds ?? 0)}s hold. ` +
+    `Poisons every enemy inside the circle ${cadence}: each application deals ${trimNum(perApplication)} poison damage over ${trimNum(window)}s (up to ${stacks} stacks).${AOE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s.`
+  );
 }
 
 function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -249,6 +287,30 @@ function timeLockSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
     `Re-casting while a zone is active teleports its enemies into the new one and detonates all of their remaining DoT damage at once. ` +
     `${eff.maxCharges ?? 1} charges, ${trimNum(recharge)}s to recharge each.`
   );
+}
+
+/**
+ * fb057 (§4.2 Madness King *Mind Manipulation*): the pick radius is a
+ * target-search radius around the cursor (`nearestEnemy`), never Area-scaled;
+ * the elite/boss ticks' damage is mostly the *target's* own attack, so the
+ * sentence names the shape rather than a number it cannot know pre-cast.
+ */
+function mindManipulationSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const recharge = liveCooldownValue(eff.rechargeSeconds ?? 0, live, cooldownFactor);
+  const ticks = eff.eliteConvertTicks ?? 0;
+  const window = ticks * (eff.eliteConvertTickSeconds ?? 0);
+  return (
+    `Converts the enemy nearest the cursor (within ${trimNum(eff.radius)} tiles) into a teammate that fights for you until the wave is cleared, keeping any madness speed bonus it had built up. ` +
+    `An elite or boss cannot be converted: it instead takes its own attack damage plus your basic-attack damage ${ticks} times over ${trimNum(window)}s and is slowed ${formatPct(eff.eliteConvertSlowAmount ?? 0)} meanwhile. ` +
+    `${eff.maxCharges ?? 1} charges, ${trimNum(recharge)}s to recharge each.`
+  );
+}
+
+/** fb057 (§4.2 Madness King *Spreading Madness*): `fireSpreadingMadness`'s radius is `classArea(w, eff.radius)`. */
+function spreadingMadnessSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const radius = liveAreaValue(eff.radius, live);
+  return `Drives every enemy within ${trimNum(radius)} tiles of the cursor mad for ${trimNum(eff.madnessDurationSeconds ?? 0)}s: each attacks the nearest other enemy (or itself), speeding up with every attack. Cooldown ${trimNum(cd)}s.`;
 }
 
 /** `summon_turret`/`ice_wall`: turns a `/data` tower key like `arrow_spire` into "Arrow Spire" — no tower-lookup table is threaded into this file, so this is a display-name approximation, not a `content.towerByKey` name. */
@@ -434,6 +496,8 @@ const ACTIVE_SENTENCES: Partial<
   recall_totem: recallTotemSentence,
   clarion_taunt: clarionTauntSentence,
   judgement: judgementSentence,
+  mind_manipulation: mindManipulationSentence,
+  spreading_madness: spreadingMadnessSentence,
 };
 
 /**

@@ -241,6 +241,8 @@ const UNSCALED_REASONS: Record<string, string> = {
   'classes.classes[].active1.overclockAtkSpdMul': 'an attack-speed multiplier',
   'classes.classes[].active2.pactAtkSpdMul': 'an attack-speed multiplier',
   'classes.classes[].active2.auraAtkSpdMul': 'an attack-speed multiplier',
+  // fb057 (Madness King *Whispers*): "+10% attack speed per madness attack".
+  'classes.classes[].passive.madnessAtkSpdPerStack': 'an attack-speed fraction per madness stack',
   'modifiers.tierCoreDamagePerStep': 'a per-tier multiplier',
   'enemies.enemies[].attackRange': 'tiles',
   'enemies.enemies[].attackInterval': 'seconds',

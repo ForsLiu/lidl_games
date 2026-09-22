@@ -12,7 +12,7 @@
  * own comments record it biting p6b twice, both times as a cooldown consumed
  * by a kind the switch never matched.
  *
- * **What "live" means here, precisely.** Each of the 24 Actives (12 classes x
+ * **What "live" means here, precisely.** Each of the 26 Actives (13 classes x
  * Active1/Active2) is fired once in a real `World` that has been given
  * whatever the Active needs to act on — an enemy, a built tower, a corpse, a
  * poison stack, banked Wrath — and must change at least one entry of
@@ -132,6 +132,10 @@ function observe(w: World): string {
       e.tauntKind,
       e.timeMarkStage,
       e.timeLockZoneId,
+      // fb057: Spreading Madness's whole product — the madness status it
+      // installs (Mind Manipulation's is the summon below, or its elite tick
+      // train's slow).
+      e.madnessRemaining,
       e.dots.map((d) => [d.type, d.dps, d.remaining]),
     ]),
     areas: w.areas.map((a) => [a.id, a.type, a.x, a.y, a.radius, a.dps, a.remaining, a.dead]),
@@ -179,8 +183,8 @@ interface KitCase {
   /** Everything the Active needs to have something to act on. Runs before the snapshot. */
   setup?: (w: World) => void;
   /**
-   * Fires the Active exactly once. Returns what the sim reported for the 22
-   * Command-driven kinds; `void` for the two charge kinds, whose Command
+   * Fires the Active exactly once. Returns what the sim reported for the 21
+   * Command-driven kinds; `void` for the three charge kinds, whose Command
    * deliberately reports nothing (see `chargeAndRelease`).
    */
   fire: (w: World) => boolean | void;
@@ -188,10 +192,11 @@ interface KitCase {
 
 /**
  * Holds a charge Active to full and releases it — Circle Slash / Deadeye
- * Draw's only firing path. Held at 60 Hz rather than in one giant `dt`: the
- * clamp in `circleSlashValues` would make a single `cap * 2` tick work today,
- * but only by accident, and a harness that takes a path no real run takes
- * stops being evidence about real runs (c005 review).
+ * Draw's only firing path, and (fb061) Poison Barrel's. Held at 60 Hz rather
+ * than in one giant `dt`: the clamp in `circleSlashValues` would make a
+ * single `cap * 2` tick work today, but only by accident, and a harness that
+ * takes a path no real run takes stops being evidence about real runs (c005
+ * review).
  *
  * A charge kind fires from the release tick, not from a Command, so
  * `useClassActive` deliberately reports false for it (p6b) — there is no
@@ -222,8 +227,8 @@ const CASES: readonly KitCase[] = [
   },
   {
     classKey: 'plaguebringer',
-    slot: 1, // Poison Barrel (ground_poison)
-    fire: (w) => useClassActive(w),
+    slot: 1, // Poison Barrel (ground_poison) — a hold/release charge kind since fb061
+    fire: (w) => void chargeAndRelease(w, WX, WY),
   },
   {
     classKey: 'plaguebringer',
@@ -374,7 +379,22 @@ const CASES: readonly KitCase[] = [
     setup: (w) => void dummy(w, WX + 2, WY),
     fire: (w) => useClassActive2(w, WX + 2, WY),
   },
+  {
+    classKey: 'madness_king',
+    slot: 1, // Mind Manipulation (mind_manipulation) — needs an enemy near the cursor to recruit
+    setup: (w) => void dummy(w, WX + 2, WY),
+    fire: (w) => useClassActive(w, WX + 2, WY),
+  },
+  {
+    classKey: 'madness_king',
+    slot: 2, // Spreading Madness (spreading_madness)
+    setup: (w) => void dummy(w, WX + 2, WY),
+    fire: (w) => useClassActive2(w, WX + 2, WY),
+  },
 ];
+
+/** The hold/release Active1 kinds (`isChargeKind`, classes.ts) — fb061 added `ground_poison`. */
+const CHARGE_KINDS: ReadonlySet<string> = new Set(['charge_nova', 'charge_pierce', 'ground_poison']);
 
 function label(c: KitCase, cls: ClassDef): string {
   const eff = c.slot === 1 ? cls.active1 : cls.active2;
@@ -384,8 +404,8 @@ function label(c: KitCase, cls: ClassDef): string {
 /* ------------------------------------------------------------------- tests */
 
 describe('c005: every §4 class Active changes something observable', () => {
-  it('covers all 24 Actives — every class, both slots, exactly once', () => {
-    expect(content.classes.classes).toHaveLength(12);
+  it('covers all 26 Actives — every class, both slots, exactly once', () => {
+    expect(content.classes.classes).toHaveLength(13);
     const seen = CASES.map((c) => `${c.classKey}:${c.slot}`);
     expect(new Set(seen).size, 'a duplicated case row').toBe(seen.length);
     const wanted = content.classes.classes.flatMap((c) => [`${c.key}:1`, `${c.key}:2`]);
@@ -416,7 +436,7 @@ describe('c005: every §4 class Active changes something observable', () => {
   }
 
   /**
-   * The Command-driven twenty-two also have a return value, and p6b's bug was
+   * The Command-driven twenty-one also have a return value, and p6b's bug was
    * that it lied: the switch matched nothing, `useClassActive` returned early
    * from `default`, and yet the cooldown had already been set.
    *
@@ -426,14 +446,27 @@ describe('c005: every §4 class Active changes something observable', () => {
    * `death_pact`, `manifest_spirit`, `chain_lightning`, `ice_wall`) return
    * `true` even when their fire function early-returns with no target. The
    * state-diff loop above is the real assertion; this one pins the other
-   * direction, an Active with an effect that reports failure. The two charge
-   * kinds are excluded because their Command deliberately returns false (they
-   * fire from `tickClassCharge`'s release).
+   * direction, an Active with an effect that reports failure. The three charge
+   * kinds (Circle Slash, Deadeye Draw and — since fb061 — Poison Barrel) fire
+   * from `tickClassCharge`'s release, so their Command deliberately returns
+   * false; for them the honest report is the other direction, checked below:
+   * the bare Command declines, performs nothing, and bills nothing.
    */
   for (const c of CASES) {
     const cls = content.classByKey.get(c.classKey)!;
     const eff = c.slot === 1 ? cls.active1 : cls.active2;
-    if (eff.kind === 'charge_nova' || eff.kind === 'charge_pierce') continue;
+    if (CHARGE_KINDS.has(eff.kind)) {
+      it(`${label(c, cls)} reports the cast it actually performed — none: its bare Command declines (it fires on release)`, () => {
+        const w = kitWorld(c.classKey);
+        c.setup?.(w);
+        const before = observe(w);
+        expect(useClassActive(w, WX + 1, WY), 'a charge kind fired from its Command instead of on release').toBe(false);
+        expect(observe(w), 'the declined Command changed the world anyway').toBe(before);
+        expect(w.warden.active1Cooldown, 'the declined Command was billed a cooldown').toBe(0);
+        expect(w.warden.active1Charging, 'the declined Command started a charge by itself').toBe(false);
+      });
+      continue;
+    }
     it(`${label(c, cls)} reports the cast it actually performed`, () => {
       const w = kitWorld(c.classKey);
       c.setup?.(w);

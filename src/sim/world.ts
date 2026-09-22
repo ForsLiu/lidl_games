@@ -42,6 +42,7 @@ import type {
   RunOutcome,
   Structure,
   TimeLockZone,
+  MindTick,
   Warden,
 } from './types';
 
@@ -534,6 +535,14 @@ export class World {
    * behaviour, only end-of-run reporting.
    */
   poisonKills = 0;
+  /**
+   * fb057: kills an enemy dealt another enemy — a mad enemy's attack, a
+   * converted teammate's, or a Spreading Plague corpse transfer (the
+   * `madness_king` unlock quest's "enemies killed by other enemies").
+   */
+  enemyOnEnemyKills = 0;
+  /** fb057 (Mind Manipulation's elite/boss branch): pending tick trains, see `MindTick`. */
+  mindTicks: MindTick[] = [];
   /**
    * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
    * VS wave that actually ends by its own means — the block timer

@@ -253,7 +253,12 @@ export function gatherInput(
   input.aimY = cursorY;
   // §4.1 (p6b): held continuously, like `dash`/`attack` — a charge-kind
   // Active1 reads this every tick rather than through a discrete Command.
-  input.active1Held = keys.has(bindings.active1);
+  // fb061 (qa-playtester): a press whose keydown *and* keyup both land inside
+  // one frame leaves the key already released by the time this runs, so the
+  // tick would carry the keydown's Command (which a charge kind declines) and
+  // no hold — the cast vanished silently. The press itself latches one held
+  // tick: this tick starts the charge, the next (key up) releases it.
+  input.active1Held = keys.has(bindings.active1) || pending.some((c) => c.k === 'class_active');
   input.cmds = pending;
   return input;
 }

@@ -199,7 +199,14 @@ const FIRE_RECIPES: Record<string, Probe> = {
     which: 'active1',
     place: cluster,
     fire: (w) => {
-      applyCommand(w, { k: 'class_active', aimX: w.warden.x, aimY: w.warden.y });
+      // fb061: Poison Barrel is a hold/release charge kind (a bare Command
+      // arms nothing), so it is released immediately the way `charge_nova`'s
+      // recipe above is — reading the class off the World for the same
+      // reason — then its field is ticked once, as before.
+      const cls = w.content.classByKey.get(w.cfg.classKey)!;
+      const aim = { aimX: w.warden.x, aimY: w.warden.y };
+      tickClassCharge(w, cls, idle({ ...aim, active1Held: true }), 1 / 60);
+      tickClassCharge(w, cls, idle({ ...aim, active1Held: false }), 1 / 60);
       updateAreas(w, 1);
     },
   },
@@ -319,7 +326,7 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     }
   });
 
-  it('charge_pierce/charge_nova recipes read the class off the World, not a hardcoded stand-in (regression)', () => {
+  it('charge_pierce/charge_nova/ground_poison recipes read the class off the World, not a hardcoded stand-in (regression)', () => {
     // qa-playtester (fb174 independent QA pass): reproduced twice, live —
     // both closures used to call `content.classByKey.get('archer')`/
     // `('swordsman')` directly, ignoring whichever World `probeAllKinds()`
@@ -330,9 +337,11 @@ describe('fb174: every shipped kind, classified by measurement alone', () => {
     // (classes.ts) no-ops for any class whose Active1 isn't a charge kind
     // (`isChargeKind` guard), so a correctly-fixed recipe measures nothing,
     // while the old hardcoded-class bug would still have fired the
-    // original class's real Circle Slash/Deadeye Draw regardless.
-    const isChargeKindKind = (k: string) => k === 'charge_nova' || k === 'charge_pierce';
-    for (const kind of ['charge_pierce', 'charge_nova'] as const) {
+    // original class's real Circle Slash/Deadeye Draw regardless. fb061 made
+    // `ground_poison` a third charge kind whose recipe reads the class the
+    // same way, so it is held to the same check.
+    const isChargeKindKind = (k: string) => k === 'charge_nova' || k === 'charge_pierce' || k === 'ground_poison';
+    for (const kind of ['charge_pierce', 'charge_nova', 'ground_poison'] as const) {
       const recipe = FIRE_RECIPES[kind];
       if (!recipe) throw new Error(`FIRE_RECIPES has no entry for ${kind}`);
       // Any class whose Active1 is neither charge kind at all (not just "not

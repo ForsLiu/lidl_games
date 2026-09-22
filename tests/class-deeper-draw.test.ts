@@ -285,7 +285,7 @@ describe('c017 — Deeper Draw binds on shipped /data', () => {
       if (key === 'archer') continue;
       for (const c of cards) if (c.effect === 'class_line') foreign[c.key] = c.maxRank;
     }
-    expect(Object.keys(foreign).length, 'the other eleven classes should author a class_line card each').toBe(11);
+    expect(Object.keys(foreign).length, 'the other twelve classes should author a class_line card each').toBe(12);
     expect(pierced(foreign, FULL)).toBe(pierced({}, FULL));
   });
 });

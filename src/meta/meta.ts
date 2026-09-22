@@ -127,6 +127,12 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
         ? 1
         : 0,
     lifetime_damage: report.damageTotal,
+    // fb057 (Madness King's unlock, `mob_mentality`): "enemies killed by
+    // other enemies", banked lifetime — a mad enemy's or a converted
+    // teammate's kill, or a Spreading Plague corpse transfer (the one
+    // pre-Madness-King way an enemy kills an enemy, so the quest is reachable
+    // before the class it unlocks).
+    enemy_on_enemy_kills: w.enemyOnEnemyKills,
     fastest_win_seconds: won ? report.totalSeconds : Number.POSITIVE_INFINITY,
   };
 }
@@ -139,6 +145,7 @@ const CUMULATIVE = new Set([
   'lifetime_gold',
   'poison_kills',
   'lifetime_damage',
+  'enemy_on_enemy_kills',
 ]);
 /**
  * p7h: generalizes what used to be a single `fastest_boss_kill`-only special

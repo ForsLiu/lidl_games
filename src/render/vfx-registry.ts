@@ -96,6 +96,7 @@ export const AREA_SCALED_ACTIVE_KINDS: ReadonlySet<ClassEffect['kind']> = new Se
   'judgement', // fireJudgement
   'time_mark', // fireTimeMark
   'time_lock', // fireTimeLock
+  'spreading_madness', // fireSpreadingMadness (fb057)
 ]);
 
 export interface SkillVfxEntry {
@@ -118,7 +119,7 @@ export type BasicAttackShape = 'swing' | 'projectile';
  * flash it always had (every hidden class today, unchanged per fb055's
  * scope).
  */
-export type BasicImpactShape = 'slash' | 'splash' | 'ripple';
+export type BasicImpactShape = 'slash' | 'splash' | 'ripple' | 'crown';
 
 export interface BasicVfxEntry {
   shape: BasicAttackShape;
@@ -135,7 +136,7 @@ export interface ClassVfxEntry {
   basic: BasicVfxEntry;
 }
 
-/** SPEC-FINAL §13's twelve real classes, fb013. */
+/** SPEC-FINAL §13's thirteen real classes (fb013 Time Lord, fb057 Madness King). */
 export const CLASS_VFX: Record<string, ClassVfxEntry> = {
   swordsman: {
     q: { indicator: 'charge ring at the Warden, radius grows with hold', fire: 'expanding slash nova + knockback', color: '#e0c46c' },
@@ -144,7 +145,7 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     basic: { shape: 'swing', fire: 'sword-swing arc sweeping toward the target', color: '#e0c46c', impact: 'slash' },
   },
   plaguebringer: {
-    q: { indicator: 'ground ring at the Warden', fire: 'poison nova pulse (ground patch renders via the existing area layer)', color: '#7ac74f' },
+    q: { indicator: 'cloud ring at the Warden, radius grows with hold (fb061)', fire: 'poison nova pulse (ground patch renders via the existing area layer)', color: '#7ac74f' },
     e: { indicator: 'none — global, no target', fire: 'pulse at the Warden as every live poison stack doubles', color: '#4fae2f' },
     passive: { cue: 'jump line to the next poisoned corpse-adjacent enemy (Spreading Plague)', color: '#7ac74f' },
     basic: { shape: 'projectile', fire: 'poison glob lobbed at the target', color: '#7ac74f', impact: 'splash' },
@@ -209,7 +210,33 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     passive: { cue: 'a warden-side DoT tick in place of an ordinary hit flash (Time Flow)', color: '#9a7fe6' },
     basic: { shape: 'projectile', fire: 'temporal bolt fired at the target, trailing a distortion ripple', color: '#9a7fe6', impact: 'ripple' },
   },
+  // fb057 (§4.2 Madness King): the fourth visible class.
+  madness_king: {
+    q: { indicator: 'pick ring at the cursor', fire: 'conversion flash on the recruited enemy (elite/boss: a three-tick crush flash)', color: '#c257d9' },
+    e: { indicator: 'r4 ring at the cursor', fire: 'madness nova at the cursor', color: '#e05fb0' },
+    passive: { cue: "a madness glow on the struck enemy, brightening with each madness attack it makes (MADNESS_VFX)", color: '#c257d9' },
+    basic: { shape: 'projectile', fire: 'a spinning crown-topped scepter shard hurled at the target', color: '#d4a93a', impact: 'crown' },
+  },
 };
+
+/**
+ * fb057 (§4.2 Madness King, the Madness status): "teammate-attack and
+ * self-attack each have their own distinct sprite/effect, visibly ramping
+ * (faster/brighter) as the bonus stacks". *Faster* is the sim's own cadence
+ * (each madness attack speeds the next); *brighter* is `madnessRampColor`,
+ * whose lightness climbs with the attacker's live stack count.
+ */
+export const MADNESS_VFX = {
+  teammate: { fire: 'a violet strike line from the mad (or converted) enemy to the enemy it attacks', color: '#c257d9' },
+  self: { fire: 'a tightening magenta ring on a mad enemy striking itself', color: '#e05fb0' },
+  ramp: 'glow brightness (and the self ring) grows with the attacker\'s madness stacks, capped at 10',
+} as const;
+
+/** fb057: the madness ramp — lightness 45% at one stack up to 85% at ten. */
+export function madnessRampColor(stacks: number): string {
+  const s = Math.max(1, Math.min(10, Math.round(stacks)));
+  return `hsl(290, 85%, ${45 + (s - 1) * (40 / 9)}%)`;
+}
 
 export interface CoreEffectVfxEntry {
   key: string;

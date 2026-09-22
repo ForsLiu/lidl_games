@@ -800,17 +800,17 @@ const ClassEffectSchema = z.object({
   slowDuration: num.optional(),
   burnDps: num.optional(),
   burnDuration: num.optional(),
-  /** `charge_nova` only: nova radius/damage at zero charge (`radius`/`damage` above are the full-charge values). */
+  /** `charge_nova` (and, fb061, `ground_poison`'s `minRadius`): the value at zero charge (`radius`/`damage` above are the full-charge values). */
   minRadius: num.optional(),
   minDamage: num.optional(),
   /** `charge_nova` only: max instant-reposition distance dealt to a struck enemy at full charge (Q118 reads SPEC-FINAL's "knockback" as an instant reposition — the sim has no velocity-impulse mechanism). */
   knockback: num.optional(),
-  /** `charge_nova` only: charge time (seconds) at which the scale above reaches 1; holding longer holds at the cap rather than growing further or force-firing (§4.1's "charge time is unlimited"). */
+  /** `charge_nova`/`ground_poison` (fb061): charge time (seconds) at which the scale above reaches 1; holding longer holds at the cap rather than growing further or force-firing (§4.1's "charge time is unlimited"). */
   chargeCapSeconds: num.optional(),
   /** `dash_line` only: dash travel distance and the line's perpendicular half-width. */
   dashRange: num.optional(),
   dashWidth: num.optional(),
-  /** `ground_poison` only (p6c, Q119): seconds the ground zone persists after being cast — §4.1's "for 5 s", distinct from `cooldownSeconds` (the Active's own recast timer). */
+  /** `ground_poison` only (p6c, Q119): seconds the ground zone persists after being cast — at full charge since fb061 (§4.1 amended: 14 s; `minGroundDurationSeconds` is the zero-charge 8 s), distinct from `cooldownSeconds` (the Active's own recast timer). */
   groundDurationSeconds: num.optional(),
   /** `ground_poison` only (fb082): seconds between poison applications — §4.1's "applying poison damage every second." Falls back to 1 in `firePoisonBarrel` (classes.ts) if absent, so this is authored explicitly rather than left to the fallback. */
   groundTickSeconds: num.positive().optional(),
@@ -820,7 +820,7 @@ const ClassEffectSchema = z.object({
    * mirroring `minRadius`/`minDamage`'s "floor the charge lerps up from"
    * shape for `groundDurationSeconds` — absent means the zone has always
    * lasted its full `groundDurationSeconds` regardless of hold time, the
-   * pre-fb061 behaviour every currently-shipped `ground_poison` row keeps.
+   * pre-fb061 behaviour. fb061 authors it (8 s floor, 14 s full charge).
    */
   minGroundDurationSeconds: num.positive().optional(),
 
@@ -1748,6 +1748,31 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
     // max would make holding longer shrink the zone instead of growing it.
     if (eff.minGroundDurationSeconds !== undefined && eff.minGroundDurationSeconds > eff.groundDurationSeconds) {
       throw new Error(`${where}: ground_poison's minGroundDurationSeconds must not exceed groundDurationSeconds`);
+    }
+    // fb061 (§4.1 amended): Poison Barrel is a hold/release charge skill, so
+    // its charge cap is authored (the owner's "up to 2 s"), never left to
+    // `tickClassCharge`'s generic 3 s fallback, and its zero-charge radius
+    // floor may not exceed the full-charge radius — same unpayable-data shape
+    // as the duration floor just above.
+    if (eff.chargeCapSeconds === undefined || !(eff.chargeCapSeconds > 0)) {
+      throw new Error(`${where}: ground_poison needs a positive chargeCapSeconds (it is a hold/release charge skill)`);
+    }
+    if (eff.minRadius !== undefined && eff.minRadius > eff.radius) {
+      throw new Error(`${where}: ground_poison's minRadius must not exceed radius`);
+    }
+    if (eff.minRadius !== undefined && !(eff.minRadius > 0)) {
+      throw new Error(`${where}: ground_poison's minRadius must be positive (a quick release would drop no cloud)`);
+    }
+    // fb061 (review finding): fb082's cadence check above compares the tick
+    // with the *full-charge* lifetime only, but a cloud released at once lives
+    // just `minGroundDurationSeconds` — a tick between the two would load
+    // clean and leave every quick-release cloud expiring before it poisoned
+    // anything.
+    // Checked against `firePoisonBarrel`'s own 1 s fallback when no tick is
+    // authored — the same "independent of whether groundTickSeconds happens to
+    // be authored" lesson fb082's re-QA taught for the duration itself.
+    if (eff.minGroundDurationSeconds !== undefined && (eff.groundTickSeconds ?? 1) > eff.minGroundDurationSeconds) {
+      throw new Error(`${where}: ground_poison's groundTickSeconds must not exceed minGroundDurationSeconds (a quick release)`);
     }
   }
   // fb127 (c010): chainGrowth/chainCap moved to the passive's `conduction`

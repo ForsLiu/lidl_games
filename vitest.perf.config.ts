@@ -42,6 +42,12 @@ import { fileURLToPath, URL } from 'node:url';
  * remedy — split out of `tests/terrain-generation.test.ts` (whose exact,
  * load-independent `paintIterationCount` pin stays in the fast tier) and
  * measured here, single-threaded, with its ceiling unchanged.
+ *
+ * `render-fb060-dot-tick-perf` is the sixth (same day): fb060's "300 DoT
+ * carriers render inside 16.7 ms/frame" read over budget in a fast-tier run
+ * on a 4-core host at load ~13, on a change that never touches the render
+ * path. Split out of `tests/render-fb060-dot-tick-numbers.test.ts` (whose
+ * behavioural cases stay fast), budget unchanged.
  */
 export default defineConfig({
   resolve: {
@@ -56,6 +62,7 @@ export default defineConfig({
       'tests/q13-perf-sensitivity.test.ts',
       'tests/terrain-cost-retry-ratio.test.ts',
       'tests/terrain-cost-ceiling.test.ts',
+      'tests/render-fb060-dot-tick-perf.test.ts',
     ],
     testTimeout: 240000,
     fileParallelism: false,

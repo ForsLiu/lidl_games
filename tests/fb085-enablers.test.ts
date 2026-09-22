@@ -33,6 +33,7 @@ import {
   enemyAttackSpeedMul,
   applyDot,
   effectiveSpeed,
+  madnessAttackSpeedMul,
   madnessMoveTarget,
   madnessPerStackBonus,
   registerMadnessAttack,
@@ -175,6 +176,11 @@ function baseEffect(kind: string, over: Record<string, unknown> = {}): ClassEffe
   return { name: 'test', kind, cooldownSeconds: 1, radius: 0, damage: 0, ...over } as unknown as ClassEffect;
 }
 
+/** A copy of the raw classes document, for rows the shipped data does not author (fb085(c), fb061). */
+function classesDoc(): { classes: { key: string; active1: Record<string, unknown> }[] } {
+  return JSON.parse(JSON.stringify(content.raw.classes)) as { classes: { key: string; active1: Record<string, unknown> }[] };
+}
+
 describe('fb085(b): Madness King/Voltbolt Active kinds + REQUIRED_EFFECT_FIELDS', () => {
   const WELL_FORMED: Record<string, Record<string, unknown>> = {
     mind_manipulation: {
@@ -280,6 +286,11 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     applyMadness(e, 2 / 60); // exactly 2 ticks
+    // fb057: `updateEnemies` now also runs a mad enemy's own madness attack
+    // (`updateMadnessAttack`), and each attack registers a stack. Its clock is
+    // parked so this row measures the decay and the expiry reset alone — the
+    // attacks' own stacking is tests/class-madness-king.test.ts's.
+    e.madnessAttackCooldown = 1e9;
     registerMadnessAttack(e);
     expect(e.madnessStacks).toBe(1);
     updateEnemies(w, DT);
@@ -326,7 +337,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     expect(madnessPerStackBonus(otherWorld)).toEqual({ attackSpeed: 0, moveSpeed: 0 });
   });
 
-  it('madnessStacks raises enemyAttackSpeedMul/effectiveSpeed by the per-stack bonus, multiplicatively', () => {
+  it('madnessStacks raise the madness attacks\' own cadence (madnessAttackSpeedMul) and a non-elite\'s effectiveSpeed, multiplicatively — never enemyAttackSpeedMul, never an elite\'s speed (fb057)', () => {
     const doc = JSON.parse(JSON.stringify(content.raw.classes)) as { classes: { key: string; passive: Record<string, unknown> }[] };
     const row = doc.classes.find((c) => c.key === 'animist')!;
     row.passive = {
@@ -344,10 +355,29 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
 
     const baseAtkMul = enemyAttackSpeedMul(w, e);
+    const baseMadMul = madnessAttackSpeedMul(w, e);
     const baseSpeed = effectiveSpeed(w, e);
+    expect(baseMadMul, 'with no stacks the madness cadence is the ordinary one').toBeCloseTo(baseAtkMul, 12);
     e.madnessStacks = 3;
-    expect(enemyAttackSpeedMul(w, e)).toBeCloseTo(baseAtkMul * 1.3, 6);
+    expect(madnessAttackSpeedMul(w, e)).toBeCloseTo(baseMadMul * 1.3, 6);
     expect(effectiveSpeed(w, e)).toBeCloseTo(baseSpeed * 1.3, 6);
+    // fb057 (§4.2 designer note): "the bonus never speeds up damage to
+    // structures or the character" — `enemyAttackSpeedMul` prices exactly
+    // those cooldowns, so the stacks must not reach it. This used to assert
+    // the opposite (fb085 pre-wired the stacks into it ahead of the owner's
+    // note), which is the contradiction fb057 removed.
+    expect(enemyAttackSpeedMul(w, e), 'madness stacks sped up an attack on a structure/the character').toBeCloseTo(
+      baseAtkMul,
+      12,
+    );
+
+    // ...and "madness never increases their movement speed" for an elite/boss.
+    const elite = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 2, w.warden.y, { elite: true })!;
+    const eliteSpeed = effectiveSpeed(w, elite);
+    elite.madnessStacks = 3;
+    expect(effectiveSpeed(w, elite), "madness stacks sped up an elite's movement").toBeCloseTo(eliteSpeed, 12);
+    // The elite's own madness attacks still speed up — only its movement is exempt.
+    expect(madnessAttackSpeedMul(w, elite)).toBeCloseTo(enemyAttackSpeedMul(w, elite) * 1.3, 6);
   });
 });
 
@@ -427,22 +457,101 @@ describe('fb085(b): madnessMoveTarget — the retarget/wander seam (§4.2 "attac
 /* ------------------------------------------------------------------------ */
 
 describe('fb085(c): a zero-charge duration floor beside groundDurationSeconds on ClassEffectSchema', () => {
-  it('is optional and absent on every currently-shipped ground_poison row', () => {
+  // Was "is optional and absent on every currently-shipped ground_poison row"
+  // — a deliberate placeholder until fb061 authored the field. fb061 (§4.1
+  // amended, owner feedback `feature-plaguebringer-charge`) now ships it, so
+  // the "shipped" half flips to the authored shape and the "optional" half is
+  // proven on a synthetic row instead.
+  it('fb061 ships it on Poison Barrel: an 8 s floor at or below its 14 s groundDurationSeconds ceiling', () => {
     const plaguebringer = content.classByKey.get('plaguebringer')!;
     expect(plaguebringer.active1.kind).toBe('ground_poison');
-    expect(plaguebringer.active1.minGroundDurationSeconds).toBeUndefined();
+    expect(plaguebringer.active1.minGroundDurationSeconds).toBe(8);
+    expect(plaguebringer.active1.groundDurationSeconds).toBe(14);
+    expect(plaguebringer.active1.minGroundDurationSeconds!).toBeLessThanOrEqual(plaguebringer.active1.groundDurationSeconds!);
+  });
+
+  it('is still optional in the schema: a ground_poison row without it loads, and reads back absent', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2 });
+    expect(() => validateClassEffect(eff, 'x')).not.toThrow();
+    // Through the real loader too (zod schema + validateClassEffect), not only
+    // the validator in isolation.
+    const doc = classesDoc();
+    const row = doc.classes.find((c) => c.key === 'plaguebringer')!;
+    delete row.active1.minGroundDurationSeconds;
+    const c = loadContent({ classes: doc });
+    expect(c.classByKey.get('plaguebringer')!.active1.minGroundDurationSeconds).toBeUndefined();
   });
 
   it('loads clean when authored at or below groundDurationSeconds (fb061\'s 8s -> 14s shape)', () => {
-    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8 });
+    // fb061: `chargeCapSeconds` is now required on every `ground_poison` row
+    // (a hold/release charge kind), so these fixtures author it — the floor is
+    // the only thing under test here.
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(eff, 'x')).not.toThrow();
-    const equal = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 8 });
+    const equal = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 8, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(equal, 'x')).not.toThrow();
   });
 
   it('refuses a floor above its own ceiling — unpayable data (rule 4)', () => {
-    const eff = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 14 });
+    // `chargeCapSeconds` authored so the refusal can only be the floor's.
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 8, minGroundDurationSeconds: 14, chargeCapSeconds: 2 });
     expect(() => validateClassEffect(eff, 'x')).toThrow(/minGroundDurationSeconds/);
+  });
+});
+
+describe('fb061: ground_poison is a hold/release charge kind — the loader refuses a row it cannot charge', () => {
+  it('refuses a groundTickSeconds above the zero-charge lifetime floor — a quick-release cloud would expire before its first application (fb061 review finding)', () => {
+    // fb082's rule compared the tick only against the full-charge lifetime;
+    // with fb061's floor a tick between 8 s and 14 s loaded clean yet a
+    // released-at-once cloud never poisoned anything.
+    const eff = baseEffect('ground_poison', {
+      groundDurationSeconds: 14,
+      minGroundDurationSeconds: 8,
+      groundTickSeconds: 10,
+      chargeCapSeconds: 2,
+    });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/minGroundDurationSeconds/);
+    const atFloor = baseEffect('ground_poison', {
+      groundDurationSeconds: 14,
+      minGroundDurationSeconds: 8,
+      groundTickSeconds: 8,
+      chargeCapSeconds: 2,
+    });
+    expect(() => validateClassEffect(atFloor, 'x')).not.toThrow();
+  });
+
+  it('refuses a ground_poison row with no chargeCapSeconds, instead of charging it on the generic 3 s fallback', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, minGroundDurationSeconds: 8 });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/chargeCapSeconds/);
+    // And through the real loader, on the shipped row with just that key removed.
+    const doc = classesDoc();
+    delete doc.classes.find((c) => c.key === 'plaguebringer')!.active1.chargeCapSeconds;
+    expect(() => loadContent({ classes: doc })).toThrow(/chargeCapSeconds/);
+  });
+
+  it('refuses a non-positive chargeCapSeconds on a ground_poison row', () => {
+    for (const cap of [0, -2]) {
+      const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: cap });
+      expect(() => validateClassEffect(eff, 'x'), `chargeCapSeconds ${cap}`).toThrow(/chargeCapSeconds/);
+    }
+  });
+
+  it('refuses a zero-charge minRadius above the full-charge radius — holding would shrink the cloud', () => {
+    const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 5, minRadius: 10 });
+    expect(() => validateClassEffect(eff, 'x')).toThrow(/minRadius/);
+    const doc = classesDoc();
+    const row = doc.classes.find((c) => c.key === 'plaguebringer')!;
+    row.active1.minRadius = (row.active1.radius as number) + 1;
+    expect(() => loadContent({ classes: doc })).toThrow(/minRadius/);
+  });
+
+  it('accepts a minRadius at or below radius, and a row that leaves minRadius unauthored (no radius scaling)', () => {
+    for (const minRadius of [5, 10]) {
+      const eff = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 10, minRadius });
+      expect(() => validateClassEffect(eff, 'x'), `minRadius ${minRadius}`).not.toThrow();
+    }
+    const unscaled = baseEffect('ground_poison', { groundDurationSeconds: 14, chargeCapSeconds: 2, radius: 10 });
+    expect(() => validateClassEffect(unscaled, 'x')).not.toThrow();
   });
 });
 

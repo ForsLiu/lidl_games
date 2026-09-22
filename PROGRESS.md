@@ -5,6 +5,51 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-22 (owner-directed session) — fb062 CLOSED (last clause): the
+  Poison Barrel tooltip states the real mechanic.** `poisonBarrelSentence`
+  (`src/ui/class-info.ts`) now says "Poisons every enemy inside the circle
+  each second: each application deals N poison damage over 3s (up to 3
+  stacks)" (owner wording; N = 4.8 at base on shipped data), N being the
+  sim's own `dotDpsFor` conversion of the live seed — Power, flat Atk and the
+  Active1 potency card (new `ClassLiveContext.active1PotencyMul`, code-review
+  finding) — after fb061's charge clause. Follow-up filed: fb201 (the other
+  Active1 sentences omit potency too). The UI-lane repro `it.skip` in
+  `tests/class-poison-barrel-mechanic.test.ts` is un-skipped and extended.
+  Light tier (UI). — refs: owner feedback `feature-poison-barrel-mechanic`,
+  BACKLOG-CONTENT.md fb062.
+
+- **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
+  CONTENT.md fb057 CLOSED: Madness King is class #13 (4th visible).** Full
+  kit per owner feedback (Whispers + the Madness status, Mind Manipulation
+  with converted teammates and the elite tick branch, Spreading Madness,
+  Frenzied Aim), unlock quest `mob_mentality`, VFX registry entries with a
+  stack ramp, roster 13 through SPEC-FINAL §4/§13/§14 G8 and every
+  roster-counting test (each gains a real Madness King row). New
+  `tests/class-madness-king.test.ts` (41 cases). G8 for the new class is
+  unmeasured (excluded p6e suite pins it as never-measured) — a balance pass
+  is the next step. Full tier. — refs: SPEC-FINAL §4.2, owner feedback
+  `feature-class-madness-king`, QUESTIONS Q217.
+
+- **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
+  CONTENT.md fb061 CLOSED: Poison Barrel is a hold/release charge skill.**
+  `ground_poison` joined Circle Slash's hold/release model (`isChargeKind`;
+  a bare Command declines), firing on release with `poisonBarrelValues`
+  lerping radius 5 -> 10 and lifetime 8 -> 14 s over a 2 s hold (all in
+  `data/classes.json`; poison/s and the 1 s cadence untouched), a charge
+  ring in `canvas.ts`, and loader rules for the charge cap, radius floor and
+  (review finding) a tick no longer than the quick-release lifetime.
+  SPEC-FINAL §4.1 amended per the owner. The 2026-09-17 attempt's wall — two
+  out-of-lane test files hardcoding instant fire — is gone under full scope:
+  those tests (p6c, fb085, the §4 ledger, the per-Active harnesses, the UI
+  falloff/area suites) now fire through hold/release with every assertion
+  kept (a first-pass p6c fixture edit that let the new rules mask fb082's
+  was caught by review and restored). Review also caught the scripted-bot
+  harness's stale charge-kind list (bots had stopped casting the Barrel) —
+  fixed via the sim's exported `isChargeKind`, pinned in fb123. fb060's
+  render frame-budget timing case moved to the perf tier. Readings: Q216.
+  Full tier. — refs: SPEC-FINAL §4.1, owner feedback
+  `feature-plaguebringer-charge`.
+
 - **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
   CONTENT.md fb056 CLOSED: the 15 class equipment sets ship.** Plaguebringer
   (6), Time Lord (6) and the Swordsman completion (3) are in

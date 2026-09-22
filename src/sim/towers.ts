@@ -24,7 +24,7 @@ import {
 import type { TowerDef } from './content';
 import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
-import { dist2, normalize } from './math';
+import { dist, dist2, normalize } from './math';
 import { applySlow } from './enemies';
 import { active1PotencyMul, classLineBonus } from './progression';
 import { tickCooldown, type Enemy, type Structure, type TowerClassBonus } from './types';
@@ -407,8 +407,35 @@ export function attackSpeedFor(w: World, s: Structure): number {
     w.derived.towerAttackSpeedMul *
     (1 + (w.auraBonus.get(s.id) ?? 0)) *
     vampireMissingHpBuffMul(w, s) *
-    classTowerAttackSpeedMul(w, s)
+    classTowerAttackSpeedMul(w, s) *
+    frenziedAimMul(w, s)
   );
+}
+
+/**
+ * fb057 (§4.2 Madness King tower passive *Frenzied Aim*): "each tower's attack
+ * speed rises the closer its nearest enemy is: 0% bonus at the tower's max
+ * range, scaling linearly to a maximum bonus at point-blank equal to the
+ * character's total attack-speed bonus +10%" — recomputed every tick from the
+ * nearest enemy in range (designer note), 1 with none in range or for any
+ * other class. The "+10%" is the passive's own `frenziedAimFlatBonus`; a
+ * negative total (a slow-weapon character) floors at no bonus, never a malus.
+ */
+export function frenziedAimMul(w: World, s: Structure): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.towerPassive.kind !== 'frenzied_aim') return 1;
+  const def = w.content.towerById.get(s.towerId);
+  if (!def || !def.attack) return 1;
+  const range = effectiveTowerRange(w, def);
+  if (!(range > 0)) return 1;
+  const cx = s.tx + 0.5;
+  const cy = s.ty + 0.5;
+  const e = w.nearestEnemy(cx, cy, range);
+  if (!e) return 1;
+  const maxBonus = Math.max(0, w.derived.attackSpeedMul - 1 + (cls.towerPassive.frenziedAimFlatBonus ?? 0));
+  const d = dist(cx, cy, e.x, e.y);
+  const closeness = Math.min(1, Math.max(0, 1 - d / range));
+  return 1 + maxBonus * closeness;
 }
 
 function classTowerAttackSpeedMul(w: World, s: Structure): number {

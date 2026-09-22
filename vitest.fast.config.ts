@@ -49,6 +49,9 @@ export default mergeConfig(
         // paintIterationCount pin) into tests/terrain-cost-ceiling.test.ts,
         // measured single-threaded under vitest.perf.config.ts.
         'tests/terrain-cost-ceiling.test.ts',
+        // Same day, sixth: fb060's 16.7 ms/frame render budget for 300 DoT
+        // carriers, split out of tests/render-fb060-dot-tick-numbers.test.ts.
+        'tests/render-fb060-dot-tick-perf.test.ts',
         // ~1 h: 11 classes × multi-seed full-run diversity measurement (G8).
         'tests/p6e-class-diversity.test.ts',
         // Multi-seed full-run gate measurements over the Core roster.

@@ -15,7 +15,7 @@ import {
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
-import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
+import { characterBasicRange, circleSlashValues, classArmorBonus, poisonBarrelValues } from '../sim/classes';
 import type { ClassDef } from '../sim/content';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
@@ -50,6 +50,8 @@ import {
   ACTIVE_KIND_SHAPE,
   AREA_SCALED_ACTIVE_KINDS,
   CLASS_VFX,
+  MADNESS_VFX,
+  madnessRampColor,
   CORE_VFX,
   type BasicImpactShape,
   type VfxShape,
@@ -873,6 +875,17 @@ export class Renderer {
           this.pushBasicImpact(entry.basic.impact, e.a, e.b, entry.basic.color);
           break;
         }
+        // fb057 (§4.2 Madness King): the Madness status's two attack shapes
+        // (MADNESS_VFX) and the stack ramp that brightens with each attack.
+        case 'madness_hit':
+          this.pushCast('line', e.x, e.y, e.a, e.b, MADNESS_VFX.teammate.color);
+          break;
+        case 'madness_ramp':
+          this.pushCast('point', e.x, e.y, 0, 0, madnessRampColor(e.a));
+          break;
+        case 'madness_self':
+          this.pushCast('nova', e.x, e.y, 0.35 + 0.05 * Math.min(10, e.a), 0, madnessRampColor(e.a));
+          break;
         case 'core_plant':
           this.pushCast('point', e.x, e.y, 0, 0, coreEffectColor(w.coreKey, 'devour', '#7ac74f'));
           break;
@@ -1912,6 +1925,20 @@ export class Renderer {
         ctx.beginPath();
         ctx.arc(px, py, 3 + (1 - t) * 9, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (b.shape === 'crown') {
+        // fb057 Madness King: a three-point crown stamped on the target.
+        const s = 5 + (1 - t) * 2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px - s, py + s * 0.5);
+        ctx.lineTo(px - s, py - s * 0.5);
+        ctx.lineTo(px - s * 0.5, py);
+        ctx.lineTo(px, py - s);
+        ctx.lineTo(px + s * 0.5, py);
+        ctx.lineTo(px + s, py - s * 0.5);
+        ctx.lineTo(px + s, py + s * 0.5);
+        ctx.closePath();
+        ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
@@ -1977,7 +2004,7 @@ export class Renderer {
 
   /**
    * fb016: a charge-kind Active1 (Circle Slash's nova, Deadeye Draw's shot
-   * line) is the one Active shape with real pre-fire state to preview —
+   * line, and since fb061 Poison Barrel's cloud) is the one Active shape with real pre-fire state to preview —
    * `w.warden.active1Charging`/`active1Charge` — so this is the only "aim
    * indicator" backed by live sim state rather than a fire-moment flash.
    * Every other kind fires atomically from a Command with no held phase to
@@ -2007,6 +2034,14 @@ export class Renderer {
       // real one the moment any Area source (an item, a boon) is live. `w.derived`
       // is public sim state, not a re-derivation of a private helper.
       const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
+      ctx.beginPath();
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (cls.active1.kind === 'ground_poison') {
+      // fb061: Poison Barrel's hold previews the cloud it will drop — the same
+      // charge-lerped radius `firePoisonBarrel` sizes the zone with, Area
+      // included, so the ring is the footprint that actually lands.
+      const { radius } = poisonBarrelValues(cls.active1, wd.active1Charge);
       ctx.beginPath();
       ctx.arc(wd.x * TILE, wd.y * TILE, radius * w.derived.areaMul * TILE, 0, Math.PI * 2);
       ctx.stroke();

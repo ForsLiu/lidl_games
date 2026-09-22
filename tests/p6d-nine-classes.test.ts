@@ -97,10 +97,11 @@ describe('p6d: §4.2 ships nine classes with the four §4 slots each', () => {
     expect(c.towerPassive.name.length).toBeGreaterThan(0);
   });
 
-  it('§13 content total: twelve SPEC-FINAL classes are authored', () => {
+  it('§13 content total: thirteen SPEC-FINAL classes are authored', () => {
     // fb013 added a 12th (Time Lord) past a direct owner directive, after
-    // §13's original eleven were filled — see QUESTIONS.md Q139.
-    expect(content.classes.classes).toHaveLength(12);
+    // §13's original eleven were filled — see QUESTIONS.md Q139. fb057 added
+    // the 13th (Madness King) the same way (QUESTIONS Q217).
+    expect(content.classes.classes).toHaveLength(13);
   });
 
   it('§4.2 Unlocks: Swordsman, Archer and Engineer are the free three', () => {

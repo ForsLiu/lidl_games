@@ -192,6 +192,12 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     atkSlowRemaining: 0,
     madnessRemaining: 0,
     madnessStacks: 0,
+    madnessFromPassive: false,
+    madnessAttackCooldown: 0,
+    madnessAnchorX: 0,
+    madnessAnchorY: 0,
+    mindSlowAmount: 0,
+    mindSlowRemaining: 0,
   };
   return e;
 }
@@ -376,7 +382,32 @@ const CLASS_SOURCE_PREFIX = 'class_';
  * why the two are deliberately not the same set.
  */
 export function isKitSource(source: string): boolean {
-  return source.startsWith(CLASS_SOURCE_PREFIX) || source === 'spreading_plague';
+  return source.startsWith(CLASS_SOURCE_PREFIX) || source === 'spreading_plague' || source === MADNESS_SOURCE;
+}
+
+/**
+ * fb057 (§4.2 Madness King): the damage source of an enemy's attack on
+ * another enemy (a mad enemy's, or a Mind-Manipulated teammate's) or on
+ * itself. A character-caused kill for every on-kill rule (§4.2's engine note:
+ * "on-kill effects, Spreading Plague, gems, and quest metrics"), attributed
+ * to the kit (`isKitSource`) but never scaled by kit power — the magnitude is
+ * the *enemy's* own attack, not an authored kit number (`scalesWithKitPower`
+ * keeps its `class_` prefix rule, which this name deliberately does not match).
+ */
+export const MADNESS_SOURCE = 'madness';
+
+/**
+ * fb057 (code review, owner Q180 OVERRIDE): an enemy's attack landing on
+ * *another enemy* (a mad strike, a converted teammate's, the enemy half of
+ * Mind Manipulation's elite tick) is damage dealt to enemies — economy A,
+ * scaled by `numberScale` like enemy HP — while the same enemy's hit on a
+ * structure or the character stays economy B (`enemyCoreDamage`, unscaled).
+ * Without this a mad enemy would hit other enemies 1/`numberScale` (10x) as
+ * hard, relative to their HP, as its authored numbers imply. (The boss
+ * slam's splash made the opposite, uniform choice and logged it — boss.ts.)
+ */
+export function enemyHitOnEnemies(w: World, def: EnemyDef, buffPower: number): number {
+  return enemyCoreDamage(w, def) * (1 + buffPower) * w.content.modifiers.numberScale;
 }
 
 /**
@@ -518,6 +549,9 @@ export function damageEnemy(
     // the enemy's life — matches §5.5's literal "poison kills" reading and
     // the fastest thing to compute at the one choke point that knows both.
     if (dmgType === 'poison') w.poisonKills++;
+    // fb057: "enemies killed by other enemies" — a mad/converted enemy's
+    // attack, or a Spreading Plague corpse's transfer.
+    if (source === MADNESS_SOURCE || source === 'spreading_plague') w.enemyOnEnemyKills++;
     killEnemy(w, e, source);
   }
   // fb162: intentionally the raw, unclamped hit — callers that used to treat
@@ -816,6 +850,11 @@ export function isChilled(e: Enemy): boolean {
  */
 export function applyMadness(e: Enemy, durationSeconds: number): void {
   if ((e.flags & TRAIT.slowImmune) !== 0) return;
+  // fb057: a fresh madness remembers where it began (the wander's anchor).
+  if (e.madnessRemaining <= 0 && durationSeconds > 0) {
+    e.madnessAnchorX = e.x;
+    e.madnessAnchorY = e.y;
+  }
   e.madnessRemaining = Math.max(e.madnessRemaining, durationSeconds);
 }
 
@@ -871,9 +910,22 @@ export function enemyAttackSpeedMul(w: World, e: Enemy): number {
   let mul = e.frostRemaining > 0 ? 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0) : 1;
   if (e.atkSlowRemaining > 0) mul *= 1 - e.atkSlowAmount;
   if (nearCoreSlowAura(w, e)) mul *= 1 - w.core.tdSlowPct;
-  // fb085 (Madness King enabler): the stacking +atk-speed half.
-  if (e.madnessStacks > 0) mul *= 1 + e.madnessStacks * madnessPerStackBonus(w).attackSpeed;
+  // fb057: the madness stacks' +atk-speed half is *not* folded in here. This
+  // multiplier prices every cooldown an enemy runs — including the ones that
+  // hit structures and the character — and §4.2's designer note says the
+  // bonus "never speeds up damage to structures or the character". It prices
+  // the madness attacks alone (`madnessAttackSpeedMul`).
   return mul;
+}
+
+/**
+ * fb057 (§4.2 Madness King): the cadence multiplier of a mad enemy's own
+ * madness attacks — the ordinary cooldown factors times "+10% attack speed
+ * per madness attack it makes, stacking, lost when madness ends".
+ */
+export function madnessAttackSpeedMul(w: World, e: Enemy): number {
+  const stacks = e.madnessStacks > 0 ? 1 + e.madnessStacks * madnessPerStackBonus(w).attackSpeed : 1;
+  return enemyAttackSpeedMul(w, e) * stacks;
 }
 
 /** Frozen's +30% damage taken, as a multiplier. Applies to ailments too. */
@@ -1151,6 +1203,7 @@ export function applyOnHit(w: World, e: Enemy, key: string, source: string): voi
     }
     return;
   }
+  if (key === 'whispers') return applyWhispersMadness(w, e);
   if (key === 'frost') return applyFrost(w, e);
   if (key === 'frozen') return applyFrozen(w, e);
   const def = w.content.damageTypeByKey.get(key);
@@ -1361,6 +1414,10 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   }
   if (e.frostRemaining > 0) e.frostRemaining -= dt;
   if (e.frozenRemaining > 0) e.frozenRemaining -= dt;
+  if (e.mindSlowRemaining > 0) {
+    e.mindSlowRemaining -= dt;
+    if (e.mindSlowRemaining <= 0) e.mindSlowAmount = 0;
+  }
   if (e.atkSlowRemaining > 0) {
     e.atkSlowRemaining -= dt;
     if (e.atkSlowRemaining <= 0) e.atkSlowAmount = 0;
@@ -1373,6 +1430,7 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
     if (e.madnessRemaining <= 0) {
       e.madnessRemaining = 0;
       e.madnessStacks = 0;
+      e.madnessFromPassive = false;
     }
   }
   // fb013 Time Lord *Time*: the present->future stage's -20% atk/move slow,
@@ -1407,9 +1465,14 @@ export function effectiveSpeed(w: World, e: Enemy): number {
   const st = w.content.damageTypes.statuses.frost;
   const frost = e.frostRemaining > 0 ? 1 + (st.moveSpeed ?? 0) : 1;
   const coreSlow = nearCoreSlowAura(w, e) ? 1 - w.core.tdSlowPct : 1;
-  // fb085 (Madness King enabler): the stacking +move-speed half.
-  const madness = e.madnessStacks > 0 ? 1 + e.madnessStacks * madnessPerStackBonus(w).moveSpeed : 1;
-  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost * coreSlow * madness;
+  // fb085 (Madness King enabler): the stacking +move-speed half. fb057: never
+  // for an elite/boss — "madness never increases their movement speed" (§4.2).
+  const madness =
+    e.madnessStacks > 0 && !e.elite && !e.boss ? 1 + e.madnessStacks * madnessPerStackBonus(w).moveSpeed : 1;
+  // fb057 (QA): Mind Manipulation's own timed slow — the strongest of it and
+  // the ordinary slow applies, each on its own clock.
+  const slow = e.mindSlowRemaining > 0 ? Math.max(e.slowAmount, e.mindSlowAmount) : e.slowAmount;
+  return e.speed * (1 - slow) * (1 + e.buffSpeed) * frost * coreSlow * madness;
 }
 
 /* ----------------------------------------------------------------- update */
@@ -1436,6 +1499,13 @@ export function updateEnemies(w: World, dt: number): void {
     // chase movement whenever the script has nothing to say this tick.
     if ((e.flags & TRAIT.finalBoss) !== 0 && bossUpdate(w, e, dt)) continue;
     if (huntWarden) updateGroundUnreachable(w, e, def, dt, target);
+
+    // fb057 (§4.2 Madness King): a mad enemy's own attack on another enemy
+    // (or on itself), before it moves — see `updateMadnessAttack`.
+    if (e.madnessRemaining > 0) {
+      updateMadnessAttack(w, e, def, dt);
+      if (e.dead) continue;
+    }
 
     const taunted = tauntTarget(w, e);
     // fb085 (Madness King enabler): a taunt (Clarion/Recall) outranks a
@@ -1877,6 +1947,89 @@ const MADNESS_TARGET_RADIUS = 3;
 const MADNESS_WANDER_RADIUS = 1;
 
 /**
+ * fb057 (§4.2 Madness King *Whispers*): "every basic attack (and each damage
+ * instance from an Active) puts the target into madness for 3 s. Cap: 5
+ * enemies mad from the passive at once; at the cap, new hits apply nothing
+ * until an old madness expires or that enemy dies." Reached through the
+ * shared `onHit` fan-out (`passiveOnHit`, classes.ts). A hit on an enemy the
+ * passive already holds refreshes it without spending a slot; the cap (and
+ * the §6.3 class-line card's +1/rank) counts only enemies *this passive* made
+ * mad (`madnessFromPassive`) — Active2's madness never takes a slot.
+ */
+export function applyWhispersMadness(w: World, e: Enemy): void {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.passive.kind !== 'whispers' || e.dead) return;
+  const seconds = cls.passive.madnessDurationSeconds ?? 0;
+  if (seconds <= 0) return;
+  // Already mad from another source (Active2): the hit may extend it, but it
+  // is not the passive's and takes no slot.
+  if (e.madnessRemaining > 0 && !e.madnessFromPassive) {
+    applyMadness(e, seconds);
+    return;
+  }
+  if (!e.madnessFromPassive) {
+    const cap = Math.round((cls.passive.madnessCap ?? 0) + classLineBonus(w));
+    let held = 0;
+    for (const o of w.enemies) if (!o.dead && o.madnessFromPassive && o.madnessRemaining > 0) held++;
+    if (held >= cap) return;
+  }
+  applyMadness(e, seconds);
+  // `applyMadness` honours `slowImmune`: only a status that actually took is the passive's.
+  if (e.madnessRemaining > 0) e.madnessFromPassive = true;
+}
+
+/**
+ * fb057 (§4.2 Madness King, the Madness status): a mad enemy "attacks the
+ * nearest OTHER enemy within r3 until it dies; if no enemy within r3, it
+ * attacks itself" — each attack at the enemy's own contact cadence
+ * (`spawns.contactInterval`) sped by its madness stacks
+ * (`madnessAttackSpeedMul`), for its own attack damage (`enemyCoreDamage` x
+ * its buff power — the same hit `contactWarden` lands on the character), and
+ * each one "grants it +10% attack speed and +10% movement speed"
+ * (`registerMadnessAttack`). A non-elite must first *reach* its victim (its
+ * movement is redirected by `madnessMoveTarget`); an elite/boss keeps its own
+ * pathing and strikes any teammate within r3 in passing, else itself
+ * ("self-damage while walking", the designer note). Every hit is the
+ * `MADNESS_SOURCE` — a character-caused kill.
+ */
+function updateMadnessAttack(w: World, e: Enemy, def: EnemyDef, dt: number): void {
+  if (w.dying || e.submerged) return;
+  if (e.madnessAttackCooldown > 0) {
+    e.madnessAttackCooldown -= dt;
+    if (e.madnessAttackCooldown > 0) return;
+  }
+  let victim: Enemy | null = null;
+  let bestD2 = MADNESS_TARGET_RADIUS * MADNESS_TARGET_RADIUS;
+  for (const other of w.enemies) {
+    if (other.id === e.id || other.dead || other.submerged) continue;
+    const d2 = dist2(e.x, e.y, other.x, other.y);
+    if (d2 <= bestD2) {
+      victim = other;
+      bestD2 = d2;
+    }
+  }
+  const eliteLike = e.elite || e.boss;
+  if (victim && !eliteLike) {
+    const reach = e.radius + victim.radius + w.content.spawns.contactPadding;
+    if (bestD2 > reach * reach) return; // still closing in
+  }
+  const target = victim ?? e;
+  const damage = enemyHitOnEnemies(w, def, e.buffPower);
+  e.madnessAttackCooldown = w.content.spawns.contactInterval / Math.max(madnessAttackSpeedMul(w, e), 0.01);
+  registerMadnessAttack(e);
+  // fb057 VFX (MADNESS_VFX, render/vfx-registry.ts): a self-strike carries the
+  // stack count for its ring; a teammate strike draws its line plus a ramp
+  // glow at the attacker, brightening with each madness attack.
+  if (target === e) {
+    w.emit('madness_self', e.x, e.y, e.madnessStacks, e.id);
+  } else {
+    w.emit('madness_hit', e.x, e.y, target.x, target.y);
+    w.emit('madness_ramp', e.x, e.y, e.madnessStacks, e.id);
+  }
+  damageEnemy(w, target, damage, MADNESS_SOURCE, { fromX: e.x, fromY: e.y });
+}
+
+/**
  * fb085 (unblocking BACKLOG-CONTENT.md fb057): `tauntTarget`'s counterpart
  * for the Madness status — the position a mad, non-elite/boss enemy moves
  * toward this tick, instead of the normal Core/Warden target `updateEnemies`
@@ -1906,10 +2059,13 @@ export function madnessMoveTarget(w: World, e: Enemy): { x: number; y: number } 
     }
   }
   if (best) return { x: best.x, y: best.y };
+  // fb057: "random-walks within r1 of where it went mad" — around the anchor
+  // `applyMadness` recorded, so the walk stays inside that disc instead of
+  // drifting a radius further every tick.
   const angle = w.rng.ai.range(0, TAU);
   return {
-    x: clamp(e.x + dcos(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_W - 0.4),
-    y: clamp(e.y + dsin(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_H - 0.4),
+    x: clamp(e.madnessAnchorX + dcos(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_W - 0.4),
+    y: clamp(e.madnessAnchorY + dsin(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_H - 0.4),
   };
 }
 

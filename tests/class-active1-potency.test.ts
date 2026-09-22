@@ -1,7 +1,7 @@
 /**
  * c021 (BACKLOG-CONTENT, lane `content`) — **the twelve `active1_potency`
  * cards, on trial: the last of the three §6.3 cards with no cross-class
- * coverage.**
+ * coverage.** (Thirteen since fb057's Madness King.)
  *
  * `c016` closed `class_line` (twelve rows), `c019` closed `active2_cdr`
  * (twelve ladders plus two named deviations). `active1_potency` was touched
@@ -13,8 +13,8 @@
  *
  * **"Potency" is not "damage", and pretending otherwise measured a kit wrong.**
  * The item's acceptance says the card must move "its own Active1's damage";
- * **six** of the twelve Active1s author `damage: 0` and carry their magnitude
- * somewhere else entirely (`data/classes.json`):
+ * **seven** of the thirteen Active1s author `damage: 0` and carry their
+ * magnitude somewhere else entirely (`data/classes.json`):
  *
  *   | class       | Active1           | what potency actually multiplies       |
  *   |-------------|-------------------|----------------------------------------|
@@ -24,6 +24,7 @@
  *   | animist     | `manifest_spirit` | `summonStatMul` — the spirit's dps      |
  *   | paladin     | `clarion_taunt`   | `tauntDurationSeconds` — a longer taunt |
  *   | time_lord   | `time_mark`       | `markPast/PresentDotDps` — the mark DoTs|
+ *   | madness_king | `mind_manipulation` | the elite/boss branch's tick damage  |
  *
  * **This table said "four" and listed four, and that is exactly how this file
  * shipped a false deviation.** Bloodlord and Time Lord also author `damage: 0`;
@@ -98,7 +99,13 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { characterDamage, tickClassCharge, useClassActive, useClassActive2 } from '../src/sim/classes';
+import {
+  characterDamage,
+  tickClassCharge,
+  updateClassPassives,
+  useClassActive,
+  useClassActive2,
+} from '../src/sim/classes';
 import { loadContent, type SkillCardDef } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import { buildTower, towerDamage } from '../src/sim/towers';
@@ -339,6 +346,25 @@ const CASES: readonly PotencyCase[] = [
       return dot!.dps;
     },
   },
+  {
+    classKey: 'madness_king',
+    // fb057: the non-elite branch recruits (no magnitude at all), so the
+    // card's only reach is the elite/boss branch's (its attack + the basic
+    // hit) x `active1PotencyMul` tick train.
+    what: "Mind Manipulation's elite/boss tick damage",
+    read: (w) => {
+      const e = dummy(w, WX + 1, WY);
+      e.elite = true;
+      const before = e.hp;
+      castActive1(w);
+      expect(e.dead, 'harness: Mind Manipulation converted an elite').toBe(false);
+      const eff = w.content.classByKey.get('madness_king')!.active1;
+      const window = (eff.eliteConvertTicks ?? 0) * (eff.eliteConvertTickSeconds ?? 0);
+      for (let t = 0; t < Math.ceil(window * 60) + 30; t++) updateClassPassives(w, DT);
+      expect(w.mindTicks, 'harness: the tick train never finished').toHaveLength(0);
+      return before - e.hp;
+    },
+  },
 ];
 
 /** Every *other* class's `active1_potency` card at max rank — the key-leak probe. */
@@ -355,8 +381,8 @@ function foreignRanks(classKey: string): Ranks {
 /* ------------------------------------------------------------ the coverage */
 
 describe('c021 — every class is on trial, and every window comes out of /data', () => {
-  it('all twelve classes are covered, once each', () => {
-    expect(CASES.length).toBe(12);
+  it('all thirteen classes are covered, once each', () => {
+    expect(CASES.length).toBe(13);
     expect([...CASES].map((c) => c.classKey).sort()).toEqual([...CLASS_KEYS].sort());
   });
 
@@ -715,6 +741,17 @@ describe('c021 — the card moves its named magnitude and nothing else', () => {
         const e = dummy(w, WX + 1, WY);
         castActive1(w);
         return nth(e.dots, 0).remaining;
+      },
+    },
+    {
+      classKey: 'madness_king',
+      field: 'eliteConvertSlowAmount and the tick window (the elite slow, not the tick damage)',
+      read: (w) => {
+        const e = dummy(w, WX + 1, WY);
+        e.elite = true;
+        castActive1(w);
+        // Both at once, Poison Barrel's way: one number that moves if either does.
+        return e.mindSlowAmount * 1000 + e.mindSlowRemaining; // fb057 QA: the elite slow is its own timed status
       },
     },
   ];
