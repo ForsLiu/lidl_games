@@ -49,6 +49,38 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+- [x] (fb200) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
+      (BACKLOG-UI.md fb151, filed 2026-09-05 by qa-playtester during fb112
+      verification).** Dash Slash's (and any `dash_line` class active's) real
+      hit corridor is `hitRange = dashRange + mergedRadius` (widened when the
+      dash merges with a charged Circle Slash, G9) and `lineHit` sweeps that
+      full extent — but `fireDashSlash` (`src/sim/classes.ts`) emitted the
+      `class_active2` render event with `resolveDashTarget`'s travel target
+      instead: a value calibrated from `dashRange` alone (never sees
+      `mergedRadius`) and independently clampable short by a wall `lineHit`
+      itself ignores. The UI lane's own render draw (`canvas.ts`) was already
+      correct for whatever it receives; the bug was entirely in what got
+      emitted, which is why the UI lane could not fix it from its own Scope.
+      Fix: emit `before + dir * hitRange` (the real hit-line endpoint) instead
+      of the clamped travel target; the Warden's own movement
+      (`startDashTravel`) is unchanged. New
+      `tests/fb151-dash-slash-emit-hit-extent.test.ts` pins a solo dash
+      unaffected and a merged dash's emitted segment widened by exactly the
+      charge's own area-scaled radius, confirmed red pre-fix (5 vs expected
+      9) and green post-fix. code-reviewer APPROVE (no Critical/Major).
+      qa-playtester PASS: independently confirmed against real struck-enemy
+      positions in both a flat and a wall-clamped repro (the original filed
+      scenario), confirmed the fix is specific to `dash_line`
+      (Pyromancer's `dash_trail`/Bloodlord's `dash_heal` untouched) and scales
+      correctly with Swordsman Shoes. QA also filed a new, out-of-scope
+      finding: Bloodlord's Crimson Rush (`fireCrimsonRush`, `dash_heal`) has
+      the same-shaped emit/sweep mismatch against a wall — not fixed here
+      (Bloodlord is lane/content scope; flagged for that lane rather than
+      queued as a new item by this session). `npx tsc --noEmit` clean;
+      targeted dash/class files (173 tests) and `npm run test:fast` green
+      (315 files, 4549 passed, 35 pre-existing skips, no new) — refs:
+      BACKLOG-UI.md fb151, SPEC-FINAL §4.1 (Swordsman), §14 G9.
+
 - [x] (fb173) [bug] **DONE 2026-09-07, filed by qa-playtester on fb172, fixed
       in the same session with the failing test first.** Two defects, one of
       them in fb172's own diff.
