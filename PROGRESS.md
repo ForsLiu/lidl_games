@@ -5,7 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 2 → 1,
+  last non-`enemies.ts` file cleared.** Fixed `src/sim/run.ts` (39
+  unchecked-index sites) with real guards (never `!`). Shapes:
+  `equipItemCommand`'s owned-count check got `?? 0`; `gateSpawnPoint` and
+  `updateAct1Wave`'s gate-fallback (`w.gates[i] ?? GATES[0]`) got a `throw`
+  after the fallback (`GATES` is a fixed non-empty literal, `w.gates`
+  defaults to a copy of it — unreachable); `tickWardenDots`'s per-tick
+  `wd.dots[i]` read got `if (!d) continue` (loop bound captured before
+  iterating, array never mutated mid-loop); `damageWarden`'s DoT-stack-cap
+  merge loop was rewritten from index-tracking to reference-tracking
+  (`let shortest = wd.dots[0]; if (!shortest) throw`, then compare/reassign
+  the object directly) — identical `<` tie-break semantics, throw
+  unreachable since the branch only runs once `wd.dots.length >= cap > 0`;
+  `buildSpawnQueue`'s `def` throw is unreachable (schema-enforced
+  `waves.min(1)`, `wave >= 1` at every call site); `updateAct1Wave`'s
+  spawn-queue dequeue guards the shifted triple with `=== undefined` checks
+  (not falsy, so a real `0` gate/wave index isn't misread as missing) since
+  `buildSpawnQueue` only ever pushes 3-element tuples; the wave-clear
+  equipment-drop pick, `damageSince`, `topWeaponShare`, the run-state hash
+  function's `w.derived`/`w.core`/accumulator loops, and `buildReport`'s
+  three copy-loops all got `?? 0` defaults — every one iterates
+  `Object.keys(sameObject)`, so the default can never actually fire on real
+  content. Does not touch `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags the file (only `enemies.ts`
+  remains); main `npx tsc --noEmit` clean; `tests/fb133-unchecked-access-
+  ratchet.test.ts` green; `npm run sim --seed 1 --policy hybrid` endHash
+  unchanged (`d6452f98`); `npm run test:fast` green, 315 files / 4548
+  passed / 35 skipped (one `tests/q13-perf-ratio.test.ts` timing-stability
+  failure on the first run was a host-CPU-contention flake from concurrent
+  background processes — passed clean in isolation and on qa-playtester's
+  own full rerun). code-reviewer APPROVE (no findings — independently
+  re-traced every guard's unreachability, confirmed the index-to-reference
+  rewrite preserves the original merge target and tie-break). qa-playtester
+  PASS — reconfirmed the endHash plus two more seed/policy combos (seed 2
+  maxbuild `69c6f658`, seed 3 turtle `1ea055ba`) byte-identical against a
+  `git stash` baseline, ran a 10-file targeted suite covering Time Lord's
+  `time_flow` DoT-stack-cap merge path plus spawn-queue/Act I/II
+  determinism (150/150 pass), and a full `test:fast` rerun (315/4548 green,
+  no flake recurrence) — no bugs filed. Full tier. **1 file remains, all
+  `/src/sim`**: `enemies.ts`. — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
   Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
   `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`
   overlay-copy loops and the Dijkstra bucket-pop inner loop got inline
