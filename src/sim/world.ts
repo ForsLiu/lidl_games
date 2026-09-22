@@ -716,7 +716,9 @@ export class World {
     // literal, so it can never drift off `grid.ts`'s own maintained position.
     this.gates = GATES.slice();
     if (this.mods.extraGates > 0) {
-      this.gates.push(MODIFIER_GATES[0]);
+      const south2 = MODIFIER_GATES[0];
+      if (south2 === undefined) throw new Error('unreachable: MODIFIER_GATES is a fixed non-empty literal');
+      this.gates.push(south2);
       for (const g of this.gates) {
         this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
       }
@@ -993,7 +995,7 @@ export class World {
     if (!Number.isInteger(tx) || !Number.isInteger(ty) || !this.grid.inBounds(tx, ty)) {
       return null;
     }
-    const id = this.grid.occ[this.grid.idx(tx, ty)];
+    const id = this.grid.occ[this.grid.idx(tx, ty)] ?? 0;
     if (id <= 0) return null;
     return this.structureById.get(id) ?? null;
   }
@@ -1062,13 +1064,20 @@ export class World {
   rebuildBuckets(): void {
     const cells = this.cells;
     const used = this.usedCells;
-    for (let i = 0; i < used.length; i++) cells[used[i]].length = 0;
+    for (let i = 0; i < used.length; i++) {
+      const c = used[i];
+      if (c === undefined) break; // unreachable: i < used.length
+      const bucket = cells[c];
+      if (bucket === undefined) break; // unreachable: used only ever holds in-range cell indices
+      bucket.length = 0;
+    }
     used.length = 0;
     // cellKey is inlined here: this loop runs for every live enemy every
     // tick, and the call plus its two clamps was measurable at the alive cap.
     const enemies = this.enemies;
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
+      if (e === undefined) break; // unreachable: i < enemies.length
       // Submerged Burrowers are out of the index entirely, so nothing can
       // target them until they surface.
       if (e.dead || e.submerged) continue;
@@ -1080,6 +1089,7 @@ export class World {
       else if (cy >= CELLS_Y) cy = CELLS_Y - 1;
       const c = cy * CELLS_X + cx;
       const bucket = cells[c];
+      if (bucket === undefined) continue; // unreachable: c always in [0, cells.length)
       if (bucket.length === 0) used.push(c);
       bucket.push(e);
     }
@@ -1105,8 +1115,10 @@ export class World {
       const row = cy * CELLS_X;
       for (let cx = minCx; cx <= maxCx; cx++) {
         const bucket = cells[row + cx];
+        if (bucket === undefined) continue; // unreachable: row+cx always in [0, cells.length)
         for (let i = 0; i < bucket.length; i++) {
           const e = bucket[i];
+          if (e === undefined) break; // unreachable: i < bucket.length
           if (e.dead) continue;
           if (dist2(x, y, e.x, e.y) <= r2) out.push(e);
         }
@@ -1128,8 +1140,10 @@ export class World {
       const row = cy * CELLS_X;
       for (let cx = minCx; cx <= maxCx; cx++) {
         const bucket = cells[row + cx];
+        if (bucket === undefined) continue; // unreachable: row+cx always in [0, cells.length)
         for (let i = 0; i < bucket.length; i++) {
           const e = bucket[i];
+          if (e === undefined) break; // unreachable: i < bucket.length
           if (e.dead) continue;
           if (filter && !filter(e)) continue;
           const d = dist2(x, y, e.x, e.y);

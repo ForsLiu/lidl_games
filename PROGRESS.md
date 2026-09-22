@@ -5,7 +5,60 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 6 → 5,
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 4 → 3.**
+  Fixed `src/sim/world.ts` (25 unchecked-index sites) with real guards
+  (never `!`). Hottest path in the sim: `rebuildBuckets()`,
+  `enemiesInRadius()`, `nearestEnemy()` (the live-enemy spatial hash) run
+  hundreds of times per tick, so every guard is a plain `undefined`
+  comparison on a value already about to be dereferenced — `used[i]`/
+  `enemies[i]`/`bucket[i]` loop-bound guards, `cells[c]`/`cells[row+cx]`
+  guards proven safe by `cells`' fixed size and `clampCell`'s bounded
+  output, `structureAt()`'s `?? 0` default (bounds-checked by a preceding
+  `grid.inBounds`), and a throw-guard on the Fourth Gate modifier's
+  `MODIFIER_GATES[0]` push (a fixed one-element literal in `grid.ts`).
+  Does not touch `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags the file (4 → 3); main tsc
+  clean; targeted suites green (38 tests); `npm run test:fast` green
+  (315/9 skipped, unchanged); sim endHash unchanged (`d6452f98`).
+  code-reviewer APPROVE, qa-playtester PASS — adversarial spatial-hash
+  stress (zero-enemy world, Fourth Gate live, boundary-spawned enemies,
+  2000-cycle rebuild after death, 300 cycles of churn with a per-enemy
+  self-discoverability check) found no bugs. Full tier. **3 files
+  remain, all `/src/sim`**: `enemies.ts`, `grid.ts`, `run.ts`. — refs:
+  BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 5 → 4,
+  first `/src/sim` file cleared.** Fixed `src/sim/terrain/analyze.ts` (25
+  unchecked-index sites, all provably-in-range reads) with real guards
+  (never `!`), matching existing precedent (`src/sim/rng.ts`'s
+  `pick`/`shuffle`/`sample`, `src/sim/terrain/generate.ts`'s `scatter`):
+  `map.kind[i] ?? TerrainKind.Normal` inline defaults at every
+  bounds-checked terrain-kind read (`walkableFlood`, `thickMask`,
+  `blockMask`, `corridorsOk`, `uncontestedHigh`, `gatesOpen`,
+  `measureTerrain`), matching `?? -Infinity`/`?? -1` numeric defaults in
+  `labelComponents`, and explicit `if (x === undefined) break/return`
+  guards on queue-dequeue values used for further indexing
+  (`walkableFlood`, `labelComponents`, `gateComponent`, `gatesConnected`).
+  Does not touch `/data`. Verified: `npx tsc --noEmit -p
+  tsconfig.unchecked.json` no longer flags the file, no new offenders
+  (5 → 4); main `npx tsc --noEmit` clean; targeted `npx vitest run` (93
+  tests across `fb133`, `terrain-generation`, `terrain-anchor-quality`,
+  `terrain-describe`) green; `npm run test:fast` green (315 files passed /
+  9 skipped, 324 total — the split has moved from unrelated suite growth
+  since the last fb133 reading, not a regression); `npm run sim --seed 1
+  --policy hybrid` endHash unchanged (`d6452f98`). code-reviewer APPROVE
+  (one Minor: `gatesConnected`'s undefined-guard rests on an invariant
+  across two independently-defaultable parameters, true at the sole call
+  site but not type-enforced — addressed with a comment, not a behavior
+  change). qa-playtester PASS — independently traced every guard against
+  real production entry points (`gridTerrain()`, `describeTerrain()`, the
+  generator, `overlay.ts` all enforce `map.kind.length === map.w*map.h`),
+  fuzzed adversarial configs (1x1 grid, all-rock map, zero gates, no legal
+  Core anchor) with no fallback ever firing; flagged the same
+  `gatesConnected`/`gateComponent` `reachIn`/`gates`-pairing footgun as
+  advisory-only (unreachable through any current call site). Full tier.
+  **4 files remain, all `/src/sim`**: `enemies.ts`, `grid.ts`, `run.ts`,
+  `world.ts`. — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 6 → 5,
   last test file cleared.** Fixed `tests/p2b-wielded-fire.test.ts` (90
   unchecked-index sites) with the same `nth<T>` throw-guard helper —
   single/two-tile `tiles()` destructures (two-tile cases caching a single

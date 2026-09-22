@@ -58,12 +58,14 @@ export function walkableFlood(
   const seen = new Uint8Array(map.w * map.h);
   const queue: number[] = [];
   for (const s of sources) {
-    if (s < 0 || s >= seen.length || seen[s] || !isWalkable(cfg, map.kind[s])) continue;
+    if (s < 0 || s >= seen.length || seen[s] || !isWalkable(cfg, map.kind[s] ?? TerrainKind.Normal))
+      continue;
     seen[s] = 1;
     queue.push(s);
   }
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head];
+    if (i === undefined) break; // unreachable: head < queue.length
     const x = i % map.w;
     const y = (i / map.w) | 0;
     for (const [dx, dy] of ORTHO) {
@@ -71,7 +73,7 @@ export function walkableFlood(
       const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
       const ni = ny * map.w + nx;
-      if (seen[ni] || !isWalkable(cfg, map.kind[ni])) continue;
+      if (seen[ni] || !isWalkable(cfg, map.kind[ni] ?? TerrainKind.Normal)) continue;
       seen[ni] = 1;
       queue.push(ni);
     }
@@ -107,10 +109,13 @@ export function gateComponent(
 ): Uint8Array {
   const reach = reachIn ?? perGateReach(map, cfg, gates);
   const all = new Uint8Array(map.w * map.h);
-  if (reach.length === 0) return all;
-  all.set(reach[0]);
+  const first = reach[0];
+  if (first === undefined) return all; // reach.length === 0
+  all.set(first);
   for (let g = 1; g < reach.length; g++) {
-    for (let i = 0; i < all.length; i++) if (!reach[g][i]) all[i] = 0;
+    const mask = reach[g];
+    if (mask === undefined) break; // unreachable: g < reach.length
+    for (let i = 0; i < all.length; i++) if (!mask[i]) all[i] = 0;
   }
   return all;
 }
@@ -131,7 +136,14 @@ export function gatesConnected(
   const reach = reachIn ?? perGateReach(map, cfg, gates);
   const idx = gateIndices(map, gates);
   for (let g = 0; g < idx.length; g++) {
-    for (const other of idx) if (!reach[g][other]) return false;
+    const mask = reach[g];
+    // unreachable given every call site's `reachIn`/`gates` pair line up (both
+    // default to the same `gates`, or the caller derives `reachIn` from the
+    // same `gates` it passes here, as `measureTerrain` does) — a caller that
+    // ever broke that pairing would silently short-circuit `true` here
+    // instead of throwing.
+    if (mask === undefined) break;
+    for (const other of idx) if (!mask[other]) return false;
   }
   return true;
 }
@@ -155,10 +167,10 @@ export function thickMask(map: TerrainGrid, cfg: TerrainConfig): Uint8Array {
       const c = a + map.w;
       const d = c + 1;
       if (
-        isWalkable(cfg, map.kind[a]) &&
-        isWalkable(cfg, map.kind[b]) &&
-        isWalkable(cfg, map.kind[c]) &&
-        isWalkable(cfg, map.kind[d])
+        isWalkable(cfg, map.kind[a] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[b] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[c] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[d] ?? TerrainKind.Normal)
       ) {
         thick[a] = 1;
         thick[b] = 1;
@@ -182,10 +194,10 @@ export function blockMask(map: TerrainGrid, cfg: TerrainConfig): Uint8Array {
     for (let x = 0; x < aw; x++) {
       const a = y * map.w + x;
       if (
-        isWalkable(cfg, map.kind[a]) &&
-        isWalkable(cfg, map.kind[a + 1]) &&
-        isWalkable(cfg, map.kind[a + map.w]) &&
-        isWalkable(cfg, map.kind[a + map.w + 1])
+        isWalkable(cfg, map.kind[a] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[a + 1] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[a + map.w] ?? TerrainKind.Normal) &&
+        isWalkable(cfg, map.kind[a + map.w + 1] ?? TerrainKind.Normal)
       ) {
         blocks[y * aw + x] = 1;
       }
@@ -203,13 +215,14 @@ function labelComponents(
   const label = new Int32Array(w * h).fill(-1);
   const sizes: number[] = [];
   for (let start = 0; start < mask.length; start++) {
-    if (!mask[start] || label[start] >= 0) continue;
+    if (!mask[start] || (label[start] ?? -1) >= 0) continue;
     const id = sizes.length;
     let size = 0;
     const queue = [start];
     label[start] = id;
     for (let head = 0; head < queue.length; head++) {
       const i = queue[head];
+      if (i === undefined) break; // unreachable: head < queue.length
       size++;
       const x = i % w;
       const y = (i / w) | 0;
@@ -218,7 +231,7 @@ function labelComponents(
         const ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
         const ni = ny * w + nx;
-        if (!mask[ni] || label[ni] >= 0) continue;
+        if (!mask[ni] || (label[ni] ?? -1) >= 0) continue;
         label[ni] = id;
         queue.push(ni);
       }
@@ -254,14 +267,15 @@ export function corridorsOk(
   const { label, sizes } = labelComponents(aw, ah, blocks);
   if (sizes.length === 0) return false;
   let best = 0;
-  for (let i = 1; i < sizes.length; i++) if (sizes[i] > sizes[best]) best = i;
+  for (let i = 1; i < sizes.length; i++)
+    if ((sizes[i] ?? -Infinity) > (sizes[best] ?? -Infinity)) best = i;
   for (const g of gates) {
     let ok = false;
     for (const [dx, dy] of ORTHO) {
       const nx = g.tx + dx;
       const ny = g.ty + dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
-      if (!isWalkable(cfg, map.kind[ny * map.w + nx])) continue;
+      if (!isWalkable(cfg, map.kind[ny * map.w + nx] ?? TerrainKind.Normal)) continue;
       // The (up to) four blocks that contain this neighbour tile.
       for (let by = ny - 1; by <= ny; by++) {
         for (let bx = nx - 1; bx <= nx; bx++) {
@@ -376,7 +390,7 @@ export function uncontestedHigh(
       const dy2 = (ny - y) * (ny - y);
       for (let nx = x0; nx <= x1; nx++) {
         if (dy2 + (nx - x) * (nx - x) > r2) continue;
-        if (isWalkable(cfg, map.kind[ny * map.w + nx])) {
+        if (isWalkable(cfg, map.kind[ny * map.w + nx] ?? TerrainKind.Normal)) {
           contested = true;
           break;
         }
@@ -399,7 +413,7 @@ export function gatesOpen(
       const nx = g.tx + dx;
       const ny = g.ty + dy;
       if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h) continue;
-      if (isWalkable(cfg, map.kind[ny * map.w + nx])) open = true;
+      if (isWalkable(cfg, map.kind[ny * map.w + nx] ?? TerrainKind.Normal)) open = true;
     }
     if (!open) return false;
   }
@@ -416,7 +430,7 @@ export function measureTerrain(
   let walkableCount = 0;
   let normalCount = 0;
   for (let i = 0; i < total; i++) {
-    if (isWalkable(cfg, map.kind[i])) walkableCount++;
+    if (isWalkable(cfg, map.kind[i] ?? TerrainKind.Normal)) walkableCount++;
     if (map.kind[i] === TerrainKind.Normal) normalCount++;
   }
   const perGate = perGateReach(map, cfg, gates);
