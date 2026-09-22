@@ -5,31 +5,91 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
-  Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards
-  (never `!`): `?? sentinel` defaults on typed-array reads already
-  proven in-range by a preceding bounds check or a loop bound matching
-  the array's own length (bulk per-tile copies in `applyTerrain`/
-  `syncTerrain`, single-tile reads in `distAt`/`stepFrom`/`fieldDist`/
-  `fieldStep`/`allGatesReachable`, sentinels matching each field's own
-  existing "unset" convention), and explicit `if (x === undefined)
-  continue` guards in the hot Dijkstra pathfinder (`dijkstra()`) on the
-  bucket dequeue and the `NEIGHBORS[k]` lookup. `wouldBlockPath()`'s
-  restore loop moved from index-based `tiles[k]`/`saved[k]` to an
-  order-preserving `for...of`. Clearing grid.ts's own errors exposed two
-  latent, previously-masked unguarded destructures in
-  `tests/p1a-sealing.test.ts` and `tests/terrain-high-ground.test.ts`,
-  fixed with the existing `nth<T>` throw-guard convention. Does not touch
-  `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
-  longer flags any of the three files; main tsc clean; `npm run
-  test:fast` green, unchanged at 315/4548; sim endHash unchanged
-  (`d6452f98`). code-reviewer APPROVE, qa-playtester PASS (adversarial
-  Dijkstra/`wouldBlockPath` edge probes, targeted terrain/pathing suites,
-  `git stash` behavioral-equivalence checks) — no bugs filed. One
-  unrelated pre-existing failure noted (`p1b-seal-winrate.test.ts`,
-  already fast-tier-excluded, reproduces on the pre-fix baseline too).
-  Full tier. **2 files remain, both `/src/sim`**: `enemies.ts`, `run.ts`.
-  — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine, latest) — BACKLOG-UI.md fb151 CLOSED: Dash
+  Slash's VFX now matches its hit line.** `fireDashSlash` (`src/sim/classes.ts`)
+  emitted its `class_active2` cast event using `resolveDashTarget`'s clamped
+  physical-travel endpoint, not the wider `hitRange` line `lineHit` actually
+  damaged (which can exceed travel distance on a G9 mid-charge Circle Slash
+  merge, or clamp shorter than the hit line against a wall) — so the rendered
+  slash under-drew the real damage corridor (qa-playtester's fb112 repro: a
+  Warden dashing into a wall shows no slash at all while enemies past it still
+  die). This was exactly the "main-lane companion" the UI lane's own fb151
+  entry asked for: the render side (`canvas.ts`) needed no change, since it
+  already draws whatever segment the event carries — the bug was entirely in
+  what got emitted. Fix: emit `before.x/y + dir * hitRange` (the same `before`/
+  `dir`/`hitRange` values `lineHit` used two lines earlier) instead of
+  `target`. Two new regression cases in `tests/p6b-swordsman.test.ts`: the
+  unmerged case (hitRange === dashRange, unaffected) and a G9-merged full
+  charge (dashRange 5 + circle radius 4 = hitRange 9, previously emitted only
+  ~5); reverting only the fix reproduces the original bug exactly. code-
+  reviewer APPROVE (one Minor, unrelated scratch files from its own
+  investigation, deleted before commit); qa-playtester PASS, independently
+  re-driving 11 aim angles, the item's own wall repro, and a partial-charge
+  merge, and confirming no other `class_active2` emit site shares the bug
+  class. `npm run test:fast` green (314/9 skipped, unchanged). Full tier. —
+  refs: BACKLOG-UI.md fb151, fb112.
+- **2026-09-22 (scheduled routine) — fb133 CLOSED: `noUncheckedIndexedAccess`
+  is on the main `tsconfig.json`.** Fixed the last 2 files on the ratchet
+  allowlist (`src/sim/enemies.ts`, `src/sim/run.ts`, ~135 `error TS` sites)
+  with real guards, never `!`: DoT-stack application/eviction/ticking
+  (`applyDot`/`evictionIndex`/`tickDots` in enemies.ts,
+  `tickWardenDots`/`damageWarden`'s Time Lord merge in run.ts) and enemy
+  pathing (`flowAim`/`separation`/`updateGroundUnreachable`) got
+  loop-bound-proven `if (!x) continue`/`?? default` guards; a handful of
+  genuinely-unreachable post-loop reads (`applyDot`'s `shortest` slot,
+  `buildSpawnQueue`'s waves-table row, `completeWave`'s random-equipment
+  pick, `hashWorld`'s two generic `Derived`/`core` field loops) throw
+  instead, matching `tiers.ts`/`rng.ts`'s existing "throw on an
+  already-guaranteed invariant" convention. Root-caused rather than papered
+  over one spot: `World.spawnQueue` was typed `number[][]` for a value
+  always pushed/read as a 3-element `[defId, gateIdx, originWave]` triple —
+  retyped to a real 3-tuple (`src/sim/world.ts`), which fixed the
+  destructure at the source; two test fixtures with 2-element placeholder
+  arrays (`tests/practice.test.ts`, `tests/progress.test.ts`) got a third
+  element added (both tests only ever read `.length`, so intent is
+  unchanged). With both files clean, flipped `noUncheckedIndexedAccess:
+  true` directly onto `tsconfig.json` and deleted the now-redundant
+  scaffolding (`tsconfig.unchecked.json`,
+  `tests/fb133-unchecked-access-ratchet.test.ts`) — CI's `fast` job already
+  runs `npm run build` (`tsc --noEmit && vite build`) against the main
+  config on every push, a strictly wider net than the retired shadow-config
+  test. Verified: `npx tsc --noEmit` clean; `npm run test:fast` green at
+  314 files / 4547 passed / 35 skipped (one file/test fewer than the prior
+  315/4548 baseline — the retired ratchet test itself, accounted for); sim
+  endHash unchanged (`d6452f98`), independently re-confirmed by
+  qa-playtester via `git stash` comparison. code-reviewer REQUEST-CHANGES
+  (one Major: this PROGRESS/BACKLOG update missing on first pass, added
+  here) → APPROVE on the code itself; two Minor/Nit notes (a `throw`-vs-
+  `?? 0` style-consistency observation and a small duplicated-guard nit)
+  left as-is, both harmless. Full tier. **fb133 done.** — refs: BACKLOG.md
+  fb133 Log. (Supersedes the same-day "ratchet shrunk 2 → 1" session,
+  which independently closed only `src/sim/run.ts` before this session
+  closed the allowlist the rest of the way.)
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
+  Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
+  `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`
+  overlay-copy loops and the Dijkstra bucket-pop inner loop got inline
+  `?? <sentinel>` defaults (`dist[ni]`/`breach[ni]` where `ni` is already
+  bounds-checked via `nx`/`ny`) or a cached-and-guarded `NEIGHBORS[k]`
+  read; `distAt`/`stepFrom`/`fieldDist`/`fieldStep`/`allGatesReachable` got
+  `?? -1` matching their own "-1 = unreachable" sentinel, downstream of an
+  existing `inBounds` check; `wouldBlockPath`'s tuple destructure got the
+  same guard pattern. Does not touch `/data`. Verified: `npx tsc --noEmit
+  -p tsconfig.unchecked.json` no longer flags the file; main tsc clean;
+  targeted suites green (128 tests across `grid`, `terrain-grid*`,
+  `p1a-sealing`, `terrain-high-ground`, the `fb133` ratchet test itself);
+  `npm run test:fast` green (315/9 skipped, unchanged); sim endHash
+  unchanged (`d6452f98`) across 9 seeds × 3 policies. Side effect, not a
+  regression: fixing `grid.ts` changed which file `tsc` reports first for
+  two type-shape-colliding diagnostics, surfacing two previously-invisible
+  unguarded `const [x,y] = arr[i]` reads in `tests/p1a-sealing.test.ts` and
+  `tests/terrain-high-ground.test.ts` (fixed with the repo's existing
+  `nth<T>` helper; the quirk itself is documented in the ratchet test's doc
+  comment as a known blind spot). code-reviewer APPROVE, qa-playtester
+  PASS — adversarial stress on `wouldBlockPath`, grid corners, a
+  fully-sealed Core ring, and an 808-structure Dijkstra stress found no
+  bugs. Full tier. **2 files remain, both `/src/sim`**: `enemies.ts`,
+  `run.ts`. — refs: BACKLOG.md fb133 Log.
 - **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 4 → 3.**
   Fixed `src/sim/world.ts` (25 unchecked-index sites) with real guards
   (never `!`). Hottest path in the sim: `rebuildBuckets()`,

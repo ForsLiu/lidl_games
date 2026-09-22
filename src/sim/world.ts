@@ -356,7 +356,7 @@ export class World {
    * stacks a call, which is why each entry carries its true origin wave
    * rather than inheriting `w.wave`.
    */
-  spawnQueue: number[][] = [];
+  spawnQueue: [defId: number, gateIdx: number, originWave: number][] = [];
   /**
    * SPEC-FINAL §1.1 multi-summon (p3b): TD waves merged into the fight
    * currently in progress, beyond the base one already fighting — 0..

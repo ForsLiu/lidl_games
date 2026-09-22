@@ -1068,17 +1068,13 @@ export class Grid {
       buckets.delete(c);
       for (let bi = 0; bi < b.length; bi++) {
         const i = b[bi];
-        // Unreachable: bi < b.length, and b only ever holds indices pushB was
-        // called with (in-range `sources` entries, or `ni` below — already
-        // bounds-checked at push time).
-        if (i === undefined) continue;
+        if (i === undefined) continue; // bi < b.length, never actually undefined
         if (dist[i] !== c) continue; // stale entry
         const x = i % GRID_W;
         const y = (i / GRID_W) | 0;
         for (let k = 0; k < NEIGHBORS.length; k++) {
-          // Unreachable: k < NEIGHBORS.length.
           const nb = NEIGHBORS[k];
-          if (nb === undefined) continue;
+          if (!nb) continue; // k < NEIGHBORS.length, never actually undefined
           const nx = x + nb[0];
           const ny = y + nb[1];
           if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue;
@@ -1132,10 +1128,10 @@ export class Grid {
             }
           }
           const nd = c + nb[2] + extra;
-          // `?? -1`: ni is bounds-checked in-range above; -1 matches the
-          // "unset" sentinel `dist.fill(-1)` already uses.
-          const di = dist[ni] ?? -1;
-          if (di === -1 || nd < di) {
+          // ni = ny * GRID_W + nx with nx/ny bounds-checked above, so this read
+          // is in range; the ?? default only names that for the type checker.
+          const dNi = dist[ni] ?? -1;
+          if (dNi === -1 || nd < dNi) {
             dist[ni] = nd;
             next[ni] = i;
             pushB(nd, ni);
@@ -1170,8 +1166,6 @@ export class Grid {
   distAt(tx: number, ty: number, ghost = false): number {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
     if (!this.inBounds(tx, ty)) return -1;
-    // `?? -1`: inBounds() above already proves the index in range; -1 is
-    // this method's own "no answer" sentinel.
     return (ghost ? this.ghost : this.ground).dist[ty * GRID_W + tx] ?? -1;
   }
 
@@ -1180,8 +1174,6 @@ export class Grid {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
     if (!this.inBounds(tx, ty)) return null;
     const f = ghost ? this.ghost : this.ground;
-    // `?? -1`: inBounds() above already proves the index in range; -1 is
-    // `next`'s own "no route" sentinel, handled by the check below.
     const i = f.next[ty * GRID_W + tx] ?? -1;
     if (i < 0) return null;
     return [i % GRID_W, (i / GRID_W) | 0];
@@ -1197,7 +1189,6 @@ export class Grid {
   allGatesReachable(): boolean {
     this.dijkstra(this.scratch, this.coreTiles(), 'blocked');
     for (let i = 0; i < this.tile.length; i++) {
-      // `?? -1`: i < this.tile.length === this.scratch.dist.length, in range.
       if (this.tile[i] === TileType.Gate && (this.scratch.dist[i] ?? -1) < 0) return false;
     }
     return true;
@@ -1208,21 +1199,18 @@ export class Grid {
     const saved: number[] = [];
     for (const [tx, ty] of tiles) {
       const i = ty * GRID_W + tx;
-      saved.push(this.occ[i] ?? 0); // `?? 0` matches Int32Array's own zero-fill default
+      saved.push(this.occ[i] ?? 0);
       this.occ[i] = -1;
       this.blocked[i] = 1;
     }
     const ok = this.allGatesReachable();
-    // for-of, not an index loop over `tiles`: `saved` was built in the same
-    // order one tile at a time above, so pairing them by walking both
-    // together needs no `tiles[k]`/`saved[k]` re-indexing.
-    let k = 0;
-    for (const [tx, ty] of tiles) {
+    for (let k = 0; k < tiles.length; k++) {
+      const t = tiles[k];
+      if (!t) continue; // k < tiles.length, never actually undefined
+      const [tx, ty] = t;
       const i = ty * GRID_W + tx;
-      const s = saved[k] ?? 0;
-      this.occ[i] = s;
-      this.blocked[i] = this.staticBlocked(i) === 1 || s !== 0 ? 1 : 0;
-      k++;
+      this.occ[i] = saved[k] ?? 0;
+      this.blocked[i] = this.staticBlocked(i) === 1 || saved[k] !== 0 ? 1 : 0;
     }
     return !ok;
   }
@@ -1285,8 +1273,6 @@ export function coreCenter(): { x: number; y: number } {
 export function fieldDist(f: Field, tx: number, ty: number): number {
   if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return -1;
-  // `?? -1`: the bounds check above already proves the index in range; -1 is
-  // this function's own "no answer" sentinel.
   return f.dist[ty * GRID_W + tx] ?? -1;
 }
 
@@ -1294,8 +1280,6 @@ export function fieldDist(f: Field, tx: number, ty: number): number {
 export function fieldStep(f: Field, tx: number, ty: number): [number, number] | null {
   if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return null;
-  // `?? -1`: the bounds check above already proves the index in range; -1 is
-  // `next`'s own "no route" sentinel, handled by the check below.
   const i = f.next[ty * GRID_W + tx] ?? -1;
   if (i < 0) return null;
   return [i % GRID_W, (i / GRID_W) | 0];

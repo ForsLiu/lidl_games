@@ -196,38 +196,33 @@ not already expose it) logs that need below instead of reaching into
       halves were in-scope but depended on the data file existing first, so
       nothing here was independently completable from this lane alone.
 
-- [ ] (fb151) [bug] **BLOCKED out of Scope 2026-09-07 — the render half is a
-      no-op: `canvas.ts`'s `class_active2` case (`case 'class_active':`/
-      `case 'class_active2':` in `ingest()`) draws exactly the `e.a`/`e.b`
-      coordinates the event carries, with no logic of its own to fix — the
-      bug is entirely in what `fireDashSlash` (`src/sim/classes.ts:461`)
-      chooses to emit (`w.emit('class_active2', before.x, before.y,
-      target.x, target.y)`, `target` being `resolveDashTarget`'s clamped
-      travel endpoint, not the `lineHit` hit extent that already computed
-      `hitRange` two lines earlier). Confirmed by reading both sides: there
-      is no render-side fix this lane could make independently of that
-      emit changing. Needs a main-lane companion to change what
-      `class_active2` carries; this lane's render draw is already correct
-      for whatever it receives and needs no change once that happens.**
-      filed 2026-09-05 by qa-playtester during fb112
-      verification — the Dash Slash slash VFX is drawn to the physical dash
-      TARGET, not the hit line, so mid-charge and against walls the graphic is
-      shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
-      `lineHit` with `hitRange = dashRange + mergedRadius` from the PRE-dash
-      position, then emits `class_active2` with `resolveDashTarget`'s clamped
-      travel endpoint, and `canvas.ts` draws that emitted segment. Repro: with
-      the Warden at the map edge (x=1) aiming -X, `dashTravel` is a zero-length
-      segment (the dash clamps against the wall) yet enemies at -0.6 and -0.9
-      tiles both take damage — the player sees NO slash at all while enemies
-      die; mid-charge in open ground the hit line spans 9 tiles while the drawn
-      segment spans 5, hiding 4 tiles of real hit. Acceptance: the drawn slash
-      covers the corridor that actually deals damage (the emitted event carries
-      the hit extent, not the travel extent — note the emit itself is
-      `src/sim/**` and out of this lane's Scope, so this may need a main-lane
-      companion; if so, do the render half here and log the sim half);
-      regression test asserts the emitted `class_active2` segment against the
-      measured furthest struck enemy — refs: fb112, `canvas.ts`'s
-      `class_active2` draw.
+- [x] (fb151) [bug] **DONE 2026-09-22 (scheduled routine, main lane) —
+      exactly the main-lane companion this item's own blocking note called
+      for.** `fireDashSlash` (`src/sim/classes.ts`) now emits `class_active2`
+      with the real `lineHit` hit extent (`before.x/y + dir * hitRange`)
+      instead of `resolveDashTarget`'s clamped travel endpoint — `before`,
+      `dir` and `hitRange` are the exact same values `lineHit` used two lines
+      earlier, so the two can no longer diverge. This lane's own render draw
+      (`canvas.ts`'s `class_active2` case) needed no change, confirmed by
+      this session's code-reviewer: it already draws whatever segment the
+      event carries. `tests/p6b-swordsman.test.ts` (main-lane Scope) gained
+      two regression cases: the plain unmerged line still matches the travel
+      target (hitRange === dashRange there), and a G9-merged charge (dashRange
+      5 + full circle radius 4 = hitRange 9) emits the wider 9-tile segment
+      reaching a struck enemy at 8.5 tiles — reverting only the fix
+      reproduces the original bug exactly (`expected 5 to be close to 9`).
+      qa-playtester independently re-verified with the item's own original
+      repro (Warden at the map edge aiming into a wall: `dashTravel` clamps
+      to zero length, yet the emitted segment now correctly reaches the
+      enemies actually damaged past the wall) plus 11 aim angles and a
+      partial-charge merge, and confirmed no other `class_active2` emit site
+      (`fireQuickstep`/`fireFlameRoad`/`fireCrimsonRush`) shares this bug
+      class (`mergedRadius` is exclusive to `fireDashSlash`). code-reviewer
+      APPROVE (no Critical/Major; one Minor about stray scratch test files
+      the review itself had created while investigating, deleted before
+      commit — not part of this fix). `npm run test:fast` green (314/9
+      skipped, unchanged). Full tier. — refs: fb112, `canvas.ts`'s
+      `class_active2` draw, BACKLOG.md (main lane).
 
 - [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
       (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):

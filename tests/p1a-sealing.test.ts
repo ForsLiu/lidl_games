@@ -37,6 +37,12 @@ const DT = 1 / 60;
 const PALISADE = 1;
 const ARROW_SPIRE = 2;
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 function newWorld(): World {
   // fb077: fixed-tile sealing/breach assertions need the flat pre-fb077
   // board, not real generated terrain.
