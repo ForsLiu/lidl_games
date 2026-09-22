@@ -6703,13 +6703,16 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       fill invariants, confirmed the `wouldBlockPath` refactor preserves
       exact iteration order, confirmed no `!` assertions anywhere in the
       diff. qa-playtester PASS — independently re-ran every check above
-      plus targeted suites (`grid`, `p1a-sealing`, `terrain-high-ground`,
-      `fb133` ratchet, `fb034-max-towers`, `fb036-path-indicators`,
-      `terrain-four-gates`, `terrain-gate-legality`,
-      `terrain-modifier-gate-jitter`, `fb077-terrain-wiring`,
-      `fb130-core-placement-wiring`, `terrain-gate-open`,
-      `terrain-core-placement`, `act1`, `terrain-anchor-quality`,
-      `terrain-run-provenance`), adversarial probes (empty-`sources`
+      plus targeted suites (`tests/grid.test.ts`, `tests/p1a-sealing.test.ts`,
+      `tests/terrain-high-ground.test.ts`, the fb133 ratchet test,
+      `tests/fb034-max-towers.test.ts`, `tests/fb036-path-indicators.test.ts`,
+      the terrain four-gates/gate-legality/modifier-gate-jitter suites,
+      `tests/fb077-terrain-wiring.test.ts`,
+      `tests/fb130-core-placement-wiring.test.ts`,
+      `tests/terrain-gate-open.test.ts`,
+      `tests/terrain-core-placement.test.ts`, `tests/act1.test.ts`,
+      `tests/terrain-anchor-quality.test.ts`,
+      `tests/terrain-run-provenance.test.ts`), adversarial probes (empty-`sources`
       `dijkstra`/`allGatesReachable`, `wouldBlockPath` with duplicate
       coordinates and both grid corners, wildly out-of-range `distAt`/
       `stepFrom` coordinates — all correct sentinels, no throws), and
