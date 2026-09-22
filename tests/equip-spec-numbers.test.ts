@@ -102,6 +102,7 @@ import {
 } from './equip-spec-ledger';
 import { STAT_INVERSE_SCALED, STAT_KEYS, STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
+import { CLASS_SET_NAME } from './equip-class-sets-spec';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -111,7 +112,7 @@ const content = loadContent();
  * newline-normalised. Regenerate deliberately, never reflexively: a change
  * here means §7 moved and every row below has to be re-read against it.
  */
-const SPEC_7_SHA256 = 'f24298f831eea38b8bf7ed1f91dc80d7709606a960e39ded8204aab30cf9cdc8';
+const SPEC_7_SHA256 = '4b43d8971a4c0700cc0c67c8ea5bbdc52fbceaacd9eb254eeaf367e58c270e33';
 
 const CLASSES_TS = 'src/sim/classes.ts';
 
@@ -162,13 +163,26 @@ const SPEC_SLOTS: readonly string[] = (() => {
 })();
 
 /**
+ * fb056: §7's own owner table ends where §7.1's class sets begin. Those 15
+ * rows are audited by their own ledger (`tests/equip-class-sets-spec.test.ts`)
+ * — their Effect cells are class mechanics whose magnitudes live in
+ * `effectNums`, a home this file's `Figure` type has no status for — so this
+ * parse reads only the table above `### 7.1`, while the §7 hash below still
+ * covers the whole section, §7.1 included.
+ */
+const SPEC_7_OWNER_TEXT = (() => {
+  const cut = SPEC_7_TEXT.indexOf('### 7.1');
+  return cut < 0 ? SPEC_7_TEXT : SPEC_7_TEXT.slice(0, cut);
+})();
+
+/**
  * §7's owner table, parsed. A `×n` cell becomes `n`; a bare cell becomes its
  * number. This is the ledger's authority for every numeric figure — the `spec`
  * column below is checked *against* it rather than trusted.
  */
 const SPEC_TABLE: readonly SpecRow[] = (() => {
   const out: SpecRow[] = [];
-  for (const line of SPEC_7_TEXT.split('\n')) {
+  for (const line of SPEC_7_OWNER_TEXT.split('\n')) {
     if (!line.startsWith('|')) continue;
     const cells = line.split('|').slice(1, -1).map((c) => c.trim());
     // A row that does not parse is a **failure**, never a skip. This used to
@@ -1138,7 +1152,14 @@ interface RawEquipmentDoc {
   items: RawItem[];
 }
 
-const RAW = content.raw.equipment as RawEquipmentDoc;
+/**
+ * fb056: the whole authored document, §7.1's class sets included — read only
+ * by the roster bridge in "covers all twelve items", which proves every item
+ * is audited by exactly one of the two ledgers.
+ */
+const RAW_ALL = content.raw.equipment as RawEquipmentDoc;
+/** The §7 owner-table items this ledger audits: every item *not* on §7.1's roster. */
+const RAW: RawEquipmentDoc = { ...RAW_ALL, items: RAW_ALL.items.filter((i) => !(i.key in CLASS_SET_NAME)) };
 
 /** One row's stable identity, used in messages and in the uniqueness check. */
 function id(f: Figure): string {
@@ -1549,6 +1570,15 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
   });
 
   it('covers all twelve items, and only items that exist', () => {
+    // fb056: every authored item is audited by exactly one ledger — this one
+    // (§7's owner table, `SPEC_NAME`) or §7.1's (`CLASS_SET_NAME`) — so the
+    // split cannot hide an item from both.
+    for (const i of RAW_ALL.items) {
+      const inOwner = i.key in SPEC_NAME;
+      const inSets = i.key in CLASS_SET_NAME;
+      expect(inOwner !== inSets, `${i.key}: audited by ${inOwner && inSets ? 'both ledgers' : 'neither ledger'}`).toBe(true);
+    }
+    expect(RAW_ALL.items).toHaveLength(Object.keys(SPEC_NAME).length + Object.keys(CLASS_SET_NAME).length);
     const shipped = new Set(RAW.items.map((i) => i.key));
     expect(shipped.size).toBe(12);
     const covered = new Set(LEDGER.map((f) => f.item));
@@ -1661,8 +1691,9 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
     }
 
     // And §7's prose outside the table: its preamble rules and its expansion
-    // hook. Same rule - a figure stated there is still a §7 figure.
-    const prose = SPEC_7_TEXT.split('\n')
+    // hook. Same rule - a figure stated there is still a §7 figure. (fb056:
+    // up to §7.1, whose own prose is `equip-class-sets-spec.test.ts`'s.)
+    const prose = SPEC_7_OWNER_TEXT.split('\n')
       .filter((l) => !l.startsWith('|') && !l.startsWith('## '))
       .join('\n');
     const proseLeft = residue(prose, [...claimsFor(null), SPEC_SLOTS.join(', ')]);

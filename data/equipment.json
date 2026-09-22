@@ -103,6 +103,171 @@
       "mods": { "maxHp": 2, "atkFlat": 1, "towerRange": 0.1, "charRange": 0.1 },
       "effectKey": "none",
       "desc": "HP 2 / Atk 0.1 / Def 0. Character and tower range +10%."
+    },
+    {
+      "key": "plague_flask",
+      "slot": "weapon",
+      "name": "Plague Flask",
+      "mods": { "atkFlat": 4, "attackSpeed": 0.1 },
+      "effectKey": "plague_flask",
+      "effectNums": { "poisonRatio": 1.2, "poisonSeconds": 3 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "attackSpeed": 0.15 } },
+      "effectNote": "Basic attacks apply Poison on every hit ({pct:poisonRatio} of the hit over {n:poisonSeconds}s).",
+      "desc": "HP 0 / Atk 0.4 / Def 0, atk speed x1.1. Basic attacks apply Poison (120% over 3 s) on every hit. If not Plaguebringer: atk speed x1.15."
+    },
+    {
+      "key": "miasma_robe",
+      "slot": "armor",
+      "name": "Miasma Robe",
+      "mods": { "maxHp": 6, "armor": 4 },
+      "effectKey": "miasma_robe",
+      "effectNums": { "cloudDriftSpeed": 1 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "maxHpPct": 0.1 } },
+      "effectNote": "Poison Barrel's cloud drifts toward you at {n:cloudDriftSpeed} tile/s, and Poison Boost also refreshes every Poison's duration.",
+      "desc": "HP 6 / Atk 0 / Def 4. Poison Barrel's cloud drifts toward the character (1 tile/s) and Poison Boost also refreshes all poison durations. If not Plaguebringer: HP x1.1."
+    },
+    {
+      "key": "carriers_boots",
+      "slot": "shoes",
+      "name": "Carrier's Boots",
+      "mods": { "maxHp": 3, "armor": 3, "moveSpeedPct": 0.4 },
+      "effectKey": "carriers_boots",
+      "effectNums": { "trailDamageMul": 0.5, "trailSeconds": 3, "trailSegments": 3, "trailRadius": 1, "trailTickSeconds": 1 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "moveSpeedPct": 0.15 } },
+      "effectNote": "Dashing leaves a poison trail for {n:trailSeconds}s: every {n:trailTickSeconds}s, each enemy in it is poisoned as if by a hit worth {n:trailDamageMul}x your basic attack.",
+      "desc": "HP 3 / Atk 0 / Def 3, move x1.4. Dashing leaves a poison trail (0.5x basic dmg/s for 3 s). If not Plaguebringer: move x1.15."
+    },
+    {
+      "key": "ring_of_contagion",
+      "slot": "ring",
+      "name": "Ring of Contagion",
+      "mods": { "atkFlat": 2 },
+      "effectKey": "ring_of_contagion",
+      "effectNums": { "extraTargets": 2 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "hpRegen": 1 } },
+      "effectNote": "Spreading Plague also jumps to the {n:extraTargets} next-nearest enemies, not just the nearest one.",
+      "desc": "HP 0 / Atk 0.2 / Def 0. Spreading Plague jumps to the 3 nearest enemies instead of 1. If not Plaguebringer: +1 life regen."
+    },
+    {
+      "key": "pestilent_locket",
+      "slot": "necklace",
+      "name": "Pestilent Locket",
+      "mods": { "maxHp": 2, "armor": 2 },
+      "effectKey": "pestilent_locket",
+      "effectNums": { "dotBoostMul": 2, "extraCooldownSeconds": 2 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "xpGain": 0.15 } },
+      "effectNote": "Poison Boost multiplies ALL DoTs (Poison, Toxic, Bleeding, Burning) by x{n:dotBoostMul}, not just Poison; its cooldown is +{n:extraCooldownSeconds}s.",
+      "desc": "HP 2 / Atk 0 / Def 2. Poison Boost doubles ALL DoTs (Poison, Toxic, Bleeding, Burning), cooldown +2 s. If not Plaguebringer: EXP +15%."
+    },
+    {
+      "key": "blightweaver_band",
+      "slot": "bracelet",
+      "name": "Blightweaver Band",
+      "mods": { "atkFlat": 1, "armor": 1 },
+      "effectKey": "blightweaver_band",
+      "effectNums": { "contactShare": 0.5, "contactRadius": 1 },
+      "classFallback": { "notClassKey": "plaguebringer", "mods": { "area": 0.1 } },
+      "effectNote": "Poisoned enemies also tick {pct:contactShare} of their poison onto enemies touching them (within {n:contactRadius} tile).",
+      "desc": "HP 0 / Atk 0.1 / Def 1. Poisoned enemies also tick 50% of their poison onto enemies touching them. If not Plaguebringer: area +10%."
+    },
+    {
+      "key": "hourglass_scepter",
+      "slot": "weapon",
+      "name": "Hourglass Scepter",
+      "mods": { "atkFlat": 5 },
+      "effectKey": "hourglass_scepter",
+      "effectNums": { "dotSpeedMul": 2 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "atkFlat": 3 } },
+      "effectNote": "Activates Time Flow's dormant clause: every DoT you deal ticks x{n:dotSpeedMul} as fast (same total, shorter duration).",
+      "desc": "HP 0 / Atk 0.5 / Def 0. Activates Time Flow's dormant clause: all DoT damage from the character ticks 100% faster (same total, half duration). If not Time Lord: atk +0.3."
+    },
+    {
+      "key": "chronomail",
+      "slot": "armor",
+      "name": "Chronomail",
+      "mods": { "maxHp": 8, "armor": 6 },
+      "effectKey": "chronomail",
+      "effectNums": { "windowMul": 2, "lowHpFraction": 0.3, "lowHpWindowMul": 3 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "armor": 5 } },
+      "effectNote": "Time Flow spreads incoming damage over x{n:windowMul} its window; at or below {pct:lowHpFraction} HP, over x{n:lowHpWindowMul}.",
+      "desc": "HP 8 / Atk 0 / Def 6. Time Flow converts incoming damage over 8 s instead of 4 s; at <=30% HP, over 12 s. If not Time Lord: def +5."
+    },
+    {
+      "key": "sandals_of_the_second_hand",
+      "slot": "shoes",
+      "name": "Sandals of the Second Hand",
+      "mods": { "maxHp": 3, "armor": 2, "moveSpeedPct": 0.3 },
+      "effectKey": "sandals_of_the_second_hand",
+      "effectNums": { "rewindSeconds": 6 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "moveSpeedPct": 0.1 } },
+      "effectNote": "Time's rewind moves enemies to where they were {n:rewindSeconds}s ago.",
+      "desc": "HP 3 / Atk 0 / Def 2, move x1.3. Time's rewind moves enemies to their position of 6 s ago instead of 3 s. If not Time Lord: move x1.1."
+    },
+    {
+      "key": "loop_ring",
+      "slot": "ring",
+      "name": "Loop Ring",
+      "mods": { "atkFlat": 2, "armor": 1 },
+      "effectKey": "loop_ring",
+      "effectNums": { "extraCharges": 1, "rechargeSpeedMul": 1.25 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "hpRegen": 1 } },
+      "effectNote": "Time holds +{n:extraCharges} charge and recharges x{n:rechargeSpeedMul} as fast.",
+      "desc": "HP 0 / Atk 0.2 / Def 1. Time has 4 charges and recharges 25% faster. If not Time Lord: +1 life regen."
+    },
+    {
+      "key": "pendulum_pendant",
+      "slot": "necklace",
+      "name": "Pendulum Pendant",
+      "mods": { "maxHp": 2, "armor": 2 },
+      "effectKey": "pendulum_pendant",
+      "effectNums": { "executeRefundCharges": 1, "eliteExecuteFraction": 0.6 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "xpGain": 0.15 } },
+      "effectNote": "Executing a \"future\" enemy refunds {n:executeRefundCharges} Time charge; elites/bosses lose {pct:eliteExecuteFraction} of their HP instead.",
+      "desc": "HP 2 / Atk 0 / Def 2. Executing a \"future\" enemy refunds 1 Time charge; elites/bosses lose 60% instead of 50%. If not Time Lord: EXP +15%."
+    },
+    {
+      "key": "bracer_of_overlap",
+      "slot": "bracelet",
+      "name": "Bracer of Overlap",
+      "mods": { "atkFlat": 1, "armor": 1 },
+      "effectKey": "bracer_of_overlap",
+      "effectNums": { "extraZones": 1 },
+      "classFallback": { "notClassKey": "time_lord", "mods": { "area": 0.1 } },
+      "effectNote": "Time Lock holds +{n:extraZones} zone at once; casting past the cap teleports and detonates every standing zone.",
+      "desc": "HP 0 / Atk 0.1 / Def 1. Time Lock can hold 2 zones at once; casting a third teleports and detonates BOTH. If not Time Lord: area +10%."
+    },
+    {
+      "key": "ring_of_a_thousand_cuts",
+      "slot": "ring",
+      "name": "Ring of a Thousand Cuts",
+      "mods": { "atkFlat": 2, "armor": 1 },
+      "effectKey": "ring_of_a_thousand_cuts",
+      "effectNums": { "bleedStacks": 2 },
+      "classFallback": { "notClassKey": "swordsman", "mods": { "hpRegen": 1 } },
+      "effectNote": "Thousand Cuts applies {n:bleedStacks} Bleeding per attack.",
+      "desc": "HP 0 / Atk 0.2 / Def 1. Thousand Cuts applies 2 Bleeding per attack. If not Swordsman: +1 life regen."
+    },
+    {
+      "key": "duelists_pendant",
+      "slot": "necklace",
+      "name": "Duelist's Pendant",
+      "mods": { "maxHp": 3, "atkFlat": 2 },
+      "effectKey": "duelists_pendant",
+      "effectNums": { "chargeRefund": 0.5 },
+      "classFallback": { "notClassKey": "swordsman", "mods": { "xpGain": 0.15 } },
+      "effectNote": "A Dash Slash cast during a charged Circle Slash refunds {pct:chargeRefund} of the charge, so you can chain a second slash.",
+      "desc": "HP 3 / Atk 0.2 / Def 0. A Dash Slash cast during a charged Circle Slash refunds 50% of the charge (chain a second slash). If not Swordsman: EXP +15%."
+    },
+    {
+      "key": "bracer_of_the_whirlwind",
+      "slot": "bracelet",
+      "name": "Bracer of the Whirlwind",
+      "mods": { "atkFlat": 1, "armor": 2 },
+      "effectKey": "bracer_of_the_whirlwind",
+      "effectNums": { "radiusMul": 1.25, "knockbackMul": 1.5 },
+      "classFallback": { "notClassKey": "swordsman", "mods": { "area": 0.1 } },
+      "effectNote": "Circle Slash radius x{n:radiusMul} and knockback x{n:knockbackMul}.",
+      "desc": "HP 0 / Atk 0.1 / Def 2. Circle Slash radius +25% and knockback +50%. If not Swordsman: area +10%."
     }
   ]
 }

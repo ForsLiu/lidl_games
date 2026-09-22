@@ -435,8 +435,17 @@ describe('q7 — every field, every wrong shape', () => {
     // `fractional` is untouched by a `<= 0` guard (0.9165, within existing
     // measurement noise). The floor that *is* falling is the fix working,
     // not a regression.
-    expect(rate('negative')).toBeGreaterThan(0.75);
-    expect(rate('zero')).toBeGreaterThan(0.85);
+    //
+    // Measured 2026-09-22 (fb056): `validateEquipmentEffectNums` (content.ts)
+    // put a field/range registry on every §7.1 class-set item's `effectNums`,
+    // refusing a negative/zero/dropped/renamed magnitude on each of its ~29
+    // fields; the census gained those fields at the same time, so `negative`
+    // fell from ~0.786 to 0.7401 — below its old 0.75 floor, the fix working
+    // again. Floor re-pinned just under the new measurement.
+    expect(rate('negative')).toBeGreaterThan(0.72);
+    // fb056 (same measurement): `zero` fell from ~0.859 to 0.8150 on the same
+    // registry, below its old 0.85 floor; re-pinned just under it.
+    expect(rate('zero')).toBeGreaterThan(0.8);
     expect(rate('infinite')).toBe(0);
     expect(rate('fractional')).toBeGreaterThan(0.9);
   }, 300_000);

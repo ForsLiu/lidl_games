@@ -4,7 +4,7 @@
  */
 
 import type { EnemyDef } from './content';
-import { equipmentEffectNum } from './equipment';
+import { classEquipmentNum } from './equipment';
 import { CORE_H, CORE_W, GRID_H, GRID_W } from './grid';
 import type { DamageTypeKey } from './damagetypes';
 import { clamp, dcos, dist, dist2, dsin, normalize, TAU } from './math';
@@ -681,7 +681,8 @@ function drainPlagueTransfers(w: World): void {
       // fb085 (unblocking fb056's Ring of Contagion): the seam that item
       // needs — an extra flat fan-out target read off the equipped item's
       // own `effectNums.extraTargets`, 0 (a no-op) when it is not equipped.
-      const targets = 1 + Math.round(classLineBonus(w)) + Math.round(equipmentEffectNum(w, 'ring_of_contagion', 'extraTargets', 0));
+      // fb056: class-gated like every other §7.1 hook (`classEquipmentNum`).
+      const targets = 1 + Math.round(classLineBonus(w)) + Math.round(classEquipmentNum(w, 'ring_of_contagion', 'extraTargets', 0));
       const struck = new Set<number>();
       for (let i = 0; i < targets; i++) {
         // Unbounded range, the same `Infinity` idiom `cores.ts`'s Carnivorous
@@ -1005,6 +1006,15 @@ export function applyDot(
   if (!def || def.effect !== 'dot') return;
   if (immuneToDot(w, e, type)) return;
   if (duration <= 0) return;
+  // fb056 (§7.1) Hourglass Scepter / §4.2 Time Flow's dormant clause: "all DoT
+  // damage from the character on enemies is 100% faster" (fb013's own
+  // wording) — same total, so dps x speed over duration / speed. "From the
+  // character" is every `class_*` source, the set `scalesWithKitPower` names.
+  const speed = scalesWithKitPower(source) ? characterDotSpeedMul(w) : 1;
+  if (speed !== 1) {
+    dps *= speed;
+    duration /= speed;
+  }
   const scaled = dps * dotPotency(w, type, source);
   if (scaled <= 0) return;
 
@@ -1073,6 +1083,19 @@ export function applyDot(
     d.source = source;
     d.remaining = duration;
   }
+}
+
+/**
+ * fb056: how much faster every DoT the character deals ticks — Time Flow's
+ * dormant `charDotSpeedMul` (§4.2, fb013: "ships disabled, reserved for a
+ * future unique equipment effect", authored 1) times an equipped Hourglass
+ * Scepter's own `dotSpeedMul`, the unique effect that activates it. Floored so
+ * a bad row can never divide a duration by zero.
+ */
+export function characterDotSpeedMul(w: World): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  const dormant = cls?.passive.kind === 'time_flow' ? cls.passive.charDotSpeedMul ?? 1 : 1;
+  return Math.max(dormant * classEquipmentNum(w, 'hourglass_scepter', 'dotSpeedMul', 1), 0.01);
 }
 
 /** Live applications of one damage type on an enemy. */

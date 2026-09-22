@@ -647,7 +647,13 @@ const ALL_READS: readonly Read[] = [...READS, ...READS_TOWER_AREA];
  * regex waved that through.
  */
 const CARRIERS: ReadonlyArray<{ fn: string; sites: Record<string, number> }> = [
-  { fn: 'classArea', sites: { 'src/sim/classes.ts': 18 } },
+  // fb056: 18 -> 20. The two new callers are §7.1 class-set footprints —
+  // Blightweaver Band's contact radius and Carrier's Boots' trail patches —
+  // both character-route Area (`classArea`) and both live only for a
+  // Plaguebringer wearer (`classEquipmentActive`), so they can never co-occur
+  // with Wide Grove (the Animist's own tower passive) and have no Grove
+  // consumer to measure; `equip-class-sets-behaviour.test.ts` measures both.
+  { fn: 'classArea', sites: { 'src/sim/classes.ts': 20 } },
   {
     fn: 'effectiveTowerAoe',
     sites: { 'src/sim/classes.ts': 2, 'src/sim/towers.ts': 2, 'src/sim/vswield.ts': 5 },

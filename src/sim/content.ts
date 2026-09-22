@@ -1072,7 +1072,7 @@ const ClassSlotPassiveSchema = z.object({
    * engine code. Read with a `?? 1` fallback, so its absence is inert too.
    */
   charDotSpeedMul: num.optional(),
-  /** `time_flow` (fb126, rule 4): the base seconds the converted DoT resolves over at `charDotSpeedMul === 1` — §4.2's "4 s", read by `timeFlowWindowSeconds` (run.ts) before `charDotSpeedMul` divides it and an equipped Chronomail's `windowMul` widens it. `.positive()`: a 0 or negative window divides `dps` by zero/flips `remaining` negative at the `damageWarden` push site, silently poisoning every dot pushed after — code-reviewer finding, fb126 same session. */
+  /** `time_flow` (fb126, rule 4): the base seconds the converted DoT resolves over at `charDotSpeedMul === 1` — §4.2's "4 s", read by `timeFlowWindowSeconds` (run.ts), which an equipped Chronomail's `windowMul`/`lowHpWindowMul` widens (fb056: `charDotSpeedMul` no longer touches this window — it speeds the character's own DoTs on enemies). `.positive()`: a 0 or negative window divides `dps` by zero/flips `remaining` negative at the `damageWarden` push site, silently poisoning every dot pushed after — code-reviewer finding, fb126 same session. */
   charDotSeconds: num.positive().optional(),
   /** `chronal_surge` (fb013): every `waveInterval` TD waves cleared, towers gain one free uncapped range/AoE bump (`completeWave`, run.ts) — no milestone triggers, just `bonusRangeMul`/`bonusAoeMul` folded into the ordinary `towerRange`/`towerArea` Stats sources (fb083 split the AoE half off the global `area` key). */
   waveInterval: num.optional(),
@@ -1394,7 +1394,104 @@ const KNOWN_EQUIPMENT_EFFECT_KEYS = new Set<string>([
   'ring_of_contagion',
   'chronomail',
   'bracer_of_overlap',
+  // fb056: the other twelve class-set items (SPEC-FINAL §7.1). Each hook reads
+  // its own `effectNums` through `classEquipmentNum` (sim/equipment.ts), which
+  // additionally gates on the class `classFallback.notClassKey` names — the
+  // owner's "every class-specific line has an 'if not <class>' compensation"
+  // makes the mechanic and the fallback mutually exclusive by class.
+  'plague_flask',
+  'miasma_robe',
+  'carriers_boots',
+  'pestilent_locket',
+  'blightweaver_band',
+  'hourglass_scepter',
+  'sandals_of_the_second_hand',
+  'loop_ring',
+  'pendulum_pendant',
+  'ring_of_a_thousand_cuts',
+  'duelists_pendant',
+  'bracer_of_the_whirlwind',
 ]);
+
+/**
+ * fb056: each §7.1 class-set hook's `effectNums` fields and the range each
+ * must hold — the loader-side half of "refuse unpayable data" for a bag the
+ * schema leaves free-form. `int` fields feed a loop bound or a count; `max`
+ * bounds a share/fraction. A field listed `optional` may be omitted (the
+ * hook's own fallback then applies); every other listed field is required,
+ * and a field the registry does not list is refused — a typo'd or renamed
+ * field would otherwise read the hook's fallback silently.
+ */
+interface EffectNumRule {
+  min: number;
+  /** Exclusive lower bound when true (`> min`), inclusive otherwise. */
+  above?: boolean;
+  max?: number;
+  int?: boolean;
+  optional?: boolean;
+}
+const POS: EffectNumRule = { min: 0, above: true };
+const EQUIPMENT_EFFECT_NUMS: Readonly<Record<string, Readonly<Record<string, EffectNumRule>>>> = {
+  ring_of_contagion: { extraTargets: { min: 1, max: 50, int: true } },
+  chronomail: {
+    windowMul: POS,
+    lowHpFraction: { min: 0, above: true, max: 1, optional: true },
+    lowHpWindowMul: { ...POS, optional: true },
+  },
+  bracer_of_overlap: { extraZones: { min: 1, max: 10, int: true } },
+  plague_flask: { poisonRatio: POS, poisonSeconds: POS },
+  miasma_robe: { cloudDriftSpeed: POS },
+  carriers_boots: {
+    trailDamageMul: POS,
+    trailSeconds: POS,
+    trailSegments: { min: 1, max: 50, int: true },
+    trailRadius: POS,
+    trailTickSeconds: POS,
+  },
+  pestilent_locket: { dotBoostMul: { min: 1 }, extraCooldownSeconds: { min: 0 } },
+  blightweaver_band: { contactShare: { min: 0, above: true, max: 1 }, contactRadius: POS },
+  hourglass_scepter: { dotSpeedMul: POS },
+  sandals_of_the_second_hand: { rewindSeconds: POS },
+  loop_ring: { extraCharges: { min: 1, max: 20, int: true }, rechargeSpeedMul: POS },
+  pendulum_pendant: {
+    executeRefundCharges: { min: 1, max: 20, int: true },
+    eliteExecuteFraction: { min: 0, above: true, max: 1 },
+  },
+  ring_of_a_thousand_cuts: { bleedStacks: { min: 1, max: 50, int: true } },
+  duelists_pendant: { chargeRefund: { min: 0, above: true, max: 1 } },
+  bracer_of_the_whirlwind: { radiusMul: POS, knockbackMul: { min: 0 } },
+};
+
+/** fb056: the load-time check for `EQUIPMENT_EFFECT_NUMS` — see its doc comment. */
+export function validateEquipmentEffectNums(
+  item: { key: string; effectKey: string; effectNums: Record<string, number> },
+  where: string,
+): void {
+  const rules = EQUIPMENT_EFFECT_NUMS[item.effectKey];
+  if (!rules) return;
+  for (const field of Object.keys(item.effectNums)) {
+    if (!(field in rules)) throw new Error(`${where}: ${item.key}.effectNums.${field} is not a field its hook reads`);
+  }
+  for (const [field, r] of Object.entries(rules)) {
+    const v = item.effectNums[field];
+    if (v === undefined) {
+      if (r.optional) continue;
+      throw new Error(`${where}: ${item.key}.effectNums.${field} is required by its hook`);
+    }
+    const low = r.above ? v <= r.min : v < r.min;
+    if (low || (r.max !== undefined && v > r.max) || (r.int && !Number.isInteger(v))) {
+      throw new Error(
+        `${where}: ${item.key}.effectNums.${field} = ${v} is outside ${r.above ? '(' : '['}${r.min}, ${r.max ?? '∞'}]${
+          r.int ? ' (integer)' : ''
+        }`,
+      );
+    }
+  }
+  // Chronomail's low-HP clause is one rule stated with two numbers.
+  if (item.effectKey === 'chronomail' && ('lowHpFraction' in item.effectNums) !== ('lowHpWindowMul' in item.effectNums)) {
+    throw new Error(`${where}: ${item.key}.effectNums authors only half of the low-HP pair (lowHpFraction/lowHpWindowMul)`);
+  }
+}
 
 /** fb085: the load-time half of the registry above — see its doc comment. */
 export function validateEquipmentEffectKey(item: { key: string; effectKey: string }, where: string): void {
@@ -3015,6 +3112,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
     // fb085: the opened `effectKey` string is only as safe as the closed enum
     // it replaces if a typo still fails to load — see `KNOWN_EQUIPMENT_EFFECT_KEYS`.
     validateEquipmentEffectKey(item, 'equipment.json');
+    validateEquipmentEffectNums(item, 'equipment.json');
     if (item.classFallback && !classKeys.has(item.classFallback.notClassKey)) {
       throw new Error(
         `equipment.json: ${item.key}.classFallback references unknown class "${item.classFallback.notClassKey}"`,

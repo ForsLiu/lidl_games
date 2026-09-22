@@ -47,16 +47,16 @@ import {
   TAUNT_TOTEM,
   TAUNT_WARDEN,
 } from './enemies';
-import { hasEquipment } from './equipment';
+import { classEquipmentActive, classEquipmentNum, hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
-import { clamp, dist2, lerp, normalize } from './math';
+import { clamp, dist, dist2, lerp, normalize } from './math';
 import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
 import { BASE } from './stats';
-import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput } from './types';
+import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput, type TimeLockZone } from './types';
 import { classDashDuration, dashDistance, resolveDashTarget, startDashTravel } from './wardenmove';
-import { World } from './world';
+import { timeLockZoneCap, World } from './world';
 
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
 const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
@@ -134,7 +134,10 @@ const FROST_ON_HIT: readonly string[] = ['frost', 'frost_track'];
  */
 function passiveOnHit(w: World, cls: ClassDef): readonly string[] {
   if (cls.passive.kind === 'thousand_cuts') {
-    const base = cls.passive.bleedBaseStacks ?? 1;
+    // fb056 (§7.1) Ring of a Thousand Cuts: "Thousand Cuts applies 2 Bleeding
+    // per attack" replaces the passive's own base count; the class-line skill
+    // card ("Deeper Cuts") still stacks on top, exactly as it does on the base.
+    const base = classEquipmentNum(w, 'ring_of_a_thousand_cuts', 'bleedStacks', cls.passive.bleedBaseStacks ?? 1);
     const extra = Math.round(classLineBonus(w));
     const total = base + extra;
     return total === 1 ? BLEEDING_ON_HIT : Array(total).fill('bleeding');
@@ -338,6 +341,11 @@ export function circleSlashValues(
   };
 }
 
+/** fb056 (§7.1) Bracer of the Whirlwind's radius factor — shared by the solo release and Dash Slash's mid-charge merge. */
+function whirlwindRadiusMul(w: World): number {
+  return classEquipmentNum(w, 'bracer_of_the_whirlwind', 'radiusMul', 1);
+}
+
 /**
  * Fires a (possibly zero-charge) Circle Slash: a self-centered nova, scaled by
  * how long it was held.
@@ -352,8 +360,13 @@ export function circleSlashValues(
 function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const { radius: authoredRadius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
-  const radius = classArea(w, authoredRadius);
+  const v = circleSlashValues(eff, chargeSeconds);
+  const damage = v.damage;
+  // fb056 (§7.1) Bracer of the Whirlwind: "Circle Slash radius +25% and
+  // knockback +50%" — multipliers on the charge-scaled values, 1 (a no-op)
+  // unless a Swordsman wears it.
+  const radius = classArea(w, v.radius * whirlwindRadiusMul(w));
+  const knockback = v.knockback * classEquipmentNum(w, 'bracer_of_the_whirlwind', 'knockbackMul', 1);
   const onHit = passiveOnHit(w, cls);
   const hitList = knockback > 0 ? w.enemiesInRadius(wd.x, wd.y, radius).slice() : null;
   const boost = atkSpdDamageBoost ? w.derived.attackSpeedMul : 1;
@@ -424,7 +437,7 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   let mergedDamage = 0;
   if (cls.active1.kind === 'charge_nova' && wd.active1Charging) {
     const v = circleSlashValues(cls.active1, wd.active1Charge);
-    mergedRadius = classArea(w, v.radius);
+    mergedRadius = classArea(w, v.radius * whirlwindRadiusMul(w));
     // p7a (§6.3): the merged charge is still Circle Slash's own damage, so
     // it earns "Active1 potency" exactly like a normal release does
     // (`fireCircleSlash`) — code review found this path skipping it.
@@ -435,9 +448,26 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
     // made the merge reachable again with Sleeve Sword equipped).
     const boost = hasEquipment(w, 'swordsman_armor') && hasEquipment(w, 'sleeve_sword') ? w.derived.attackSpeedMul : 1;
     mergedDamage = v.damage * active1PotencyMul(w) * boost;
-    wd.active1Charging = false;
-    wd.active1Charge = 0;
-    wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
+    // fb056 (§7.1) Duelist's Pendant: "a Dash Slash cast during a charged
+    // Circle Slash refunds 50% of the charge (chain a second slash)" — the
+    // hold stays live with that share of the charge still banked, so keeping
+    // the key down chains straight into a second merge or release, and
+    // Active1's cooldown is not started (it starts when that chain finally
+    // releases, `tickClassCharge`). **Once per hold** (`active1RefundUsed`,
+    // code review): the chained slash is *a second* slash, so a second merge
+    // in the same hold consumes the charge and starts the cooldown like any
+    // merge — otherwise the chain never ended and never paid its cooldown.
+    // Without the item the merge consumes the whole charge and starts the
+    // cooldown exactly as before.
+    const refund = classEquipmentNum(w, 'duelists_pendant', 'chargeRefund', 0);
+    if (refund > 0 && wd.active1Charge > 0 && !wd.active1RefundUsed) {
+      wd.active1Charge *= refund;
+      wd.active1RefundUsed = true;
+    } else {
+      wd.active1Charging = false;
+      wd.active1Charge = 0;
+      wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
+    }
   }
 
   const dir = aimDirection(w, aimX, aimY);
@@ -507,8 +537,52 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     // left to `updateAreas`'s own `?? 1` fallback, per the item's own
     // acceptance text.
     tickSeconds: eff.groundTickSeconds ?? 1,
+    // fb056 (§7.1) Miasma Robe: "Poison Barrel's cloud drifts toward the
+    // character (1 tile/s)" — frozen onto the zone at cast, like its radius.
+    driftSpeed: classEquipmentNum(w, 'miasma_robe', 'cloudDriftSpeed', 0),
   });
   w.emit('class_active', wd.x, wd.y, radius, 0);
+}
+
+/**
+ * fb056 (§7.1) Carrier's Boots: "dashing leaves a poison trail (0.5x basic
+ * dmg/s for 3 s)" — Flame Road's trail shape (`trailSegments` ordinary ground
+ * patches spaced along the line actually travelled, so a dash cut short by a
+ * wall lays poison only as far as the Warden got), each a `'poison'` zone like
+ * Poison Barrel's: once a second it applies Poison seeded by `trailDamageMul`
+ * x the class's basic-attack hit, through §3's ratio conversion (`dotDpsFor`).
+ */
+export function layCarriersTrail(w: World, from: { x: number; y: number }, to: { x: number; y: number }): void {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  const poisonDef = w.content.damageTypeByKey.get('poison');
+  if (!cls || !poisonDef) return;
+  const seconds = classEquipmentNum(w, 'carriers_boots', 'trailSeconds', 0);
+  const mul = classEquipmentNum(w, 'carriers_boots', 'trailDamageMul', 0);
+  const radius = classArea(w, classEquipmentNum(w, 'carriers_boots', 'trailRadius', 0));
+  if (seconds <= 0 || mul <= 0 || radius <= 0) return;
+  // `trailSegments` is the patch count of a full dash; a dash a wall cuts short
+  // lays one patch per patch-diameter actually travelled (qa: a blocked dash
+  // piled all three on one spot, 1.67x the poison of an open one).
+  const maxSegments = Math.max(1, Math.round(classEquipmentNum(w, 'carriers_boots', 'trailSegments', 1)));
+  const travelled = dist(from.x, from.y, to.x, to.y);
+  const segments = Math.min(maxSegments, 1 + Math.floor(travelled / (2 * radius)));
+  const seed = characterDamage(w, cls, cls.basicAttack.dps * cls.basicAttack.interval) * mul;
+  for (let i = 0; i < segments; i++) {
+    const t = segments === 1 ? 0 : i / (segments - 1);
+    w.areas.push({
+      id: w.newId(),
+      x: from.x + (to.x - from.x) * t,
+      y: from.y + (to.y - from.y) * t,
+      radius,
+      dps: dotDpsFor(poisonDef, seed),
+      remaining: seconds,
+      type: 'poison',
+      source: 'class_passive',
+      acc: 0,
+      dead: false,
+      tickSeconds: classEquipmentNum(w, 'carriers_boots', 'trailTickSeconds', 1),
+    });
+  }
 }
 
 /**
@@ -520,10 +594,21 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
  * "remaining ... damage" as an amount, not a duration.
  */
 function firePoisonBoost(w: World): void {
+  // fb056 (§7.1) Pestilent Locket: "Poison Boost doubles ALL DoTs (Poison,
+  // Toxic, Bleeding, Burning)" — every `effect: 'dot'` damage type, read off
+  // `/data` rather than a hardcoded list, at the item's own multiplier.
+  const locket = classEquipmentActive(w, 'pestilent_locket');
+  const mul = locket ? classEquipmentNum(w, 'pestilent_locket', 'dotBoostMul', 2) : 2;
+  // fb056 (§7.1) Miasma Robe: "Poison Boost also refreshes all poison
+  // durations" — each live Poison stack's clock goes back to the row's own
+  // full duration (never shortened).
+  const refresh = classEquipmentActive(w, 'miasma_robe');
+  const poisonDuration = w.content.damageTypeByKey.get('poison')?.duration ?? 0;
   for (const e of w.enemies) {
     if (e.dead) continue;
     for (const d of e.dots) {
-      if (d.type === 'poison') d.dps *= 2;
+      if (d.type === 'poison' || (locket && w.content.damageTypeByKey.get(d.type)?.effect === 'dot')) d.dps *= mul;
+      if (refresh && d.type === 'poison') d.remaining = Math.max(d.remaining, poisonDuration);
     }
   }
   w.emit('class_active2', w.warden.x, w.warden.y, 0, 0);
@@ -1168,8 +1253,11 @@ const POS_HISTORY_SAMPLE_SECONDS = 0.25;
  * ring buffer keeps — QA found this field previously unread (the buffer was a
  * hardcoded 12-sample/3 s constant regardless of what the data authored).
  */
-function historySampleCount(cls: ClassDef): number {
-  const seconds = cls.active1.markRewindSeconds ?? 3;
+function historySampleCount(w: World, cls: ClassDef): number {
+  // fb056 (§7.1) Sandals of the Second Hand: "Time's rewind moves enemies to
+  // their position of 6 s ago instead of 3 s" — a longer buffer, so the
+  // oldest sample `advanceTimeMark` rewinds to is that many seconds back.
+  const seconds = classEquipmentNum(w, 'sandals_of_the_second_hand', 'rewindSeconds', cls.active1.markRewindSeconds ?? 3);
   return Math.max(1, Math.round(seconds / POS_HISTORY_SAMPLE_SECONDS));
 }
 
@@ -1182,14 +1270,16 @@ function historySampleCount(cls: ClassDef): number {
  * `Enemy.posHistory` empty and free.
  */
 function updateTimeLordHistory(w: World, cls: ClassDef, dt: number): void {
-  const samples = historySampleCount(cls);
+  const samples = historySampleCount(w, cls);
   for (const e of w.enemies) {
     if (e.dead) continue;
     e.posHistoryTimer -= dt;
     if (e.posHistoryTimer > 0) continue;
     e.posHistoryTimer += POS_HISTORY_SAMPLE_SECONDS;
     e.posHistory.push({ x: e.x, y: e.y });
-    if (e.posHistory.length > samples) e.posHistory.shift();
+    // `while`, not `if`: a mid-run swap off the Sandals shrinks the window by
+    // more than one sample at once.
+    while (e.posHistory.length > samples) e.posHistory.shift();
   }
 }
 
@@ -1273,8 +1363,16 @@ function advanceTimeMark(w: World, cls: ClassDef, e: Enemy): void {
     // was itself a bug (armor silently ate most of the 50%, QA-found).
     const tx = e.x;
     const ty = e.y;
+    // fb056 (§7.1) Pendulum Pendant: "executing a 'future' enemy refunds 1
+    // Time charge; elites/bosses lose 60% instead of 50%". Credited unclamped
+    // here: this runs inside the press, *before* `useClassActive` spends the
+    // press's own charge, so clamping now would throw the refund away at a
+    // full bar (qa: 4/4 ended 3/4). `useClassActive` clamps to the live cap
+    // after the spend instead.
+    const refund = Math.round(classEquipmentNum(w, 'pendulum_pendant', 'executeRefundCharges', 0));
+    if (refund > 0) w.warden.active1Ammo += refund;
     if (e.elite || e.boss) {
-      const spend = e.hp * (eff.markEliteExecuteFraction ?? 0.5);
+      const spend = e.hp * classEquipmentNum(w, 'pendulum_pendant', 'eliteExecuteFraction', eff.markEliteExecuteFraction ?? 0.5);
       damageEnemy(w, e, spend, 'class_active', { pure: true, dot: true, type: 'normal', noLifesteal: true });
       w.emit('execute', tx, ty, spend, 0);
     } else {
@@ -1325,10 +1423,15 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
   const eff = cls.active2;
   const cx = aimX ?? wd.x;
   const cy = aimY ?? wd.y;
-  const old = w.timeLockZone;
-  if (old) {
+  // fb056 (§7.1) Bracer of Overlap: "Time Lock can hold 2 zones at once;
+  // casting a third teleports and detonates BOTH". Below the cap
+  // (`timeLockZoneCap`, 1 without the item) a cast simply adds a zone; at the
+  // cap it detonates and teleports every standing zone's enemies into the new
+  // one — with the cap at 1 that is exactly the pre-fb056 recast rule.
+  if (w.timeLockZones.length >= timeLockZoneCap(w)) {
+    const held = new Set(w.timeLockZones.map((z) => z.id));
     for (const e of w.enemies) {
-      if (e.dead || e.timeLockZoneId !== old.id) continue;
+      if (e.dead || !held.has(e.timeLockZoneId)) continue;
       const burst = dotOutstanding(e);
       if (burst > 0) damageEnemy(w, e, burst, 'class_active2', { pure: true, dot: true, type: 'normal' });
       e.dots = [];
@@ -1337,8 +1440,9 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
       e.y = cy;
       e.timeLockZoneId = 0;
     }
+    w.timeLockZones.length = 0;
   }
-  w.timeLockZone = {
+  const zone = {
     id: w.newId(),
     x: cx,
     y: cy,
@@ -1350,7 +1454,8 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
     dotSeconds: eff.zoneDotSeconds ?? 10,
     dps: characterDamage(w, cls, eff.damage),
   };
-  w.emit('class_active2', cx, cy, w.timeLockZone.radius, 0);
+  w.timeLockZones.push(zone);
+  w.emit('class_active2', cx, cy, zone.radius, 0);
 }
 
 /**
@@ -1358,29 +1463,42 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
  * enemy once (installing its entry DoT), then clamps every tagged enemy back
  * inside the radius every tick regardless of how it tried to leave — the
  * "5 s no-exit" clause. Safe to call every tick of every run: a no-op unless
- * `w.timeLockZone` is actually set, which only *Time Lock* itself ever does.
+ * `w.timeLockZones` holds a zone, which only *Time Lock* itself ever does.
  */
 function updateTimeLockZone(w: World, dt: number): void {
-  const z = w.timeLockZone;
-  if (!z) return;
+  if (w.timeLockZones.length === 0) return;
   // b048: same "the defeat slow-mo beat is a frozen moment" rule b020/b046/
   // b047 apply — the entry DoT and the forced-reposition clamp are both real
   // CC, not cosmetic. Guarded here (not by blanket-guarding the whole of
   // updateClassPassives) so the Warden timer decrements and corpse decay
   // above this call keep running, matching this item's acceptance.
   if (w.dying) return;
-  z.remaining -= dt;
-  if (z.remaining <= 0) {
-    releaseTimeLockZone(w, z.id);
-    w.timeLockZone = null;
-    return;
+  // fb056: every standing zone ticks (Bracer of Overlap can hold two), oldest
+  // first; an expired one is spliced out and frees exactly its own enemies.
+  for (let i = 0; i < w.timeLockZones.length; ) {
+    const z = w.timeLockZones[i];
+    if (!z) break;
+    z.remaining -= dt;
+    if (z.remaining <= 0) {
+      releaseTimeLockZone(w, z.id);
+      w.timeLockZones.splice(i, 1);
+      continue;
+    }
+    tickTimeLockZone(w, z);
+    i++;
   }
+}
+
+/** One standing Time Lock zone's per-tick trap/clamp — see `updateTimeLockZone`. */
+function tickTimeLockZone(w: World, z: TimeLockZone): void {
   const r2 = z.radius * z.radius;
   for (const e of w.enemies) {
     if (e.dead) continue;
     const already = e.timeLockZoneId === z.id;
     const inside = dist2(e.x, e.y, z.x, z.y) <= r2;
-    if (!already && inside) {
+    // An enemy already held by another standing zone stays that zone's (fb056:
+    // a second zone never steals, re-DoTs or double-clamps a trapped enemy).
+    if (e.timeLockZoneId === 0 && inside) {
       e.timeLockZoneId = z.id;
       applyDot(w, e, 'bleeding', z.dps, z.dotSeconds, 'class_active2');
     } else if (already && !inside) {
@@ -1427,7 +1545,7 @@ export function updateClassPassives(w: World, dt: number): void {
     }
     if (expired) w.corpses = w.corpses.filter((c) => c.remaining > 0);
   }
-  // fb013: a no-op unless `w.timeLockZone` is set, which only Time Lord's own
+  // fb013: a no-op unless `w.timeLockZones` holds a zone, which only Time Lord's own
   // Active2 ever sets — cheap and safe to run unconditionally, same reasoning
   // the corpse-decay block above already gives.
   updateTimeLockZone(w, dt);
@@ -1440,6 +1558,8 @@ export function updateClassPassives(w: World, dt: number): void {
   if (cls.active2.kind === 'death_pact') updatePactedTowers(w, cls, dt);
   // fb013: position sampling for *Time*'s rewind, kept off for every other kit.
   if (cls.active1.kind === 'time_mark') updateTimeLordHistory(w, cls, dt);
+  // fb056 (§7.1) Blightweaver Band: poison contact spread.
+  if (classEquipmentActive(w, 'blightweaver_band')) updateBlightweaverBand(w, dt);
 
   switch (cls.passive.kind) {
     case 'contagious_flame':
@@ -1452,6 +1572,48 @@ export function updateClassPassives(w: World, dt: number): void {
       break;
   }
 }
+
+/**
+ * fb056 (§7.1) Blightweaver Band: "poisoned enemies also tick 50% of their
+ * poison onto enemies touching them" — Contagious Flame's touch shape (a
+ * per-tick direct hit on every live neighbour within the touch radius, never a
+ * new stack, so the spread cannot cascade across the horde), priced at
+ * `contactShare` of each live Poison stack's dps **under that stack's own
+ * source** (code review): a tower's poison spreads as the tower's, so it is
+ * never re-scaled by kit power (`scalesWithKitPower`), exactly the
+ * correctness rule `spreading_plague` already follows; the kit's own poison
+ * still spreads as the kit's.
+ */
+function updateBlightweaverBand(w: World, dt: number): void {
+  if (w.dying) return;
+  const share = classEquipmentNum(w, 'blightweaver_band', 'contactShare', 0);
+  const radius = classArea(w, classEquipmentNum(w, 'blightweaver_band', 'contactRadius', 0));
+  if (share <= 0 || radius <= 0) return;
+  const n = w.enemies.length;
+  for (let i = 0; i < n; i++) {
+    const e = w.enemies[i];
+    if (!e || e.dead) continue;
+    bandBySource.clear();
+    for (const d of e.dots) {
+      if (d.type !== 'poison' || d.remaining <= 0) continue;
+      bandBySource.set(d.source, (bandBySource.get(d.source) ?? 0) + d.dps);
+    }
+    if (bandBySource.size === 0) continue;
+    const list = w.enemiesInRadius(e.x, e.y, radius, flameScratch);
+    for (let j = 0; j < list.length; j++) {
+      const other = list[j];
+      if (!other || other === e || other.dead) continue;
+      for (const [source, dps] of bandBySource) {
+        if (other.dead) break;
+        damageEnemy(w, other, dps * share * dt, source, { pure: true, dot: true, type: 'poison' });
+      }
+    }
+  }
+}
+
+// Reused across carriers (same reasoning as `flameScratch`); insertion order is
+// the carrier's own stack order, so iteration is deterministic.
+const bandBySource = new Map<string, number>();
 
 /** §4.2 Pyro *Contagious Flame*: "Burning enemies deal 2 dmg/s to enemies touching them". */
 function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
@@ -1680,7 +1842,7 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
 
   // fb013: `maxCharges > 1` (Time Lord's *Time*) gates on ammo instead of the
   // single `active1Cooldown` every other kind still uses untouched.
-  const max1 = cls.active1.maxCharges ?? 1;
+  const max1 = activeMaxCharges(w, cls, 'active1');
   if (max1 > 1) {
     if (wd.active1Ammo <= 0) return false;
   } else if (wd.active1Cooldown > 0) {
@@ -1725,11 +1887,43 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   }
   if (max1 > 1) {
     wd.active1Ammo--;
-    if (wd.active1AmmoCooldown <= 0) wd.active1AmmoCooldown = (cls.active1.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+    // fb056: a Pendulum Pendant refund credited mid-press lands here, after the spend.
+    if (wd.active1Ammo > max1) wd.active1Ammo = max1;
+    if (wd.active1AmmoCooldown <= 0) wd.active1AmmoCooldown = activeRechargeSeconds(w, cls, 'active1') * (1 - w.derived.cdr);
   } else {
     wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
   }
   return true;
+}
+
+/**
+ * fb056 (§7.1) Loop Ring: "Time has 4 charges and recharges 25% faster" — an
+ * ammo Active's live charge cap (its authored `maxCharges` plus the ring's
+ * `extraCharges` on Active1) and its per-charge recharge seconds (divided by
+ * the ring's `rechargeSpeedMul`). Every ammo read goes through these two, so
+ * the bottom bar, the Pendulum Pendant refund and the recharge loop agree.
+ */
+export function activeMaxCharges(w: World, cls: ClassDef, which: 'active1' | 'active2'): number {
+  const base = cls[which].maxCharges ?? 1;
+  if (which !== 'active1' || base <= 1) return base;
+  return base + Math.round(classEquipmentNum(w, 'loop_ring', 'extraCharges', 0));
+}
+
+export function activeRechargeSeconds(w: World, cls: ClassDef, which: 'active1' | 'active2'): number {
+  const base = cls[which].rechargeSeconds ?? 0;
+  if (which !== 'active1') return base;
+  return base / Math.max(classEquipmentNum(w, 'loop_ring', 'rechargeSpeedMul', 1), 0.01);
+}
+
+/**
+ * An Active's authored cooldown before cooldown reduction — plus fb056 (§7.1)
+ * Pestilent Locket's "cooldown +2 s" on the Poison Boost it empowers. Shared
+ * with the bottom bar's sweep so the two cannot disagree.
+ */
+export function activeCooldownSeconds(w: World, cls: ClassDef, which: 'active1' | 'active2'): number {
+  const eff = cls[which];
+  const extra = eff.kind === 'poison_boost' ? classEquipmentNum(w, 'pestilent_locket', 'extraCooldownSeconds', 0) : 0;
+  return eff.cooldownSeconds + extra;
 }
 
 /** Held on `TickInput.active1Held` and fired on release, rather than by its own Command. */
@@ -1809,7 +2003,7 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
     wd.active2Ammo--;
     if (wd.active2AmmoCooldown <= 0) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * active2CdrFactor(w);
   } else {
-    wd.active2Cooldown = cls.active2.cooldownSeconds * active2CdrFactor(w);
+    wd.active2Cooldown = activeCooldownSeconds(w, cls, 'active2') * active2CdrFactor(w);
   }
   return true;
 }
@@ -1822,12 +2016,14 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
  */
 export function tickAmmoRecharge(w: World, cls: ClassDef, dt: number): void {
   const wd = w.warden;
-  const max1 = cls.active1.maxCharges ?? 1;
+  const max1 = activeMaxCharges(w, cls, 'active1');
+  // A mid-run swap off the Loop Ring drops the cap below charges already held.
+  if (wd.active1Ammo > max1) wd.active1Ammo = max1;
   if (max1 > 1 && wd.active1Ammo < max1) {
     wd.active1AmmoCooldown -= dt;
     if (wd.active1AmmoCooldown <= 0) {
       wd.active1Ammo++;
-      if (wd.active1Ammo < max1) wd.active1AmmoCooldown = (cls.active1.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+      if (wd.active1Ammo < max1) wd.active1AmmoCooldown = activeRechargeSeconds(w, cls, 'active1') * (1 - w.derived.cdr);
     }
   }
   const max2 = cls.active2.maxCharges ?? 1;
@@ -1858,6 +2054,8 @@ export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: n
     if (!wd.active1Charging) {
       if (wd.active1Cooldown > 0) return;
       wd.active1Charging = true;
+      // fb056: a new hold earns a fresh Duelist's Pendant refund.
+      wd.active1RefundUsed = false;
       // fb052 (§7) Sleeve Sword: "Circle Slash's charge is at MAX from the
       // moment the key is pressed; release at any time applies the
       // max-charge effect" — the hold/release flow (and Dash Slash's
@@ -1932,6 +2130,15 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
   } else {
     damageEnemy(w, target, dmg, 'class_basic', { fromX: wd.x, fromY: wd.y });
     if (!target.dead) applyEffects(w, target, { onHit });
+  }
+  // fb056 (§7.1) Plague Flask: "basic attacks apply Poison (120% over 3 s) on
+  // every hit" — the hit's own damage as the triggering amount, §3's ratio
+  // convention (`dotDpsFor`'s `ratio x damage / duration`) at the item's own
+  // authored ratio/seconds.
+  if (!target.dead && classEquipmentActive(w, 'plague_flask')) {
+    const seconds = classEquipmentNum(w, 'plague_flask', 'poisonSeconds', 0);
+    const ratio = classEquipmentNum(w, 'plague_flask', 'poisonRatio', 0);
+    if (seconds > 0 && ratio > 0) applyDot(w, target, 'poison', (ratio * dmg) / seconds, seconds, 'class_basic');
   }
   w.emit('class_basic', wd.x, wd.y, target.x, target.y);
 }

@@ -336,17 +336,16 @@ const LEDGER: readonly Figure[] = [
       kind: 'in_code',
       site:
         'drainPlagueTransfers — `const targets = 1 + Math.round(classLineBonus(w)) + ' +
-        "Math.round(equipmentEffectNum(w, 'ring_of_contagion', 'extraTargets', 0))`",
+        "Math.round(classEquipmentNum(w, 'ring_of_contagion', 'extraTargets', 0))`",
       file: 'src/sim/enemies.ts',
       anchors: [
-        /const targets = 1 \+ Math\.round\(classLineBonus\(w\)\) \+ Math\.round\(equipmentEffectNum\(w, 'ring_of_contagion', 'extraTargets', 0\)\);/,
+        /const targets = 1 \+ Math\.round\(classLineBonus\(w\)\) \+ Math\.round\(classEquipmentNum\(w, 'ring_of_contagion', 'extraTargets', 0\)\);/,
       ],
       why:
-        'One target, once, absent both bonuses. Only the §6.3 line bonus and (fb085, unblocking ' +
-        "fb056) Ring of Contagion's own extraTargets are data-driven — the base 1 the clause states " +
-        'is still a literal. fb085 wired the seam this row named as a blocker for fb056\'s Ring of ' +
-        "Contagion (BACKLOG-CONTENT Log, session 1); fb056 itself (data/equipment.json) is what " +
-        'would move this row from 0 to a real extra fan-out target.',
+        'One target, once, absent both bonuses. Only the §6.3 line bonus and Ring of Contagion\'s ' +
+        'own extraTargets are data-driven — the base 1 the clause states is still a literal. fb085 ' +
+        "wired the seam; fb056 authored the ring (data/equipment.json, SPEC-FINAL §7.1: 'the 3 " +
+        "nearest enemies instead of 1', extraTargets 2) and class-gated the read (`classEquipmentNum`).",
       in: 'passive',
       absentKey: /target|transfer|fanOut|spread|nearest|count/i,
     },
@@ -388,10 +387,12 @@ const LEDGER: readonly Figure[] = [
       kind: 'in_code',
       site: 'firePoisonBoost',
       file: CLASSES_TS,
-      anchors: [/if \(d\.type === 'poison'\) d\.dps \*= 2;/],
+      anchors: [/const mul = locket \? classEquipmentNum\(w, 'pestilent_locket', 'dotBoostMul', 2\) : 2;/],
       why:
         'The multiplier is a literal. `poison_boost` authors no field for it, so a rebalance ' +
-        'of "double" would be a code edit — architecture rule 4 says it should be `/data`.',
+        'of "double" would be a code edit — architecture rule 4 says it should be `/data`. (fb056: ' +
+        "the Pestilent Locket's all-DoT boost authors its own `dotBoostMul` in /data; the kit's own " +
+        'base "double" is still this literal.)',
       in: 'active2',
       absentKey: /mul|multiplier|factor|scale|boost|double/i,
       // p13a (QUESTIONS Q196): every class row now carries a top-level

@@ -183,11 +183,13 @@ describe('c031 — every hasEquipment literal is a §7 mechanic, and every key i
     expect(
       rawCalls,
       'a `hasEquipment(` in /src that the blanked scan did not see — check blankNonCode’s known blind spot',
-    ).toBe(CALL_SITES.length + 3); // +3: the `export function` in sim/equipment.ts,
+    ).toBe(CALL_SITES.length + 4); // +4: the `export function` in sim/equipment.ts,
     // fb148's doc comment in class-info.ts quoting the class-live.ts call verbatim, and
     // (fb085) `equipmentEffectNum`'s own internal `hasEquipment(w, itemKey)` call in the
     // same file — a *parameterized* gate (no string literal), so `CALL_SITES` correctly
-    // does not carry it, but the raw scan still sees the substring.
+    // does not carry it, but the raw scan still sees the substring — and (fb056)
+    // `classEquipmentActive`'s own parameterized `hasEquipment(w, itemKey)`, the gate
+    // every §7.1 class-set hook reads through, for the same reason.
     // Per key, so a lost call site names the item rather than arriving as a
     // bare arity mismatch.
     const perKey: Record<string, number> = {};

@@ -287,6 +287,40 @@ elsewhere unless a fallback is written.
 Expansion hook: future workbook rows drop straight into the table. Parked
 idea (owner): classes wearing multiple items of one slot.
 
+### 7.1 Class equipment sets (owner table, verbatim; `data/equipment.json`) **[owner feature — inbox 2026-09-03, fb056]**
+
+Owner rules: every item works alone; items of a set have synergy; every
+class-specific line has an "if not <class>" basic-stat compensation, which
+replaces the line (never stacks with it) for every other class. Stats on the
+§7 scale; all numbers ⚖. Each set item drops from the §8.1 loot table on the
+same even weights as every §7 row.
+
+| Item | Slot | HP | Atk | Def | AtkSpd | Move | Effect |
+|---|---|---|---|---|---|---|---|
+| plague flask | weapon | 0 | 4 | 0 | ×1.1 | ×1 | basic attacks apply Poison (120% over 3 s) on every hit; if not Plaguebringer: atk speed ×1.15 |
+| miasma robe | armor | 6 | 0 | 4 | ×1 | ×1 | Poison Barrel's cloud drifts toward the character (1 tile/s) and Poison Boost also refreshes all poison durations; if not Plaguebringer: HP ×1.1 |
+| carrier's boots | shoes | 3 | 0 | 3 | ×1 | ×1.4 | dashing leaves a poison trail (0.5× basic dmg/s for 3 s); if not Plaguebringer: move ×1.15 |
+| ring of contagion | ring | 0 | 2 | 0 | ×1 | ×1 | Spreading Plague jumps to the 3 nearest enemies instead of 1; if not Plaguebringer: +1 life regen |
+| pestilent locket | necklace | 2 | 0 | 2 | ×1 | ×1 | Poison Boost doubles ALL DoTs (Poison, Toxic, Bleeding, Burning), cooldown +2 s; if not Plaguebringer: EXP +15% |
+| blightweaver band | bracelet | 0 | 1 | 1 | ×1 | ×1 | poisoned enemies also tick 50% of their poison onto enemies touching them; if not Plaguebringer: area +10% |
+| hourglass scepter | weapon | 0 | 5 | 0 | ×1 | ×1 | activates Time Flow's dormant clause: all DoT damage from the character ticks 100% faster (same total, half duration); if not Time Lord: atk +3 |
+| chronomail | armor | 8 | 0 | 6 | ×1 | ×1 | Time Flow converts incoming damage over 8 s instead of 4 s; at <=30% HP, over 12 s; if not Time Lord: def +5 |
+| sandals of the second hand | shoes | 3 | 0 | 2 | ×1 | ×1.3 | Time's rewind moves enemies to their position of 6 s ago instead of 3 s; if not Time Lord: move ×1.1 |
+| loop ring | ring | 0 | 2 | 1 | ×1 | ×1 | Time has 4 charges and recharges 25% faster; if not Time Lord: +1 life regen |
+| pendulum pendant | necklace | 2 | 0 | 2 | ×1 | ×1 | executing a "future" enemy refunds 1 Time charge; elites/bosses lose 60% instead of 50%; if not Time Lord: EXP +15% |
+| bracer of overlap | bracelet | 0 | 1 | 1 | ×1 | ×1 | Time Lock can hold 2 zones at once; casting a third teleports and detonates BOTH; if not Time Lord: area +10% |
+| ring of a thousand cuts | ring | 0 | 2 | 1 | ×1 | ×1 | Thousand Cuts applies 2 Bleeding per attack; if not Swordsman: +1 life regen |
+| duelist's pendant | necklace | 3 | 2 | 0 | ×1 | ×1 | a Dash Slash cast during a charged Circle Slash refunds 50% of the charge (chain a second slash); if not Swordsman: EXP +15% |
+| bracer of the whirlwind | bracelet | 0 | 1 | 2 | ×1 | ×1 | Circle Slash radius +25% and knockback +50%; if not Swordsman: area +10% |
+
+Synergy chains (owner): Plaguebringer — Flask applies → Band spreads by
+contact → Ring spreads on death → Locket boosts everything → Robe keeps the
+cloud on her → Boots trail while repositioning. Time Lord — Scepter (fast DoT)
++ Pendant (refunds) + Loop Ring (more charges) = mark-cycling engine; Bracer +
+Sandals = zone control; Chronomail = the survivability that lets her stand in
+the middle. Swordsman — Sleeve Sword + Duelist's Pendant + Swordsman Armor =
+spin engine; Bracer + Swordsman Shoes = control build.
+
 ## 8. Rewards & meta
 
 1. **Each TD wave cleared → 1 random equipment** (even weights ⚖), granted

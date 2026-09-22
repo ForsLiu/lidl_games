@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-22 (owner-directed session, full repository scope) — BACKLOG-
+  CONTENT.md fb056 CLOSED: the 15 class equipment sets ship.** Plaguebringer
+  (6), Time Lord (6) and the Swordsman completion (3) are in
+  `data/equipment.json`, spec'd as SPEC-FINAL §7.1 (the owner's table
+  verbatim + synergy chains), each mechanic behind its own `effectNums` read
+  through the new class-gated `classEquipmentNum`/`classEquipmentActive`
+  (`sim/equipment.ts`) and a loader registry that refuses unknown/missing/
+  out-of-range magnitudes (`validateEquipmentEffectNums`). Engine hooks in
+  `classes.ts`/`enemies.ts`/`run.ts`/`combat.ts`/`world.ts`; Hourglass
+  Scepter finally activates fb013's dormant `charDotSpeedMul` — rewired to
+  the character's DoTs *on enemies* (fb013's own wording), off the Warden's
+  incoming Time Flow DoT (inert at 1, nothing shipped moved). Tooltips/Hub/
+  Codex substitute live `effectNums` (`{n:}`/`{pct:}` in `effectNote`); the
+  loot table and Codex already iterate the whole roster (pinned by test).
+  New `tests/equip-class-sets-spec.test.ts` (§7.1 ledger: parsed + hashed
+  table, every numeric/fallback/effect figure, numeral-residue check,
+  baselines vs `data/classes.json`, desc audit, loader refusals, tooltip/
+  Codex) and `tests/equip-class-sets-behaviour.test.ts` (32 cases: every
+  effect clause, one "if not <class>" fallback per set, each set's headline
+  synergy, two code-review regressions). Bugs caught before commit, each
+  with a failing test first: Pendulum Pendant's refund lost at a full bar
+  (clamp moved after the spend); Duelist's Pendant chain never ended nor paid
+  its cooldown (now once per hold, `Warden.active1RefundUsed`); Blightweaver
+  Band re-scaled tower poison by kit power (now spreads each stack under its
+  own source); seven descs printed HP at 1/10. Test fallout adapted, not
+  weakened: c012's §7 ledger scoped to the owner table with a roster bridge
+  (every item audited by exactly one ledger), fb085 fixtures, c023/c031/c032/
+  c013 source-scan guards (each new read declared), q16 census 27, q7 holes
+  regenerated (`Q7_RECORD=1`) with the negative/zero floors re-pinned under
+  the new registry's measurement, fb153a unscaled-field reasons. Design
+  readings: QUESTIONS Q215. code-reviewer REQUEST-CHANGES (3 Major, all
+  fixed above); qa-playtester PASS (two Minor bugs — a doubled "%" in the
+  Miasma Robe fallback line, stacked Boots patches on a wall-blocked dash —
+  fixed with regression tests). Full tier.
+  — refs: SPEC-FINAL §7.1, §8.1, owner feedback `feature-class-equipment-sets`.
+
 - **2026-09-22 (scheduled routine, latest) — BACKLOG-QUALITY.md fb182 CLOSED:
   token-economy trim + a gate-audit staleness-check fix it surfaced.**
   BACKLOG-QUALITY.md was 5720 lines, well past fb178's 400-line budget for

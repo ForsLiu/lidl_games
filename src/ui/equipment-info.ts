@@ -44,6 +44,25 @@ function withMul(text: string, ctx: EquipmentEffectContext): string {
 }
 
 /**
+ * fb056: an effect note's live numbers — `{n:field}` becomes the item's own
+ * `effectNums[field]` and `{pct:field}` the same value as a percent — so the
+ * sentence is authored once in `/data` and every number in it is the value the
+ * sim reads (`classEquipmentNum`, sim/equipment.ts), never a second copy. An
+ * unauthored field is left visibly unsubstituted rather than printed as 0.
+ */
+export function withEffectNums(text: string, item: EquipmentItem): string {
+  return text.replace(/\{(n|pct):(\w+)\}/g, (whole, kind: string, field: string) => {
+    const v = item.effectNums[field];
+    if (v === undefined) return whole;
+    return kind === 'pct' ? `${trimNum(v * 100)}%` : trimNum(v);
+  });
+}
+
+function noteText(text: string, item: EquipmentItem, ctx: EquipmentEffectContext): string {
+  return withEffectNums(withMul(text, ctx), item);
+}
+
+/**
  * Whether `item`'s primary `effectKey` mechanic is live for `ctx` — the same
  * condition `classFallback.notClassKey !== classKey` gates the *fallback*
  * mods on (stats.ts's `baseRunStats`, run.ts's `equipItemCommand`), inverted:
@@ -109,11 +128,11 @@ export function equipmentFallbackMarkup(content: Content, ctx: EquipmentEffectCo
 export function equipmentSpecialNoteMarkup(item: EquipmentItem, ctx: EquipmentEffectContext): string {
   if (!item.effectNote) return '';
   const gateActive = specialActive(item, ctx);
-  const baseLine = `<div class="sw-modline">${withMul(item.effectNote, ctx)} ${
+  const baseLine = `<div class="sw-modline">${noteText(item.effectNote, item, ctx)} ${
     gateActive && !crossEquipped(item, ctx) ? '<span class="sw-phase-vs">(active)</span>' : '<span class="dim">(inert)</span>'
   }</div>`;
   if (!item.effectNoteWith) return baseLine;
-  const crossLine = `<div class="sw-modline">${withMul(item.effectNoteWith.text, ctx)} ${
+  const crossLine = `<div class="sw-modline">${noteText(item.effectNoteWith.text, item, ctx)} ${
     gateActive && crossEquipped(item, ctx) ? '<span class="sw-phase-vs">(active)</span>' : '<span class="dim">(inert)</span>'
   }</div>`;
   return baseLine + crossLine;
@@ -147,12 +166,12 @@ export function equipmentCodexDetailMarkup(content: Content, item: EquipmentItem
     ? (content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey)
     : null;
   if (item.effectNote) {
-    const line = withMul(item.effectNote, noMul);
+    const line = noteText(item.effectNote, item, noMul);
     parts.push(`<div class="sw-modline">${targetName ? `If ${targetName}: ` : ''}${line}</div>`);
   }
   if (item.effectNoteWith) {
     const companionName = content.equipmentByKey.get(item.effectNoteWith.key)?.name ?? item.effectNoteWith.key;
-    const line = withMul(item.effectNoteWith.text, noMul);
+    const line = noteText(item.effectNoteWith.text, item, noMul);
     const prefix = targetName ? `If ${targetName} and ${companionName} also equipped: ` : `With ${companionName} also equipped: `;
     parts.push(`<div class="sw-modline">${prefix}${line}</div>`);
   }

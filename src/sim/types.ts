@@ -520,6 +520,12 @@ export interface GroundArea {
    * before ever reaching this field (`'bossSlam'`, `'enemyFire'`).
    */
   tickSeconds?: number;
+  /**
+   * fb056 (§7.1) Miasma Robe: tiles/s this area glides toward the Warden
+   * (`updateAreas`). Absent/0 — every area but a Robe-drifted Poison Barrel —
+   * leaves it where it was cast.
+   */
+  driftSpeed?: number;
   /** Damage-over-time tick accumulator, advanced every frame the area is alive. */
   acc: number;
   dead: boolean;
@@ -564,6 +570,14 @@ export interface Warden {
    */
   active1Charge: number;
   active1Charging: boolean;
+  /**
+   * fb056 (§7.1 Duelist's Pendant): whether this hold has already taken its
+   * one "refunds 50% of the charge (chain a second slash)" — cleared when a
+   * new hold starts, so a second merge in the same hold consumes the charge
+   * and starts Circle Slash's cooldown like any other merge (code review:
+   * without it the chain never ended and never paid its cooldown).
+   */
+  active1RefundUsed: boolean;
   /** Last non-zero movement direction; Flame Cone fires along it. */
   fx: number;
   fy: number;

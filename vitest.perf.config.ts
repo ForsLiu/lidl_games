@@ -34,6 +34,14 @@ import { fileURLToPath, URL } from 'node:url';
  * populations has no side that noise divides out of. Split out of
  * `tests/terrain-cost.test.ts`, whose remaining bounds are either
  * deterministic or taken against the same run's own mean.
+ *
+ * `terrain-cost-ceiling` is the fifth (2026-09-22). fb064a's `paint()` cost
+ * guard divides one maxed-radius generation attempt by one ordinary
+ * generation and asserts < 160; on a healthy tree under a fast-tier run
+ * sharing the host with two other suites it read **179**. Same reading, same
+ * remedy — split out of `tests/terrain-generation.test.ts` (whose exact,
+ * load-independent `paintIterationCount` pin stays in the fast tier) and
+ * measured here, single-threaded, with its ceiling unchanged.
  */
 export default defineConfig({
   resolve: {
@@ -47,6 +55,7 @@ export default defineConfig({
       'tests/p10e-perf-budget.test.ts',
       'tests/q13-perf-sensitivity.test.ts',
       'tests/terrain-cost-retry-ratio.test.ts',
+      'tests/terrain-cost-ceiling.test.ts',
     ],
     testTimeout: 240000,
     fileParallelism: false,

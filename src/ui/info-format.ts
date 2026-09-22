@@ -261,7 +261,11 @@ export function modLines(mods: Record<string, number> | null | undefined): ModLi
     const pct = modIsPct(key, value);
     const sign = value > 0 ? '+' : '';
     const text = pct ? `${sign}${formatPct(value)}` : `${sign}${trimNum(value, 2)}`;
-    out.push({ key, label: modFieldLabel(key), value, pct, text: `${text} ${modFieldLabel(key)}` });
+    // fb056 (qa): a stat whose own label already names its unit ("Max HP %")
+    // must not print the percent twice once the value itself is a percent
+    // ("+10% Max HP", not "+10% Max HP %").
+    const label = pct ? modFieldLabel(key).replace(/ %$/, '') : modFieldLabel(key);
+    out.push({ key, label, value, pct, text: `${text} ${label}` });
   }
   return out;
 }
