@@ -6631,6 +6631,44 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       since no live call site can trigger it. **4 files remain, all `/src/sim`**:
       `src/sim/enemies.ts`, `src/sim/grid.ts`, `src/sim/run.ts`,
       `src/sim/world.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-22 (scheduled routine, same session)**:
+      fixed `src/sim/world.ts` (25 unchecked-index sites) with real guards
+      (never `!`). This is the sim's hottest path — `rebuildBuckets()`,
+      `enemiesInRadius()` and `nearestEnemy()` (the spatial-hash grid over
+      live enemies) run every tick, hundreds of times per tick per an
+      existing in-file comment — so every guard is a single `undefined`
+      comparison on a value the loop body was already about to dereference,
+      never a new allocation or an unhoistable check: `used[i]`/`enemies[i]`/
+      `bucket[i]` loop-bound `if (x === undefined) break;` guards, and
+      `cells[c]`/`cells[row+cx]` `if (bucket === undefined) continue/break;`
+      guards proven safe by `cells` being a fixed `Array.from({length:
+      GRID_W*GRID_H}, ...)` and `clampCell` bounding every cell index into
+      range. `structureAt()`'s `occ[idx(tx,ty)]` got a `?? 0` default
+      (bounds-checked by the preceding `grid.inBounds` call). The Fourth
+      Gate modifier's `MODIFIER_GATES[0]` push got a throw-guard —
+      `MODIFIER_GATES` is `grid.ts`'s fixed one-element `[{key: 'south2',
+      ...}]` literal, so the throw can never fire. Does not touch `/data`.
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags the file, no new offenders (4 → 3); main `npx tsc --noEmit`
+      clean; targeted suites green (`fb133` ratchet test,
+      `b007-tile-bounds`, `fb077-terrain-wiring`, `fb036-path-indicators`,
+      `fb081-linehit-broadphase`, 38 tests); `npm run test:fast` green,
+      unchanged at 315 files / 4548 passed / 35 skipped; `npm run sim
+      --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+      code-reviewer APPROVE — independently re-traced every "provably in
+      range" claim, confirmed no added allocation or unhoistable check in
+      the hot loops, matched the guard style against existing precedent
+      elsewhere in the file/repo. qa-playtester PASS — independently
+      re-verified all of the above plus adversarial stress specific to the
+      spatial hash: a zero-enemy world (500 rebuild cycles), the Fourth
+      Gate modifier live (full victory run), enemies spawned at/past every
+      grid boundary (found via a huge-radius search from both directions),
+      a 2000-cycle rebuild after death+truncation (no stale-bucket leak),
+      and 300 cycles of random spawn/move/kill churn with a per-cycle
+      self-discoverability check on every live enemy (100% pass, no missed-
+      target bug) — no bugs filed. Full tier. **3 files remain, all
+      `/src/sim`**: `src/sim/enemies.ts`, `src/sim/grid.ts`,
+      `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

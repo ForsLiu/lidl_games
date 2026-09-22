@@ -47,7 +47,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/enemies.ts',
   'src/sim/grid.ts',
   'src/sim/run.ts',
-  'src/sim/world.ts',
 ];
 
 // qa-playtester (fb133): under heavy host contention a slow `tsc` subprocess
