@@ -86,7 +86,41 @@
   fixed with regression tests). Full tier.
   — refs: SPEC-FINAL §7.1, §8.1, owner feedback `feature-class-equipment-sets`.
 
-- **2026-09-22 (scheduled routine, latest) — BACKLOG-UI.md fb151 CLOSED: Dash
+- **2026-09-22 (scheduled routine, latest) — BACKLOG-QUALITY.md fb182 CLOSED:
+  token-economy trim + a gate-audit staleness-check fix it surfaced.**
+  BACKLOG-QUALITY.md was 5720 lines, well past fb178's 400-line budget for
+  live backlog files. Moved every `[x]` item (`q2`, `q3`, `q7`-`q54`, 50
+  items), the eight `*Generated ...*` session-audit notes, the stale
+  2026-08-28 "Merged into master" note, and the entire `## Log` section (53
+  dated write-ups) verbatim to `docs/BACKLOG-DONE.md` under a new
+  `## BACKLOG-QUALITY.md` heading — the same treatment fb178/fb180/fb181 gave
+  `BACKLOG.md`/`BACKLOG-CONTENT.md`/`BACKLOG-UI.md`. Kept live: `## Scope`,
+  the four Scope-blocked owner items (`q1`, `q4`, `q5`, `q6`), the three open
+  items (`q55`-`q57`), and a new `### Recently completed` one-liner list
+  (`q45`-`q54`). File is now 156 lines.
+  **Found and fixed along the way (code-reviewer REQUEST-CHANGES on the first
+  pass):** archiving `q2`/`q12` broke `tests/q10-gate-audit.test.ts` —
+  `tools/gate-audit.ts`'s `staleHoleRefs`/`backlogCheckboxes` read
+  `BACKLOG-QUALITY.md` directly and assumed an old done id stays `[x]` there
+  forever, the same gap class `tools/status.ts`'s `backlogPaths()` already
+  solved for the feedback ledger at fb178 but never carried over here. First
+  fix attempt (concatenate the whole `docs/BACKLOG-DONE.md` into
+  `staleHoleRefs`'s default read) was itself flagged by code review as a
+  latent cross-lane `qNN` id collision: the main `BACKLOG.md` archive section
+  carries its own bare `q91`/`q102` owner-verdict ids, unrelated to this
+  lane's namespace, that a future `KNOWN_HOLES` note citing either could
+  misread as "this lane's item shipped." Fixed properly with a new
+  `extractArchiveSection()` helper that slices out only this lane's own
+  `## BACKLOG-QUALITY.md` archive section; two new regression tests pin the
+  collision case and the real default read. code-reviewer's two Minor
+  findings (a miscounted item/session total, and a q48 one-liner overstating
+  what was actually applied vs. merely found viable) fixed in the same pass.
+  `npx vitest run tests/fb038-status.test.ts tests/q10-gate-audit.test.ts`
+  and `npm run test:fast` green (4553 passed / 35 pre-existing skips, no
+  new). Light tier (docs/tools, no `/src/sim` or `/data` balance change) —
+  refs: feedback/feature-token-economy.md, BACKLOG.md fb178,
+  BACKLOG-CONTENT.md fb180, BACKLOG-UI.md fb181, BACKLOG-QUALITY.md fb182.
+- **2026-09-22 (scheduled routine) — BACKLOG-UI.md fb151 CLOSED: Dash
   Slash's VFX now matches its hit line.** `fireDashSlash` (`src/sim/classes.ts`)
   emitted its `class_active2` cast event using `resolveDashTarget`'s clamped
   physical-travel endpoint, not the wider `hitRange` line `lineHit` actually
