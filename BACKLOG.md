@@ -49,7 +49,7 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
-- [x] (fb151) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
+- [x] (fb200) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
       (BACKLOG-UI.md fb151, filed 2026-09-05 by qa-playtester during fb112
       verification).** Dash Slash's (and any `dash_line` class active's) real
       hit corridor is `hitRange = dashRange + mergedRadius` (widened when the
