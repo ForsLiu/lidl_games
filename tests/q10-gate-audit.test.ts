@@ -16,8 +16,10 @@ import { describe, expect, it } from 'vitest';
 import {
   auditGates,
   backlogCheckboxes,
+  BACKLOG_DONE_PATH,
   BACKLOG_PATH,
   entirelyRetiredCoverage,
+  extractArchiveSection,
   gateIdsWithLiveTestCitation,
   GATE_COVERAGE,
   hasLiveTopLevelDescribe,
@@ -178,13 +180,18 @@ describe('q10 — gate-coverage audit', () => {
     });
 
     it('backlogCheckboxes reads real checked and unchecked lane items', () => {
+      // q1 is permanently blocked (unchecked) by the lane's own Scope
+      // boundary, and lives in the live file. Hand-picked known quantity,
+      // not the census under test.
       const boxes = backlogCheckboxes(readFileSync(BACKLOG_PATH, 'utf8'));
-      // q2 and q12 are checked done well before this test was written; q1 is
-      // permanently blocked (unchecked) by the lane's own Scope boundary.
-      // Hand-picked known quantities, not the census under test.
-      expect(boxes.q2).toBe(true);
-      expect(boxes.q12).toBe(true);
       expect(boxes.q1).toBe(false);
+      // q2 and q12 were checked done well before this test was written, but
+      // fb182's token-economy trim archives old done items out of the live
+      // file (the same treatment fb178 gave BACKLOG.md) — they now live in
+      // docs/BACKLOG-DONE.md's own `- [x] (q2) ...` lines instead.
+      const archived = backlogCheckboxes(readFileSync(BACKLOG_DONE_PATH, 'utf8'));
+      expect(archived.q2).toBe(true);
+      expect(archived.q12).toBe(true);
     });
 
     it('no KNOWN_HOLES note today cites a lane item BACKLOG-QUALITY.md marks done', () => {
@@ -205,6 +212,40 @@ describe('q10 — gate-coverage audit', () => {
       ]);
       expect(staleHoleRefs({ G1: 'blocked on q100 landing' }, backlogText)).toEqual([]);
       expect(staleHoleRefs({ G1: 'no lane item named here' }, backlogText)).toEqual([]);
+    });
+
+    it("extractArchiveSection pulls only this lane's own archive slice, not a sibling lane's", () => {
+      const doneText = [
+        '## BACKLOG.md',
+        '',
+        '- [x] (q91) [bug] a MAIN-lane owner-verdict item that happens to share this lane\'s q-id shape',
+        '',
+        '## BACKLOG-QUALITY.md',
+        '',
+        '- [x] (q2) [feat] this lane\'s own q2',
+        '- [ ] (q100) [feat] this lane\'s own open q100',
+        '',
+        '## BACKLOG-CONTENT.md',
+        '',
+        '- [x] (q91) [feat] a CONTENT-lane item, different from the main-lane q91 above',
+        '',
+      ].join('\n');
+      const section = extractArchiveSection(doneText, '## BACKLOG-QUALITY.md');
+      expect(backlogCheckboxes(section)).toEqual({ q2: true, q100: false });
+      // Regression, fb182 code review: a whole-file read (no section scoping)
+      // would have picked up the main lane's own q91 here and misreported it
+      // as "this lane's q91 shipped".
+      expect(staleHoleRefs({ G1: 'blocked on q91 landing' }, section)).toEqual([]);
+      expect(extractArchiveSection(doneText, '## BACKLOG-CONTENT.md').trim()).toBe(
+        "- [x] (q91) [feat] a CONTENT-lane item, different from the main-lane q91 above",
+      );
+    });
+
+    it("staleHoleRefs's real default backlogText never picks up the main lane's own q91/q102 owner-verdict ids", () => {
+      // The exact collision code review found live in docs/BACKLOG-DONE.md
+      // before extractArchiveSection scoped the read: the main BACKLOG.md
+      // archive has its own bare q91/q102 ids, unrelated to this lane.
+      expect(staleHoleRefs({ G1: 'blocked on q91 landing', G2: 'blocked on q102 landing' })).toEqual([]);
     });
 
     it('staleHoleRefs does not flag a qNN-*.test.ts filename citation as a backlog-item reference', () => {
