@@ -46,6 +46,7 @@ import { advanceToNextBlock, finishSundering, restartVsBlock } from './sundering
 import {
   classArmorBonus,
   classBasicAttack,
+  layCarriersTrail,
   classMoveSpeedMul,
   tickAmmoRecharge,
   tickClassCharge,
@@ -55,7 +56,7 @@ import {
   useClassActive,
   useClassActive2,
 } from './classes';
-import { equipmentEffectNum } from './equipment';
+import { classEquipmentActive, classEquipmentNum } from './equipment';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
@@ -516,9 +517,11 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     // duration, so it scales with movement-speed gear/boons the same as
     // ordinary movement does.
     const dist = dashDistance(speed, BASE.dashDuration);
+    const from = { x: wd.x, y: wd.y };
     const target = resolveDashTarget(w, n.x * dist, n.y * dist);
     startDashTravel(w, target, BASE.dashDuration);
     w.emit('dash', target.x, target.y, n.x, n.y);
+    if (classEquipmentActive(w, 'carriers_boots')) layCarriersTrail(w, from, target);
   }
 
   // fb030: a dash in progress is the sole driver of position for its
@@ -601,12 +604,20 @@ const TIME_FLOW_BASE_SECONDS_FALLBACK = 4;
  * fb085 (unblocking fb056's Chronomail): the seam that item needs — Time
  * Flow's window (`cls.passive.charDotSeconds`, fb126), widened by the
  * equipped item's own `effectNums.windowMul` (default 1, a no-op when
- * Chronomail is not equipped or authors no such number). `windowMul` scales
- * the *base* before `charDotSpeedMul` divides it, so the two stack the same
- * way two independent multipliers on one duration always do.
+ * Chronomail is not equipped or authors no such number). (fb056: Time Flow's
+ * `charDotSpeedMul` no longer divides this window — it speeds the DoTs the
+ * character deals, `characterDotSpeedMul` in enemies.ts.)
  */
 function timeFlowWindowSeconds(w: World, cls: ClassDef): number {
-  return (cls.passive.charDotSeconds ?? TIME_FLOW_BASE_SECONDS_FALLBACK) * equipmentEffectNum(w, 'chronomail', 'windowMul', 1);
+  // fb056 (§7.1) Chronomail: "converts incoming damage over 8 s instead of
+  // 4 s; at <=30% HP, over 12 s" — the low-HP multiplier replaces (does not
+  // stack on) the ordinary one, read against the Warden's HP at the hit.
+  const lowFrac = classEquipmentNum(w, 'chronomail', 'lowHpFraction', 0);
+  const lowHp = lowFrac > 0 && w.warden.hp <= lowFrac * w.derived.maxHp;
+  const mul = lowHp
+    ? classEquipmentNum(w, 'chronomail', 'lowHpWindowMul', 1)
+    : classEquipmentNum(w, 'chronomail', 'windowMul', 1);
+  return (cls.passive.charDotSeconds ?? TIME_FLOW_BASE_SECONDS_FALLBACK) * mul;
 }
 
 /**
@@ -688,13 +699,16 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       // that one mitigation — the DoT itself then bypasses armor entirely
       // (`dot: true` on the re-entrant tick), the same convention every
       // enemy-facing DoT in the sim already follows.
-      const speedMul = Math.max(cls.passive.charDotSpeedMul ?? 1, 0.01);
+      // fb056: `charDotSpeedMul` used to divide this window too — a misread
+      // of fb013's dormant clause, which speeds the DoT the character deals
+      // *on enemies* (`characterDotSpeedMul`, enemies.ts), not the damage it
+      // takes. Inert while it shipped at 1, so no behaviour moved.
       const windowSeconds = timeFlowWindowSeconds(w, cls);
       const cap = w.content.damageTypes.maxStacksPerEnemy;
       if (wd.dots.length < cap) {
         wd.dots.push({
-          dps: (dmg * speedMul) / windowSeconds,
-          remaining: windowSeconds / speedMul,
+          dps: dmg / windowSeconds,
+          remaining: windowSeconds,
           accTime: 0,
           accDamage: 0,
         });
@@ -1165,7 +1179,7 @@ export function hashWorld(w: World): string {
   h.num(w.warden.active1Cooldown).num(w.warden.active2Cooldown);
   // p6b: a charge-kind Active1's held-seconds/charging state gates the same
   // class of future damage the two cooldowns above are hashed for.
-  h.num(w.warden.active1Charge).bool(w.warden.active1Charging);
+  h.num(w.warden.active1Charge).bool(w.warden.active1Charging).bool(w.warden.active1RefundUsed);
   // p6d: §4.2's four Warden-side class timers/ledgers. Every one of them gates
   // future damage or mitigation — Overload's extra chain jumps and doubled
   // wire rate, Guardian Stance's +30 armour, banked Wrath, and the Clarion
@@ -1310,7 +1324,13 @@ export function hashWorld(w: World): string {
   // just redundant with the x/y it feeds).
   for (const g of w.gems) h.int(g.id).num(g.x).num(g.y).num(g.value).num(g.attractedT ?? 0);
   h.int(w.areas.length);
-  for (const a of w.areas) h.int(a.id).num(a.x).num(a.y).num(a.remaining);
+  for (const a of w.areas) {
+    h.int(a.id).num(a.x).num(a.y).num(a.remaining);
+    // fb056 (code review): Miasma Robe's drift speed is writable state that
+    // sets every future x/y. Hashed only when present, so a run with no
+    // drifting cloud keeps its byte layout.
+    if (a.driftSpeed !== undefined && a.driftSpeed > 0) h.num(a.driftSpeed);
+  }
   // p2b's wielded-attack cooldowns are sim state exactly like a weapon's own
   // `cooldown` — a divergence here changes when the next volley fires, hence
   // future damage — so it is hashed by the same rule x002's leechAccumulator

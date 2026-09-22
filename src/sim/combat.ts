@@ -606,6 +606,22 @@ export function updateAreas(w: World, dt: number): void {
     if (a.dead) continue;
     a.remaining -= dt;
     const expired = a.remaining <= 0;
+    // fb056 (§7.1) Miasma Robe: a drifting cloud closes on the Warden at its
+    // own speed, never overshooting the Warden's own position.
+    if (a.driftSpeed !== undefined && a.driftSpeed > 0 && !w.dying) {
+      const dx = w.warden.x - a.x;
+      const dy = w.warden.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      const step = a.driftSpeed * dt;
+      if (d2 <= step * step) {
+        a.x = w.warden.x;
+        a.y = w.warden.y;
+      } else if (d2 > 0) {
+        const n = normalize(dx, dy);
+        a.x += n.x * step;
+        a.y += n.y * step;
+      }
+    }
 
     // fb082: only meaningfully used by the `'poison'` branch below, but
     // declared out here so the per-application `applyPoison` call (inside

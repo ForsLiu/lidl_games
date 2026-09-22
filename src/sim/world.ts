@@ -27,7 +27,7 @@ import {
 } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
-import { equipmentEffectNum } from './equipment';
+import { classEquipmentNum } from './equipment';
 import { structureArmor, structureMaxHp } from './upgrades';
 import type {
   ClassSummon,
@@ -826,7 +826,11 @@ export class World {
     // own `maxCharges` (undefined/1 for every class but Time Lord, for which
     // this is just `1` and the ammo fields go unread — see `tickAmmoRecharge`).
     const startCls = content.classByKey.get(this.cfg.classKey);
-    const active1MaxCharges = startCls ? startCls.active1.maxCharges ?? 1 : 1;
+    const active1Base = startCls ? startCls.active1.maxCharges ?? 1 : 1;
+    // fb056 (§7.1) Loop Ring: starts at its raised cap too — the same sum
+    // `activeMaxCharges` (classes.ts) reads every tick after this.
+    const active1MaxCharges =
+      active1Base > 1 ? active1Base + Math.round(classEquipmentNum(this, 'loop_ring', 'extraCharges', 0)) : active1Base;
     const active2MaxCharges = startCls ? startCls.active2.maxCharges ?? 1 : 1;
     this.warden = {
       x: spawn.tx,
@@ -842,6 +846,7 @@ export class World {
       active2Cooldown: 0,
       active1Charge: 0,
       active1Charging: false,
+      active1RefundUsed: false,
       fx: -1,
       fy: 0,
       outOfCombat: 0,
@@ -1177,11 +1182,12 @@ export function makeStats(): Stats {
  * entries `fireTimeLock` (classes.ts) may hold at once — 1 normally, +1 per
  * `effectNums.extraZones` the item named `bracer_of_overlap` authors (0, a
  * no-op, when it is not equipped), so the "2" itself lives in `/data` rather
- * than a literal here (rule 4) — same `equipmentEffectNum` seam the Ring of
- * Contagion/Chronomail hooks use (`enemies.ts`/`run.ts`).
+ * than a literal here (rule 4) — the class-gated `classEquipmentNum` seam
+ * every §7.1 hook reads through (fb056).
  */
 export function timeLockZoneCap(w: World): number {
-  return 1 + Math.round(equipmentEffectNum(w, 'bracer_of_overlap', 'extraZones', 0));
+  // fb056: class-gated like every other §7.1 hook (`classEquipmentNum`).
+  return 1 + Math.round(classEquipmentNum(w, 'bracer_of_overlap', 'extraZones', 0));
 }
 
 /**

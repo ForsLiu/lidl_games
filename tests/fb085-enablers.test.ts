@@ -54,8 +54,21 @@ const DT = 1 / 60;
 
 type RawEquipmentDoc = { slots: string[]; items: Record<string, unknown>[] };
 
+/**
+ * fb056 authored the real rows for the three items this file's fixtures were
+ * written ahead of (Ring of Contagion, Chronomail, Bracer of Overlap). Each
+ * fixture below pushes its own row with its own `effectNums` so the *hook* is
+ * what is under test, so the clone drops the shipped row of the same key —
+ * otherwise the fixture would be a duplicate key the loader rightly refuses.
+ * The shipped rows' own numbers are audited by `equip-class-sets-spec.test.ts`
+ * and behaviourally by `equip-class-sets-behaviour.test.ts`.
+ */
+const FB056_PREWIRED = new Set(['ring_of_contagion', 'chronomail', 'bracer_of_overlap']);
+
 function cloneEquipmentDoc(): RawEquipmentDoc {
-  return JSON.parse(JSON.stringify(content.raw.equipment)) as RawEquipmentDoc;
+  const doc = JSON.parse(JSON.stringify(content.raw.equipment)) as RawEquipmentDoc;
+  doc.items = doc.items.filter((i) => !FB056_PREWIRED.has((i as { key: string }).key));
+  return doc;
 }
 
 describe('fb085(a): EquipmentItem.effectKey is a validated open string registry, not a closed enum', () => {

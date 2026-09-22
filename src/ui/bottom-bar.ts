@@ -7,7 +7,7 @@
  * cooldown fields in a test without touching jsdom.
  */
 
-import { active2CdrFactor } from '../sim/classes';
+import { active2CdrFactor, activeCooldownSeconds, activeMaxCharges, activeRechargeSeconds } from '../sim/classes';
 import type { ClassDef } from '../sim/content';
 import type { World } from '../sim/world';
 
@@ -52,7 +52,10 @@ function clamp01(x: number): number {
 
 function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'): SkillIconState {
   const wd = w.warden;
-  const maxCharges = eff.maxCharges ?? 1;
+  // fb056: the live cap/recharge/cooldown (Loop Ring, Pestilent Locket), read
+  // through the same helpers the sim gates on.
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  const maxCharges = cls ? activeMaxCharges(w, cls, which) : eff.maxCharges ?? 1;
   // Active2's real cooldown gate (`updateWarden`/`tickAmmoRecharge`, classes.ts)
   // is reduced by `active2CdrFactor` — the general `cdr` stat *and* the §6.3
   // "Active2 cooldown" skill card every one of the 12 classes has — not the
@@ -66,7 +69,7 @@ function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'):
     // single cooldown gate.
     const ammo = which === 'active1' ? wd.active1Ammo : wd.active2Ammo;
     const ammoCooldown = which === 'active1' ? wd.active1AmmoCooldown : wd.active2AmmoCooldown;
-    const maxCooldown = (eff.rechargeSeconds ?? 0) * factor;
+    const maxCooldown = (cls ? activeRechargeSeconds(w, cls, which) : eff.rechargeSeconds ?? 0) * factor;
     const sweepFraction = ammo < maxCharges && maxCooldown > 0 ? clamp01(ammoCooldown / maxCooldown) : 0;
     return {
       key: which,
@@ -79,7 +82,7 @@ function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'):
     };
   }
   const cooldownRemaining = which === 'active1' ? wd.active1Cooldown : wd.active2Cooldown;
-  const maxCooldown = eff.cooldownSeconds * factor;
+  const maxCooldown = (cls ? activeCooldownSeconds(w, cls, which) : eff.cooldownSeconds) * factor;
   const sweepFraction = maxCooldown > 0 ? clamp01(cooldownRemaining / maxCooldown) : 0;
   return {
     key: which,

@@ -159,7 +159,13 @@ describe('c032: the source-string sweep — every damage source classes.ts autho
   });
 
   it('every class/plague-shaped string literal in classes.ts is exactly one of the five known buckets', () => {
-    const found = new Set(candidateSourceLiterals(classesSrc));
+    // fb056: an equipment item *key* is an identity passed to
+    // `classEquipmentNum`/`classEquipmentActive`, never a damage source —
+    // Plague Flask's `'plague_flask'` matches /plague/ by name only. Exempted
+    // by membership in the loaded equipment roster, not by pattern, so a
+    // real source typo still cannot hide behind the exemption.
+    const itemKeys = new Set(loadContent().equipment.items.map((i) => i.key));
+    const found = new Set(candidateSourceLiterals(classesSrc).filter((s) => !itemKeys.has(s)));
     // `spreading_plague` itself is authored in enemies.ts, not classes.ts
     // (c032 keeps it that way — see the passive-liveness note below) — so it
     // is not expected here, only the five that are.

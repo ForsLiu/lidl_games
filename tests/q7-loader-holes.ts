@@ -22,6 +22,17 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-22 (fb056, rule 4): `data/equipment.json` gained
+ * §7.1's fifteen class-set items. Their `effectNums` sit behind a new
+ * field/range registry (`validateEquipmentEffectNums`, content.ts), so
+ * negative/zero/drop-key/rename-key are refused on every field it lists; the
+ * 20 new `effectNums` paths below record only `fractional` (a real magnitude
+ * like 1.2 is fractional by design — the integer-only count fields do refuse
+ * it) plus `zero` where zero is a legal "no extra" (`extraCooldownSeconds`,
+ * `knockbackMul`). The six new `classFallback.mods` paths are the same
+ * unguarded plain-`Stats` shape the existing `attackSpeed`/`moveSpeedPct`
+ * fallback rows already record. Added by `Q7_RECORD=1`, not hand-edited.
+ *
  * Regenerated 2026-09-17 (fb129, rule 4): `data/terrain.json` gained
  * `highGround.surfaceBlockCap` (BACKLOG.md fb129 — the seconds a submerged
  * Burrower may be held under a high tile it cannot surface on before the
@@ -601,13 +612,39 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'enemies.enemies[].traits[]': ['to-string', 'empty-string'],
   'equipment.items': ['drop-element'],
   'equipment.items[].classFallback': ['drop-key'],
+  'equipment.items[].classFallback.mods.area': ['negative', 'zero', 'fractional', 'drop-key'],
+  'equipment.items[].classFallback.mods.armor': ['negative', 'zero', 'fractional', 'drop-key'],
+  'equipment.items[].classFallback.mods.atkFlat': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].classFallback.mods.attackSpeed': ['negative', 'zero', 'fractional', 'drop-key'],
+  'equipment.items[].classFallback.mods.hpRegen': ['negative', 'zero', 'fractional', 'drop-key'],
+  'equipment.items[].classFallback.mods.maxHpPct': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].classFallback.mods.moveSpeedPct': ['negative', 'zero', 'fractional', 'drop-key'],
+  'equipment.items[].classFallback.mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].desc': ['to-string', 'empty-string'],
   'equipment.items[].effectKey': ['drop-key'],
   'equipment.items[].effectNote': ['to-string', 'empty-string', 'drop-key'],
   'equipment.items[].effectNoteWith': ['drop-key'],
   'equipment.items[].effectNoteWith.text': ['to-string', 'empty-string'],
+  'equipment.items[].effectNums.chargeRefund': ['fractional'],
+  'equipment.items[].effectNums.cloudDriftSpeed': ['fractional'],
+  'equipment.items[].effectNums.contactRadius': ['fractional'],
+  'equipment.items[].effectNums.contactShare': ['fractional'],
+  'equipment.items[].effectNums.dotBoostMul': ['fractional'],
+  'equipment.items[].effectNums.dotSpeedMul': ['fractional'],
+  'equipment.items[].effectNums.extraCooldownSeconds': ['zero', 'fractional'],
+  'equipment.items[].effectNums.knockbackMul': ['zero', 'fractional'],
+  'equipment.items[].effectNums.lowHpFraction': ['fractional'],
+  'equipment.items[].effectNums.lowHpWindowMul': ['fractional'],
+  'equipment.items[].effectNums.poisonRatio': ['fractional'],
+  'equipment.items[].effectNums.poisonSeconds': ['fractional'],
+  'equipment.items[].effectNums.radiusMul': ['fractional'],
+  'equipment.items[].effectNums.rechargeSpeedMul': ['fractional'],
+  'equipment.items[].effectNums.rewindSeconds': ['fractional'],
+  'equipment.items[].effectNums.trailDamageMul': ['fractional'],
+  'equipment.items[].effectNums.trailRadius': ['fractional'],
+  'equipment.items[].effectNums.trailSeconds': ['fractional'],
+  'equipment.items[].effectNums.trailTickSeconds': ['fractional'],
+  'equipment.items[].effectNums.windowMul': ['fractional'],
   'equipment.items[].key': ['to-string', 'empty-string'],
   'equipment.items[].mods': ['drop-key'],
   'equipment.items[].mods.area': ['negative', 'zero', 'fractional', 'drop-key'],

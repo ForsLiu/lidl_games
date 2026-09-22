@@ -1772,3 +1772,56 @@ Q200 did not collide and are unchanged below).
   a new backlog item — likely another baseHpMul/gate-position-class
   interaction rather than a fresh regression, given the pattern of fb153b/
   fb197/fb199 before it. — refs: BACKLOG.md fb133 Log, fb197/fb199, Q212.
+
+- **Q215. [fb056] Class equipment sets — nine implementation readings the
+  owner table leaves open, chosen and logged (CLAUDE.md working rule 5).**
+  (1) **§7.1, not 15 more rows of §7's table.** The owner said "append rows"
+  to §7; they are appended *inside* §7 as `### 7.1 Class equipment sets`,
+  with their own parsed ledger (`tests/equip-class-sets-spec.test.ts`).
+  c012's §7 ledger (`equip-spec-numbers.test.ts`) is built around a `Figure`
+  type whose Effect rows audit a `Stats` key; every §7.1 Effect is a class
+  mechanic whose magnitudes live in `effectNums`, a home that type has no
+  status for. c012 still hashes the whole of §7 (§7.1 included), now parses
+  only the owner table above `### 7.1`, and gained a roster bridge: every
+  authored item is audited by exactly one of the two ledgers.
+  (2) **A set mechanic is live only for its own class** (`classEquipmentActive`,
+  sim/equipment.ts): the owner's "every class-specific line has an 'if not
+  <class>' compensation" makes the mechanic and the fallback mutually
+  exclusive, exactly the gate `equipment-info.ts` already marks (active)/
+  (inert) by. (3) **Hourglass Scepter / Time Flow's dormant clause.** fb013's
+  own owner text is "all DoT damage from the character *on enemies* is 100%
+  faster"; the shipped flag (`charDotSpeedMul`, authored 1) was wired to the
+  Warden's *incoming* Time Flow DoT instead. Rewired to `applyDot`'s
+  `class_*` sources (`characterDotSpeedMul`, enemies.ts) — dps x speed over
+  duration / speed, same total — and removed from `damageWarden`; inert at 1,
+  so nothing shipped moved. (4) **Carrier's Boots**: "0.5x basic dmg/s for
+  3 s" = a `'poison'` ground trail (Flame Road's shape: 3 patches, r1 ⚖
+  designer-fill) whose once-a-second application is seeded by 0.5 x the
+  class's basic-attack *hit*, through §3's ratio conversion like Poison
+  Barrel's (fb062); only the base Warden dash lays it. (5) **Blightweaver
+  Band**: Contagious Flame's touch shape (r1 ⚖, direct poison-typed damage at
+  50% of the carrier's summed live Poison dps, never a new stack, so it
+  cannot cascade). (6) **Pestilent Locket** doubles every `effect: 'dot'`
+  damage type (read off `/data`, not a hardcoded list); **Miasma Robe**'s
+  refresh resets each live Poison stack to the row's full duration (never
+  shortens). (7) **Duelist's Pendant**: the mid-charge merge keeps the hold
+  live at 50% of the charge and defers Active1's cooldown to the chain's
+  final release. (8) **Bracer of Overlap**: below the (1 + extraZones) cap a
+  cast adds a zone; at the cap it detonates/teleports every standing zone's
+  enemies into the new one (with the cap at 1 this *is* the pre-fb056 recast
+  rule); an enemy held by one zone is never re-tagged by another. (9) **Loop
+  Ring**/**Pendulum Pendant** act on *Time* (Active1) only; the refund is
+  capped at the live (possibly ring-raised) charge cap. Every magnitude lives
+  in `effectNums` behind a new loader registry (`validateEquipmentEffectNums`)
+  that refuses unknown/missing/out-of-range fields. **Addendum (review/QA,
+  same session):** (10) Duelist's Pendant refunds **once per hold** — "chain
+  a second slash" is one extra slash, and without the limit the chain never
+  paid Circle Slash's cooldown. (11) Pendulum Pendant refunds **per executed
+  enemy**: one *Time* press that executes ten "future" enemies can refill the
+  whole bar — the literal §7.1 reading, flagged for the owner. (12) Latent,
+  not live: Miasma Robe's refresh + Poison Boost's doubling compounds without
+  bound if Poison Boost's cooldown ever drops below Poison's 3 s duration;
+  no shipped source grants `cdr`, so the best reachable cooldown is 4 s (5 s
+  with the Locket) — whoever ships a `cdr` source >= 0.125 must revisit this.
+  — refs: SPEC-FINAL §7.1, §4.2 (Time Lord), owner feedback
+  `feature-class-equipment-sets`, fb013, BACKLOG-CONTENT.md fb056.

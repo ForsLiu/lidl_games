@@ -55,6 +55,7 @@ import {
   equipmentFallbackMarkup,
   equipmentSpecialNoteMarkup,
 } from '../src/ui/equipment-info';
+import { CLASS_SET_NAME } from './equip-class-sets-spec';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -115,6 +116,9 @@ describe('c023 — the census: no code under src/ reads equipment effectKey for 
     'src/sim/content.ts': [
       /effectKey: str\.default\('none'\),/,
       /export function validateEquipmentEffectKey\([\s\S]*?\n\}/,
+      // fb056: the effectNums field/range registry's load-time check — keyed
+      // by the (item-key-equal) effectKey, like the registry above it.
+      /export function validateEquipmentEffectNums\([\s\S]*?\n\}/,
     ],
     // A local parameter of the same name on the Core VFX lookup — nothing to do
     // with equipment. Named so it cannot quietly become an equipment reader.
@@ -166,9 +170,14 @@ describe('c023 — the three non-stat mechanics gate on the item key, never on e
     });
   }
 
-  it('`/data` really does author these three, and only these three, a non-none effectKey', () => {
+  it('`/data` really does author these three, and only these three, a non-none effectKey — plus §7.1\'s fifteen class-set items (fb056)', () => {
+    // fb056: every §7.1 class-set item is a non-stat mechanic too, each gated
+    // by its own key through `classEquipmentActive`/`classEquipmentNum`
+    // (sim/equipment.ts) — audited by `equip-class-sets-spec.test.ts`, not by
+    // this file's three-item `hasEquipment` census. Everything *else* must
+    // still be `none`.
     const nonNone = content.equipment.items.filter((i) => i.effectKey !== 'none').map((i) => i.key);
-    expect(nonNone.sort()).toEqual([...SPECIAL].sort());
+    expect(nonNone.sort()).toEqual([...SPECIAL, ...Object.keys(CLASS_SET_NAME)].sort());
   });
 });
 

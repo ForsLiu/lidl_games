@@ -148,6 +148,11 @@ const UNSCALED_REASONS: Record<string, string> = {
   'enemies.enemies[].stompDamage': 'enemy damage output (economy B) — not scaled, unlike enemy HP',
   'enemies.enemies[].trailDps': 'enemy damage output (economy B) — not scaled, unlike enemy HP',
   'spawns.hpOverlay': 'a multiplier on the VS overlay',
+  // fb056 (§7.1): unitless equipment effect magnitudes whose names merely
+  // read like HP/damage fields.
+  'equipment.items[].effectNums.trailDamageMul': "a multiplier on the class's (already-scaled) basic-attack hit",
+  'equipment.items[].effectNums.lowHpFraction': 'a fraction of max HP (a threshold), not an HP magnitude',
+  'equipment.items[].effectNums.lowHpWindowMul': "a multiplier on Time Flow's window seconds",
   'spawns.hpScalePerMinute': 'a per-minute growth multiplier',
   'waves.hpScalePerWave': 'a per-wave growth multiplier',
   'waves.enemyStructureDpsFactor': 'a multiplier on an already-unscaled (economy B) dps',

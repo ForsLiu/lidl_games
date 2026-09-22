@@ -43,3 +43,35 @@ export function equipmentEffectNum(w: World, itemKey: string, field: string, fal
   const v = item?.effectNums[field];
   return v ?? fallback;
 }
+
+/**
+ * fb056 (SPEC-FINAL §7.1, owner feedback `feature-class-equipment-sets`):
+ * whether a class-set item's own mechanic is live — equipped right now
+ * (`hasEquipment`) **and** worn by the class its `classFallback.notClassKey`
+ * names. The owner's rule for every set item is "works alone, and every
+ * class-specific line has an 'if not <class>' basic-stat compensation", so
+ * the mechanic and the fallback `Stats` source (`baseRunStats`/
+ * `equipItemCommand`) are mutually exclusive by class — the exact inverse of
+ * the gate the fallback is granted on, and the same gate `equipment-info.ts`'s
+ * `specialActive` already marks a tooltip (active)/(inert) by. An item with no
+ * `classFallback` has no class gate at all.
+ */
+export function classEquipmentActive(w: World, itemKey: string): boolean {
+  // The cheap class check first: `hasEquipment` allocates (`Object.values`),
+  // and some hooks sit on hot paths (`applyDot`'s Hourglass Scepter read).
+  const fallback = w.content.equipmentByKey.get(itemKey)?.classFallback;
+  if (fallback && fallback.notClassKey !== w.cfg.classKey) return false;
+  return hasEquipment(w, itemKey);
+}
+
+/**
+ * fb056: `equipmentEffectNum`, gated by `classEquipmentActive` instead of bare
+ * `hasEquipment` — the item's own `effectNums[field]` while its mechanic is
+ * live for this run's class, `fallback` otherwise (unequipped, worn by another
+ * class, or no such field authored).
+ */
+export function classEquipmentNum(w: World, itemKey: string, field: string, fallback: number): number {
+  if (!classEquipmentActive(w, itemKey)) return fallback;
+  const v = w.content.equipmentByKey.get(itemKey)?.effectNums[field];
+  return v ?? fallback;
+}

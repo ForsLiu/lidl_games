@@ -43,6 +43,12 @@ export default mergeConfig(
         // (which keeps its deterministic and same-run-mean bounds and stays
         // here); the shared sweep is tests/terrain-cost-ledger.ts.
         'tests/terrain-cost-retry-ratio.test.ts',
+        // 2026-09-22, fifth of the family: fb064a's paint() cost-ratio guard
+        // (< 160) read 179 on a healthy tree under a contended fast-tier run.
+        // Split out of tests/terrain-generation.test.ts (which keeps the exact
+        // paintIterationCount pin) into tests/terrain-cost-ceiling.test.ts,
+        // measured single-threaded under vitest.perf.config.ts.
+        'tests/terrain-cost-ceiling.test.ts',
         // ~1 h: 11 classes × multi-seed full-run diversity measurement (G8).
         'tests/p6e-class-diversity.test.ts',
         // Multi-seed full-run gate measurements over the Core roster.

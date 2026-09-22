@@ -19,7 +19,8 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   classes: { actual: '12', target: '12', met: true },
   towers: { actual: '10', target: '10', met: true },
   // fb015: data/equipment.json's real §7 table replaced the hardcoded 0/unbuilt row.
-  equipment: { actual: '12', target: '12+', met: true },
+  // fb056: + §7.1's fifteen class-set items (Plaguebringer 6, Time Lord 6, Swordsman 3).
+  equipment: { actual: '27', target: '12+', met: true },
   damageTypesAndStatuses: { actual: '6+2', target: '6+2', met: true },
   enemies: { actual: '20', target: '20', met: true },
   waves: { actual: '18+6 (24)', target: '18+6 (24)', met: true },
