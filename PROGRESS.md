@@ -5,7 +5,21 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 8 → 7.**
+- **2026-09-21 (scheduled routine, latest) — fb133 ratchet shrunk 7 → 6.**
+  Fixed `tests/p2c-vs-specials.test.ts` (55 unchecked-index sites) with the
+  same `nth<T>` throw-guard helper — single/two-tile `tiles()` destructures
+  (the two-tile cases each caching a single `tiles(w, 2)` call rather than
+  calling it twice), `w.areas`/`w.gems` last-element reads, and an
+  `enemies[0]` hoisted into a reused local. Does not touch `/src` or
+  `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags the file, no new offenders (7 → 6); main `npx tsc --noEmit`
+  clean; targeted `npx vitest run` plus the ratchet test green (17 tests);
+  `npm run test:fast` green, unchanged at 315 files / 4548 passed / 35
+  skipped. code-reviewer APPROVE, no findings. Light tier, no qa-playtester
+  dispatch. **6 files remain**: 5 `/src/sim` files (Full tier once picked
+  up) and `tests/p2b-wielded-fire.test.ts` (the last test file, Light
+  tier). — refs: BACKLOG.md fb133 Log.
+- **2026-09-21 (scheduled routine) — fb133 ratchet shrunk 8 → 7.**
   Fixed `tests/fb037-vs-panel.test.ts` (49 unchecked-index sites, all
   array-destructure/index reads of a dynamically-lengthed array) with a
   local `nth<T>` throw-guard helper, same convention as the prior round;

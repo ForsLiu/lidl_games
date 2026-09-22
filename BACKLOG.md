@@ -6529,6 +6529,27 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       plus `tests/p2b-wielded-fire.test.ts`,
       `tests/p2c-vs-specials.test.ts` (2 test files, Light tier). — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-21 (scheduled routine, next item)**:
+      fixed `tests/p2c-vs-specials.test.ts` (55 unchecked-index sites) with
+      the same `nth<T>` throw-guard helper — 11 single-tile destructures
+      (`const [t1] = tiles(w, 1)`), 2 two-tile destructures (each cached
+      into a local `teslaTiles` const, read at indices 0/1, not called
+      twice), 2 `w.areas[w.areas.length - 1]` reads, one `enemies[0]`
+      hoisted into a `first` const reused across a `damageEnemy` call and a
+      `.dead` assertion, and one `w.gems[w.gems.length - 1].value` read.
+      Does not touch `/src` or `/data`. Verified: `npx tsc --noEmit -p
+      tsconfig.unchecked.json` no longer flags the file, no new offenders
+      (7 → 6, exact match via the ratchet test); main `npx tsc --noEmit`
+      clean; targeted `npx vitest run` on the file plus the ratchet test
+      itself green (17 tests); `npm run test:fast` green, unchanged at 315
+      files / 4548 passed / 35 skipped. code-reviewer APPROVE, no findings
+      (independently re-verified both `teslaTiles` sites' t1/t2 ordering
+      against their paired `build()` calls and confirmed no double-
+      evaluation). Light tier (`[polish]`, no `/src`/`/data` touched) — no
+      qa-playtester dispatch. **6 files remain**: the same 5 `/src/sim`
+      files (Full tier) plus `tests/p2b-wielded-fire.test.ts` (1 test file,
+      Light tier — the last one before the list is all `/src/sim`). — refs:
+      BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

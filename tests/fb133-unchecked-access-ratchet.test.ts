@@ -31,7 +31,8 @@
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
  * then 105, then 98, then 92, ..., then 20, then 18, then 16, then 15, then
- * 13, then 12, then 9, then 8, then 7 files remaining as of the latest). Shrink this list
+ * 13, then 12, then 9, then 8, then 7, then 6 files remaining as of the
+ * latest). Shrink this list
  * as files are fixed; do not add to it without a reason logged in
  * BACKLOG.md.
  */
@@ -49,7 +50,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/terrain/analyze.ts',
   'src/sim/world.ts',
   'tests/p2b-wielded-fire.test.ts',
-  'tests/p2c-vs-specials.test.ts',
 ];
 
 // qa-playtester (fb133): under heavy host contention a slow `tsc` subprocess

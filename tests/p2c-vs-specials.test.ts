@@ -31,6 +31,12 @@ const SPROUT = content.towerByKey.get('harvest_sprout')!;
 
 const DT = 1 / 60;
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 function tiles(w: World, n: number): { tx: number; ty: number }[] {
   const out: { tx: number; ty: number }[] = [];
   for (let ty = 4; ty < 20 && out.length < n; ty++) {
@@ -62,7 +68,7 @@ function dummy(w: World, x: number, y: number): Enemy {
 describe('p2c — towers inert but present in VS waves (§6.2)', () => {
   it('a tower with no VS special deals zero damage across a whole wave, even to an enemy standing on it', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, ARROW, t1.tx, t1.ty);
     w.phase = 'act2';
     // The Warden stands far outside both the tower's own attack range and its
@@ -88,7 +94,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('an enemy can damage a tower', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, ARROW, t1.tx, t1.ty);
     w.phase = 'act2';
     const s = w.structureAt(t1.tx, t1.ty)!;
@@ -107,7 +113,9 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     // real terrain — practice mode's flat board keeps the raster scan's
     // first two hits adjacent.
     const w = new World(cfg({ practice: true }), content);
-    const [t1, t2] = tiles(w, 2);
+    const teslaTiles = tiles(w, 2);
+    const t1 = nth(teslaTiles, 0);
+    const t2 = nth(teslaTiles, 1);
     build(w, TESLA, t1.tx, t1.ty);
     build(w, TESLA, t2.tx, t2.ty);
     linkSpires(w);
@@ -133,7 +141,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it("poison trail: the character leaves a poison-dealing trail every second, 0.1x the tower's attack", () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, VENOM, t1.tx, t1.ty);
     w.phase = 'act2';
     w.warden.x = 10.5;
@@ -143,7 +151,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     updateVsSpecials(w, VENOM.vsSpecial.kind === 'poisonTrail' ? VENOM.vsSpecial.interval : 1);
     expect(w.areas.length).toBe(before + 1);
 
-    const trail = w.areas[w.areas.length - 1];
+    const trail = nth(w.areas, w.areas.length - 1);
     expect(trail.type).toBe('poison');
     expect(trail.x).toBeCloseTo(w.warden.x, 6);
     expect(trail.y).toBeCloseTo(w.warden.y, 6);
@@ -169,13 +177,13 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
       // the blob's whole life is the only way to prove damage is actually
       // delivered, not just that the area's own fields look right.
       const w = new World(cfg(), content);
-      const [t1] = tiles(w, 1);
+      const t1 = nth(tiles(w, 1), 0);
       build(w, VENOM, t1.tx, t1.ty);
       w.phase = 'act2';
       w.warden.x = 10.5;
       w.warden.y = 10.5;
       updateVsSpecials(w, interval);
-      const trail = w.areas[w.areas.length - 1];
+      const trail = nth(w.areas, w.areas.length - 1);
       trail.remaining = interval;
       trail.tickSeconds = interval;
 
@@ -189,7 +197,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('brazier death-explosion: a Burning enemy dying deals 5 normal, r1, to nearby enemies', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, BRAZIER, t1.tx, t1.ty);
     w.phase = 'act2';
 
@@ -220,7 +228,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('p2f: a large tightly-clustered Burning chain does not overflow the call stack', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, BRAZIER, t1.tx, t1.ty);
     w.phase = 'act2';
 
@@ -249,8 +257,9 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     }
     w.rebuildBuckets();
 
-    expect(() => damageEnemy(w, enemies[0], 100, 'test')).not.toThrow();
-    expect(enemies[0].dead).toBe(true);
+    const first = nth(enemies, 0);
+    expect(() => damageEnemy(w, first, 100, 'test')).not.toThrow();
+    expect(first.dead).toBe(true);
     // The chain must have actually cascaded, not fizzled after one hop, or the
     // test would pass vacuously without ever exercising the deep chain.
     expect(enemies.filter((e) => e.dead).length).toBeGreaterThan(enemies.length / 2);
@@ -258,7 +267,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('ice aura: an r2 aura around the character applies Frost every second', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, FROST, t1.tx, t1.ty);
     w.phase = 'act2';
     w.warden.x = 12.5;
@@ -275,7 +284,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('beacon attack speed: standing within r2.5 of a Beacon Totem grants +15% character attack speed', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, BEACON, t1.tx, t1.ty);
     w.rebuildBuckets();
 
@@ -292,7 +301,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('sprout XP gem: a Harvest Sprout emits one gem (value 3) every 8s during a VS wave', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, SPROUT, t1.tx, t1.ty);
     w.phase = 'act2';
     w.warden.x = 1.5;
@@ -301,14 +310,14 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     const before = w.gems.length;
     for (let i = 0; i < 8 * 60; i++) updateTerrainEffects(w, DT);
     expect(w.gems.length).toBe(before + 1);
-    expect(w.gems[w.gems.length - 1].value).toBe(3);
+    expect(nth(w.gems, w.gems.length - 1).value).toBe(3);
   });
 
   // b046: updateVsSpecials had no w.dying guard, unlike updateWieldedAttacks
   // (b020) — same DEFEAT_SLOWMO window, same "frozen moment" rule.
   it("b046: poison trail spawns no area once w.dying is set", () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, VENOM, t1.tx, t1.ty);
     w.phase = 'act2';
     w.warden.x = 10.5;
@@ -323,7 +332,7 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
 
   it('b046: frost aura applies no Frost once w.dying is set', () => {
     const w = new World(cfg(), content);
-    const [t1] = tiles(w, 1);
+    const t1 = nth(tiles(w, 1), 0);
     build(w, FROST, t1.tx, t1.ty);
     w.phase = 'act2';
     w.warden.x = 12.5;
@@ -341,7 +350,9 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
   it('b046: electric wire grid zaps nothing once w.dying is set', () => {
     // fb153b (56x32 grid): same reasoning as the link test above.
     const w = new World(cfg({ practice: true }), content);
-    const [t1, t2] = tiles(w, 2);
+    const teslaTiles = tiles(w, 2);
+    const t1 = nth(teslaTiles, 0);
+    const t2 = nth(teslaTiles, 1);
     build(w, TESLA, t1.tx, t1.ty);
     build(w, TESLA, t2.tx, t2.ty);
     linkSpires(w);
