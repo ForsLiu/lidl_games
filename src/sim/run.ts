@@ -351,7 +351,7 @@ export function applyCommand(w: World, c: Command): void {
 function equipItemCommand(w: World, slot: string, itemKey: string | null): void {
   if (!(slot in w.equippedEquipment)) return;
   if (itemKey !== null) {
-    if (!(w.ownedEquipment[itemKey] > 0)) return;
+    if (!((w.ownedEquipment[itemKey] ?? 0) > 0)) return;
     const item = w.content.equipmentByKey.get(itemKey);
     if (!item || item.slot !== slot) return;
   }
@@ -464,6 +464,7 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
 /** fb019: an Act I gate position for a manually spawned enemy, cycling gates so a multi-count spawn spreads out. */
 function gateSpawnPoint(w: World, i: number): { x: number; y: number } {
   const gate = w.gates[i % Math.max(1, w.gates.length)] ?? GATES[0];
+  if (!gate) throw new Error('gateSpawnPoint: no gates available');
   const jitterX = w.rng.spawns.range(-0.25, 0.25);
   const jitterY = w.rng.spawns.range(-0.25, 0.25);
   return { x: gate.tx + 0.5 + jitterX, y: gate.ty + 0.5 + jitterY };
@@ -628,6 +629,7 @@ export function tickWardenDots(w: World, dt: number): void {
   for (let i = 0; i < n; i++) {
     if (w.outcome !== 'running') break;
     const d = wd.dots[i];
+    if (!d) throw new Error('tickWardenDots: dot slot out of range');
     const step = Math.min(dt, d.remaining);
     d.remaining -= dt;
     const dead = d.remaining <= 0;
@@ -708,9 +710,15 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
         // stack's remaining window.
         let shortest = 0;
         for (let i = 1; i < wd.dots.length; i++) {
-          if (wd.dots[i].remaining < wd.dots[shortest].remaining) shortest = i;
+          const cur = wd.dots[i];
+          const best = wd.dots[shortest];
+          if (cur && best && cur.remaining < best.remaining) shortest = i;
         }
-        wd.dots[shortest].dps += dmg / wd.dots[shortest].remaining;
+        // `cap >= 1` is loader-enforced (content.ts: `maxStacksPerEnemy: num.int().min(1)`),
+        // and this branch only runs when `wd.dots.length >= cap`, so index 0 always exists.
+        const stack = wd.dots[shortest];
+        if (!stack) throw new Error('damageWarden: dot stack index out of range');
+        stack.dps += dmg / stack.remaining;
       }
       return;
     }
@@ -802,6 +810,9 @@ function buildSpawnQueue(w: World, wave: number): number[][] {
   // with continued HP scaling.
   const pastTable = wave > table.length;
   const def = table[Math.min(wave, table.length) - 1];
+  // `table.length >= 1` is loader-enforced (content.ts: `waves: z.array(...).min(1)`)
+  // and `wave >= 1`, so this index always falls in range.
+  if (!def) throw new Error('buildSpawnQueue: wave index out of range');
   const queue: number[][] = [];
   const gateCount = w.gates.length;
   for (const g of def.groups) {
@@ -852,9 +863,15 @@ function updateAct1Wave(w: World, dt: number): void {
       // p3b: a stacked fight's queue holds more than one wave's spawns
       // interleaved, so each triple carries its own true origin wave rather
       // than the current fight's base `w.wave`.
-      const [defId, gateIdx, originWave] = w.spawnQueue.shift()!;
+      const entry = w.spawnQueue.shift();
+      if (!entry) break;
+      const [defId, gateIdx, originWave] = entry;
+      if (defId === undefined || gateIdx === undefined || originWave === undefined) {
+        throw new Error('updateAct1Wave: malformed spawn queue entry');
+      }
       const def = content.enemyById.get(defId)!;
       const gate = w.gates[gateIdx] ?? GATES[0];
+      if (!gate) throw new Error('updateAct1Wave: no gates available');
       const jitterX = w.rng.spawns.range(-0.25, 0.25);
       const jitterY = w.rng.spawns.range(-0.25, 0.25);
       w.spawnedByWave[originWave] = (w.spawnedByWave[originWave] ?? 0) + 1;
@@ -925,7 +942,10 @@ function completeWave(w: World): void {
     // stacked multi-summon clear still pays one item per wave actually
     // cleared, not one per stack.
     const items = w.content.equipment.items;
-    if (items.length > 0) w.equipmentFound.push(items[w.rng.drops.int(items.length)].key);
+    if (items.length > 0) {
+      const item = items[w.rng.drops.int(items.length)];
+      if (item) w.equipmentFound.push(item.key);
+    }
   }
   w.wave = lastWave;
   w.stackDepth = 0;
@@ -1033,7 +1053,7 @@ export function damageSince(
 ): Record<string, number> {
   const out: Record<string, number> = {};
   for (const key of Object.keys(current)) {
-    const delta = current[key] - (snapshot[key] ?? 0);
+    const delta = (current[key] ?? 0) - (snapshot[key] ?? 0);
     if (delta > 0) out[key] = delta;
   }
   return out;
@@ -1056,14 +1076,15 @@ export function act2DamageSoFar(w: World): Record<string, number> {
  */
 export function topWeaponShare(w: World, damage: Record<string, number>): { key: string; share: number } {
   let total = 0;
-  for (const key of Object.keys(damage)) total += damage[key];
+  for (const key of Object.keys(damage)) total += damage[key] ?? 0;
   if (total <= 0) return { key: '', share: 0 };
   let bestKey = '';
   let best = 0;
   for (const key of Object.keys(damage)) {
     if (!w.content.towerByKey.has(key)) continue;
-    if (damage[key] > best) {
-      best = damage[key];
+    const amount = damage[key] ?? 0;
+    if (amount > best) {
+      best = amount;
       bestKey = key;
     }
   }
@@ -1209,7 +1230,7 @@ export function hashWorld(w: World): string {
   for (const k of Object.keys(w.derived).sort()) {
     const v = (w.derived as unknown as Record<string, number | boolean>)[k];
     if (typeof v === 'boolean') h.bool(v);
-    else h.num(v);
+    else h.num(v ?? 0);
   }
   // p-core-b: `w.core` is `Derived`'s sibling for Core numbers (folded from
   // `coreKey`/`coreStep`, already hashed above) — hashed the same generic way
@@ -1218,7 +1239,7 @@ export function hashWorld(w: World): string {
   for (const k of Object.keys(w.core).sort()) {
     const v = (w.core as unknown as Record<string, number | boolean>)[k];
     if (typeof v === 'boolean') h.bool(v);
-    else h.num(v);
+    else h.num(v ?? 0);
   }
   h.int(w.enemies.length);
   for (const e of w.enemies) {
@@ -1319,16 +1340,16 @@ export function hashWorld(w: World): string {
   // future system, and this project has been bitten by exactly this gap
   // before (Q74, Q78, m19a's `enemyArmor`) — hash it while it is still free.
   const attackKeys = Object.keys(w.attacksFired).sort();
-  for (const k of attackKeys) h.str(k).int(w.attacksFired[k]);
+  for (const k of attackKeys) h.str(k).int(w.attacksFired[k] ?? 0);
   const boonKeys = Object.keys(w.boonRanks).sort();
-  for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
+  for (const k of boonKeys) h.str(k).int(w.boonRanks[k] ?? 0);
   // p7a (§6.3): the pool's other two card families — same sorted-key shape
   // `boonRanks` above already uses, so a divergence in either can't pass G2
   // undetected (the f001-review gap class named just above).
   const masteryKeys = Object.keys(w.typeMasteryRanks).sort();
-  for (const k of masteryKeys) h.str(k).int(w.typeMasteryRanks[k]);
+  for (const k of masteryKeys) h.str(k).int(w.typeMasteryRanks[k] ?? 0);
   const skillCardKeys = Object.keys(w.skillCardRanks).sort();
-  for (const k of skillCardKeys) h.str(k).int(w.skillCardRanks[k]);
+  for (const k of skillCardKeys) h.str(k).int(w.skillCardRanks[k] ?? 0);
   // fb007: `damageByType` is a second choke-point accumulator alongside
   // `damageByWeapon` (only `damageTotal`, their shared sum, was hashed below)
   // and the four wave/Sunder snapshots gate what the DPS panel's "this wave"
@@ -1346,7 +1367,7 @@ export function hashWorld(w: World): string {
     w.damageAtWaveStart,
     w.damageTypeAtWaveStart,
   ]) {
-    for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k]);
+    for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k] ?? 0);
   }
   h.int(w.waveStartTick);
   const st = w.rng.getState();
@@ -1359,11 +1380,11 @@ export function hashWorld(w: World): string {
 
 export function buildReport(w: World): RunReport {
   const damageByWeapon: Record<string, number> = {};
-  for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k];
+  for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k] ?? 0;
   const damageByType: Record<string, number> = {};
-  for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k];
+  for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k] ?? 0;
   const damageByWeaponVs: Record<string, number> = {};
-  for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k];
+  for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k] ?? 0;
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',

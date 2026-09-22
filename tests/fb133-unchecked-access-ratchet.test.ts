@@ -61,7 +61,6 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/enemies.ts',
-  'src/sim/run.ts',
 ];
 
 // qa-playtester (fb133): under heavy host contention a slow `tsc` subprocess

@@ -6715,6 +6715,65 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       bugs filed. Full tier. **2 files remain, both `/src/sim`**:
       `src/sim/enemies.ts`, `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md
       fb064t Log.
+    - **Ratchet shrunk further 2026-09-22 (scheduled routine, later same
+      day)**: fixed the remaining `src/sim/run.ts` (39 unchecked-index
+      sites) with real guards (never `!`). Shapes: `gateSpawnPoint`/
+      `updateAct1Wave`'s `w.gates[...] ?? GATES[0]` throws on the
+      already-guaranteed-non-empty `GATES` literal; `buildSpawnQueue`'s
+      `table[...]` wave-index read throws on the loader-enforced
+      `waves: z.array(...).min(1)` invariant; `updateAct1Wave`'s
+      spawn-queue-entry destructure (`shift()` result plus its 3-number
+      tuple) gets explicit `undefined` checks, unreachable given
+      `buildSpawnQueue`'s two push sites always emit full triples;
+      `damageWarden`'s shortest-remaining-DoT-stack merge loop caches
+      `cur`/`best`/`stack` locals guarded the same way, unreachable given
+      `maxStacksPerEnemy: num.int().min(1)` (content.ts) and `wd.dots`
+      being push/filter-only (never sparse); `tickWardenDots`'s per-tick
+      `wd.dots[i]` read throws on the same loop-bound-proven invariant;
+      `equipItemCommand`'s `(w.ownedEquipment[itemKey] ?? 0) > 0` is a
+      true semantic no-op (`undefined > 0` and `0 > 0` both `false`);
+      the endHash builder's `Derived`/`w.core`/`attacksFired`/`boonRanks`/
+      `typeMasteryRanks`/`skillCardRanks`/damage-accumulator loops and
+      `buildReport`'s three damage-record copies get `?? 0` defaults,
+      genuine no-ops since every read key comes from that same record's
+      own `Object.keys()`. Does not touch `/data`.
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags the file (0 diagnostics); main `npx tsc --noEmit` clean;
+      `tests/fb133-unchecked-access-ratchet.test.ts` green with `run.ts`
+      removed from `KNOWN_UNCHECKED_ACCESS_FILES`; `npm run test:fast`
+      green, unchanged at 315 files / 4548 passed / 35 skipped; `npm run
+      sim -- --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+      code-reviewer APPROVE (one Minor, addressed before commit:
+      `tickWardenDots`'s unreachable-slot guard used `continue` instead of
+      this diff's own `throw`-on-unreachable-invariant convention —
+      fixed) after independently re-running `test:fast` (confirmed
+      315/4548/35) and re-deriving the `endHash` match itself rather than
+      trusting the report. qa-playtester PASS — adversarially traced both
+      flagged sites (the DoT-stack merge and the spawn-queue destructure)
+      to their producing invariants, and independently confirmed no
+      behavior change via a `git worktree` of unmodified HEAD run
+      alongside the patched tree across 3 seed/policy combos (`seed 1
+      hybrid`, `seed 2 maxbuild`, `seed 9 hybrid`) — all three endHash
+      values byte-identical (`d6452f98`, `69c6f658`, `050c68bc`) between
+      baseline and patched code. No bugs filed. Full tier. **Ratchet
+      allowlist down to 1 file: `src/sim/enemies.ts`.**
+      **Observation (out of scope for this item, logged not fixed):**
+      while running this item's targeted tests, `tests/p10d-run-length
+      .test.ts`'s "G1 companions: T1 and T5 confirm the tier ladder"
+      block (p12d, not part of `npm run test:fast`'s excluded-suite set
+      covered by per-item verification) read red — T1 8/24 = 33.3% (band
+      [55%,90%]), T5 9/24 = 37.5% (ceiling 20%) — a large miss on both
+      sides, not a borderline one. Ruled out as caused by this item's
+      diff: the endHash for the exact seed/tier/policy this companion
+      block also exercises (T1 = tier 1, `hybrid`) is unchanged at
+      `d6452f98`, `npm run test:fast` matches the historical baseline
+      exactly, and code-reviewer/qa-playtester both independently
+      re-derived the same unchanged hashes across 3 seeds. This routine's
+      scope is fb133 (`[polish]`, type-safety only) and it forbids
+      generating new backlog items, so no `[balance]` item is filed here
+      — flagging in this log for whichever session next touches P10
+      balance or the G1 companion gates to pick up and re-measure.
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

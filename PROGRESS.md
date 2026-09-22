@@ -5,7 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 2 → 1,
+  `src/sim/run.ts` cleared.** Fixed `src/sim/run.ts` (39 unchecked-index
+  sites) with real guards (never `!`): `gateSpawnPoint`/`updateAct1Wave`'s
+  `GATES[0]` fallback and `buildSpawnQueue`'s wave-table index both throw
+  on an already-guaranteed-non-empty invariant (`GATES`'s fixed literal,
+  the loader's `waves.min(1)`); `updateAct1Wave`'s spawn-queue-entry
+  destructure and `damageWarden`'s shortest-remaining-DoT-stack merge loop
+  get explicit `undefined` checks, unreachable given `buildSpawnQueue`'s
+  always-full-triple pushes and `maxStacksPerEnemy`'s loader-enforced
+  `>= 1` floor; `tickWardenDots`'s per-tick dot read throws on the same
+  loop-bound invariant; `equipItemCommand`'s `ownedEquipment` check is a
+  true semantic no-op (`undefined > 0` and `0 > 0` both false); the
+  endHash builder and `buildReport`'s `Object.keys()`-driven loops get
+  `?? 0` defaults, genuine no-ops since the read key always comes from
+  that same record. Does not touch `/data`. Verified: `npx tsc --noEmit
+  -p tsconfig.unchecked.json` no longer flags the file; main tsc clean;
+  `tests/fb133-unchecked-access-ratchet.test.ts` green with `run.ts`
+  removed from the allowlist; `npm run test:fast` green (315/4548 passed/
+  35 skipped, unchanged); sim endHash unchanged (`d6452f98`) and
+  independently re-confirmed across 3 seed/policy combos via a `git
+  worktree` diff against unmodified HEAD. code-reviewer APPROVE (one
+  Minor fixed: `tickWardenDots`'s unreachable-slot guard switched from
+  `continue` to `throw` to match this diff's own convention),
+  qa-playtester PASS — no bugs filed. Full tier. **Ratchet allowlist down
+  to 1 file: `src/sim/enemies.ts`.** Observation logged, not fixed (out of
+  scope for this `[polish]` item): `tests/p10d-run-length.test.ts`'s T1/T5
+  companion gate (p12d) reads red (T1 33.3% vs band [55%,90%]; T5 37.5%
+  vs ceiling 20%) — ruled out as caused by this diff via the unchanged
+  endHash and test:fast baseline; flagged for the next P10-balance
+  session. — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
   Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
   `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`
   overlay-copy loops and the Dijkstra bucket-pop inner loop got inline
