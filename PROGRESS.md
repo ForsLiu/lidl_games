@@ -39,7 +39,9 @@
   here) → APPROVE on the code itself; two Minor/Nit notes (a `throw`-vs-
   `?? 0` style-consistency observation and a small duplicated-guard nit)
   left as-is, both harmless. Full tier. **fb133 done.** — refs: BACKLOG.md
-  fb133 Log.
+  fb133 Log. (Supersedes the same-day "ratchet shrunk 2 → 1" session,
+  which independently closed only `src/sim/run.ts` before this session
+  closed the allowlist the rest of the way.)
 - **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 3 → 2.**
   Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
   `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`

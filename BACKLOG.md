@@ -6795,6 +6795,10 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       two touched test files directly (26/26). No bugs filed. Full tier,
       `/src/sim`. **fb133 done — `KNOWN_UNCHECKED_ACCESS_FILES` allowlist
       is empty, flag is on the main config, ratchet scaffolding retired.**
+      (Supersedes the same-day "Ratchet shrunk further" session, which
+      independently closed only `src/sim/run.ts` before this session closed
+      the allowlist the rest of the way — refs: BACKLOG-TERRAIN.md fb064t
+      Log.)
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
