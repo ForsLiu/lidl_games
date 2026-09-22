@@ -47,7 +47,6 @@ const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/enemies.ts',
   'src/sim/grid.ts',
   'src/sim/run.ts',
-  'src/sim/terrain/analyze.ts',
   'src/sim/world.ts',
 ];
 

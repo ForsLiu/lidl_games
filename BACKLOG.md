@@ -6583,6 +6583,54 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `src/sim/terrain/analyze.ts`, `src/sim/world.ts` — the list is now
       entirely `/src/sim` files, no test files left. — refs:
       BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-22 (scheduled routine), first
+      `/src/sim` file cleared**: fixed `src/sim/terrain/analyze.ts` (25
+      unchecked-index sites, all provably-in-range reads) with real guards
+      (never `!`) — two styles, both matching existing precedent
+      (`src/sim/rng.ts`'s `pick`/`shuffle`/`sample`, `src/sim/terrain/
+      generate.ts`'s `scatter`): (a) `map.kind[i] ?? TerrainKind.Normal`
+      inline defaults (`TerrainKind.Normal === 0`) at every terrain-kind
+      read whose index is bounds-checked immediately before use
+      (`walkableFlood`, `thickMask`, `blockMask`, `corridorsOk`,
+      `uncontestedHigh`, `gatesOpen`, `measureTerrain`), plus the matching
+      `?? -Infinity`/`?? -1` numeric defaults for `sizes[i]`/`label[start]`
+      comparisons in `labelComponents`; (b) explicit `if (x === undefined)
+      break/return` guards, each with an inline reason, for queue-dequeue
+      values used for further indexing (`walkableFlood`'s and
+      `labelComponents`' `queue[head]`, `gateComponent`'s `reach[0]`/
+      `reach[g]`, `gatesConnected`'s `reach[g]`). Does not touch `/data`.
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags the file, no new offenders (5 → 4, exact match via the ratchet
+      test); main `npx tsc --noEmit` clean; targeted `npx vitest run` on
+      `tests/fb133-unchecked-access-ratchet.test.ts` plus every terrain
+      suite that exercises this file (`terrain-generation.test.ts`,
+      `terrain-anchor-quality.test.ts`, `terrain-describe.test.ts`, 93
+      tests) green; `npm run test:fast` green — 315 files passed / 9
+      skipped (324 total; the file/skip split has moved since the last
+      fb133 entry's 315/4548/35 reading, from suite growth unrelated to
+      this change, not a regression); `npm run sim -- --seed 1 --policy
+      hybrid` endHash unchanged (`d6452f98`). code-reviewer
+      APPROVE (one Minor: `gatesConnected`'s `reach[g]`-undefined guard
+      depends on an invariant across two independently-defaultable
+      parameters, `reachIn` and `gates` — true today at the sole call site
+      but not enforced by the type system; addressed with an explanatory
+      comment on the guard rather than a behavior change, since adding
+      enforcement here is a larger API change than this item's scope).
+      Full tier (`/src/sim` touched) — qa-playtester PASS. Independently
+      traced every guard's unreachability against real production entry
+      points (`gridTerrain()`, `describeTerrain()`, `generate.ts`,
+      `overlay.ts` all size/enforce `map.kind.length === map.w*map.h`),
+      fuzzed adversarial configs directly (1x1 grid, all-rock 56x32, zero
+      gates, `minCorridorWidth<=1`, a map with no legal Core anchor) — no
+      crashes, no fallback ever fires, results match expectations. Flagged
+      the same `gatesConnected`/`gateComponent` `reachIn`/`gates`-pairing
+      footgun code-reviewer's Minor named: reachable only through direct
+      API misuse no current caller performs (verified by grep), pre-fix it
+      threw fail-fast on that misuse and post-fix it would silently return
+      an over-generous answer — advisory only, not filed as a backlog item
+      since no live call site can trigger it. **4 files remain, all `/src/sim`**:
+      `src/sim/enemies.ts`, `src/sim/grid.ts`, `src/sim/run.ts`,
+      `src/sim/world.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
