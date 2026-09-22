@@ -5,7 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 4 → 3.**
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
+  Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards
+  (never `!`): `?? sentinel` defaults on typed-array reads already
+  proven in-range by a preceding bounds check or a loop bound matching
+  the array's own length (bulk per-tile copies in `applyTerrain`/
+  `syncTerrain`, single-tile reads in `distAt`/`stepFrom`/`fieldDist`/
+  `fieldStep`/`allGatesReachable`, sentinels matching each field's own
+  existing "unset" convention), and explicit `if (x === undefined)
+  continue` guards in the hot Dijkstra pathfinder (`dijkstra()`) on the
+  bucket dequeue and the `NEIGHBORS[k]` lookup. `wouldBlockPath()`'s
+  restore loop moved from index-based `tiles[k]`/`saved[k]` to an
+  order-preserving `for...of`. Clearing grid.ts's own errors exposed two
+  latent, previously-masked unguarded destructures in
+  `tests/p1a-sealing.test.ts` and `tests/terrain-high-ground.test.ts`,
+  fixed with the existing `nth<T>` throw-guard convention. Does not touch
+  `/data`. Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no
+  longer flags any of the three files; main tsc clean; `npm run
+  test:fast` green, unchanged at 315/4548; sim endHash unchanged
+  (`d6452f98`). code-reviewer APPROVE, qa-playtester PASS (adversarial
+  Dijkstra/`wouldBlockPath` edge probes, targeted terrain/pathing suites,
+  `git stash` behavioral-equivalence checks) — no bugs filed. One
+  unrelated pre-existing failure noted (`p1b-seal-winrate.test.ts`,
+  already fast-tier-excluded, reproduces on the pre-fix baseline too).
+  Full tier. **2 files remain, both `/src/sim`**: `enemies.ts`, `run.ts`.
+  — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 4 → 3.**
   Fixed `src/sim/world.ts` (25 unchecked-index sites) with real guards
   (never `!`). Hottest path in the sim: `rebuildBuckets()`,
   `enemiesInRadius()`, `nearestEnemy()` (the live-enemy spatial hash) run

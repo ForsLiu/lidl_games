@@ -58,6 +58,12 @@ function place(w: World, towerId: number, tx: number, ty: number): Structure {
  * The 12-tile ring around the 2×2 Core. Every ground approach must cross it;
  * fliers and ghosts do not care.
  */
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${i} to exist`);
+  return v;
+}
+
 function ringTiles(): Array<[number, number]> {
   const tiles: Array<[number, number]> = [];
   for (let x = CORE_X - 1; x <= CORE_X + 2; x++) {
@@ -86,7 +92,7 @@ describe('p1a §10: canPlace no longer rejects a sealing placement', () => {
     const w = newWorld();
     const ring = ringTiles();
     for (const [tx, ty] of ring.slice(0, -1)) place(w, PALISADE, tx, ty);
-    const [ltx, lty] = ring[ring.length - 1];
+    const [ltx, lty] = nth(ring, ring.length - 1);
     w.warden.x = ltx + 0.5;
     w.warden.y = lty + 0.5;
     expect(w.grid.wouldBlockPath([[ltx, lty]])).toBe(true); // it is a seal…

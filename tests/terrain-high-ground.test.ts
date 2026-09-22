@@ -335,7 +335,7 @@ describe('fb064i — the rules on a generated map', () => {
     // assertion above would hold on empty cliffs and the rule would evaporate
     // the moment the player built there.
     const { grid, highTiles } = seededGrid(42);
-    const [x, y] = highTiles[0];
+    const [x, y] = nth(highTiles, 0);
     expect(grid.buildable(x, y)).toBe(true);
     grid.setOcc(x, y, 77);
     grid.refresh();
@@ -363,7 +363,7 @@ describe('fb064i — the rules on a generated map', () => {
 describe('fb064i — the predicates are total and pure', () => {
   it('floors float coordinates, so an entity position works as a tile', () => {
     const { grid, highTiles } = seededGrid(42);
-    const [x, y] = highTiles[0];
+    const [x, y] = nth(highTiles, 0);
     const ground = familyOf('husk');
     expect(canAttackStructureAt(grid, ground, x + 0.5, y + 0.9)).toBe(false);
     expect(canSurfaceAt(grid, familyOf('burrower'), x + 0.01, y + 0.99)).toBe(false);
@@ -519,7 +519,7 @@ describe('fb064i — the loader refuses a silently-wrong family table', () => {
       for (const f of fams) f.attacksHigh = true;
     });
     const { grid, highTiles } = seededGrid(42);
-    const [x, y] = highTiles[0];
+    const [x, y] = nth(highTiles, 0);
     expect(canAttackStructureAt(grid, familyOf('husk', permissive), x, y)).toBe(true);
     // ...and it is still the shipped config that says otherwise.
     expect(canAttackStructureAt(grid, familyOf('husk'), x, y)).toBe(false);

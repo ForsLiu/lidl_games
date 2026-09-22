@@ -487,7 +487,7 @@ export class Grid {
     // that later wrote into its own overlay would silently desync the walkable
     // mask from the flow field with nothing dirty to trigger a rebuild.
     for (let i = 0; i < n; i++) {
-      this.terrainRawKind[i] = overlay.kind[i];
+      this.terrainRawKind[i] = overlay.kind[i] ?? TERRAIN_NORMAL;
       this.terrainRawBlock[i] = overlay.walkable[i] ? 0 : 1;
       this.terrainRawNoBuild[i] = overlay.buildable[i] ? 0 : 1;
       this.terrainRawHigh[i] = overlay.high[i] ? 1 : 0;
@@ -507,11 +507,11 @@ export class Grid {
   private syncTerrain(): void {
     const n = GRID_W * GRID_H;
     for (let i = 0; i < n; i++) {
-      this.terrainKind[i] = this.terrainRawKind[i];
-      this.terrainBlock[i] = this.terrainRawBlock[i];
-      this.terrainNoBuild[i] = this.terrainRawNoBuild[i];
-      this.terrainHigh[i] = this.terrainRawHigh[i];
-      this.terrainCharBlock[i] = this.terrainRawCharBlock[i];
+      this.terrainKind[i] = this.terrainRawKind[i] ?? TERRAIN_NORMAL;
+      this.terrainBlock[i] = this.terrainRawBlock[i] ?? 0;
+      this.terrainNoBuild[i] = this.terrainRawNoBuild[i] ?? 0;
+      this.terrainHigh[i] = this.terrainRawHigh[i] ?? 0;
+      this.terrainCharBlock[i] = this.terrainRawCharBlock[i] ?? 0;
     }
     for (let i = 0; i < n; i++) {
       if (this.tile[i] === TileType.Open || this.tile[i] === TileType.Border) continue;
@@ -1068,14 +1068,21 @@ export class Grid {
       buckets.delete(c);
       for (let bi = 0; bi < b.length; bi++) {
         const i = b[bi];
+        // Unreachable: bi < b.length, and b only ever holds indices pushB was
+        // called with (in-range `sources` entries, or `ni` below — already
+        // bounds-checked at push time).
+        if (i === undefined) continue;
         if (dist[i] !== c) continue; // stale entry
         const x = i % GRID_W;
         const y = (i / GRID_W) | 0;
         for (let k = 0; k < NEIGHBORS.length; k++) {
-          const nx = x + NEIGHBORS[k][0];
-          const ny = y + NEIGHBORS[k][1];
+          // Unreachable: k < NEIGHBORS.length.
+          const nb = NEIGHBORS[k];
+          if (nb === undefined) continue;
+          const nx = x + nb[0];
+          const ny = y + nb[1];
           if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue;
-          const diag = NEIGHBORS[k][2] === DIAG_COST;
+          const diag = nb[2] === DIAG_COST;
           // fb064x: the three flat indices this neighbour needs, derived once.
           // `nx`/`ny` are integers by construction (an index decomposed plus a
           // `NEIGHBORS` offset) and the line above is their bounds check, so the
@@ -1121,11 +1128,14 @@ export class Grid {
               // (its `occ` would otherwise buy it a breach route into terrain
               // no walker can enter).
               if (this.staticBlocked(ni) === 1) continue;
-              if (this.occ[ni] !== 0) extra = this.breachBase + this.breach[ni];
+              if (this.occ[ni] !== 0) extra = this.breachBase + (this.breach[ni] ?? 0);
             }
           }
-          const nd = c + NEIGHBORS[k][2] + extra;
-          if (dist[ni] === -1 || nd < dist[ni]) {
+          const nd = c + nb[2] + extra;
+          // `?? -1`: ni is bounds-checked in-range above; -1 matches the
+          // "unset" sentinel `dist.fill(-1)` already uses.
+          const di = dist[ni] ?? -1;
+          if (di === -1 || nd < di) {
             dist[ni] = nd;
             next[ni] = i;
             pushB(nd, ni);
@@ -1160,7 +1170,9 @@ export class Grid {
   distAt(tx: number, ty: number, ghost = false): number {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
     if (!this.inBounds(tx, ty)) return -1;
-    return (ghost ? this.ghost : this.ground).dist[ty * GRID_W + tx];
+    // `?? -1`: inBounds() above already proves the index in range; -1 is
+    // this method's own "no answer" sentinel.
+    return (ghost ? this.ghost : this.ground).dist[ty * GRID_W + tx] ?? -1;
   }
 
   /** Next tile toward the core as [tx,ty], or null. fb064y: see `distAt`. */
@@ -1168,7 +1180,9 @@ export class Grid {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
     if (!this.inBounds(tx, ty)) return null;
     const f = ghost ? this.ghost : this.ground;
-    const i = f.next[ty * GRID_W + tx];
+    // `?? -1`: inBounds() above already proves the index in range; -1 is
+    // `next`'s own "no route" sentinel, handled by the check below.
+    const i = f.next[ty * GRID_W + tx] ?? -1;
     if (i < 0) return null;
     return [i % GRID_W, (i / GRID_W) | 0];
   }
@@ -1183,7 +1197,8 @@ export class Grid {
   allGatesReachable(): boolean {
     this.dijkstra(this.scratch, this.coreTiles(), 'blocked');
     for (let i = 0; i < this.tile.length; i++) {
-      if (this.tile[i] === TileType.Gate && this.scratch.dist[i] < 0) return false;
+      // `?? -1`: i < this.tile.length === this.scratch.dist.length, in range.
+      if (this.tile[i] === TileType.Gate && (this.scratch.dist[i] ?? -1) < 0) return false;
     }
     return true;
   }
@@ -1193,16 +1208,21 @@ export class Grid {
     const saved: number[] = [];
     for (const [tx, ty] of tiles) {
       const i = ty * GRID_W + tx;
-      saved.push(this.occ[i]);
+      saved.push(this.occ[i] ?? 0); // `?? 0` matches Int32Array's own zero-fill default
       this.occ[i] = -1;
       this.blocked[i] = 1;
     }
     const ok = this.allGatesReachable();
-    for (let k = 0; k < tiles.length; k++) {
-      const [tx, ty] = tiles[k];
+    // for-of, not an index loop over `tiles`: `saved` was built in the same
+    // order one tile at a time above, so pairing them by walking both
+    // together needs no `tiles[k]`/`saved[k]` re-indexing.
+    let k = 0;
+    for (const [tx, ty] of tiles) {
       const i = ty * GRID_W + tx;
-      this.occ[i] = saved[k];
-      this.blocked[i] = this.staticBlocked(i) === 1 || saved[k] !== 0 ? 1 : 0;
+      const s = saved[k] ?? 0;
+      this.occ[i] = s;
+      this.blocked[i] = this.staticBlocked(i) === 1 || s !== 0 ? 1 : 0;
+      k++;
     }
     return !ok;
   }
@@ -1265,14 +1285,18 @@ export function coreCenter(): { x: number; y: number } {
 export function fieldDist(f: Field, tx: number, ty: number): number {
   if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return -1;
-  return f.dist[ty * GRID_W + tx];
+  // `?? -1`: the bounds check above already proves the index in range; -1 is
+  // this function's own "no answer" sentinel.
+  return f.dist[ty * GRID_W + tx] ?? -1;
 }
 
 /** Next tile toward the field source, or null. fb064y: see `fieldDist`. */
 export function fieldStep(f: Field, tx: number, ty: number): [number, number] | null {
   if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return null;
-  const i = f.next[ty * GRID_W + tx];
+  // `?? -1`: the bounds check above already proves the index in range; -1 is
+  // `next`'s own "no route" sentinel, handled by the check below.
+  const i = f.next[ty * GRID_W + tx] ?? -1;
   if (i < 0) return null;
   return [i % GRID_W, (i / GRID_W) | 0];
 }

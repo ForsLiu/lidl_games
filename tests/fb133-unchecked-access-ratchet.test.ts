@@ -45,7 +45,6 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/enemies.ts',
-  'src/sim/grid.ts',
   'src/sim/run.ts',
 ];
 

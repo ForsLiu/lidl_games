@@ -6669,6 +6669,56 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       target bug) — no bugs filed. Full tier. **3 files remain, all
       `/src/sim`**: `src/sim/enemies.ts`, `src/sim/grid.ts`,
       `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-22 (scheduled routine)**: fixed
+      `src/sim/grid.ts` (29 unchecked-index sites) with real guards
+      (never `!`). Two shapes: plain `?? sentinel` defaults on typed-array
+      reads already proven in-range by a preceding bounds check or a loop
+      bound equal to the array's own length (`applyTerrain`/`syncTerrain`'s
+      bulk per-tile copies, `distAt`/`stepFrom`/`fieldDist`/`fieldStep`'s
+      single-tile reads after `inBounds`, `allGatesReachable`'s
+      `this.tile.length`-bounded loop) — every sentinel chosen matches that
+      field's own existing "unset" convention (`TERRAIN_NORMAL`, `-1`
+      matching `dist.fill(-1)`/`next.fill(-1)`, `0` matching an `Int32Array`'s
+      zero-fill); and explicit `if (x === undefined) continue` guards in the
+      hot Dijkstra pathfinder (`dijkstra()`) on the bucket dequeue (`b[bi]`,
+      in-range by `bi < b.length`) and the `NEIGHBORS[k]` neighbour-offset
+      lookup (in-range by `k < NEIGHBORS.length`), destructured once into
+      `nb` rather than re-indexed. `wouldBlockPath()`'s restore loop was
+      rewritten from index-based `tiles[k]`/`saved[k]` to a `for...of` over
+      `tiles` paired with a manually incremented `k`, order-preserving.
+      Fixing grid.ts's own errors exposed two latent, previously-masked
+      unguarded destructures in `tests/p1a-sealing.test.ts`
+      (`ring[ring.length-1]`) and `tests/terrain-high-ground.test.ts`
+      (three `highTiles[0]` sites) — neither file was on the allowlist
+      before, both fixed with the sibling-test-file `nth<T>` throw-guard
+      convention (added fresh to the former, reused the latter's own
+      pre-existing helper). Does not touch `/data`. Verified: `npx tsc
+      --noEmit -p tsconfig.unchecked.json` no longer flags any of the
+      three files (3 → 2 remaining); main `npx tsc --noEmit` clean; `npm
+      run test:fast` green, unchanged at 315 files / 4548 passed / 35
+      skipped; `npm run sim --seed 1 --policy hybrid` endHash unchanged
+      (`d6452f98`, independently reconfirmed by qa-playtester via `git
+      stash`). code-reviewer APPROVE — no Critical/Major/Minor findings,
+      confirmed every sentinel/guard against the file's own allocation and
+      fill invariants, confirmed the `wouldBlockPath` refactor preserves
+      exact iteration order, confirmed no `!` assertions anywhere in the
+      diff. qa-playtester PASS — independently re-ran every check above
+      plus targeted suites (`grid`, `p1a-sealing`, `terrain-high-ground`,
+      `fb133` ratchet, `fb034-max-towers`, `fb036-path-indicators`,
+      `terrain-four-gates`, `terrain-gate-legality`,
+      `terrain-modifier-gate-jitter`, `fb077-terrain-wiring`,
+      `fb130-core-placement-wiring`, `terrain-gate-open`,
+      `terrain-core-placement`, `act1`, `terrain-anchor-quality`,
+      `terrain-run-provenance`), adversarial probes (empty-`sources`
+      `dijkstra`/`allGatesReachable`, `wouldBlockPath` with duplicate
+      coordinates and both grid corners, wildly out-of-range `distAt`/
+      `stepFrom` coordinates — all correct sentinels, no throws), and
+      confirmed the Fourth Gate/`MODIFIER_GATES` path is untouched by this
+      diff. One unrelated pre-existing failure noted
+      (`tests/p1b-seal-winrate.test.ts`, already excluded from the fast
+      tier, reproduces identically on a `git stash` baseline) — not a
+      regression. **2 files remain, both `/src/sim`**: `src/sim/enemies.ts`,
+      `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three
