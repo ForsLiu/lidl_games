@@ -31,10 +31,26 @@
  * BACKLOG.md fb133 for the lists, which have continued shrinking the list
  * in similar batches since (155, then 147, then 137, then 121, then 111,
  * then 105, then 98, then 92, ..., then 20, then 18, then 16, then 15, then
- * 13, then 12, then 9, then 8, then 7, then 6, then 5 files remaining as of
- * the latest). Shrink this list
+ * 13, then 12, then 9, then 8, then 7, then 6, then 5, then 3 files remaining
+ * as of the latest). Shrink this list
  * as files are fixed; do not add to it without a reason logged in
  * BACKLOG.md.
+ *
+ * **Known blind spot (found closing `src/sim/grid.ts`, session 2026-09-22):**
+ * one whole-project `tsc` invocation does not reliably enumerate every
+ * unguarded site. `tsc` reports the `TS2488` "must have `[Symbol.iterator]()`"
+ * diagnostic for an unguarded `const [x, y] = arr[i]` destructure only on the
+ * first file (in its internal compile order) that hits that exact type shape
+ * (e.g. `[number, number] | undefined`), and silently drops the identical
+ * diagnostic on every later file with the structurally same pattern. Fixing
+ * `grid.ts`'s own same-shaped errors freed up that "first occurrence" slot
+ * and made two previously-invisible offenders (`tests/p1a-sealing.test.ts`,
+ * `tests/terrain-high-ground.test.ts`) surface and get fixed in the same
+ * session — they were real unguarded reads the whole time, just masked. This
+ * means a *new* regression that happens to share a type shape with something
+ * already-passing could stay invisible to this test even once the allowlist
+ * above reaches zero. If that's ever suspected, verify with a per-file (or
+ * per-directory) `tsc` invocation rather than trusting one whole-project run.
  */
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -45,7 +61,6 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const KNOWN_UNCHECKED_ACCESS_FILES: readonly string[] = [
   'src/sim/enemies.ts',
-  'src/sim/grid.ts',
   'src/sim/run.ts',
 ];
 

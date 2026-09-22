@@ -6669,6 +6669,52 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       target bug) — no bugs filed. Full tier. **3 files remain, all
       `/src/sim`**: `src/sim/enemies.ts`, `src/sim/grid.ts`,
       `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md fb064t Log.
+    - **Ratchet shrunk further 2026-09-22 (scheduled routine, later same day)**:
+      fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards
+      (never `!`). Two shapes: loop-bound-proven reads in `applyTerrain`/
+      `syncTerrain`'s overlay-copy loops and the Dijkstra bucket-pop inner
+      loop (`b[bi]`, `NEIGHBORS[k]`, `dist[ni]`/`breach[ni]` where `ni` is
+      already bounds-checked via `nx`/`ny`) got inline `?? <sentinel>`
+      defaults or a `const nb = NEIGHBORS[k]; if (!nb) continue;` cache
+      (also cuts three repeated array lookups to one); `distAt`/`stepFrom`/
+      `fieldDist`/`fieldStep`/`allGatesReachable` got `?? -1` matching their
+      own "-1 = unreachable" sentinel convention, all downstream of an
+      existing `inBounds`/`Number.isInteger` guard. `wouldBlockPath`'s tuple
+      destructure (`tiles[k]`, loop-bound-proven) got the same
+      `if (!t) continue` pattern. Does not touch `/data`.
+      Verified: `npx tsc --noEmit -p tsconfig.unchecked.json` no longer
+      flags the file, no new `/src/sim` offenders; main `npx tsc --noEmit`
+      clean; targeted suites green (`fb133` ratchet test, `grid`,
+      `terrain-grid`, `terrain-grid-gates`, `terrain-grid-view`,
+      `p1a-sealing`, `terrain-high-ground`, 128 tests); `npm run test:fast`
+      green, unchanged at 315 files / 4548 passed / 35 skipped; `npm run sim
+      --seed 1 --policy hybrid` endHash unchanged (`d6452f98`).
+      **Side effect, not a regression**: fixing `grid.ts`'s errors changed
+      which file tsc reports first for two structurally-identical
+      `[number, number] | undefined` destructure shapes it was silently
+      colliding on, surfacing two previously-invisible unguarded reads in
+      `tests/p1a-sealing.test.ts` and `tests/terrain-high-ground.test.ts`
+      (the latter had 3 identical sites, only 1 tsc-visible; fixed all 3).
+      Both fixed with the repo-standard per-file `nth<T>` throw-guard
+      helper. Documented as a known blind spot of the ratchet mechanism in
+      `tests/fb133-unchecked-access-ratchet.test.ts`'s doc comment — a
+      *future* regression sharing a type shape with an already-passing file
+      could stay invisible even once this allowlist reaches zero; verify
+      with a per-file `tsc` run if that's ever suspected. code-reviewer
+      APPROVE — independently re-traced every guard's invariant (including
+      the hot-path Dijkstra change), confirmed no behavior change, confirmed
+      the collateral test fixes reuse existing precedent; filed the blind-
+      spot note as the one Minor (addressed above). qa-playtester PASS —
+      independently reran all targeted suites and `test:fast`, confirmed
+      `endHash` identical with the diff applied vs. stashed across 9 seeds
+      × 3 policies (`hybrid`/`maxbuild`/`turtle`, up to 94 towers), and ran
+      a standalone adversarial script against `wouldBlockPath([])`,
+      single-tile occupancy, all four grid corners, a fully-sealed Core
+      ring, `gatePath` from every real gate, and an 808-structure dense-
+      board Dijkstra stress (12ms refresh, no undefined/NaN leaks) — no
+      bugs filed. Full tier. **2 files remain, both `/src/sim`**:
+      `src/sim/enemies.ts`, `src/sim/run.ts`. — refs: BACKLOG-TERRAIN.md
+      fb064t Log.
 - [x] (fb134) [polish] two terrain follow-ups now that the run's gate list
       is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
       the base `GATES`, so a repro taken from a Fourth Gate run reports three

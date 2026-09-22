@@ -5,7 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 4 → 3.**
+- **2026-09-22 (scheduled routine, latest) — fb133 ratchet shrunk 3 → 2.**
+  Fixed `src/sim/grid.ts` (29 unchecked-index sites) with real guards (never
+  `!`): loop-bound-proven reads in the `applyTerrain`/`syncTerrain`
+  overlay-copy loops and the Dijkstra bucket-pop inner loop got inline
+  `?? <sentinel>` defaults (`dist[ni]`/`breach[ni]` where `ni` is already
+  bounds-checked via `nx`/`ny`) or a cached-and-guarded `NEIGHBORS[k]`
+  read; `distAt`/`stepFrom`/`fieldDist`/`fieldStep`/`allGatesReachable` got
+  `?? -1` matching their own "-1 = unreachable" sentinel, downstream of an
+  existing `inBounds` check; `wouldBlockPath`'s tuple destructure got the
+  same guard pattern. Does not touch `/data`. Verified: `npx tsc --noEmit
+  -p tsconfig.unchecked.json` no longer flags the file; main tsc clean;
+  targeted suites green (128 tests across `grid`, `terrain-grid*`,
+  `p1a-sealing`, `terrain-high-ground`, the `fb133` ratchet test itself);
+  `npm run test:fast` green (315/9 skipped, unchanged); sim endHash
+  unchanged (`d6452f98`) across 9 seeds × 3 policies. Side effect, not a
+  regression: fixing `grid.ts` changed which file `tsc` reports first for
+  two type-shape-colliding diagnostics, surfacing two previously-invisible
+  unguarded `const [x,y] = arr[i]` reads in `tests/p1a-sealing.test.ts` and
+  `tests/terrain-high-ground.test.ts` (fixed with the repo's existing
+  `nth<T>` helper; the quirk itself is documented in the ratchet test's doc
+  comment as a known blind spot). code-reviewer APPROVE, qa-playtester
+  PASS — adversarial stress on `wouldBlockPath`, grid corners, a
+  fully-sealed Core ring, and an 808-structure Dijkstra stress found no
+  bugs. Full tier. **2 files remain, both `/src/sim`**: `enemies.ts`,
+  `run.ts`. — refs: BACKLOG.md fb133 Log.
+- **2026-09-22 (scheduled routine) — fb133 ratchet shrunk 4 → 3.**
   Fixed `src/sim/world.ts` (25 unchecked-index sites) with real guards
   (never `!`). Hottest path in the sim: `rebuildBuckets()`,
   `enemiesInRadius()`, `nearestEnemy()` (the live-enemy spatial hash) run

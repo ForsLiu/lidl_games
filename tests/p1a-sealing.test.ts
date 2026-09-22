@@ -37,6 +37,12 @@ const DT = 1 / 60;
 const PALISADE = 1;
 const ARROW_SPIRE = 2;
 
+function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`index ${i} out of range (length ${arr.length})`);
+  return v;
+}
+
 function newWorld(): World {
   // fb077: fixed-tile sealing/breach assertions need the flat pre-fb077
   // board, not real generated terrain.
@@ -86,7 +92,7 @@ describe('p1a §10: canPlace no longer rejects a sealing placement', () => {
     const w = newWorld();
     const ring = ringTiles();
     for (const [tx, ty] of ring.slice(0, -1)) place(w, PALISADE, tx, ty);
-    const [ltx, lty] = ring[ring.length - 1];
+    const [ltx, lty] = nth(ring, ring.length - 1);
     w.warden.x = ltx + 0.5;
     w.warden.y = lty + 0.5;
     expect(w.grid.wouldBlockPath([[ltx, lty]])).toBe(true); // it is a seal…
