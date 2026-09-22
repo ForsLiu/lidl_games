@@ -5,7 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-22 (scheduled routine, latest) — fb133 CLOSED: `noUncheckedIndexedAccess`
+- **2026-09-22 (scheduled routine, latest) — fb151 main-lane companion fix: Dash
+  Slash now emits its real hit-line endpoint, not the wall/charge-blind travel
+  target.** BACKLOG.md queue was otherwise empty this run; the only actionable
+  owner-directed item found across BACKLOG.md/BACKLOG-*.md was this one —
+  UI-lane's fb151 (BACKLOG-UI.md) had already diagnosed the bug down to "the
+  emit itself is `src/sim/**`... needs a main-lane companion" and confirmed its
+  own render draw needs no change once that lands. `fireDashSlash`
+  (`src/sim/classes.ts`) now emits `before + dir * hitRange` instead of
+  `resolveDashTarget`'s clamped travel target. code-reviewer APPROVE,
+  qa-playtester PASS (independently reproduced both the flat and the original
+  wall-clamped repro against real struck-enemy positions); QA also filed a
+  same-shaped, out-of-scope finding on Bloodlord's Crimson Rush
+  (`fireCrimsonRush`) for the content lane to pick up — not fixed here. Full
+  detail in BACKLOG.md's fb151 entry. The other open owner-directed items
+  (fb056/fb057/fb059/fb061 in BACKLOG-CONTENT.md, fb064c/e/f in
+  BACKLOG-TERRAIN.md, fb160/fb182 in BACKLOG-UI.md/BACKLOG-QUALITY.md) are
+  either lane-scoped work this session cannot touch, or blocked on a
+  spec-authoring decision (appending rows + a fresh hash to SPEC-FINAL.md
+  §4.2/§7 for fb056/fb057/fb059) too large and design-sensitive to take on
+  unilaterally inside one routine iteration — left open, flagged to the owner
+  rather than actioned or silently dropped.
+- **2026-09-22 (scheduled routine) — fb133 CLOSED: `noUncheckedIndexedAccess`
   is on the main `tsconfig.json`.** Fixed the last 2 files on the ratchet
   allowlist (`src/sim/enemies.ts`, `src/sim/run.ts`, ~135 `error TS` sites)
   with real guards, never `!`: DoT-stack application/eviction/ticking

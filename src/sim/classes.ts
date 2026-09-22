@@ -460,7 +460,13 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const before = { x: wd.x, y: wd.y };
   const target = resolveDashTarget(w, dir.x * dashRange, dir.y * dashRange);
   startDashTravel(w, target, duration);
-  w.emit('class_active2', before.x, before.y, target.x, target.y);
+  // fb151 (qa-playtester, fb112 verification): the drawn slash must cover the
+  // corridor `lineHit` above actually swept (`hitRange`, widened by a merged
+  // Circle Slash charge and independent of `resolveDashTarget`'s wall clamp),
+  // not `target` — the Warden's own travel endpoint, which is shorter than
+  // `hitRange` whenever a charge is merged in and can be clamped short of it
+  // by a wall the hit line itself ignores.
+  w.emit('class_active2', before.x, before.y, before.x + dir.x * hitRange, before.y + dir.y * hitRange);
 }
 
 /**
