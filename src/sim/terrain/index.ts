@@ -38,6 +38,7 @@ export {
   GATE_JITTER_MARGIN,
   jitterGates,
   jitterModifierGate,
+  MODIFIER_GATE_MAX_TX,
   isJitteredGatePosition,
   type BaseGateKey,
 } from './gates';

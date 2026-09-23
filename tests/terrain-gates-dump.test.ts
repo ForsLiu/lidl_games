@@ -43,6 +43,7 @@ import { describe, expect, it } from 'vitest';
 import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
   describeTerrain,
+  GATE_JITTER_MARGIN,
   generateTerrain,
   gridTerrain,
   jitterGates,
@@ -50,6 +51,7 @@ import {
   loadTerrain,
   measureTerrain,
   parseTerrainDump,
+  TerrainKind,
 } from '../src/sim/terrain';
 import { World } from '../src/sim/world';
 import { cfg as runCfg } from './helpers';
@@ -129,10 +131,24 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     const swap = (from: string, to: string): string => dump.replace(from, to);
 
     // A base gate at the wrong place. fb156: a live run jitters its gates
-    // along their own edge, so a place inside that band (0,11) is a real
-    // arena and parses; one no build produces — outside the band, or on the
-    // wrong edge — is still refused, naming both what the build allows.
-    expect(() => parseTerrainDump(swap('west=0,12', 'west=0,11'))).not.toThrow();
+    // along their own edge, so a place inside that band is a real arena and
+    // parses — but only on a tile a gate can stand on. The generator and
+    // `Grid` force every gate tile to Normal, so a declared gate on Rock
+    // (fb156 QA bug 4) describes an arena no build produces and is refused.
+    // One no build produces — outside the band, or on the wrong edge — is
+    // still refused, naming both what the build allows.
+    // The generator only opens the border at the gates themselves, so every
+    // other in-band west tile is closed and a gate moved onto any of them is
+    // refused. (The accepting side — a live run's jittered gates round-trip —
+    // is pinned in tests/fb156-live-four-gates.test.ts.)
+    const westTy = GATES.find((g) => g.key === 'west')?.ty;
+    for (let ty = GATE_JITTER_MARGIN; ty <= GRID_H - 1 - GATE_JITTER_MARGIN; ty++) {
+      if (ty === westTy) continue;
+      expect(map.kind[ty * GRID_W], `seed 7 west edge row ${ty}`).not.toBe(TerrainKind.Normal);
+      expect(() => parseTerrainDump(swap('west=0,12', `west=0,${ty}`))).toThrow(
+        new RegExp(`gate "west" is at 0,${ty}, which is not open ground`),
+      );
+    }
     expect(() => parseTerrainDump(swap('west=0,12', 'west=0,3'))).toThrow(
       /gate "west" is at 0,3, this build has it at 0,12 or within its edge's jitter band/,
     );
@@ -262,6 +278,15 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     // ...and not on top of a gate that is already there.
     expect(() => parseTerrainDump(swap('south2=0,12'))).toThrow(
       /where gate "west" already is/,
+    );
+    // fb156 review: a live run's south2 is jittered too, so one moved off its
+    // static tile onto closed ground is an arena no build produces — the same
+    // open-ground rule the jittered base gates follow (QA bug 4).
+    const southRow = (x: number): number => map.kind[(GRID_H - 1) * GRID_W + x] ?? -1;
+    const closedX = [1, 2, 4, 5, 6].find((x) => southRow(x) !== TerrainKind.Normal);
+    expect(closedX, 'seed 7 has no closed south-edge tile near south2').toBeDefined();
+    expect(() => parseTerrainDump(swap(`south2=${closedX},${GRID_H - 1}`))).toThrow(
+      new RegExp(`gate "south2" is at ${closedX},${GRID_H - 1}, which is not open ground`),
     );
     // A modifier gate ahead of the base gates is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.

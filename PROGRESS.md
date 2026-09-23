@@ -7466,6 +7466,14 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb156: `tests/boss.test.ts` "a scripted run reaches it, kills it and
+  wins" fails (full suite only; not in `test:fast` or CI), fix owner fb205.**
+  Deliberately left red rather than `.skip`-ed. The owner's standing order
+  for this run is "never weaken tests", and fb099 fixed this same 20 s floor
+  at the cause (a boss HP retune). On fb156's jittered gates, seed 4's boss
+  fight lasts 11.98 s (22.37 s at e50cc79). Over seeds 1-10 the win count is
+  unchanged (5) and fight lengths spread from 22-29 s to 12-38 s. The fix is
+  tuning, owned by BACKLOG-TERRAIN.md fb205; see QUESTIONS Q220(10).
 - **fb153b/fb197: `tests/fb196-night1-basehpmul.test.ts`'s two scripted-bot
   control-pair assertions (swordsman, pyromancer) are `.skip`-ed, re-enable
   point fb197.** fb153b's `GATES.east`/`world.ts:591` coordinate fix changes

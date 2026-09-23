@@ -18,12 +18,12 @@ import { describe, expect, it } from 'vitest';
 
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import {
-  GATE_JITTER_MARGIN,
   generateTerrain,
   jitterGates,
   jitterModifierGate,
   loadTerrain,
   measureTerrain,
+  MODIFIER_GATE_MAX_TX,
   terrainLegal,
   type TerrainMeasure,
 } from '../src/sim/terrain';
@@ -63,10 +63,10 @@ describe('fb178 — jitterModifierGate: structural validity', () => {
 
   const STRUCTURAL_SWEEP = 5000;
 
-  it(`sits on the south edge, never a corner, within [1, GATE_JITTER_MARGIN - 1], over ${STRUCTURAL_SWEEP} seeds`, () => {
+  it(`sits on the south edge, never a corner, within [1, MODIFIER_GATE_MAX_TX], over ${STRUCTURAL_SWEEP} seeds`, () => {
     const offenders: string[] = [];
     const lo = 1;
-    const hi = GATE_JITTER_MARGIN - 1;
+    const hi = MODIFIER_GATE_MAX_TX;
     for (let seed = 1; seed <= STRUCTURAL_SWEEP; seed++) {
       const g = jitterModifierGate(seed);
       if (g.ty !== GRID_H - 1) offenders.push(`seed ${seed}: ty=${g.ty}`);
@@ -86,6 +86,25 @@ describe('fb178 — jitterModifierGate: structural validity', () => {
         if (g.tx === modifier.tx && g.ty === modifier.ty) {
           offenders.push(`seed ${seed}: ${g.key} collides with south2 at ${g.tx},${g.ty}`);
         }
+      }
+    }
+    expect(offenders.slice(0, 10)).toEqual([]);
+  });
+
+  // fb156 QA bug 2: "never collides" only meant "never the same tile". With
+  // south2 drawn from [1, 7] and the base south from [8, 47], 23 of 5,001
+  // seeds (76, 235, ...) put them side by side on row 31 — two path
+  // indicators down one corridor, a fifth gate that adds nothing, and a
+  // breach of grid.ts's "no two gates adjacent" invariant that config.ts's
+  // `flatCoreAnchorCount` leans on. Chebyshev distance > 1 to every base
+  // gate, over the same 5,000-seed span the QA sweep found them in.
+  it('is never adjacent to any base gate, over 5000 seeds (seed 76 was)', () => {
+    const offenders: string[] = [];
+    for (let seed = 0; seed <= 5000; seed++) {
+      const modifier = jitterModifierGate(seed);
+      for (const g of jitterGates(seed)) {
+        const d = Math.max(Math.abs(g.tx - modifier.tx), Math.abs(g.ty - modifier.ty));
+        if (d <= 1) offenders.push(`seed ${seed}: ${g.key}@${g.tx},${g.ty} next to south2@${modifier.tx},${modifier.ty}`);
       }
     }
     expect(offenders.slice(0, 10)).toEqual([]);

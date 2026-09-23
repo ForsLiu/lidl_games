@@ -711,6 +711,9 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     if (m === null) fail(`gate "${key}" is not "tx,ty": "${raw}"`);
     return [Number(m[1]), Number(m[2])];
   };
+  // The base gates parsed off their static position (see the open-ground
+  // check after the rows are decoded).
+  const jittered: GateDef[] = [];
   const gates = GATES.map((g) => {
     const raw = req(gateLine, 'gates', g.key);
     const [tx, ty] = at(g.key, raw);
@@ -735,6 +738,7 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     // A jittered position survives into the parsed map, so it takes the strict
     // (one-spelling) form, the same round-trip rule the modifier gates follow.
     const [sx, sy] = at(g.key, raw, true);
+    jittered.push({ key: g.key, tx: sx, ty: sy });
     return { key: g.key, tx: sx, ty: sy };
   });
   // fb065f: the modifier gates, when present.
@@ -770,6 +774,10 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     if (clash !== undefined) {
       fail(`gate "${key}" is at ${raw}, where gate "${clash.key}" already is`);
     }
+    // fb156: a live run's modifier gate is jittered too, so off its static
+    // position it joins the open-ground check below, like the base gates.
+    const fixed = MODIFIER_GATES.find((g) => g.key === key);
+    if (fixed === undefined || fixed.tx !== tx || fixed.ty !== ty) jittered.push({ key, tx, ty });
     gates.push({ key, tx, ty });
   }
 
@@ -861,6 +869,24 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     const want = terrainHash(provenance.seed, kind);
     if (want !== provenance.hash) {
       fail(`hash mismatch: dump says ${provenance.hash}, these tiles hash to ${want}`);
+    }
+  }
+
+  // fb156 QA bug 4: a gate accepted *only* because it sits off its static
+  // position (a base gate in its jitter band, a moved modifier gate) must
+  // stand on open ground. Every jittered gate a build writes does —
+  // the generator and `Grid` force gate tiles to Normal — so one over Rock is
+  // an arena no build produces, and before this check a dump could claim
+  // `gateReach=1` with its west gate inside a wall. A gate at its static
+  // position is deliberately exempt: fb064k round-trips hand-built grids with
+  // walled-in gates (tests/terrain-describe.test.ts), and that position was
+  // accepted, unchecked, before fb156 too. Run after both integrity checks, so
+  // a corrupted glyph on a gate's tile is reported as the row fault it is, and
+  // only on an arena-sized dump — the only frame the jitter band means
+  // anything in, the same condition the hash check uses.
+  for (const g of w === GRID_W && h === GRID_H ? jittered : []) {
+    if (kind[g.ty * w + g.tx] !== TerrainKind.Normal) {
+      fail(`gate "${g.key}" is at ${g.tx},${g.ty}, which is not open ground`);
     }
   }
 

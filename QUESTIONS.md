@@ -2019,13 +2019,25 @@ Q200 did not collide and are unchanged below).
   rescued by `applyRunTerrain`'s Warden clearing. (6) **Loader bound**:
   `maxCoreLegalFrac`/`flatCoreAnchorCount` still prove their ceiling over the
   static `GATES`; a band some jittered seeds could meet may be refused (fb205).
-  (7) **Dump strictness**: a jittered base gate is accepted anywhere in its
-  band without checking the tile under it, because the parser deliberately
-  round-trips hand-built grids the generator cannot produce (fb064k); a gates
-  line contradicting the tiles is therefore not caught. (8) **Replays**:
-  `contentHash` covers `/data`, not code, so a pre-fb156 replay bundle
-  replays on different gates and fails its end-state hash (none are
-  committed).
+  (7) **Dump strictness** (revised after QA): a base gate at its static
+  position is accepted without checking the tile under it, because the
+  parser deliberately round-trips hand-built grids with walled-in gates
+  (fb064k); a gate accepted only because it is inside its jitter band must
+  stand on open (Normal) ground, since every jittered gate a build writes
+  does — so QA's `west=0,20`-on-rock dump is refused. (8) **Replays**:
+  `contentHash` covers `/data`, not code, so a pre-fb156 replay bundle or
+  persisted resume log replays on different gates silently (QA: seed 1 hash
+  4835a7e9 → aae0b13d); filed as BACKLOG.md fb207 (sim version stamp).
+  (9) **South2 spacing** (QA bug 2): the modifier gate's range is capped at
+  `[1, 6]` (`MODIFIER_GATE_MAX_TX`), a tile short of the base south band's
+  8, so the two gates are never adjacent; `[1, 7]` put them side by side on
+  23 of 5,001 seeds. This moves the fifth gate on every modifier seed.
+  (10) **boss.test "a scripted run reaches it"** now fails its "fight lasts
+  over 20 s" check on seed 4 (11.98 s, 22.37 s at e50cc79). The assertion
+  is kept as is: fb099 fixed the same floor at the cause (a boss HP retune),
+  and the jittered maps only widened the spread of fight lengths (seeds
+  1-10: 12-38 s vs 22-29 s, same 5 wins). The fix belongs to the balance
+  re-measurement, BACKLOG-TERRAIN.md fb205.
   — refs: SPEC-FINAL §10, owner feedback `terrain-four-gates`,
   BACKLOG-TERRAIN.md fb156.
 - **Q221. [fb160] DPS panel bars — readings chosen and logged (working rule

@@ -53,8 +53,9 @@ export const GATES: readonly GateDef[] = [
  * header table has to declare every gate key a dump may carry, and the tests
  * that exercise a four-gate arena need the position — and three hand-copies of
  * a coordinate is the drift shape this lane has already consolidated twice.
- * `world.ts` pushes this export by reference under the modifier (fb153), so
- * there is exactly one place this coordinate is written.
+ * Since fb156 a live run no longer pushes this export: `world.ts` plays the
+ * seed's `jitterModifierGate(seed)` instead, and this static position is the
+ * tools' and tests' default, as `GATES` is for the base four.
  *
  * **fb156 renamed this from `'south'` to `'south2'` and moved it off a dead
  * tile.** The seed-jittered 4-gate default `src/sim/terrain/gates.ts` ships
@@ -85,8 +86,9 @@ export const GATES: readonly GateDef[] = [
  *
  * `world.ts` used to write its own independent, stale `{ key: 'south', tx: 12,
  * ty: 19 }` literal instead of importing this export; fb153 fixed that (main
- * lane, since `world.ts` was outside this lane's Scope) — it now pushes
- * `MODIFIER_GATES[0]` by reference.
+ * lane, since `world.ts` was outside this lane's Scope) — it pushed
+ * `MODIFIER_GATES[0]` by reference until fb156 moved live runs onto the
+ * jittered `jitterModifierGate(seed)`.
  */
 export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south2', tx: 3, ty: GRID_H - 1 }];
 

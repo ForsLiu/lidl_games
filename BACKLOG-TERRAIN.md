@@ -170,6 +170,19 @@ the merge — never edited from this lane.
       dump round-trips on its jittered gates; act1/fb130 fixtures read the
       live gate. Readings: QUESTIONS Q220.
       *(fb205, filed 2026-09-23, carries the sweep clause — see below.)*
+      **QA follow-up (2026-09-23):** qa-playtester PASS on every acceptance
+      clause, plus six findings. Fixed test-first: (2) the Fourth Gate's
+      `south2` could sit next to the base south gate (23 of 5,001 seeds, e.g.
+      76); its range is now `[1, MODIFIER_GATE_MAX_TX = 6]`, with a
+      5,000-seed non-adjacency sweep. (4) A dump could move a base gate onto
+      Rock inside the jitter band and still parse; a gate accepted only via the
+      band must now be open ground. Static positions stay exempt for fb064k's
+      hand-built round trips. (6) Stale comments in grid.ts and canvas.ts
+      fixed. Filed: (3) pre-fb156 input logs replay silently to a different
+      game → BACKLOG.md fb207. (5) the loader's static-gate Core-anchor
+      ceiling, and (1) `tests/boss.test.ts` seed 4's 12 s boss fight (not in
+      the fast tier or CI) → both added to fb205's acceptance, with the
+      measurement.
       **Generator half done 2026-09-07.** `GATES` (`src/sim/grid.ts`) grew from 3 (west,
       north, east) to 4 — one per edge, each nudged off its edge's exact
       midpoint ("jittered", an authored design choice, not per-seed
@@ -379,7 +392,15 @@ the merge — never edited from this lane.
       `+ jitterModifierGate(seed)`) to `tests/terrain-run-provenance.test.ts`'s
       stranding sweep; bound `flatCoreAnchorCount`/`maxCoreLegalFrac`
       (`src/sim/terrain/config.ts`) over the jitter domain rather than the
-      static `GATES` — refs: fb156, QUESTIONS Q220.
+      static `GATES` (fb156 QA bug 5: at `coreGateClearance` 16 the static
+      ceiling reads 41 anchors while jittered layouts range 0-449, and 11/400
+      seeds fall back to flat); and turn `tests/boss.test.ts` "a scripted run
+      reaches it, kills it and wins" green again **at the cause, not the
+      assertion** (fb099's precedent): at fb156 seed 4's boss fight is 11.98 s
+      against the 20 s floor (22.37 s at e50cc79). Measured seeds 1-10 at T1,
+      full tree, hybrid: wins 3/4/5/7 at 27.2/12.0/38.4/31.0 s, against
+      3/4/7/9 at 24.0/22.4/21.9/29.2 s at e50cc79. Same win count, a wider
+      spread of fight lengths on jittered maps — refs: fb156, QUESTIONS Q220.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The

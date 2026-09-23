@@ -2336,8 +2336,8 @@ export class Renderer {
    * route the sim itself does not, and it turns dashed red for whichever
    * span currently breaches a structure (only possible once no cheaper open
    * path exists — §10 — i.e. that approach is sealed). Iterates `w.gates`
-   * (this run's real spawn list, 4 base gates or 5 with the `gate`
-   * modifier's `MODIFIER_GATES[0]` (`south2`) entry — `run.ts` spawns from
+   * (this run's real spawn list: the seed's 4 jittered base gates, or 5 with
+   * the `gate` modifier's jittered `south2` — fb156; `run.ts` spawns from
    * this list, not the static `GATES`), so a modifier-opened gate gets its
    * own route drawn too.
    */
