@@ -87,9 +87,15 @@ export interface ClassLiveContext {
   /**
    * fb062 (code review): `active1PotencyMul(w)` (sim/progression.ts) — the
    * §6.3 "Active1 potency" skill card, which `firePoisonBarrel` (and every
-   * other Active1 damage site) multiplies its seed by. Optional for the same
-   * pre-run reason as `areaMul`; only Poison Barrel's sentence reads it so
-   * far (the other Active1 sentences are a filed follow-up).
+   * other Active1 fire site whose kind reads it) multiplies its seed by.
+   * Optional for the same pre-run reason as `areaMul`. fb201: every sentence
+   * whose sim fire path reads this factor now applies it — Circle Slash,
+   * Poison Barrel, Deadeye Draw, Field Kit, Frost Nova, Chain Surge, Raise
+   * Skeletons, Manifest Spirit, Clarion Taunt (its non-damage duration),
+   * Time Mark's two DoTs, and Immolation Wave (`burst_damage`, a bare
+   * multiply — its own doc comment explains why it skips `liveDamageValue`).
+   * Only Mind Manipulation's elite-tick clause stays unscaled here, since it
+   * shows no number for the sentence to multiply.
    */
   active1PotencyMul?: number;
 }
@@ -175,8 +181,11 @@ function liveAreaValue(value: number, live?: ClassLiveContext): number {
 }
 
 function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const minDamage = liveDamageValue(eff.minDamage ?? 0, live);
-  const damage = liveDamageValue(eff.damage, live);
+  // fb201: `fireCircleSlash` (classes.ts) multiplies its final damage by
+  // `active1PotencyMul(w)` regardless of charge fraction, so both the
+  // zero-charge (`minDamage`) and full-charge (`damage`) figures scale by it.
+  const minDamage = liveDamageValue(eff.minDamage ?? 0, live) * (live?.active1PotencyMul ?? 1);
+  const damage = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
   // fb115: `fireCircleSlash` wraps BOTH ends of the charge lerp in the same
   // `classArea(w, authoredRadius)` (classes.ts), so `classArea(lerp(min, max,
@@ -262,8 +271,10 @@ function poisonBoostSentence(eff: ClassEffect, live?: ClassLiveContext, cooldown
  * case that required-field list is ever pared down independently of this file.
  */
 function timeMarkSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const pastDps = liveDamageValue(eff.markPastDotDps ?? 0, live);
-  const presentDps = liveDamageValue(eff.markPresentDotDps ?? 0, live);
+  // fb201: `advanceTimeMark` (classes.ts) multiplies both DoT dps figures by
+  // `active1PotencyMul(w)` — Time Mark is this class's Active1.
+  const pastDps = liveDamageValue(eff.markPastDotDps ?? 0, live) * (live?.active1PotencyMul ?? 1);
+  const presentDps = liveDamageValue(eff.markPresentDotDps ?? 0, live) * (live?.active1PotencyMul ?? 1);
   const recharge = liveCooldownValue(eff.rechargeSeconds ?? 0, live, cooldownFactor);
   // fb115: `fireTimeMark` calls `classArea(w, eff.radius)` for its pulse.
   const radius = liveAreaValue(eff.radius, live);
@@ -328,19 +339,32 @@ function humanizeKey(key: string): string {
  * `applyBurn` with no live scaling of any kind. Both stay plain authored
  * numbers here rather than a fabricated live-resolved one (code-review
  * finding, fb108).
+ *
+ * fb201 (code review): `eff.damage` is *not* fully plain, though — `fireEffect`
+ * is called as `fireEffect(w, ..., cls.active1, ..., active1PotencyMul(w),
+ * classLineBonus(w))` and multiplies `eff.damage * w.derived.powerMul *
+ * potencyMul` internally, so the §6.3 "Active1 potency" card (Pyromancer's
+ * own `pyromancer_active1_potency`, authored "Immolation Wave damage +25%")
+ * does scale it. A bare multiply, not `liveDamageValue` — the fb108 finding
+ * above about `atkFlat`/`damageMul` not applying here still holds.
  */
 function burstDamageSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const damage = eff.damage * (live?.active1PotencyMul ?? 1);
   // fb115: unlike `damage`/`burnDps` (deliberately plain — see the doc comment
   // above), `fireEffect`'s search is `w.enemiesInRadius(x, y, classArea(w,
   // eff.radius))` — the radius alone is Area-scaled.
   const radius = liveAreaValue(eff.radius, live);
-  return `Deals ${trimNum(eff.damage)} damage to everything within ${trimNum(radius)} tiles, burning them for ${trimNum(eff.burnDps ?? 0)} damage/s for ${trimNum(eff.burnDuration ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+  return `Deals ${trimNum(damage)} damage to everything within ${trimNum(radius)} tiles, burning them for ${trimNum(eff.burnDps ?? 0)} damage/s for ${trimNum(eff.burnDuration ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
 }
 
 function repairHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Repairs the nearest structure within ${trimNum(eff.radius)} tiles for ${formatPct(eff.repairFraction ?? 0)} of its max HP and grants it ${formatPct(eff.overclockAtkSpdMul ?? 0)} bonus attack speed for ${trimNum(eff.overclockSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+  // fb201: `fireFieldKit` (classes.ts) multiplies the healed fraction itself
+  // by `active1PotencyMul(w)` — Field Kit's own doc comment reads the card as
+  // "heals more" for this non-damage Active1.
+  const repairFraction = (eff.repairFraction ?? 0) * (live?.active1PotencyMul ?? 1);
+  return `Repairs the nearest structure within ${trimNum(eff.radius)} tiles for ${formatPct(repairFraction)} of its max HP and grants it ${formatPct(eff.overclockAtkSpdMul ?? 0)} bonus attack speed for ${trimNum(eff.overclockSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
 }
 
 function summonTurretSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -372,7 +396,11 @@ function dashTrailSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
  * coincide exactly, and calls the growth out as applying before bonuses.
  */
 function chargePierceSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const damage = liveDamageValue(eff.damage, live);
+  // fb201: `fireDeadeyeDraw` (classes.ts) multiplies its released-now damage
+  // by `active1PotencyMul(w)` — the release-now (0s-held) case this sentence
+  // shows is exactly the case the file header's own doc comment above already
+  // says the live number is safe to display for.
+  const damage = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
   return `Hold to draw a piercing shot, up to ${trimNum(eff.chargeCapSeconds ?? 0)}s: damage compounds ${formatPct(eff.compoundPerSecond ?? 0)}/s of charge before your own bonuses are added, dealing ${trimNum(damage)} damage if released immediately. Gains +1 enemy pierced (cap ${trimNum(eff.pierceCap ?? 0, 0)}) per full second charged, while moving at ${formatPct(eff.moveMulWhileCharging ?? 0)} speed.${LINE_FALLOFF_CLAUSE} Cooldown ${trimNum(cd)}s between shots.`;
 }
@@ -385,7 +413,10 @@ function dashVolleySentence(eff: ClassEffect, live?: ClassLiveContext, cooldownF
 
 function raiseSkeletonsSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Raises corpses within ${trimNum(eff.summonRadius ?? 0)} tiles into skeletons (${formatPct(eff.summonStatMul ?? 0)} of your basic attack) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
+  // fb201: `fireRaiseSkeletons` (classes.ts) multiplies each skeleton's
+  // damage share by `active1PotencyMul(w)` — "each skeleton's damage share".
+  const share = (eff.summonStatMul ?? 0) * (live?.active1PotencyMul ?? 1);
+  return `Raises corpses within ${trimNum(eff.summonRadius ?? 0)} tiles into skeletons (${formatPct(share)} of your basic attack) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
 }
 
 function deathPactSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -394,7 +425,8 @@ function deathPactSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFa
 }
 
 function frostNovaSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const damage = liveDamageValue(eff.damage, live);
+  // fb201: `fireFrostNova` (classes.ts) multiplies its damage by `active1PotencyMul(w)`.
+  const damage = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
   // fb115: `fireFrostNova` searches `w.enemiesInRadius(wd.x, wd.y, classArea(w, eff.radius))`.
   const radius = liveAreaValue(eff.radius, live);
@@ -408,7 +440,8 @@ function iceWallSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFact
 }
 
 function chainLightningSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
-  const damage = liveDamageValue(eff.damage, live);
+  // fb201: `fireChainSurge` (classes.ts) multiplies its base (pre-chain-growth) damage by `active1PotencyMul(w)`.
+  const damage = liveDamageValue(eff.damage, live) * (live?.active1PotencyMul ?? 1);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
   return `Bolts the nearest enemy within ${trimNum(eff.radius)} tiles for ${trimNum(damage)} damage, chaining to up to ${trimNum(eff.chainCount ?? 0, 0)} enemies total, each jump dealing ${formatPct(eff.chainGrowth ?? 0)} more (compounding, capped at jump ${trimNum(eff.chainCap ?? 0, 0)}). Cooldown ${trimNum(cd)}s.`;
 }
@@ -436,7 +469,10 @@ function dashHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
 
 function manifestSpiritSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Summons a spirit of the nearest built attack tower within ${trimNum(eff.summonRadius ?? 0)} tiles at ${formatPct(eff.summonStatMul ?? 0)} of its damage at max upgrade (full range and attack speed) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
+  // fb201: `fireManifestSpirit` (classes.ts) multiplies the spirit's damage
+  // share by `active1PotencyMul(w)` — "Active1 potency +25% on the spirit's damage share".
+  const share = (eff.summonStatMul ?? 0) * (live?.active1PotencyMul ?? 1);
+  return `Summons a spirit of the nearest built attack tower within ${trimNum(eff.summonRadius ?? 0)} tiles at ${formatPct(share)} of its damage at max upgrade (full range and attack speed) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
 }
 
 function recallTotemSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
@@ -451,7 +487,11 @@ function clarionTauntSentence(eff: ClassEffect, live?: ClassLiveContext, cooldow
   // fb115: `fireClarionTaunt` reads `classArea(w, cls.active1.radius)` — the
   // same field this sentence is handed, whichever slot authors `clarion_taunt`.
   const radius = liveAreaValue(eff.radius, live);
-  return `Forces every enemy within ${trimNum(radius)} tiles to target you for ${trimNum(eff.tauntDurationSeconds ?? 0)}s; damage you take during it banks more strongly into Wrath. Cooldown ${trimNum(cd)}s.`;
+  // fb201: Clarion Taunt deals no damage, so `fireClarionTaunt` (classes.ts)
+  // reads "Active1 potency" as a longer taunt/Wrath-banking window instead —
+  // multiplies the duration by `active1PotencyMul(w)`.
+  const duration = (eff.tauntDurationSeconds ?? 0) * (live?.active1PotencyMul ?? 1);
+  return `Forces every enemy within ${trimNum(radius)} tiles to target you for ${trimNum(duration)}s; damage you take during it banks more strongly into Wrath. Cooldown ${trimNum(cd)}s.`;
 }
 
 function judgementSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {

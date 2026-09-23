@@ -154,18 +154,38 @@ not already expose it) logs that need below instead of reaching into
 
 ### Actionable (filed 2026-09-22)
 
-- [ ] (fb201) [polish] every Active1 damage sentence in `src/ui/class-info.ts`
-      omits the §6.3 "Active1 potency" skill card the sim multiplies in
-      (`active1PotencyMul`, applied at every Active1 damage site in
-      `src/sim/classes.ts`), so after taking the card the in-run tooltip
-      under-states the real number by up to x1.5. fb062 (2026-09-22, code
-      review) added `ClassLiveContext.active1PotencyMul` and wired it into
-      Poison Barrel's sentence only. Acceptance: every Active1 sentence whose
-      sim fire path reads `active1PotencyMul` multiplies its damage figures by
-      `live.active1PotencyMul`; a test per kind drives `classLiveContext`
-      through a World with the class's potency card at rank 2 and matches the
-      sentence against the sim's own fired damage — refs: SPEC-FINAL §6.3,
-      §11, fb062.
+- [x] (fb201) [polish] **DONE 2026-09-23 (scheduled routine).** Ten Active1
+      sentences besides Poison Barrel (fb062) read a `fire*`/`advance*` sim
+      site that multiplies by `active1PotencyMul` and did not apply it:
+      `circleSlashSentence` (swordsman, both `minDamage`/`damage`),
+      `chargePierceSentence` (archer), `repairHealSentence` (engineer, the
+      healed `repairFraction`), `frostNovaSentence` (cryomancer),
+      `chainLightningSentence` (stormcaller), `raiseSkeletonsSentence`
+      (necromancer, `summonStatMul`), `manifestSpiritSentence` (animist,
+      `summonStatMul`), `clarionTauntSentence` (paladin, its non-damage
+      `tauntDurationSeconds`), `timeMarkSentence` (time_lord, both DoT dps
+      figures) and `burstDamageSentence` (pyromancer — a code-review finding:
+      the item's first pass missed this one because `fireEffect`'s own doc
+      comment already flags `eff.damage`/`burnDps` as *mostly* plain, and the
+      potency multiply is a separate factor `fireEffect` applies on top,
+      cited by `pyromancer_active1_potency`'s own "Immolation Wave damage
+      +25%" `/data` description). `dashSlashSentence`'s merged-charge damage
+      and `mindManipulationSentence`'s elite-tick damage both read potency in
+      the sim too but print no number for either, so neither needed a change.
+      New `tests/ui-fb201-active1-sentence-potency.test.ts` (21 cases): each
+      class's `active1_potency` card set to rank 2 through a real `World`,
+      Active1 fired through the same `useClassActive`/charge-and-release path
+      `tests/class-active1-potency.test.ts` (c021) uses, the sim's own fired
+      reading (dummy hp loss, tower heal, summon dps ratio recomposed via
+      `upgradeStatMul`/`maxLevel` for Manifest, taunt remaining, DoT dps)
+      matched byte-for-byte against the sentence's own `trimNum`/`formatPct`
+      text, plus a rank-0-vs-rank-2 differs check per class. Light tier:
+      code-reviewer found one Major (the Pyromancer omission above, fixed
+      pre-commit) and otherwise confirmed every multiplier placement against
+      its sim site and found no regression risk (every new read defaults
+      `?? 1` when `live`/the field is absent). `npx tsc --noEmit` clean;
+      `npm run test:fast` green (319 files / 4846 passed / 34 skipped, up
+      from fb062's baseline). — refs: SPEC-FINAL §6.3, §11, fb062.
 
 ### Blocked out of Scope
 
