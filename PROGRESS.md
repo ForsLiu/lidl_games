@@ -81,6 +81,25 @@
   still omits `powerMul`, both pre-dating this fix). Light tier (`[polish]`).
   — refs: SPEC-FINAL §6.3, §11, fb062, BACKLOG-UI.md fb201.
 
+- **2026-09-23 (scheduled routine) — BACKLOG-UI.md fb201 CLOSED: every
+  Active1 sentence now reads the "Active1 potency" skill card where the sim
+  does.** Ten sentences in `src/ui/class-info.ts` besides Poison Barrel's
+  (fb062) read a `fire*`/`advance*` site in `src/sim/classes.ts` that
+  multiplies by `active1PotencyMul` and were not applying it to their
+  displayed figure: Circle Slash, Deadeye Draw, Field Kit, Frost Nova, Chain
+  Surge, Raise Skeletons, Manifest Spirit, Clarion Taunt, Time Mark, and
+  Immolation Wave (Pyromancer's `burst_damage` — a code-review Major found
+  the item's first pass had missed this tenth kind; fixed pre-commit).
+  `dashSlashSentence`'s merged-charge damage and `mindManipulationSentence`'s
+  elite-tick damage both read potency in the sim too but print no number for
+  either, so neither needed a change. New
+  `tests/ui-fb201-active1-sentence-potency.test.ts` (21 cases) fires each
+  class's real Active1 at potency rank 2 and matches the sentence's own
+  formatted figure against the sim's fired reading. Light tier (UI/polish):
+  code-reviewer only, no regressions found. `npm run test:fast` green
+  (319/4846/34 skipped). — refs: SPEC-FINAL §6.3, §11, fb062, BACKLOG-UI.md
+  fb201.
+
 - **2026-09-22 (owner-directed session) — fb062 CLOSED (last clause): the
   Poison Barrel tooltip states the real mechanic.** `poisonBarrelSentence`
   (`src/ui/class-info.ts`) now says "Poisons every enemy inside the circle
