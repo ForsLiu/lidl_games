@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 (scheduled routine, third run) — same stall, no owner
+  notification this time (already sent on the second run, ~5.7h ago).**
+  Preflight: no open PR and no branch touched BACKLOG.md-adjacent files in
+  the last 60 minutes (PRs #156 and #157 — the prior two runs' own exit
+  reports — are both closed and already merged into master; this branch
+  was restarted fresh from master per the merged-PR restart rule). `feedback/`
+  still has nothing outside `processed/`. Re-grepped every backlog file
+  fresh: `BACKLOG.md`'s Queue is still exactly zero `- [ ]` items; the same
+  six owner-directed items are still open only in lane files, unchanged from
+  the last two runs — `BACKLOG-CONTENT.md` fb202 ((f)/(g) cross-lane, (h) the
+  excluded ~1h p6e sweep) and fb059 (Voltbolt, a full class-sized item);
+  `BACKLOG-TERRAIN.md` fb064c/fb064e/fb064f (each needs a UI-lane or
+  main-lane sub-item that doesn't exist yet); `BACKLOG-UI.md` fb160 (blocked
+  on main-lane sim state, `damageByWeaponAndType`, that still hasn't been
+  built). Nothing has changed since the second run's notification: same
+  items, same reasons, same "not licensed to invent the cross-lane/main-lane
+  sub-item each needs" bind. Since the owner was already told about this
+  exact stall once, this run logs the reconfirmation here instead of sending
+  a duplicate notification for unchanged state. Made no code changes. —
+  refs: BACKLOG-CONTENT.md fb059/fb202, BACKLOG-TERRAIN.md
+  fb064c/fb064e/fb064f, BACKLOG-UI.md fb160.
+
 - **2026-09-23 (scheduled routine, second run) — reconfirms the still-open
   blocker, owner notified.** Preflight: PR #156 (`claude/dreamy-hopper-
   vyc588`) is open with its last commit ~2h old (no branch touched
