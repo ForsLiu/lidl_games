@@ -864,10 +864,20 @@ export function applyMadness(e: Enemy, durationSeconds: number): void {
  * "+10%/+10% atk-speed/move-speed per madness attack"). A no-op once
  * `madnessRemaining` has already lapsed, so a stray late call cannot revive
  * an expired status's stacks.
+ *
+ * fb202 (code review, QA repro: 2,509 stacks on a tanky target over 60 s):
+ * each stack's own +attack-speed shortens `madnessAttackCooldown`
+ * (`updateMadnessAttack`), which lets the next attack land sooner and grant
+ * another stack — an uncapped positive-feedback loop with no natural
+ * ceiling. Capped at the class's own authored `madnessMaxStacks` (rule 4;
+ * QUESTIONS.md logs the chosen default), read the same class-conditional
+ * way `madnessPerStackBonus` already reads this passive's other fields.
  */
-export function registerMadnessAttack(e: Enemy): void {
+export function registerMadnessAttack(w: World, e: Enemy): void {
   if (e.madnessRemaining <= 0) return;
-  e.madnessStacks += 1;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  const cap = cls && cls.passive.kind === 'whispers' ? (cls.passive.madnessMaxStacks ?? Infinity) : Infinity;
+  if (e.madnessStacks < cap) e.madnessStacks += 1;
 }
 
 /**
@@ -1941,10 +1951,43 @@ export function tauntTarget(w: World, e: Enemy): { x: number; y: number } | null
   return null;
 }
 
-/** fb085 (Madness King enabler): search radius `madnessMoveTarget` scans for another live enemy to redirect a mad enemy's movement onto (§4.2 "attacks nearest other enemy in r3"). */
+/**
+ * fb085 (Madness King enabler): fallback search radius `madnessMoveTarget`/
+ * `updateMadnessAttack` scan for another live enemy to redirect a mad
+ * enemy's movement/attack onto (§4.2 "attacks nearest other enemy in r3"),
+ * used only if the active class's own `whispers` row omits
+ * `madnessSearchRadius` (fb202, rule 4: the prose already named "3 tiles",
+ * so it belongs authored on the row, not a bare literal here).
+ */
 const MADNESS_TARGET_RADIUS = 3;
-/** fb085: radius a mad enemy with nobody in range wanders inside instead of pursuing its normal path ("or self + random-walk in r1 if none"). */
+/** fb085: fallback radius a mad enemy with nobody in range wanders inside instead of pursuing its normal path ("or self + random-walk in r1 if none") — see `MADNESS_TARGET_RADIUS`'s own comment; the real source is `madnessWanderRadius`. */
 const MADNESS_WANDER_RADIUS = 1;
+
+/**
+ * fb202: `madnessSearchRadius(w)`/`madnessWanderRadius(w)`'s shared
+ * `nearestEnemy` filter — a module-level function reused across every call
+ * instead of a fresh closure per mad enemy per tick (QA measured 2.4 ms/tick
+ * at 350 mad of 350 from the old `for (const other of w.enemies)` scans
+ * alone). `madnessSearchSelfId` is set immediately before each `nearestEnemy`
+ * call; safe because the sim tick is single-threaded and neither caller
+ * re-enters before its own `nearestEnemy` call returns.
+ */
+let madnessSearchSelfId = -1;
+function isOtherLiveMadnessTarget(o: Enemy): boolean {
+  return o.id !== madnessSearchSelfId && !o.submerged;
+}
+
+/** fb202: `cls.passive.madnessSearchRadius`, falling back to `MADNESS_TARGET_RADIUS`. */
+function madnessSearchRadius(w: World): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  return cls && cls.passive.kind === 'whispers' ? (cls.passive.madnessSearchRadius ?? MADNESS_TARGET_RADIUS) : MADNESS_TARGET_RADIUS;
+}
+
+/** fb202: `cls.passive.madnessWanderRadius`, falling back to `MADNESS_WANDER_RADIUS`. */
+function madnessWanderRadius(w: World): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  return cls && cls.passive.kind === 'whispers' ? (cls.passive.madnessWanderRadius ?? MADNESS_WANDER_RADIUS) : MADNESS_WANDER_RADIUS;
+}
 
 /**
  * fb057 (§4.2 Madness King *Whispers*): "every basic attack (and each damage
@@ -1998,25 +2041,20 @@ function updateMadnessAttack(w: World, e: Enemy, def: EnemyDef, dt: number): voi
     e.madnessAttackCooldown -= dt;
     if (e.madnessAttackCooldown > 0) return;
   }
-  let victim: Enemy | null = null;
-  let bestD2 = MADNESS_TARGET_RADIUS * MADNESS_TARGET_RADIUS;
-  for (const other of w.enemies) {
-    if (other.id === e.id || other.dead || other.submerged) continue;
-    const d2 = dist2(e.x, e.y, other.x, other.y);
-    if (d2 <= bestD2) {
-      victim = other;
-      bestD2 = d2;
-    }
-  }
+  // fb202 (code review, perf): the spatial-hash `nearestEnemy` lookup below
+  // replaces an O(live enemies) `for (const other of w.enemies)` scan run
+  // once per mad enemy per tick (QA measured 2.4 ms/tick at 350 mad of 350).
+  madnessSearchSelfId = e.id;
+  const victim = w.nearestEnemy(e.x, e.y, madnessSearchRadius(w), isOtherLiveMadnessTarget);
   const eliteLike = e.elite || e.boss;
   if (victim && !eliteLike) {
     const reach = e.radius + victim.radius + w.content.spawns.contactPadding;
-    if (bestD2 > reach * reach) return; // still closing in
+    if (dist2(e.x, e.y, victim.x, victim.y) > reach * reach) return; // still closing in
   }
   const target = victim ?? e;
   const damage = enemyHitOnEnemies(w, def, e.buffPower);
   e.madnessAttackCooldown = w.content.spawns.contactInterval / Math.max(madnessAttackSpeedMul(w, e), 0.01);
-  registerMadnessAttack(e);
+  registerMadnessAttack(w, e);
   // fb057 VFX (MADNESS_VFX, render/vfx-registry.ts): a self-strike carries the
   // stack count for its ring; a teammate strike draws its line plus a ramp
   // glow at the attacker, brightening with each madness attack.
@@ -2048,24 +2086,18 @@ function updateMadnessAttack(w: World, e: Enemy, def: EnemyDef, dt: number): voi
  */
 export function madnessMoveTarget(w: World, e: Enemy): { x: number; y: number } | null {
   if (e.madnessRemaining <= 0 || e.dead || e.elite || e.boss) return null;
-  let best: Enemy | null = null;
-  let bestD2 = MADNESS_TARGET_RADIUS * MADNESS_TARGET_RADIUS;
-  for (const other of w.enemies) {
-    if (other.id === e.id || other.dead || other.submerged) continue;
-    const d2 = dist2(e.x, e.y, other.x, other.y);
-    if (d2 <= bestD2) {
-      best = other;
-      bestD2 = d2;
-    }
-  }
+  // fb202 (code review, perf): same spatial-hash lookup as `updateMadnessAttack`.
+  madnessSearchSelfId = e.id;
+  const best = w.nearestEnemy(e.x, e.y, madnessSearchRadius(w), isOtherLiveMadnessTarget);
   if (best) return { x: best.x, y: best.y };
   // fb057: "random-walks within r1 of where it went mad" — around the anchor
   // `applyMadness` recorded, so the walk stays inside that disc instead of
   // drifting a radius further every tick.
   const angle = w.rng.ai.range(0, TAU);
+  const wander = madnessWanderRadius(w);
   return {
-    x: clamp(e.madnessAnchorX + dcos(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_W - 0.4),
-    y: clamp(e.madnessAnchorY + dsin(angle) * MADNESS_WANDER_RADIUS, 0.4, GRID_H - 0.4),
+    x: clamp(e.madnessAnchorX + dcos(angle) * wander, 0.4, GRID_W - 0.4),
+    y: clamp(e.madnessAnchorY + dsin(angle) * wander, 0.4, GRID_H - 0.4),
   };
 }
 

@@ -67,6 +67,17 @@
  * `fractional`, fb121's `<= 0` refusal applying to it unchanged). Additive
  * lines only; nothing existing moved, `INEFFECTIVE` unchanged.
  *
+ * Regenerated 2026-09-23 (fb202, rule 4): the Madness status's r3 search and
+ * r1 wander radii moved off `enemies.ts`'s `MADNESS_TARGET_RADIUS`/
+ * `MADNESS_WANDER_RADIUS` literals onto the `whispers` passive row as
+ * `madnessSearchRadius`/`madnessWanderRadius` (both `num.positive().optional()`,
+ * `REQUIRED_PASSIVE_FIELDS` — so `negative`/`zero`/`drop-key`/`rename-key`
+ * are already refused, `fractional` stays open, a real magnitude by design).
+ * The new stack-cap field `madnessMaxStacks` (`num.int().positive().optional()`,
+ * same required-field guard) refuses every mutation this census tries,
+ * including `fractional` via `.int()`, so it adds no ACCEPTED row at all.
+ * Two additive lines only; nothing existing moved, `INEFFECTIVE` unchanged.
+ *
  * Regenerated 2026-09-17 (fb129, rule 4): `data/terrain.json` gained
  * `highGround.surfaceBlockCap` (BACKLOG.md fb129 — the seconds a submerged
  * Burrower may be held under a high tile it cannot surface on before the
@@ -495,6 +506,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].passive.madnessCap': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.madnessDurationSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.madnessMoveSpdPerStack': ['negative', 'zero', 'fractional'],
+  'classes.classes[].passive.madnessSearchRadius': ['fractional'],
+  'classes.classes[].passive.madnessWanderRadius': ['fractional'],
   'classes.classes[].passive.mods': ['drop-key', 'rename-key'],
   'classes.classes[].passive.mods.buildRange': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].passive.mods.leech': ['negative', 'zero', 'fractional', 'drop-key'],

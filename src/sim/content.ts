@@ -1123,6 +1123,25 @@ const ClassSlotPassiveSchema = z.object({
   madnessAtkSpdPerStack: num.optional(),
   madnessMoveSpdPerStack: num.optional(),
   /**
+   * `whispers` (fb202, code review): the "attacks the nearest other enemy
+   * within 3 tiles" search radius and the "random-walk in r1 of where it
+   * went mad" wander radius — both were `enemies.ts` module-level literals
+   * (`MADNESS_TARGET_RADIUS`/`MADNESS_WANDER_RADIUS`) despite the passive's
+   * own description already stating "3 tiles" in prose (rule 4).
+   */
+  madnessSearchRadius: num.positive().optional(),
+  madnessWanderRadius: num.positive().optional(),
+  /**
+   * `whispers` (fb202, QA: 2,509 stacks on a tanky target over 60 s from the
+   * attack-speed/next-attack-sooner feedback loop) — the ceiling
+   * `registerMadnessAttack` (enemies.ts) refuses to grow `madnessStacks`
+   * past. `.int().positive()`: a fractional or non-positive cap would either
+   * silently truncate the comparison or disable the passive's stacking
+   * entirely on the first attack, neither a legal "no cap" the way a
+   * `?? Infinity` fallback already covers a genuinely missing field.
+   */
+  madnessMaxStacks: num.int().positive().optional(),
+  /**
    * `frenzied_aim` (Madness King tower passive, fb057): the flat bonus point
    * added on top of the character's own total attack-speed bonus at
    * point-blank range (§4.2's "+10%") — the ramp itself is proximity-linear,
@@ -1866,7 +1885,15 @@ const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
   time_flow: ['charDotSeconds'],
   thousand_cuts: ['bleedBaseStacks'],
   // fb085 enablers (fb057/fb059 — see `ClassSlotPassiveSchema`'s own field comments).
-  whispers: ['madnessDurationSeconds', 'madnessCap', 'madnessAtkSpdPerStack', 'madnessMoveSpdPerStack'],
+  whispers: [
+    'madnessDurationSeconds',
+    'madnessCap',
+    'madnessAtkSpdPerStack',
+    'madnessMoveSpdPerStack',
+    'madnessSearchRadius',
+    'madnessWanderRadius',
+    'madnessMaxStacks',
+  ],
   frenzied_aim: ['frenziedAimFlatBonus'],
   arc: ['arcChainDamageMul', 'arcChainRadius', 'arcChainDelaySeconds'],
   lightning_accelerate: ['projectileSpeedBonus', 'towerStatConversionEfficiency'],

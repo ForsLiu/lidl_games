@@ -631,22 +631,11 @@ const LEDGER: readonly Claim[] = [
     token: '3',
     means: 'tiles a mad enemy searches for another enemy to attack',
     keywords: ['nearest other enemy', 'tiles'],
-    status: {
-      kind: 'in_code',
-      value: 3,
-      file: 'src/sim/enemies.ts',
-      valueAnchor: /^const MADNESS_TARGET_RADIUS = (\d+(?:\.\d+)?);$/,
-      // Both readers: the movement redirect (`madnessMoveTarget`) and the
-      // madness attack's own victim search (`updateMadnessAttack`).
-      anchors: [/^let bestD2 = MADNESS_TARGET_RADIUS \* MADNESS_TARGET_RADIUS;$/],
-      absentKey: /radius|range|reach|within|target/i,
-      knownKeys: ['basicAttack.range', 'active1.radius', 'active2.radius'],
-      authorised: 'fb085 (the Madness enabler, which shipped the r3 search as an engine constant) / fb057',
-      why:
-        "§4.2's shared Madness status states r3 for both of Madness King's madness sources, and `whispers` " +
-        'authors no field for it — the one figure in this sentence that a rebalance would have to make in code ' +
-        '(c008 records the same rule-4 debt from the spec side).',
-    },
+    // fb202: moved off the `MADNESS_TARGET_RADIUS` engine constant (rule 4)
+    // onto the `whispers` passive row — read by both the movement redirect
+    // (`madnessMoveTarget`) and the madness attack's own victim search
+    // (`updateMadnessAttack`, both `enemies.ts`).
+    status: { kind: 'field', path: ['passive', 'madnessSearchRadius'] },
   },
   {
     cls: 'madness_king',
@@ -1132,7 +1121,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
     }
   });
 
-  it('census: 35 field · 0 sibling · 1 in code · 1 prose, over 24 sentences, 2 wordless, 5 word-numbers', () => {
+  it('census: 36 field · 0 sibling · 0 in code · 1 prose, over 24 sentences, 2 wordless, 5 word-numbers', () => {
     // The census is the barrier: a new deviation cannot be absorbed into an
     // existing status, and closing one — fb127/c010 moved Conduction's two
     // numbers onto its own passive row, so its former `sibling` claims are
@@ -1147,9 +1136,10 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       sentences: new Set(LEDGER.map((c) => `${c.cls}.${c.slot}`)).size,
       wordless: NO_NUMBER.length,
       wordNumbers: WORD_NUMBERS.length,
-    // fb057: Madness King's two sentences add four `field` claims, one
-    // `in_code` (Whispers' "within 3 tiles" is enemies.ts's
-    // MADNESS_TARGET_RADIUS) and one declared word-number ("at once").
-    }).toEqual({ field: 35, sibling: 0, in_code: 1, prose: 1, sentences: 24, wordless: 2, wordNumbers: 5 });
+    // fb057: Madness King's two sentences add five `field` claims (fb202
+    // moved Whispers' "within 3 tiles" off enemies.ts's MADNESS_TARGET_RADIUS
+    // onto `madnessSearchRadius`, closing the one `in_code` claim it used to
+    // add) and one declared word-number ("at once").
+    }).toEqual({ field: 36, sibling: 0, in_code: 0, prose: 1, sentences: 24, wordless: 2, wordNumbers: 5 });
   });
 });

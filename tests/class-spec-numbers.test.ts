@@ -285,8 +285,6 @@ const P12A =
   'shaped fields were deliberately left alone, which is why this authorisation covers damage numbers ' +
   'and nothing else. Measured control pair recorded in tests/class-kit-damage-share.test.ts.';
 
-/** fb057 — Madness King's own source file for the Madness status's literals. */
-const ENEMIES_TS = 'src/sim/enemies.ts';
 
 /** p10s — the G8 retune probe that closed bloodlord into band, PROGRESS.md. */
 const P10S =
@@ -1551,45 +1549,24 @@ const LEDGER: readonly Figure[] = [
     clause: 'Madness (passive status)',
     figure: 'attacks the nearest other enemy within r3',
     spec: 3,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'in_code',
-      site: 'MADNESS_TARGET_RADIUS — read by `madnessMoveTarget` and `updateMadnessAttack`',
-      file: ENEMIES_TS,
-      anchors: [/const MADNESS_TARGET_RADIUS = 3;/, /let bestD2 = MADNESS_TARGET_RADIUS \* MADNESS_TARGET_RADIUS;/],
-      why:
-        'fb085 shipped the Madness status\'s search radius as an engine constant ahead of the class, and ' +
-        "fb057's `whispers` passive authors no field for it — a rebalance of r3 would be a code edit. " +
-        "Shared by both madness sources (Whispers' and Spreading Madness'), which is why it is stated on " +
-        'the passive, where §4.2 defines the status.',
-      in: 'passive',
-      absentKey: /radius|range|reach|within|target|search/i,
-      // The three real neighbours: the basic attack's reach and the two
-      // Actives' own pick/area radii — none of them is this figure.
-      knownKeys: ['active1.radius', 'active2.radius', 'basicAttack.range'],
-      srcLines: [{ file: ENEMIES_TS, needle: 'MADNESS_TARGET_RADIUS =', lines: ['const MADNESS_TARGET_RADIUS = 3;'] }],
-    },
+    path: ['passive', 'madnessSearchRadius'],
+    status: { kind: 'match' },
+    note:
+      'fb202: moved off the `MADNESS_TARGET_RADIUS` engine constant fb085 shipped ahead of the class ' +
+      "onto the `whispers` passive row (rule 4) — read by both `madnessMoveTarget` and " +
+      '`updateMadnessAttack` (`enemies.ts`), and shared by both madness sources (Whispers\' and ' +
+      "Spreading Madness'), which is why it is stated on the passive, where §4.2 defines the status.",
   },
   {
     cls: 'madness_king',
     clause: 'Madness (passive status)',
     figure: 'random-walking within r1',
     spec: 1,
-    path: null,
-    slot: 'passive',
-    status: {
-      kind: 'in_code',
-      site: 'MADNESS_WANDER_RADIUS — `madnessMoveTarget`\'s wander point',
-      file: ENEMIES_TS,
-      anchors: [/const MADNESS_WANDER_RADIUS = 1;/, /dcos\(angle\) \* MADNESS_WANDER_RADIUS/],
-      why:
-        "The wander radius is fb085's engine constant, the twin of the r3 search above; nothing in `/data` " +
-        'authors it, so the clause is architecture rule 4 debt.',
-      in: 'passive',
-      absentKey: /wander|walk|roam|drift|jitter/i,
-      srcLines: [{ file: ENEMIES_TS, needle: 'MADNESS_WANDER_RADIUS =', lines: ['const MADNESS_WANDER_RADIUS = 1;'] }],
-    },
+    path: ['passive', 'madnessWanderRadius'],
+    status: { kind: 'match' },
+    note:
+      'fb202: moved off the `MADNESS_WANDER_RADIUS` engine constant, the twin of the r3 search above, ' +
+      'onto the `whispers` passive row (rule 4).',
   },
   {
     cls: 'madness_king',
@@ -2131,7 +2108,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 82 match · 19 retuned · 1 elsewhere · 7 in code · 0 unimplemented · 0 defect', () => {
+  it('census: 84 match · 19 retuned · 1 elsewhere · 5 in code · 0 unimplemented · 0 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -2162,11 +2139,13 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // rows: thirteen matches, one retuned (Mind Manipulation's 0.99 s window
       // against §4's "over 1 s" — the owner's own 0.33 s cadence) and two
       // in_code (the Madness status's r3 search and r1 wander, fb085's
-      // enemies.ts literals).
-      match: 82,
+      // enemies.ts literals). fb202 (rule 4) moved both onto the `whispers`
+      // passive row (`madnessSearchRadius`/`madnessWanderRadius`), closing
+      // both as matches.
+      match: 84,
       retuned: 19,
       elsewhere: 1,
-      in_code: 7,
+      in_code: 5,
       unimplemented: 0,
       defect: 0,
     });

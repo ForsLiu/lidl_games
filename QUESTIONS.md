@@ -1904,3 +1904,32 @@ Q200 did not collide and are unchanged below).
   Spreading Madness frees a Whispers slot it takes over.
   — refs: SPEC-FINAL §4.2, §13, §14 G8,
   owner feedback `feature-class-madness-king`, BACKLOG-CONTENT.md fb057.
+
+- **Q218. [fb202] Madness King code-review follow-ups — two readings chosen
+  and logged (working rule 5), one default picked for a genuine gap.**
+  (a) **Q217(15) is superseded.** Q217 logged "Spreading Madness frees a
+  Whispers slot it takes over" as the shipped behaviour; fb202's review found
+  this was itself the bug, not a design reading — it let Active2 silently
+  release an already-Whispers-held enemy's cap slot the instant it merely
+  extended that enemy's madness duration, undercounting the passive's live
+  cap while the enemy was still mad the whole time. Corrected: an enemy the
+  passive already holds keeps its slot; Active2 only ever extends the clock.
+  A *fresh* Active2-only mad enemy still takes no slot, unchanged.
+  (b) **Q217(13) stands, no change needed.** fb202(e) asked whether a mad
+  enemy's self-kill should count toward `mob_mentality`; Q217(13) already
+  answered this ("a mad enemy's self-kill counts toward
+  `enemy_on_enemy_kills` — it is still an enemy-inflicted, madness-caused
+  death") and the shipped code already reflects it. The review's stricter
+  "other enemies only" alternative is noted, not adopted — no genuine gap
+  here, just a filed alternative reading.
+  (c) **`madnessMaxStacks` default (genuine gap, no owner or spec number).**
+  fb202(e2)'s QA repro (2,509 stacks on a tanky target over 60 s, from the
+  uncapped attack-speed/next-attack-sooner feedback loop) needed a ceiling
+  SPEC-FINAL never states — the passive's own text caps only concurrently-mad
+  *enemies* (5), not one enemy's own stack count. Chosen: 20 (a data-driven
+  `whispers` field, rule 4) — +200%/+200% attack/move speed at the cap, already
+  far past the class's stated "high" burst rating, high enough that normal
+  play never brushes it while remaining a hard ceiling on the runaway case.
+  Revisit if a playtest finds 20 stacks (∼3x speed) reachable in ordinary
+  play rather than only the pathological repro.
+  — refs: SPEC-FINAL §4.2, BACKLOG-CONTENT.md fb202, QUESTIONS Q217.

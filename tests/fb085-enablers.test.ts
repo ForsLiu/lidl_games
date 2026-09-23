@@ -222,6 +222,9 @@ describe('fb085(b): Madness King/Voltbolt passive kinds + REQUIRED_PASSIVE_FIELD
       madnessCap: 5,
       madnessAtkSpdPerStack: 0.1,
       madnessMoveSpdPerStack: 0.1,
+      madnessSearchRadius: 3,
+      madnessWanderRadius: 1,
+      madnessMaxStacks: 20,
     },
     frenzied_aim: { frenziedAimFlatBonus: 0.1 },
     arc: { arcChainDamageMul: 0.25, arcChainRadius: 3, arcChainDelaySeconds: 0.1 },
@@ -291,7 +294,7 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
     // parked so this row measures the decay and the expiry reset alone — the
     // attacks' own stacking is tests/class-madness-king.test.ts's.
     e.madnessAttackCooldown = 1e9;
-    registerMadnessAttack(e);
+    registerMadnessAttack(w, e);
     expect(e.madnessStacks).toBe(1);
     updateEnemies(w, DT);
     expect(e.madnessRemaining).toBeCloseTo(1 / 60, 6);
@@ -304,14 +307,14 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
   it('registerMadnessAttack increments stacks while mad, and is a no-op once madnessRemaining has lapsed', () => {
     const w = worldWith();
     const e = spawnEnemy(w, firstEnemyKey(w), w.warden.x + 1, w.warden.y)!;
-    registerMadnessAttack(e); // never mad — no-op
+    registerMadnessAttack(w, e); // never mad — no-op
     expect(e.madnessStacks).toBe(0);
     applyMadness(e, 5);
-    registerMadnessAttack(e);
-    registerMadnessAttack(e);
+    registerMadnessAttack(w, e);
+    registerMadnessAttack(w, e);
     expect(e.madnessStacks).toBe(2);
     e.madnessRemaining = 0;
-    registerMadnessAttack(e);
+    registerMadnessAttack(w, e);
     expect(e.madnessStacks).toBe(2); // still a no-op past expiry
   });
 
@@ -327,6 +330,9 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
       madnessCap: 5,
       madnessAtkSpdPerStack: 0.1,
       madnessMoveSpdPerStack: 0.2,
+      madnessSearchRadius: 3,
+      madnessWanderRadius: 1,
+      madnessMaxStacks: 20,
     };
     const c = loadContent({ classes: doc });
 
@@ -349,6 +355,9 @@ describe('fb085(b): the madness status on Enemy — install/decay/stacking', () 
       madnessCap: 5,
       madnessAtkSpdPerStack: 0.1,
       madnessMoveSpdPerStack: 0.1,
+      madnessSearchRadius: 3,
+      madnessWanderRadius: 1,
+      madnessMaxStacks: 20,
     };
     const c = loadContent({ classes: doc });
     const w = new World(cfg({ classKey: 'animist' }), c);
