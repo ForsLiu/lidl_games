@@ -1408,6 +1408,13 @@ export function hashWorld(w: World): string {
   ]) {
     for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k] ?? 0);
   }
+  // fb160: the per-source-and-type matrix, hashed like the flat ledgers above.
+  for (const src of Object.keys(w.damageBySourceType).sort()) {
+    const row = w.damageBySourceType[src] ?? {};
+    const types = Object.keys(row).sort();
+    h.str(src).int(types.length);
+    for (const t of types) h.str(t).num(row[t] ?? 0);
+  }
   h.int(w.waveStartTick);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
@@ -1424,6 +1431,13 @@ export function buildReport(w: World): RunReport {
   for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k] ?? 0;
   const damageByWeaponVs: Record<string, number> = {};
   for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k] ?? 0;
+  const damageBySourceType: Record<string, Record<string, number>> = {};
+  for (const src of Object.keys(w.damageBySourceType).sort()) {
+    const row = w.damageBySourceType[src] ?? {};
+    const out: Record<string, number> = {};
+    for (const t of Object.keys(row).sort()) out[t] = row[t] ?? 0;
+    damageBySourceType[src] = out;
+  }
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -1452,6 +1466,7 @@ export function buildReport(w: World): RunReport {
     damageByWeapon,
     damageByWeaponVs,
     damageByType,
+    damageBySourceType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
     spawnedByWave: w.spawnedByWave.slice(),

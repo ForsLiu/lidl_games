@@ -5,6 +5,15 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
+  session, full repository scope).** Built the sim state it was blocked on —
+  `World.damageBySourceType`, credited at `damageEnemy` beside the two flat
+  ledgers, hashed and reported — and redrew the DPS panel whole-run only: the
+  total at the top, one type-segmented bar per source in the damage types'
+  own (or colorblind) colors, sorted by total, source totals at the bar ends,
+  hover titles with amount and percent. The VS panel keeps its "This wave"
+  line via `waveDamageBySource`. Rendered numbers reconciled against a real
+  report (`tests/ui-fb160-dps-bars.test.ts`). Readings: QUESTIONS Q221.
 - **2026-09-23 — BACKLOG-TERRAIN.md fb156 (four gates) gameplay half done
   (owner-directed session, full repository scope).** Every live run now plays
   its seed's own jittered gates — `jitterGates(seed)` (one per edge, inside

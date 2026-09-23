@@ -2028,3 +2028,19 @@ Q200 did not collide and are unchanged below).
   committed).
   — refs: SPEC-FINAL §10, owner feedback `terrain-four-gates`,
   BACKLOG-TERRAIN.md fb156.
+- **Q221. [fb160] DPS panel bars — readings chosen and logged (working rule
+  5).** (1) **Whole run only, in this panel only.** The owner removed the DPS
+  panel's per-wave view; the VS wielded-attacks panel's own "This wave" line
+  (fb037) is a different panel and keeps its window (`waveDamageBySource`).
+  (2) **One ledger, three views.** The bars read a new source x type matrix
+  credited at the same `damageEnemy` choke point as the two flat ledgers,
+  with the same fb162 overkill clamp, so the three can never disagree; it is
+  hashed and reported like them. (3) **Bar length** is relative to the top
+  source (the top bar is full), segment widths are each type's share of its
+  own source. (4) **Colors** follow the Settings accessible palette (the
+  types' `colorblindColor`), the same switch the floating numbers use (fb005).
+  (5) **Hover** is the segment's native title ("Burning: 1,234 (56%)") — no
+  new tooltip machinery. (6) **Labels** name the class's Active/passive
+  (`Voltbolt — Lightning Ball`) instead of "Active 1"/"Active 2".
+  — refs: SPEC-FINAL §11, owner feedback `ui-dps-panel-bars`,
+  BACKLOG-UI.md fb160.

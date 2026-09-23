@@ -54,6 +54,7 @@ import { buildCodexCollections } from './codex-collections';
 import { hasUnsavedTunerEdits } from './tuner-state';
 import { crashLogEntries, formatCrashReport } from './crashlog';
 import { creditsMarkup } from './credits';
+import { escapeHtml } from './escape';
 import { questsMarkup } from './quests';
 import { SAVE_SLOT_COUNT, deleteSlot, getActiveSlot, slotHasData, switchToSlot } from './saveslots';
 
@@ -97,20 +98,11 @@ function ensureFullscreenListenerInstalled(): void {
 }
 
 
-/**
- * fb091: crash-log entries are the one place this file renders genuinely
- * arbitrary runtime strings (a thrown error's own `message`) into `innerHTML`
- * rather than fixed labels or numbers — escaped defensively so a hostile or
- * unusual error message can't inject markup into the Settings tab.
- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// fb091: crash-log entries are the one place this file renders genuinely
+// arbitrary runtime strings (a thrown error's own `message`) into `innerHTML`
+// rather than fixed labels or numbers — escaped defensively (`escapeHtml`,
+// shared since fb160) so a hostile or unusual error message can't inject
+// markup into the Settings tab.
 
 export interface HubCallbacks {
   settings: Settings;

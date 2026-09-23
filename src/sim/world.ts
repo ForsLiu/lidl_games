@@ -569,6 +569,14 @@ export class World {
   damageTotal = 0;
   /** fb007 DPS panel: cumulative damage by §3 damage-type key, the same choke point as `damageByWeapon`. */
   damageByType: Record<string, number> = {};
+  /**
+   * fb160 (owner feedback `ui-dps-panel-bars`): the same damage again, split
+   * by source *and* §3 type — `damageBySourceType[source][type]` — credited
+   * at the one choke point both flat ledgers above are, so each source row's
+   * type segments sum to its `damageByWeapon` entry and each type column to
+   * its `damageByType` entry. The DPS panel's segmented bars read it.
+   */
+  damageBySourceType: Record<string, Record<string, number>> = {};
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[] = [];
   leaksByWave: number[] = [];
@@ -584,9 +592,14 @@ export class World {
   looseInTheDark = 0;
   /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
   damageAtSunder: Record<string, number> = {};
-  /** fb007: `damageByType` snapshot at the same moment as `damageAtSunder`. */
+  /**
+   * fb007: `damageByType` snapshot at the same moment as `damageAtSunder`.
+   * fb160 retired the DPS panel's per-wave view, so no UI reads the by-type
+   * snapshots any more; they stay written and hashed (sim state) for a future
+   * per-wave type view.
+   */
   damageTypeAtSunder: Record<string, number> = {};
-  /** fb007 DPS panel: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so its "this wave" window can be isolated the same way `damageAtSunder` isolates Act II. */
+  /** fb007: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so a "this wave" window can be isolated the same way `damageAtSunder` isolates Act II — since fb160 read by the VS panel's wave line (`waveDamageBySource`) for the by-weapon half only. */
   damageAtWaveStart: Record<string, number> = {};
   damageTypeAtWaveStart: Record<string, number> = {};
   /** Tick `damageAtWaveStart` was taken at, so the panel can compute the window's elapsed seconds. */

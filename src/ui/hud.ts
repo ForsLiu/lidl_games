@@ -16,7 +16,8 @@ import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { enemyAttackMarkup } from './enemy-info';
-import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
+import { dpsPanelData, type DpsBar, type DpsPanelData, type DpsSegment } from './dps-panel';
+import { escapeHtml } from './escape';
 import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { characterBasicRange } from '../sim/classes';
@@ -861,7 +862,7 @@ export class Hud {
       this.dpsPanelEl.querySelector('[data-act="dock"]')?.addEventListener('click', () => this.dockDpsPanel());
       body = this.dpsPanelEl.querySelector('.sw-dps-body') as HTMLElement;
     }
-    body.innerHTML = dpsPanelBodyMarkup(dpsPanelData(w));
+    syncDpsPanelBody(body, dpsPanelData(w, this.settings.accessiblePalette));
   }
 
   private syncDpsPanelToggle(): void {
@@ -2385,24 +2386,108 @@ function formatSeconds(v: number): string {
   return String(Math.round(v * 10) / 10);
 }
 
-function dpsRowsMarkup(rows: DpsWindow['bySource']): string {
-  if (rows.length === 0) return '<p class="sw-note dim">No damage dealt yet.</p>';
-  return `<ul class="sw-statlist">${rows
-    .map((r) => `<li>${r.label}: <b>${formatDamage(r.damage)}</b> (${formatDps(r.dps)}/s)</li>`)
-    .join('')}</ul>`;
+/** fb160: a segment's share as hover text — "<1%" rather than a misleading "0%". */
+function sharePct(share: number): string {
+  return share > 0 && share < 0.005 ? '<1%' : `${Math.round(share * 100)}%`;
 }
 
-function dpsWindowMarkup(win: DpsWindow): string {
-  return `<div class="sw-sub">${win.label} <i>(${formatSeconds(win.seconds)}s)</i></div>
-    <div class="sw-row small"><span>Total</span><b>${formatDamage(win.damage)} (${formatDps(win.dps)}/s)</b></div>
-    <details class="sw-charstat" open>
-      <summary><span>By source</span></summary>
-      ${dpsRowsMarkup(win.bySource)}
-    </details>
-    <details class="sw-charstat">
-      <summary><span>By damage type</span></summary>
-      ${dpsRowsMarkup(win.byType)}
-    </details>`;
+function segTitle(g: DpsSegment): string {
+  return `${g.label}: ${formatDamage(g.damage)} (${sharePct(g.share)})`;
+}
+
+function widthPct(v: number): string {
+  return `${(v * 100).toFixed(3)}%`;
+}
+
+function dpsSegMarkup(g: DpsSegment): string {
+  return `<span class="sw-dpsseg" data-type="${escapeHtml(g.type)}" style="width:${widthPct(g.share)};background:${escapeHtml(g.color)}" title="${escapeHtml(segTitle(g))}"></span>`;
+}
+
+/**
+ * fb160 (owner feedback `ui-dps-panel-bars`): one horizontal bar per source,
+ * its length relative to the top source, split into one segment per damage
+ * type in that type's `data/damagetypes.json` color, the source's total at
+ * the bar's end. Each segment's `title` is its hover text: the type's amount
+ * and its percent of the source. The bar sits in its own flexible lane so its
+ * percentage width is relative to the lane, never squeezed by the total label
+ * beside it (code review: a shrinking flex item flattened every near-top bar
+ * to the same length).
+ */
+function dpsBarMarkup(b: DpsBar): string {
+  return `<li class="sw-dpsbar-row" data-src="${escapeHtml(b.key)}">
+      <div class="sw-dpsbar-label">${escapeHtml(b.label)}</div>
+      <div class="sw-dpsbar-track">
+        <div class="sw-dpsbar-lane"><div class="sw-dpsbar" style="width:${widthPct(b.length)}">${b.segments.map(dpsSegMarkup).join('')}</div></div>
+        <b class="sw-dpsbar-total">${formatDamage(b.damage)}</b>
+      </div>
+    </li>`;
+}
+
+function dpsTotalInner(data: DpsPanelData): string {
+  return `<span>Total damage <i>(${formatSeconds(data.seconds)}s)</i></span><b>${formatDamage(data.damage)} (${formatDps(data.dps)}/s)</b>`;
+}
+
+/**
+ * fb160 (code review): updates an already-rendered panel body **in place** —
+ * each source's `<li>` and each type's `<span>` keeps its element identity
+ * across redraws, only its width/color/title/total changing, and a node moves
+ * only when the sort order really changes. The panel redraws every tick while
+ * open; rebuilding the bars with `innerHTML` recreated the segment under the
+ * cursor 60 times a second, so its native hover tooltip — the owner's "hover a
+ * segment: that type's amount and percent" — could never appear.
+ */
+export function syncDpsPanelBody(body: HTMLElement, data: DpsPanelData): void {
+  const total = body.querySelector<HTMLElement>('.sw-dps-total');
+  const empty = body.querySelector<HTMLElement>('.sw-dps-empty');
+  const list = body.querySelector<HTMLElement>('.sw-dpsbars');
+  if (!total || !empty || !list) {
+    body.innerHTML = dpsPanelBodyMarkup(data);
+    return;
+  }
+  total.innerHTML = dpsTotalInner(data);
+  empty.hidden = data.bars.length > 0;
+  const rows = new Map<string, HTMLElement>();
+  for (const li of [...list.children] as HTMLElement[]) rows.set(li.dataset.src ?? '', li);
+  const wanted = new Set(data.bars.map((b) => b.key));
+  for (const [key, li] of rows) if (!wanted.has(key)) li.remove();
+  data.bars.forEach((b, i) => {
+    let li = rows.get(b.key);
+    if (li) {
+      syncDpsBar(li, b);
+    } else {
+      const tmp = document.createElement('ul');
+      tmp.innerHTML = dpsBarMarkup(b);
+      li = tmp.firstElementChild as HTMLElement;
+    }
+    if (list.children[i] !== li) list.insertBefore(li, list.children[i] ?? null);
+  });
+}
+
+function syncDpsBar(li: HTMLElement, b: DpsBar): void {
+  const label = li.querySelector('.sw-dpsbar-label');
+  if (label && label.textContent !== b.label) label.textContent = b.label;
+  const totalEl = li.querySelector('.sw-dpsbar-total');
+  if (totalEl) totalEl.textContent = formatDamage(b.damage);
+  const bar = li.querySelector<HTMLElement>('.sw-dpsbar');
+  if (!bar) return;
+  bar.style.width = widthPct(b.length);
+  const segs = new Map<string, HTMLElement>();
+  for (const sp of [...bar.children] as HTMLElement[]) segs.set(sp.dataset.type ?? '', sp);
+  const wanted = new Set(b.segments.map((g) => g.type));
+  for (const [type, sp] of segs) if (!wanted.has(type)) sp.remove();
+  b.segments.forEach((g, i) => {
+    let sp = segs.get(g.type);
+    if (!sp) {
+      sp = document.createElement('span');
+      sp.className = 'sw-dpsseg';
+      sp.dataset.type = g.type;
+    }
+    sp.style.width = widthPct(g.share);
+    sp.style.background = g.color;
+    const title = segTitle(g);
+    if (sp.title !== title) sp.title = title;
+    if (bar.children[i] !== sp) bar.insertBefore(sp, bar.children[i] ?? null);
+  });
 }
 
 /**
@@ -2421,13 +2506,16 @@ export function dpsPanelShellMarkup(): string {
 }
 
 /**
- * SPEC-FINAL §11 (fb007): damage dealt and DPS over the current wave and the
- * whole run, broken down by source and by damage type. See `dps-panel.ts`
- * for why the source rows read correctly in both phases without a separate
- * TD/VS split.
+ * SPEC-FINAL §11 (fb007, reshaped by fb160): whole-run damage only — the total
+ * at the top, then one type-segmented bar per source, sorted by total. See
+ * `dps-panel.ts` for why the source rows read correctly in both phases
+ * without a separate TD/VS split.
  */
 export function dpsPanelBodyMarkup(data: DpsPanelData): string {
-  return `${dpsWindowMarkup(data.wave)}${dpsWindowMarkup(data.run)}`;
+  const empty = `<p class="sw-note dim sw-dps-empty"${data.bars.length > 0 ? ' hidden' : ''}>No damage dealt yet.</p>`;
+  return `<div class="sw-row sw-dps-total">${dpsTotalInner(data)}</div>${empty}<ul class="sw-dpsbars">${data.bars
+    .map(dpsBarMarkup)
+    .join('')}</ul>`;
 }
 
 /**
