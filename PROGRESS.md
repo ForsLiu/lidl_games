@@ -28,6 +28,47 @@
   code changes. — refs: BACKLOG-CONTENT.md fb059/fb202, BACKLOG-TERRAIN.md
   fb064c/fb064e/fb064f, BACKLOG-UI.md fb160, PR #156.
 
+- **2026-09-23 (scheduled routine) — routine exit, no workable item —
+  BACKLOG.md is empty but owner-directed items remain in the lane files.**
+  Preflight: no open PR and no branch updated within the last 60 minutes
+  (checked via GitHub `list_pull_requests`/`list_branches`/`list_commits`),
+  so no other run was in progress; `feedback/` has nothing outside
+  `feedback/processed/` — no new feedback to route. `BACKLOG.md`'s Queue has
+  **zero** `- [ ]` items (confirmed by direct grep, not just eyeballing the
+  section). Per the completion-check rule, also checked every
+  `BACKLOG-*.md` for owner-directed (`fb*`) items before concluding: all
+  three lane files still carry open ones, so the "all owner feedback
+  complete" notification condition does not hold either — but none is
+  workable by this routine within its 45-minute/6-item budget, and this
+  routine's standing instruction against generating new backlog items also
+  forbids inventing the scoped sub-items each would need:
+  - `BACKLOG-CONTENT.md` **fb059** (Voltbolt, class #14 — passive, two
+    actives, a tower passive, plus full roster/Codex/class-select/attack-
+    sprite wiring) is the same size class as fb057 (Madness King), which
+    needed its own dedicated "owner-directed session, full repository
+    scope" to land correctly reviewed and tested — not something to attempt
+    end-to-end in one scheduled-routine turn without risking a half-built,
+    under-tested class. **fb202** has only (h) left open (an explicit
+    ~1-hour `tests/p6e-class-diversity.test.ts` sweep, already logged today
+    as the same class of deferral as fb197) — also over budget.
+  - `BACKLOG-TERRAIN.md` **fb064c**/**fb064e**/**fb064f**: each item's
+    remaining scope is explicitly out-of-lane prose (fb064c's click-to-place
+    flow and fb064e are UI-lane; fb064f is a main-lane Tuner page) with no
+    corresponding formal item yet filed in the owning lane's own backlog —
+    filing one would be generating a new backlog item.
+  - `BACKLOG-UI.md` **fb160** is blocked on main-lane sim state that does
+    not exist yet (a per-source-*and*-type damage ledger,
+    `damageByWeaponAndType`, credited at `damageEnemy` in
+    `src/sim/enemies.ts`) — real main-lane work, but likewise not a filed
+    `BACKLOG.md` item this routine is licensed to create on its own.
+  Same shape as the fb133 blocker this routine hit on 2026-09-18/19: an
+  owner-directed item exists somewhere in the backlog set but nothing
+  actionable sits in this routine's own queue, and self-splitting one to
+  make it fit would violate the no-new-items rule. Made no code changes;
+  owner notified rather than guessing at a scope split. — refs:
+  BACKLOG-CONTENT.md fb059/fb202, BACKLOG-TERRAIN.md fb064c/fb064e/fb064f,
+  BACKLOG-UI.md fb160.
+
 - **2026-09-23 (scheduled routine) — BACKLOG-CONTENT.md fb202 (a)-(e2) shipped,
   item stays open for (f)/(g)/(h).** fb057's code-review follow-up list had
   eight sub-clauses; this session shipped the five in this lane's Scope:
