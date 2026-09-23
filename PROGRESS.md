@@ -5,6 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 (scheduled routine, second run) — reconfirms the still-open
+  blocker, owner notified.** Preflight: PR #156 (`claude/dreamy-hopper-
+  vyc588`) is open with its last commit ~2h old (no branch touched
+  BACKLOG.md-adjacent files in the last 60 min), so no other run was in
+  progress — that PR is itself the prior run's "no workable item" exit
+  report, separately stuck on a CI infra hang (its own comment thread:
+  `test:fast` hung twice, one-retry budget spent, standing down for manual
+  re-run). `feedback/` still has nothing outside `processed/`. Re-grepped
+  every backlog file fresh: `BACKLOG.md`'s Queue is still exactly zero
+  `- [ ]` items; the same six owner-directed items are still open only in
+  lane files — `BACKLOG-CONTENT.md` fb202 ((f)/(g) cross-lane, (h) the
+  excluded ~1h p6e sweep) and fb059 (Voltbolt, a full class-sized item);
+  `BACKLOG-TERRAIN.md` fb064c/fb064e/fb064f (each needs a UI-lane or main-
+  lane sub-item that doesn't exist yet); `BACKLOG-UI.md` fb160 (blocked on
+  main-lane sim state, `damageByWeaponAndType`, that hasn't been built).
+  Nothing changed in two hours: same items, same reasons, same "not
+  licensed to invent the cross-lane/main-lane sub-item each needs" bind.
+  Since this is now a second consecutive scheduled run landing on the exact
+  same stall (and the open PR #156 is separately stuck on infra), notified
+  the owner rather than filing a third near-identical exit report. Made no
+  code changes. — refs: BACKLOG-CONTENT.md fb059/fb202, BACKLOG-TERRAIN.md
+  fb064c/fb064e/fb064f, BACKLOG-UI.md fb160, PR #156.
+
 - **2026-09-23 (scheduled routine) — BACKLOG-CONTENT.md fb202 (a)-(e2) shipped,
   item stays open for (f)/(g)/(h).** fb057's code-review follow-up list had
   eight sub-clauses; this session shipped the five in this lane's Scope:
