@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 (scheduled routine) — BACKLOG-UI.md fb201 CLOSED: every Active1
+  damage sentence in `src/ui/class-info.ts` now applies the §6.3 "Active1
+  potency" skill card.** Two other sessions had independently implemented this
+  same item on unmerged, un-PR'd branches (`claude/brave-cray-a97qdz` and
+  `claude/dreamy-hopper-6hgnl8`, both based on the same master commit this
+  session started from). Rather than implementing a third time, this session
+  compared both: `claude/brave-cray-a97qdz`'s version is the complete one — it
+  is the only one of the two that also fixes `bloodTitheSentence`, whose
+  potency multiplier is applied in `src/sim/towers.ts`'s `classTowerDamageMul`
+  (not `classes.ts`, which is presumably why the other branch's grep-based
+  pass missed it). Verified this by grepping every `active1PotencyMul` read
+  site across `src/sim/` (14 sites) and confirming each maps to exactly one of
+  the two branches' claimed fixes, with `fireDashSlash`'s G9 merge case and
+  Mind Manipulation's elite-tick damage correctly left alone (neither sentence
+  prints a number for those). Adopted `claude/brave-cray-a97qdz`'s commit
+  (two new helpers `liveActive1DamageValue`/`liveActive1Value` in
+  `class-info.ts`, wired into 11 sentences; `tests/ui-fb201-active1-potency-
+  sentences.test.ts`, 12 cases) onto this branch, then re-verified fresh:
+  `npx tsc --noEmit` clean, targeted tests green (58/58), `npm run test:fast`
+  green (319 files / 4837 passed / 34 pre-existing skips), and a fresh
+  code-reviewer pass (APPROVE, no Critical/Major — two Minor pre-existing
+  scope gaps noted as out-of-item, not regressions: `bloodTitheSentence`
+  still omits `classLineBonus`'s additive term and `burstDamageSentence`
+  still omits `powerMul`, both pre-dating this fix). Light tier (`[polish]`).
+  — refs: SPEC-FINAL §6.3, §11, fb062, BACKLOG-UI.md fb201.
+
 - **2026-09-22 (owner-directed session) — fb062 CLOSED (last clause): the
   Poison Barrel tooltip states the real mechanic.** `poisonBarrelSentence`
   (`src/ui/class-info.ts`) now says "Poisons every enemy inside the circle
