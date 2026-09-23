@@ -5,6 +5,17 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 — BACKLOG-TERRAIN.md fb156 (four gates) gameplay half done
+  (owner-directed session, full repository scope).** Every live run now plays
+  its seed's own jittered gates — `jitterGates(seed)` (one per edge, inside
+  the jitter band) plus `jitterModifierGate(seed)` under the Fourth Gate
+  modifier — with the `Grid` built on that list; practice jitters too (so
+  fb065g's A/B control still differs by terrain alone). Waves, leaks and VS
+  spawns already read `w.gates`; path indicators gained a fifth color; terrain
+  dumps parse a jittered gate. New `tests/fb156-live-four-gates.test.ts`;
+  c014's board, fb077/terrain-dump fixtures and fb196's control seeds
+  re-derived by measurement. SPEC-FINAL §10 amended (4 gates, 5 with the
+  modifier). Balance sweeps not re-recorded (rule 8; Q220).
 - **2026-09-23 — BACKLOG-CONTENT.md fb059 (Voltbolt, class #14) done
   (owner-directed session, full repository scope; the previous session's
   fb056/fb061/fb062/fb057 were squash-merged as PR #151, so this branch was

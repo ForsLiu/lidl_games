@@ -147,3 +147,26 @@ export function jitterModifierGate(seed: number): GateDef {
   const rng = new Rng(fnv1a(`${TERRAIN_STREAM}:gates:south2`, seed >>> 0));
   return { key: 'south2', tx: rng.intRange(1, GATE_JITTER_MARGIN - 1), ty: GRID_H - 1 };
 }
+
+/**
+ * fb156: whether `(tx, ty)` is a position `jitterGates` can give the base
+ * gate `key` — on that gate's own edge, inside `GATE_JITTER_MARGIN`'s band —
+ * so a terrain dump from a live (jittered) run can be told apart from one
+ * describing a gate no build ever places (`parseTerrainDump`).
+ */
+export function isJitteredGatePosition(key: string, tx: number, ty: number): boolean {
+  const inBand = (v: number, span: number): boolean =>
+    Number.isInteger(v) && v >= GATE_JITTER_MARGIN && v <= span - 1 - GATE_JITTER_MARGIN;
+  switch (key) {
+    case 'west':
+      return tx === 0 && inBand(ty, GRID_H);
+    case 'east':
+      return tx === GRID_W - 1 && inBand(ty, GRID_H);
+    case 'north':
+      return ty === 0 && inBand(tx, GRID_W);
+    case 'south':
+      return ty === GRID_H - 1 && inBand(tx, GRID_W);
+    default:
+      return false;
+  }
+}

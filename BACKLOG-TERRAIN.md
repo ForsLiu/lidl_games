@@ -140,7 +140,37 @@ the merge — never edited from this lane.
       property tests pass at 4 gates across **1000 seeds**; nothing in
       `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
       SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
-      **Done 2026-09-07.** `GATES` (`src/sim/grid.ts`) grew from 3 (west,
+      **Gameplay half DONE 2026-09-23 (main-lane session, full repository
+      scope).** What the generator half left for the other lanes, now live:
+      every run plays its seed's own jittered gates — `World` builds its list
+      from `jitterGates(seed)` (four, one per edge, inside
+      `GATE_JITTER_MARGIN`'s band) plus `jitterModifierGate(seed)` under the
+      Fourth Gate modifier (five), and the `Grid` is constructed on that list
+      (fb177's parameter) rather than patched after the static `GATES`.
+      Practice (Training Grounds) jitters too, so fb065g's flat-arena A/B
+      control still differs from the generated arm by terrain alone. Wave
+      composition, leak attribution and VS gate spawns already read
+      `w.gates` (fb153b/fb154), so they split across the live four (five) —
+      now pinned by `tests/fb156-live-four-gates.test.ts` (live list per seed,
+      layouts varying by seed, a 40-seed never-sealed sweep, spawn queues
+      using every gate index, five distinct path colors, live dumps parsing
+      back). `GATE_PATH_COLORS` gained a fifth color (a five-gate run's
+      fifth path no longer wraps onto the first's). `parseTerrainDump`
+      accepts a base gate anywhere the jitter can place it on its own edge
+      (`isJitteredGatePosition`) and keeps its parsed position, still refusing
+      a gate no build produces. Fixtures re-derived, never weakened: fb077's
+      byte-compare and practice control build on the seed's gates, the
+      terrain-dump live-run case pins the jitter functions, and c014's
+      probed board, its Ice Wall column, the corner probe and the legal-board
+      count were re-measured (5,16 `full`; 20 legal boards). fb196's
+      control seeds were re-swept and re-pinned (21/49). **The owner's
+      "sweeps re-recorded" clause is not done here** — it is carried by
+      fb205 below, a `[balance]` item whose acceptance *is* the
+      re-measurement. Code review follow-ups taken: the practice flat-arena
+      dump round-trips on its jittered gates; act1/fb130 fixtures read the
+      live gate. Readings: QUESTIONS Q220.
+      *(fb205, filed 2026-09-23, carries the sweep clause — see below.)*
+      **Generator half done 2026-09-07.** `GATES` (`src/sim/grid.ts`) grew from 3 (west,
       north, east) to 4 — one per edge, each nudged off its edge's exact
       midpoint ("jittered", an authored design choice, not per-seed
       randomness): `west (0,12)`, `north (24,0)`, `east (55,20)`,
@@ -339,6 +369,17 @@ the merge — never edited from this lane.
       file-by-file, not just their totals. **No `tests/terrain*` file appears
       in either run's failing set.**
       `npx tsc --noEmit`: clean.
+
+- [ ] (fb205) [balance] re-record the sweeps at fb156's jittered gates (the
+      owner's "sweeps re-recorded" clause of `terrain-four-gates`). Live runs
+      now play per-seed gates, so every seed-pinned balance number may drift.
+      Acceptance: run `tools/sweep.ts` and `tools/handoff-metrics.ts` and diff
+      G1/G8/G14/G23 against their last recorded values in BALANCE.md/STATUS.md,
+      recording the deltas; add a jittered-gate arm (`jitterGates(seed)` and
+      `+ jitterModifierGate(seed)`) to `tests/terrain-run-provenance.test.ts`'s
+      stranding sweep; bound `flatCoreAnchorCount`/`maxCoreLegalFrac`
+      (`src/sim/terrain/config.ts`) over the jitter domain rather than the
+      static `GATES` — refs: fb156, QUESTIONS Q220.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The

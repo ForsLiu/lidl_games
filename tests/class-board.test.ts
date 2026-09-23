@@ -294,13 +294,16 @@ describe('c014: the shared board is probed, not pinned', () => {
     // `GATES`'s own real `south` gate from every run's terrain generation.
     // Reading the full four-gate list opens the map's south arm back up,
     // which moved the shipped board again — a real, re-measured move, not a
-    // hand-derived one.
+    // hand-derived one. fb156 (2026-09-23): the run's gates are now jittered
+    // per seed (`jitterGates`), which redraws the default seed's map; the
+    // probe moved again, to 5,16 (measured, not derived), and every importer
+    // file's windows were re-run green on it before this row was updated.
     expect(
       { WX, WY, BUILD_TX, BUILD_TY },
       'the probed board moved off the spot the importers were calibrated from. This is a deliberate ' +
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
-    ).toEqual({ WX: 4, WY: 11, BUILD_TX: 5, BUILD_TY: 11 });
+    ).toEqual({ WX: 5, WY: 16, BUILD_TX: 6, BUILD_TY: 16 });
     expect(BOARD).toEqual({
       WX,
       WY,
@@ -313,9 +316,10 @@ describe('c014: the shared board is probed, not pinned', () => {
     });
     // c025's column, as a baseline of its own: the aim point `class-kit-whiff`
     // fires the Ice Wall at, and the three rows that wall occupies.
+    // fb156: moved with the board (5,16), measured.
     expect({ WALL_TX, WALL_TYS: [...WALL_TYS] }, 'the shared Ice Wall column moved').toEqual({
-      WALL_TX: 6,
-      WALL_TYS: [10, 11, 12],
+      WALL_TX: 7,
+      WALL_TYS: [15, 16, 17],
     });
     expect(HAS_WALL, 'the shipped board cannot host the Ice Wall column — class-kit-whiff will say so too').toBe(true);
   });
@@ -354,9 +358,10 @@ describe('c014: the shared board is probed, not pinned', () => {
     // Reported rather than required. If terrain generation ever gets generous
     // enough for a `full` board, or stingy enough that even `reduced` fails,
     // this row is where that shows up. Moved `full` -> `reduced` at fb153b's
-    // gate-list fix, same re-measurement as the row above.
+    // gate-list fix, same re-measurement as the row above. Back to `full` at
+    // fb156's per-seed gate jitter (same re-measurement as the row above).
     expect(['full', 'reduced']).toContain(BOARD.tier);
-    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('reduced');
+    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('full');
   });
 
   it('a class with no buildRange bonus can actually build on it', () => {
@@ -426,7 +431,9 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     // takes its place here: same job, answer `26,12`, nowhere near the shipped
     // board.
     { tx: 25, ty: 12 },
-    { tx: 15, ty: 6 },
+    // fb156: `15,6` now scans back to the shipped board (5,16) — measured,
+    // so it no longer tests a shift; `35,8` takes its place (answer 10,16).
+    { tx: 35, ty: 8 },
     { tx: 30, ty: 15 },
     { tx: 22, ty: 3 },
   ] as const;
@@ -460,6 +467,10 @@ describe('c014: a shifted probe origin moves the whole board', () => {
   }
 
   it('the far corner lands on its own nearby legal board, not the shipped one', () => {
+    // fb156 (2026-09-23): per-seed gate jitter redrew the default map. The
+    // top-left corner (1,1) now scans to the shipped board itself, so the far
+    // corner measured here is the bottom-left one (1,24), whose nearest legal
+    // board is 6,19; the legal-board count below was re-measured the same way.
     // Re-measured at fb153b's gate-list fix (BACKLOG.md, main-lane): `World`
     // used to build its base gate list as `GATES.slice(0, 3)`, silently
     // dropping `GATES`'s own real `south` gate from every run's terrain
@@ -470,15 +481,15 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     // rescale or a jitter change. `1,1`'s nearest legal board and the total
     // legal-board count were both re-measured against the fixed generator,
     // not hand-derived.
-    expect(probeBoard({ tx: 1, ty: 1 })).toEqual({
-      WX: 2,
-      WY: 11,
-      BUILD_TX: 3,
-      BUILD_TY: 11,
-      WALL_TX: 4,
-      WALL_TYS: [10, 11, 12],
+    expect(probeBoard({ tx: 1, ty: 24 })).toEqual({
+      WX: 6,
+      WY: 19,
+      BUILD_TX: 7,
+      BUILD_TY: 19,
+      WALL_TX: 8,
+      WALL_TYS: [18, 19, 20],
       hasWall: true,
-      tier: 'reduced',
+      tier: 'full',
     });
     // The claim underneath it: legal boards are far more plentiful once the
     // south arm is actually open ground rather than accidentally sealed off.
@@ -489,7 +500,8 @@ describe('c014: a shifted probe origin moves the whole board', () => {
         if (b.WX === tx && b.WY === ty) legal++;
       }
     }
-    expect(legal, 'the number of legal boards on the shipped map moved — re-read the fb153b measurement').toBe(66);
+    // fb156: 66 -> 20 on the default seed's jittered-gate map (measured).
+    expect(legal, 'the number of legal boards on the shipped map moved — re-read the fb153b/fb156 measurement').toBe(20);
   });
 
   it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {

@@ -367,8 +367,11 @@ TD scaling: `hp × 1.30^(wave−1)` ⚖; composition curve in `data/waves.json`
 
 ## 10. Map & pathing
 
-- One map: 36×20 tiles, 3 gates (W/N/E), Core 2×2 east-center; tiers T1–T5
-  with drafted modifiers as built (no gate may depend on a modifier).
+- One map: 56×32 tiles (fb153b), 4 gates — one per edge (W/N/E/S), each jittered
+  along its edge per generated map; a tier modifier that adds a gate makes 5
+  (owner feedback `terrain-four-gates`, fb156, QUESTIONS Q220) — Core 2×2
+  east-center; tiers T1–T5 with drafted modifiers as built (no gate may depend
+  on a modifier).
 - **Sealing the Core is allowed**: structures are high-cost passable tiles
   (cost ∝ HP × toughness ⚖). Open path exists → enemies walk it (classic).
   Fully sealed → enemies take the cheapest breach route and attack the

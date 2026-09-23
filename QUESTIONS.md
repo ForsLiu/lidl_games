@@ -1993,3 +1993,38 @@ Q200 did not collide and are unchanged below).
   outside this item, working rule 8) — skipped with no number claimed, as
   fb057 did for Madness King. — refs: SPEC-FINAL §4.2 (Voltbolt row), §13,
   §14 G8; owner feedback `feature-class-voltbolt`, BACKLOG-CONTENT.md fb059.
+- **Q220. [fb156] Four jittered gates in live play — readings chosen and
+  logged (working rule 5).** (1) **"Jittered along the edge" is per map.**
+  The terrain lane shipped both a static nudged layout (`GATES`) and a
+  per-seed `jitterGates`, and left the live run on the static list, flagging
+  the choice for a human sanity-check. The owner's "maps generate with 4
+  spawn gates ... jittered along the edge" reads as a property of each
+  generated map, so a live run now plays `jitterGates(seed)` (plus
+  `jitterModifierGate(seed)` for the Fourth Gate); the static lists stay the
+  tools' and tests' defaults. (2) **Practice jitters too**, so fb065g's
+  flat-vs-generated A/B control keeps differing by terrain alone. (3)
+  **Terrain dumps**: a base gate anywhere the jitter can place it is a real
+  arena and parses; anything else (wrong edge, corner, outside the band) is
+  still refused. (4) **Sweeps not re-recorded.** The owner's "sweeps
+  re-recorded" is a balance measurement (working rule 8); the gate layout
+  now varies by seed, so every seed-pinned balance number (G1/G8/G14/G23,
+  BALANCE.md) is expected to drift within its noise — the one seed-pinned
+  mechanism test this reached (fb196's control pair) was re-swept and
+  re-pinned. The re-measurement is filed as BACKLOG-TERRAIN.md fb205 (code
+  review: the clause is fb156's own acceptance, so it is not claimed done).
+  (5) **Code-review measurements recorded, not yet tests** (fb205 adds the
+  arm): on seeds 1..3000 the jittered four-gate lists strand the Core on 5
+  raw maps (437, 491, 1406, 1968, 2668) and the five-gate lists on 8 (122,
+  1164, 1407, 1440, 1713, 2113, 2126, 2844); zero fallbacks — every one is
+  rescued by `applyRunTerrain`'s Warden clearing. (6) **Loader bound**:
+  `maxCoreLegalFrac`/`flatCoreAnchorCount` still prove their ceiling over the
+  static `GATES`; a band some jittered seeds could meet may be refused (fb205).
+  (7) **Dump strictness**: a jittered base gate is accepted anywhere in its
+  band without checking the tile under it, because the parser deliberately
+  round-trips hand-built grids the generator cannot produce (fb064k); a gates
+  line contradicting the tiles is therefore not caught. (8) **Replays**:
+  `contentHash` covers `/data`, not code, so a pre-fb156 replay bundle
+  replays on different gates and fails its end-state hash (none are
+  committed).
+  — refs: SPEC-FINAL §10, owner feedback `terrain-four-gates`,
+  BACKLOG-TERRAIN.md fb156.

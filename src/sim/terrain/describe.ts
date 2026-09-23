@@ -58,6 +58,7 @@ import {
   type TerrainConfig,
   type TerrainKey,
 } from './config';
+import { isJitteredGatePosition } from './gates';
 import { flatTerrain, MAX_TERRAIN_SEED, MIN_TERRAIN_SEED, terrainHash } from './generate';
 import type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
 
@@ -723,10 +724,18 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     // says, which is what a human retyping a paste needs. Restoring this was a
     // review finding — the first version printed the parsed numbers, so
     // `west=007,10` complained about `7,10`, a string absent from the dump.
-    if (tx !== g.tx || ty !== g.ty) {
-      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty}`);
+    // fb156: a live run jitters its gates per seed (`jitterGates`), so a base
+    // gate is also legal anywhere that jitter can place it on its own edge;
+    // a position no build produces (another edge, a corner, outside the band)
+    // is still refused.
+    if (tx === g.tx && ty === g.ty) return { key: g.key, tx: g.tx, ty: g.ty };
+    if (!isJitteredGatePosition(g.key, tx, ty)) {
+      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty} or within its edge's jitter band`);
     }
-    return { key: g.key, tx: g.tx, ty: g.ty };
+    // A jittered position survives into the parsed map, so it takes the strict
+    // (one-spelling) form, the same round-trip rule the modifier gates follow.
+    const [sx, sy] = at(g.key, raw, true);
+    return { key: g.key, tx: sx, ty: sy };
   });
   // fb065f: the modifier gates, when present.
   //
@@ -874,7 +883,8 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
   // `requested` meant to be a seed at all", which is the question fb064s found
   // unanswerable, and not "is it the right one".
   if (source === SOURCE_FLAT) {
-    const flat = flatTerrain();
+    // fb156: the flat arena is built on the run's own (jittered) gate list.
+    const flat = flatTerrain(gates);
     // Dimensions first, and with their own message (QA bug 3). Folding them
     // into the byte compare made a 3x3 dump — fb064f's announced non-arena
     // Training Grounds shape is the realistic case — report "these are not the

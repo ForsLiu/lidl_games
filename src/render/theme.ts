@@ -36,13 +36,15 @@ export const PALETTE = {
 
 /**
  * fb036: one distinct dashed-line color per spawn gate, indexed against
- * `World.gates` order (world.ts: `GATES.slice()` — west, north, east, south —
- * plus `MODIFIER_GATES[0]` (`south2`) as a 5th entry when the `gate` modifier
- * is active), so each gate's path indicator reads apart from the others on
- * screen. A run with more gates than colors wraps via
- * `% GATE_PATH_COLORS.length` rather than going undefined.
+ * `World.gates` order (world.ts, fb156: the seed's four jittered gates — west,
+ * north, east, south — plus the Fourth Gate modifier's `south2` as a 5th
+ * entry when the `gate` modifier is active), so each gate's path indicator
+ * reads apart from the others on screen. fb156: five colors, so a five-gate
+ * run no longer wraps its fifth path onto the first's color. A list longer
+ * than this still wraps via `% GATE_PATH_COLORS.length` rather than going
+ * undefined.
  */
-export const GATE_PATH_COLORS: readonly string[] = ['#7ecbff', '#ffd166', '#a78bfa', '#7ee08a'];
+export const GATE_PATH_COLORS: readonly string[] = ['#7ecbff', '#ffd166', '#a78bfa', '#7ee08a', '#ff8fa3'];
 
 export const TOWER_COLORS: Record<string, string> = {
   palisade: '#6d6f78',
