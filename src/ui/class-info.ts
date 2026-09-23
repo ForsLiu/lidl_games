@@ -358,6 +358,38 @@ function spreadingMadnessSentence(eff: ClassEffect, live?: ClassLiveContext, coo
   return `Drives every enemy within ${trimNum(radius)} tiles of the cursor mad for ${trimNum(eff.madnessDurationSeconds ?? 0)}s: each attacks the nearest other enemy (or itself), speeding up with every attack. Cooldown ${trimNum(cd)}s.`;
 }
 
+/**
+ * fb059 (§4.2 Voltbolt *Lightning Ball*): `updateLightningBalls` fires the
+ * character's basic attack at `characterDamage(...) x lightningBallDamageMul x
+ * active1PotencyMul` — the potency card is the one live factor this sentence
+ * can know pre-cast (the move-speed bonus moves every step), so the shot's
+ * share of a basic hit is printed with it applied.
+ */
+function lightningBallSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const share = liveActive1Value(1, live);
+  return (
+    `Throws a ball of lightning to the cursor (no farther than your basic-attack range), where it hovers; it lives ${trimNum(eff.ballLifetimeSeconds ?? 0)}s and meanwhile fires your basic attack, chains included, at your attack speed. ` +
+    `Each shot deals ${formatPct(share)} of a basic attack's damage, raised by ${formatPct(eff.moveSpeedDamageEfficiency ?? 0)} of your total movement-speed bonus. Cooldown ${trimNum(cd)}s.`
+  );
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Overdrive*): the burst is `characterDamage(w, cls,
+ * eff.damage)` over `classArea(w, eff.radius)` (`overdriveBurst`), each then
+ * grown by a live speed bonus the sentence names rather than guesses.
+ */
+function overdriveSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const damage = liveDamageValue(eff.damage, live);
+  const radius = liveAreaValue(eff.radius, live);
+  const chains = [eff.overdriveChain1Mul ?? 0, eff.overdriveChain2Mul ?? 0, eff.overdriveChain3Mul ?? 0].filter((m) => m > 0);
+  return (
+    `For ${trimNum(eff.overdriveSeconds ?? 0)}s, basic attacks chain ${chains.length} times (${chains.map((m) => formatPct(m)).join('/')} damage), and each one adds ${formatPct(eff.overdriveAtkSpdPerHit ?? 0)} attack speed and ${formatPct(eff.overdriveMoveSpdPerHit ?? 0)} movement speed until it ends. ` +
+    `Then a burst deals ${trimNum(damage)} damage within ${trimNum(radius)} tiles — the damage multiplied by 1 + your total movement-speed bonus, the radius by 1 + your total attack-speed bonus. Cooldown ${trimNum(cd)}s.`
+  );
+}
+
 /** `summon_turret`/`ice_wall`: turns a `/data` tower key like `arrow_spire` into "Arrow Spire" — no tower-lookup table is threaded into this file, so this is a display-name approximation, not a `content.towerByKey` name. */
 function humanizeKey(key: string): string {
   return key
@@ -574,6 +606,8 @@ const ACTIVE_SENTENCES: Partial<
   judgement: judgementSentence,
   mind_manipulation: mindManipulationSentence,
   spreading_madness: spreadingMadnessSentence,
+  lightning_ball: lightningBallSentence,
+  overdrive_voltbolt: overdriveSentence,
 };
 
 /**

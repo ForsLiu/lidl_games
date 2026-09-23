@@ -1933,3 +1933,63 @@ Q200 did not collide and are unchanged below).
   Revisit if a playtest finds 20 stacks (∼3x speed) reachable in ordinary
   play rather than only the pathological repro.
   — refs: SPEC-FINAL §4.2, BACKLOG-CONTENT.md fb202, QUESTIONS Q217.
+
+- **Q219. [fb059] Voltbolt — readings the owner text leaves open, chosen and
+  logged (working rule 5; every [designer note] in the owner feedback built
+  as written).** (1) **"Total" bonus.** "The character's total attack-speed /
+  movement-speed bonus" is the live multiplier the character actually
+  attacks/moves at, less 1 (`charspeed.ts`): every stat source including the
+  class's own +30% movement band, the per-tick multipliers (Recall Totem's
+  aura, an Archer-style draw penalty) and Overdrive's own stacks — and in VS
+  the two VS-only factors the character's wielded cadence reads, a Time
+  Core's bonus and a Beacon shrine's haste (code review). Overdrive's
+  attack-speed stacks speed the character's basic attack and its Lightning
+  Ball; they do not reach the VS wielded tower attacks, which keep their own
+  §6.1 cadence. Every Voltbolt conversion (Lightning Ball damage, the burst's
+  damage and radius, Lightning Accelerate's two tower conversions) floors a
+  negative bonus at 0 — a slow is never a malus, the same floor Frenzied Aim
+  took (Q217(6)). (2) **Chain delay and link order.** "The chain lands 0.1 s
+  after the first hit"; Overdrive's second and third links each land the same
+  delay after the previous one (a visible chain), each searching r3 around the
+  enemy the previous link struck (where it was struck, if it has since died) for
+  the nearest enemy *this attack* has not hit, else the original target; a
+  link with no live candidate at all (the original died too) fizzles and ends
+  its attack's chain. r3 is a target-search radius, so Area does not widen it
+  (`classArea`'s rule). (3) **Which hits count as "basic attacks".** A
+  Lightning Ball shot is "the character's basic attack", so it chains, counts
+  as an Overdrive stack, and — being Active1's damage (`class_active`) — takes
+  Active1 potency; its chains inherit its source. The basic attack itself
+  stays TD-only (Q117); the ball fires in both phases, so Overdrive can still
+  stack in VS through it. (4) **Ball flight.** The owner text gives travel but
+  no speed: `ballSpeed` 12 tiles/s ⚖ (a new required `lightning_ball` field).
+  An unaimed cast (a bot's bare Command) throws at the nearest enemy in range,
+  else along the facing to full range. (5) **Chain shares are positive.** A zero Overdrive share would close up
+  the three-link pattern and land the next link a delay early, so the loader
+  refuses it (code review). **Overdrive recast** (QA): Voltbolt's own VS
+  cards (cooldown -50%, +2 s window) make the cooldown shorter than the
+  window, so E *declines* while a window is open — nothing fires, nothing is
+  billed — and every cast is exactly one full window and one burst. (6) **Burst**:
+  base 150 ⚖ ("medium-high": Pyromancer's 200 is the high Active burst, Chain
+  Surge's 75 the medium), radius r3 ⚖ Area-scaled, source `class_active2`,
+  read with the window's stacks still on, then the stacks reset. (7) **Bands**:
+  range 6 / dps 48 / interval 1.0 / move +0.3 — the Archer's high/medium/medium
+  values plus the Swordsman's high movement; basic damage type Normal per the
+  designer note (no Electric splash). (8) **Lightning Accelerate**: "tower
+  projectile speed" is the flight speed of the two tower kinds that fire a
+  real projectile (`pierce` bolts, `lob` shells — the lob's lead is computed
+  at the boosted speed); the §4.2 row and the in-game sentence state the 50%
+  once, since one field backs both conversions (c015/c008's one-field-one-claim
+  rule). Not phase-gated, like Frenzied Aim. (9) **Unlock quest reachability**
+  (designer-fill "300 chain hits in one run"): Voltbolt's own links would make
+  it unreachable before the class it unlocks, and QA found Stormcaller — the
+  first reading's second source — is not in the normal-profile roster either,
+  so a normal player could never unlock a *visible* class. `max_chain_hits`
+  therefore counts every chain jump past the first hit, whoever throws it:
+  Voltbolt's links, Stormcaller's Chain Surge jumps, and Tesla Coil's chain
+  jumps and step-3 electric arc (towers any class can build). A per-run best,
+  not a lifetime sum. (10) **Class-line card** "Sustained Current":
+  Overdrive +1 s/rank. (11) **G8 at 14 classes**: 91 pairs; Voltbolt's
+  win-rate row and the pair census are unmeasured (the ~1 h p6e sweep is
+  outside this item, working rule 8) — skipped with no number claimed, as
+  fb057 did for Madness King. — refs: SPEC-FINAL §4.2 (Voltbolt row), §13,
+  §14 G8; owner feedback `feature-class-voltbolt`, BACKLOG-CONTENT.md fb059.

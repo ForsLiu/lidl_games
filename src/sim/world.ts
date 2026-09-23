@@ -43,6 +43,8 @@ import type {
   Structure,
   TimeLockZone,
   MindTick,
+  VoltChain,
+  LightningBall,
   Warden,
 } from './types';
 
@@ -543,6 +545,16 @@ export class World {
   enemyOnEnemyKills = 0;
   /** fb057 (Mind Manipulation's elite/boss branch): pending tick trains, see `MindTick`. */
   mindTicks: MindTick[] = [];
+  /** fb059 (Voltbolt *Arc* and *Overdrive*): chain links waiting on their 0.1 s delay, see `VoltChain`. */
+  voltChains: VoltChain[] = [];
+  /** fb059 (Voltbolt *Lightning Ball*): live balls. */
+  lightningBalls: LightningBall[] = [];
+  /**
+   * fb059: character chain hits landed this run — Voltbolt's *Arc* and *Overdrive*
+   * links and Stormcaller's Chain Surge jumps past the first — for Voltbolt's
+   * unlock quest ("300 chain hits in one run").
+   */
+  chainHits = 0;
   /**
    * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
    * VS wave that actually ends by its own means — the block timer
@@ -865,6 +877,8 @@ export class World {
       armorShred: 0,
       leechAccumulator: 0,
       overloadRemaining: 0,
+      overdriveRemaining: 0,
+      overdriveStacks: 0,
       standStillTimer: 0,
       lastStillX: spawn.tx,
       lastStillY: spawn.ty,

@@ -34,7 +34,15 @@
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassDef, ClassEffect, EnemyDef, TowerDef } from './content';
-import { applyHealingToWarden, coreMoveSpeedMul } from './cores';
+import { applyHealingToWarden } from './cores';
+import {
+  auraSpeedMul,
+  characterAttackSpeedBonus,
+  characterAttackSpeedMul,
+  characterMoveSpeed,
+  characterMoveSpeedBonus,
+  classMoveSpeedMul,
+} from './charspeed';
 import { applyDamageType, dotDpsFor } from './damagetypes';
 import {
   applyAtkSlow,
@@ -62,6 +70,10 @@ import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure,
 import { classDashDuration, dashDistance, resolveDashTarget, startDashTravel } from './wardenmove';
 import { timeLockZoneCap, World } from './world';
 
+// Moved to `charspeed.ts` (fb059: `towers.ts` reads them too); re-exported
+// so every existing importer keeps its path.
+export { auraSpeedMul, classMoveSpeedMul };
+
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
 const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
 
@@ -72,7 +84,7 @@ const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'a
  * move-speed buff/boon exactly like the base dash does.
  */
 function currentMoveSpeed(w: World): number {
-  return w.derived.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
+  return characterMoveSpeed(w);
 }
 
 /**
@@ -250,22 +262,6 @@ export function classArmorBonus(w: World): number {
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls || cls.passive.kind !== 'guardian_stance') return 0;
   return w.warden.standStillTimer >= (cls.passive.stanceSeconds ?? 1) ? cls.passive.stanceArmor ?? 0 : 0;
-}
-
-/**
- * §4.2 Animist *Recall Totem*: "character & summons near it +15% atk spd."
- * Returns the attack-speed multiplier at a point, 1 where no totem reaches.
- * Applied to the character's own basic attack and to every summon's cadence;
- * Active1/Active2 cooldowns are deliberately left alone (Q120).
- */
-export function auraSpeedMul(w: World, x: number, y: number): number {
-  let mul = 1;
-  for (const s of w.classSummons) {
-    if (!s.isAura || s.remaining <= 0) continue;
-    const r = s.auraRadius ?? 0;
-    if (r > 0 && dist2(x, y, s.x, s.y) <= r * r) mul *= 1 + (s.auraAtkSpdMul ?? 0);
-  }
-  return mul;
 }
 
 /**
@@ -1024,6 +1020,9 @@ function fireChainSurge(w: World, cls: ClassDef, aimX: number | undefined, aimY:
     struck.add(cur.id);
     const damage = base * Math.pow(1 + growth, Math.min(i, capIndex));
     applyDamageType(w, cur, 'electric', damage, 'class_active', { fromX: px, fromY: py });
+    // fb059: every jump past the first is a character chain hit — Voltbolt's
+    // unlock quest counts these too, so it is reachable before Voltbolt is.
+    if (i > 0) w.chainHits++;
     w.emit('arc', px, py, cur.x, cur.y);
     px = cur.x;
     py = cur.y;
@@ -1774,6 +1773,13 @@ export function updateClassPassives(w: World, dt: number): void {
   if (classEquipmentActive(w, 'blightweaver_band')) updateBlightweaverBand(w, dt);
   // fb057: Mind Manipulation's elite/boss tick trains.
   if (cls.active1.kind === 'mind_manipulation') updateMindTicks(w, cls, dt);
+  // fb059 (§4.2 Voltbolt): live balls, then chain links on their delay (a
+  // ball shot's link is queued before the chain update, like a basic
+  // attack's, so both land exactly one delay later — `VoltChain.fresh`),
+  // then the Overdrive window.
+  if (cls.active1.kind === 'lightning_ball') updateLightningBalls(w, cls, dt);
+  if (cls.passive.kind === 'arc') updateVoltChains(w, cls, dt);
+  if (cls.active2.kind === 'overdrive_voltbolt') updateOverdrive(w, cls, dt);
 
   switch (cls.passive.kind) {
     case 'contagious_flame':
@@ -2098,6 +2104,9 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
     case 'mind_manipulation':
       fireMindManipulation(w, cls, aimX, aimY);
       break;
+    case 'lightning_ball':
+      fireLightningBall(w, cls, aimX, aimY);
+      break;
     default:
       // Same bug class as the legacy branch above: an unhandled kind (or one
       // that fires only from `tickClassCharge`'s hold/release path) must not
@@ -2166,6 +2175,9 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
   if (!cls) return false;
 
   const wd = w.warden;
+  // fb059 (QA): Overdrive declines while its window is open — nothing fires,
+  // nothing is billed (Q219(5)).
+  if (cls.active2.kind === 'overdrive_voltbolt' && wd.overdriveRemaining > 0) return false;
   // fb013: see the matching Active1 ammo gate above.
   const max2 = cls.active2.maxCharges ?? 1;
   if (max2 > 1) {
@@ -2215,6 +2227,9 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
       break;
     case 'spreading_madness':
       fireSpreadingMadness(w, cls, aimX, aimY);
+      break;
+    case 'overdrive_voltbolt':
+      fireOverdrive(w, cls);
       break;
     default:
       // Guarded so a future mismatch (e.g. a charge kind authored onto Active2
@@ -2309,17 +2324,284 @@ export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: n
 }
 
 /**
- * The move-speed penalty a `charge_pierce` Active1 pays while drawing (§4.2
- * Archer: "move −40% while drawing"), as a multiplier `updateWarden` applies
- * at the movement integration site — never by mutating `w.derived`, which is
- * a cached view of the stat sheet and not per-tick state.
+ * One landed character basic-attack hit at `target`: the damage (splash
+ * through the shared AoE convention when the class authors `aoe`), the
+ * passive's on-hit riders, and on-hit equipment. Shared by the character's own
+ * basic attack and — fb059 (§4.2 Voltbolt) — every *Arc* and *Overdrive* chain link
+ * and every Lightning Ball shot, which "apply all on-hit effects" exactly as
+ * the basic attack does.
  */
-export function classMoveSpeedMul(w: World): number {
+function landCharacterHit(
+  w: World,
+  cls: ClassDef,
+  target: Enemy,
+  dmg: number,
+  source: string,
+  fromX: number,
+  fromY: number,
+): void {
+  const a = cls.basicAttack;
+  const onHit = passiveOnHit(w, cls);
+  if (a.aoe > 0) {
+    // Splash routes through the shared AoE convention (aoeFullTargets/aoeFalloff/
+    // aoeFalloffFloor, data/towers.json) so a future kit's basic-attack aoe (p6b+)
+    // doesn't silently skip the cap/falloff discipline every other splash source
+    // already follows (code review on p6a).
+    applyAoE(w, target.x, target.y, classArea(w, a.aoe), dmg, source, { onHit }, {
+      primary: target,
+      damage: { fromX, fromY },
+    });
+  } else {
+    damageEnemy(w, target, dmg, source, { fromX, fromY });
+    if (!target.dead) applyEffects(w, target, { onHit });
+  }
+  // fb056 (§7.1) Plague Flask: "basic attacks apply Poison (120% over 3 s) on
+  // every hit" — the hit's own damage as the triggering amount, §3's ratio
+  // convention (`dotDpsFor`'s `ratio x damage / duration`) at the item's own
+  // authored ratio/seconds.
+  if (!target.dead && classEquipmentActive(w, 'plague_flask')) {
+    const seconds = classEquipmentNum(w, 'plague_flask', 'poisonSeconds', 0);
+    const ratio = classEquipmentNum(w, 'plague_flask', 'poisonRatio', 0);
+    if (seconds > 0 && ratio > 0) applyDot(w, target, 'poison', (ratio * dmg) / seconds, seconds, source);
+  }
+}
+
+/* --------------------------------------------------------------- Voltbolt */
+
+/**
+ * fb059 (§4.2 Voltbolt *Arc*): "every basic attack chains one more time at
+ * 25% damage"; during *Overdrive*, "two more times at 12.5% damage each
+ * (three chains total: 25%, 12.5%, 12.5%)". The multipliers of the chain
+ * links this attack will throw, in order — empty for every other class.
+ */
+export function voltChainMuls(w: World, cls: ClassDef): number[] {
+  if (cls.passive.kind !== 'arc') return [];
+  const od = cls.active2;
+  if (w.warden.overdriveRemaining > 0 && od.kind === 'overdrive_voltbolt') {
+    // All three are loader-required positive (content.ts), so none closes up the pattern.
+    return [od.overdriveChain1Mul ?? 0, od.overdriveChain2Mul ?? 0, od.overdriveChain3Mul ?? 0];
+  }
+  const m = cls.passive.arcChainDamageMul ?? 0;
+  return m > 0 ? [m] : [];
+}
+
+/** Schedules a basic attack's chain links (`VoltChain`): the first lands `arcChainDelaySeconds` after the hit. */
+function queueVoltChain(w: World, cls: ClassDef, target: Enemy, dmg: number, source: string): void {
+  const muls = voltChainMuls(w, cls);
+  if (muls.length === 0) return;
+  const delay = cls.passive.arcChainDelaySeconds ?? 0;
+  w.voltChains.push({
+    timer: delay,
+    // A zero delay is a legal "instant" link: no tick to wait out (code review).
+    fresh: delay > 0,
+    fromId: target.id,
+    fromX: target.x,
+    fromY: target.y,
+    originalId: target.id,
+    hitIds: [target.id],
+    baseDamage: dmg,
+    muls,
+    source,
+  });
+}
+
+/**
+ * Lands every chain link whose delay has run out. "The chain targets the
+ * nearest enemy within r3 of the struck enemy that has not already been hit
+ * by this attack; if none, it strikes the original target again" — r3 is a
+ * target-search radius, so it is not scaled by Area (`classArea`'s own rule).
+ * A link with no live candidate at all (the original target died too)
+ * fizzles, and so does the rest of its attack's chain.
+ */
+function updateVoltChains(w: World, cls: ClassDef, dt: number): void {
+  // b048's rule (see `updateClassPassives`): damage frozen for the defeat beat.
+  if (w.voltChains.length === 0 || w.dying) return;
+  const radius = cls.passive.arcChainRadius ?? 0;
+  const delay = cls.passive.arcChainDelaySeconds ?? 0;
+  const due = w.voltChains;
+  w.voltChains = [];
+  const keep: typeof due = [];
+  for (const c of due) {
+    if (c.fresh) {
+      c.fresh = false;
+      keep.push(c);
+      continue;
+    }
+    c.timer -= dt;
+    // The tolerance absorbs 1/60 accumulation residue (0.1 - 6/60 is 2e-17,
+    // not 0), so a 0.1 s link lands on its sixth tick, not its seventh.
+    if (c.timer > 1e-9) {
+      keep.push(c);
+      continue;
+    }
+    const from = w.enemyById.get(c.fromId);
+    if (from && !from.dead) {
+      c.fromX = from.x;
+      c.fromY = from.y;
+    }
+    let t = w.nearestEnemy(c.fromX, c.fromY, radius, (e) => !c.hitIds.includes(e.id));
+    if (!t) {
+      const original = w.enemyById.get(c.originalId);
+      t = original && !original.dead ? original : null;
+    }
+    const mul = c.muls[0];
+    if (!t || mul === undefined) continue;
+    landCharacterHit(w, cls, t, c.baseDamage * mul, c.source, c.fromX, c.fromY);
+    w.chainHits++;
+    w.emit('volt_chain', c.fromX, c.fromY, t.x, t.y);
+    if (c.muls.length > 1) {
+      keep.push({
+        ...c,
+        // Carry the overshoot so a link always lands exactly `delay` after the last.
+        timer: c.timer + delay,
+        fromId: t.id,
+        fromX: t.x,
+        fromY: t.y,
+        hitIds: c.hitIds.includes(t.id) ? c.hitIds : [...c.hitIds, t.id],
+        muls: c.muls.slice(1),
+      });
+    }
+  }
+  // Anything a landed hit queued (nothing today) keeps its place after the survivors.
+  w.voltChains = keep.concat(w.voltChains);
+}
+
+/** fb059 (§4.2 Voltbolt *Overdrive*): one more additive stack per basic attack landed during the window. */
+function noteOverdriveHit(w: World): void {
+  if (w.warden.overdriveRemaining > 0) w.warden.overdriveStacks++;
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Lightning Ball*): "its damage is boosted by the
+ * character's total movement-speed bonus at 25% efficiency (e.g. +40% move
+ * -> +10% damage)". Exported for the class tooltip.
+ */
+export function lightningBallDamageMul(w: World, cls: ClassDef): number {
+  const eff = cls.active1.moveSpeedDamageEfficiency ?? 0;
+  return 1 + eff * Math.max(0, characterMoveSpeedBonus(w));
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Lightning Ball*): "throws a ball toward the cursor
+ * position; it travels in that direction to the cursor's point and lives
+ * 2.5 s total" — designer note: "reaches the point and hovers there for the
+ * remainder; cursor beyond basic range clamps to range". Unaimed (a bot's
+ * bare Command), it is thrown at the nearest enemy in range, else along the
+ * character's facing to full range.
+ */
+function fireLightningBall(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
-  if (!wd.active1Charging) return 1;
-  const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.active1.kind !== 'charge_pierce') return 1;
-  return cls.active1.moveMulWhileCharging ?? 1;
+  const eff = cls.active1;
+  const range = characterBasicRange(w);
+  // QA: a non-finite aim (a hand-edited input log, a replay bundle) is no aim
+  // at all — never a NaN ball.
+  let ax = aimX !== undefined && Number.isFinite(aimX) ? aimX : undefined;
+  let ay = aimY !== undefined && Number.isFinite(aimY) ? aimY : undefined;
+  if (ax === undefined || ay === undefined) {
+    const t = w.nearestEnemy(wd.x, wd.y, range);
+    ax = t ? t.x : wd.x + wd.fx * range;
+    ay = t ? t.y : wd.y + wd.fy * range;
+  }
+  const d = dist(wd.x, wd.y, ax, ay);
+  if (d > range && d > 0) {
+    ax = wd.x + ((ax - wd.x) * range) / d;
+    ay = wd.y + ((ay - wd.y) * range) / d;
+  }
+  w.lightningBalls.push({
+    id: w.newId(),
+    x: wd.x,
+    y: wd.y,
+    tx: clamp(ax, 0, GRID_W),
+    ty: clamp(ay, 0, GRID_H),
+    speed: eff.ballSpeed ?? 0,
+    remaining: eff.ballLifetimeSeconds ?? 0,
+    attackCooldown: 0,
+  });
+  w.emit('class_active', wd.x, wd.y, ax, ay);
+}
+
+/**
+ * Moves each ball toward its point and fires "the character's basic attack
+ * (including the passive chain, or the Overdrive chain while Overdrive is
+ * active) at the character's TOTAL attack speed" from wherever it is, at the
+ * nearest enemy within the character's basic range of the ball. Attributed to
+ * Active1 (`class_active`), so Active1 potency scales it; each shot counts as
+ * a basic attack for Overdrive's stacking (QUESTIONS Q219).
+ */
+function updateLightningBalls(w: World, cls: ClassDef, dt: number): void {
+  if (w.lightningBalls.length === 0) return;
+  const a = cls.basicAttack;
+  for (const b of w.lightningBalls) {
+    b.remaining -= dt;
+    const d = dist(b.x, b.y, b.tx, b.ty);
+    const step = b.speed * dt;
+    if (d <= step || d === 0) {
+      b.x = b.tx;
+      b.y = b.ty;
+    } else {
+      b.x += ((b.tx - b.x) * step) / d;
+      b.y += ((b.ty - b.y) * step) / d;
+    }
+    if (b.attackCooldown > 0) b.attackCooldown = tickCooldown(b.attackCooldown, dt);
+    if (b.remaining <= 0 || b.attackCooldown > 0 || w.dying) continue;
+    const t = w.nearestEnemy(b.x, b.y, characterBasicRange(w));
+    if (!t) continue;
+    b.attackCooldown = a.interval / characterAttackSpeedMul(w);
+    const dmg = characterDamage(w, cls, a.dps * a.interval) * lightningBallDamageMul(w, cls) * active1PotencyMul(w);
+    landCharacterHit(w, cls, t, dmg, 'class_active', b.x, b.y);
+    queueVoltChain(w, cls, t, dmg, 'class_active');
+    noteOverdriveHit(w);
+    w.emit('volt_ball_shot', b.x, b.y, t.x, t.y);
+  }
+  w.lightningBalls = w.lightningBalls.filter((b) => b.remaining > 0);
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Overdrive*): "enters Overdrive for 5 s" (plus the
+ * class-line skill card's seconds). A recast while a window is still open is
+ * refused before it fires (`useClassActive2`) — QA found Voltbolt's own VS
+ * cards make the cooldown shorter than the window — so every cast is exactly
+ * one full window and one burst, and Sustained Current's seconds are never
+ * cut short.
+ */
+function fireOverdrive(w: World, cls: ClassDef): void {
+  const wd = w.warden;
+  wd.overdriveRemaining = (cls.active2.overdriveSeconds ?? 0) + classLineBonus(w);
+  wd.overdriveStacks = 0;
+  w.emit('class_active2', wd.x, wd.y, 0, 0);
+}
+
+/**
+ * "At the end of the duration: a burst of normal damage around the
+ * character; burst damage x (1 + total movement-speed bonus), burst radius x
+ * (1 + total attack-speed bonus)" — both bonuses read with the window's
+ * stacks still on (the burst is the window's last moment), floored at 0
+ * (Q219); then the stacks reset.
+ */
+export function overdriveBurst(w: World, cls: ClassDef): { damage: number; radius: number } {
+  const eff = cls.active2;
+  return {
+    damage: characterDamage(w, cls, eff.damage) * (1 + Math.max(0, characterMoveSpeedBonus(w))),
+    radius: classArea(w, eff.radius) * (1 + Math.max(0, characterAttackSpeedBonus(w))),
+  };
+}
+
+function endOverdrive(w: World, cls: ClassDef): void {
+  const wd = w.warden;
+  if (!w.dying) {
+    const burst = overdriveBurst(w, cls);
+    applyAoE(w, wd.x, wd.y, burst.radius, burst.damage, 'class_active2', { onHit: passiveOnHit(w, cls) });
+    w.emit('overdrive_burst', wd.x, wd.y, burst.radius, 0);
+  }
+  wd.overdriveRemaining = 0;
+  wd.overdriveStacks = 0;
+}
+
+function updateOverdrive(w: World, cls: ClassDef, dt: number): void {
+  const wd = w.warden;
+  if (wd.overdriveRemaining <= 0) return;
+  wd.overdriveRemaining -= dt;
+  if (wd.overdriveRemaining <= 0) endOverdrive(w, cls);
 }
 
 /**
@@ -2340,31 +2622,16 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
   // other.
   const target = w.nearestEnemy(wd.x, wd.y, characterBasicRange(w));
   if (!target) return;
-  wd.attackCooldown = a.interval / (w.derived.attackSpeedMul * auraSpeedMul(w, wd.x, wd.y));
+  // fb059: `characterAttackSpeedMul` is the same stat-sheet x totem-aura
+  // composition this line always divided by, plus Voltbolt's Overdrive stacks
+  // (1 for every other class) and a Time Core's VS bonus (1 in TD, the only
+  // phase this attack fires in).
+  wd.attackCooldown = a.interval / characterAttackSpeedMul(w);
   const dmg = characterDamage(w, cls, a.dps * a.interval);
-  const onHit = passiveOnHit(w, cls);
-  if (a.aoe > 0) {
-    // Splash routes through the shared AoE convention (aoeFullTargets/aoeFalloff/
-    // aoeFalloffFloor, data/towers.json) so a future kit's basic-attack aoe (p6b+)
-    // doesn't silently skip the cap/falloff discipline every other splash source
-    // already follows (code review on p6a).
-    applyAoE(w, target.x, target.y, classArea(w, a.aoe), dmg, 'class_basic', { onHit }, {
-      primary: target,
-      damage: { fromX: wd.x, fromY: wd.y },
-    });
-  } else {
-    damageEnemy(w, target, dmg, 'class_basic', { fromX: wd.x, fromY: wd.y });
-    if (!target.dead) applyEffects(w, target, { onHit });
-  }
-  // fb056 (§7.1) Plague Flask: "basic attacks apply Poison (120% over 3 s) on
-  // every hit" — the hit's own damage as the triggering amount, §3's ratio
-  // convention (`dotDpsFor`'s `ratio x damage / duration`) at the item's own
-  // authored ratio/seconds.
-  if (!target.dead && classEquipmentActive(w, 'plague_flask')) {
-    const seconds = classEquipmentNum(w, 'plague_flask', 'poisonSeconds', 0);
-    const ratio = classEquipmentNum(w, 'plague_flask', 'poisonRatio', 0);
-    if (seconds > 0 && ratio > 0) applyDot(w, target, 'poison', (ratio * dmg) / seconds, seconds, 'class_basic');
-  }
+  landCharacterHit(w, cls, target, dmg, 'class_basic', wd.x, wd.y);
+  // fb059 (§4.2 Voltbolt): *Arc*'s delayed chain, and one Overdrive stack.
+  queueVoltChain(w, cls, target, dmg, 'class_basic');
+  noteOverdriveHit(w);
   w.emit('class_basic', wd.x, wd.y, target.x, target.y);
 }
 

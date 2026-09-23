@@ -442,10 +442,18 @@ describe('q7 — every field, every wrong shape', () => {
     // fields; the census gained those fields at the same time, so `negative`
     // fell from ~0.786 to 0.7401 — below its old 0.75 floor, the fix working
     // again. Floor re-pinned just under the new measurement.
-    expect(rate('negative')).toBeGreaterThan(0.72);
+    //
+    // Measured 2026-09-23 (fb059): Voltbolt's fourteen kit fields arrive with
+    // loader range rules (`requirePositive`/`requireNonNegative`, content.ts),
+    // every one refusing `negative`; `negative` fell from 0.7401 to 0.7164,
+    // below the 0.72 floor — the fix working a third time. Re-pinned just under.
+    expect(rate('negative')).toBeGreaterThan(0.71);
     // fb056 (same measurement): `zero` fell from ~0.859 to 0.8150 on the same
     // registry, below its old 0.85 floor; re-pinned just under it.
-    expect(rate('zero')).toBeGreaterThan(0.8);
+    // fb059 (2026-09-23): Voltbolt's rules refuse `zero` on seven fields
+    // (ball speed/lifetime, chain radius, window length, the three Overdrive
+    // chain shares); `zero` fell from 0.8150 to 0.7996. Re-pinned just under.
+    expect(rate('zero')).toBeGreaterThan(0.79);
     expect(rate('infinite')).toBe(0);
     expect(rate('fractional')).toBeGreaterThan(0.9);
   }, 300_000);

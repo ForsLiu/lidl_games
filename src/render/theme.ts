@@ -198,6 +198,9 @@ const STYLES: Record<string, ProjectileStyle> = {
   animist: { color: classBasicColor('animist'), shape: 'dart', size: 3, trail: 1.4 },
   time_lord: { color: classBasicColor('time_lord'), shape: 'orb', size: 4, trail: 1.2 },
   madness_king: { color: classBasicColor('madness_king'), shape: 'bolt', size: 5, trail: 1.4 },
+  // fb059: Voltbolt's hitscan line (and its chain arcs / ball shots) — a
+  // jagged tracer, so only the color is read; no trail, nothing travels.
+  voltbolt: { color: classBasicColor('voltbolt'), shape: 'spark', size: 3, trail: 0 },
 };
 
 /**

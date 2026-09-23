@@ -21,6 +21,7 @@ import {
   spawnProjectile,
   targetFirst,
 } from './combat';
+import { characterAttackSpeedBonus, characterMoveSpeedBonus } from './charspeed';
 import type { TowerDef } from './content';
 import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
@@ -269,7 +270,41 @@ function classTowerDamageMul(w: World, s: Structure): number {
   // every tower stat but Wind Slash already carries (Q118/Q119).
   const lowHp = cls.towerPassive.mods.towerLowHpDamageBonus ?? 0;
   if (lowHp > 0 && !w.huntsWarden && s.hp < s.maxHp) mul *= 1 + lowHp;
-  return mul;
+  return mul * lightningAccelerateDamageMul(w);
+}
+
+/**
+ * fb059 (§4.2 Voltbolt tower passive *Lightning Accelerate*): "tower
+ * projectile speed +100%; towers also gain attack speed equal to 50% of the
+ * character's total attack-speed bonus, and bonus damage equal to 50% of the
+ * character's total movement-speed bonus" (designer note: a 50%-efficiency
+ * conversion, not a literal 0.5%). Each is 1 for every other class; a
+ * negative character bonus converts to nothing, never a malus (Q219). Read
+ * live, so an Overdrive window's stacks reach the towers while it lasts.
+ */
+function lightningAccelerate(w: World): { projectileSpeedBonus: number; efficiency: number } | null {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  const tp = cls?.towerPassive;
+  if (!tp || tp.kind !== 'lightning_accelerate') return null;
+  return { projectileSpeedBonus: tp.projectileSpeedBonus ?? 0, efficiency: tp.towerStatConversionEfficiency ?? 0 };
+}
+
+/** fb059: the tower projectile-speed multiplier (a `pierce` bolt's or a `lob` shell's flight). */
+export function towerProjectileSpeedMul(w: World): number {
+  const la = lightningAccelerate(w);
+  return la ? 1 + la.projectileSpeedBonus : 1;
+}
+
+/** fb059: towers' share of the character's total attack-speed bonus. */
+export function lightningAccelerateAtkSpdMul(w: World): number {
+  const la = lightningAccelerate(w);
+  return la ? 1 + la.efficiency * Math.max(0, characterAttackSpeedBonus(w)) : 1;
+}
+
+/** fb059: towers' share of the character's total movement-speed bonus, as damage. */
+export function lightningAccelerateDamageMul(w: World): number {
+  const la = lightningAccelerate(w);
+  return la ? 1 + la.efficiency * Math.max(0, characterMoveSpeedBonus(w)) : 1;
 }
 
 /**
@@ -408,7 +443,8 @@ export function attackSpeedFor(w: World, s: Structure): number {
     (1 + (w.auraBonus.get(s.id) ?? 0)) *
     vampireMissingHpBuffMul(w, s) *
     classTowerAttackSpeedMul(w, s) *
-    frenziedAimMul(w, s)
+    frenziedAimMul(w, s) *
+    lightningAccelerateAtkSpdMul(w)
   );
 }
 
@@ -557,7 +593,8 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
           y,
           targetX: x + dir.x * range,
           targetY: y + dir.y * range,
-          speed: a.projectileSpeed ?? 14,
+          // fb059: Voltbolt's Lightning Accelerate (1 for every other class).
+          speed: (a.projectileSpeed ?? 14) * towerProjectileSpeedMul(w),
           damage: dmg,
           pierce: prof.pierce,
           source,
@@ -625,7 +662,8 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         s.cooldown = 0;
         return;
       }
-      const speed = a.projectileSpeed ?? 7;
+      // fb059: Lightning Accelerate — the lead is computed at the boosted speed too.
+      const speed = (a.projectileSpeed ?? 7) * towerProjectileSpeedMul(w);
       const lead = Math.sqrt(dist2(x, y, t.x, t.y)) / speed;
       const aim = leadTarget(t, lead);
       spawnProjectile(w, {
@@ -712,6 +750,9 @@ export function arcElectric(
     return applyDamageType(w, first, 'electric', share, source, { fromX: originX, fromY: originY });
   }
   w.emit('arc', first.x, first.y, next.x, next.y);
+  // fb059 (QA): a jump to another enemy is a chain hit — Voltbolt's unlock
+  // quest counts it, so any class that builds a Tesla Coil can progress it.
+  w.chainHits++;
   return applyDamageType(w, next, 'electric', share, source, { fromX: first.x, fromY: first.y });
 }
 

@@ -12,7 +12,7 @@
  * own comments record it biting p6b twice, both times as a cooldown consumed
  * by a kind the switch never matched.
  *
- * **What "live" means here, precisely.** Each of the 26 Actives (13 classes x
+ * **What "live" means here, precisely.** Each of the 28 Actives (14 classes x
  * Active1/Active2) is fired once in a real `World` that has been given
  * whatever the Active needs to act on — an enemy, a built tower, a corpse, a
  * poison stack, banked Wrath — and must change at least one entry of
@@ -52,7 +52,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { tickClassCharge, useClassActive, useClassActive2 } from '../src/sim/classes';
+import { tickClassCharge, updateClassPassives, useClassActive, useClassActive2 } from '../src/sim/classes';
 import { loadContent, type ClassDef, type Content } from '../src/sim/content';
 import { applyDot, killEnemy, spawnEnemy } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
@@ -391,6 +391,27 @@ const CASES: readonly KitCase[] = [
     setup: (w) => void dummy(w, WX + 2, WY),
     fire: (w) => useClassActive2(w, WX + 2, WY),
   },
+  {
+    classKey: 'voltbolt',
+    slot: 1, // Lightning Ball (lightning_ball) — proven on the enemy its ball zaps, not on the ball existing
+    setup: (w) => void dummy(w, WX + 2, WY),
+    fire: (w) => {
+      const ok = useClassActive(w, WX + 2, WY);
+      for (let t = 0; t < 30; t++) updateClassPassives(w, 1 / 60);
+      return ok;
+    },
+  },
+  {
+    classKey: 'voltbolt',
+    slot: 2, // Overdrive (overdrive_voltbolt) — proven on the end burst's damage, run to the window's close
+    setup: (w) => void dummy(w, WX + 1, WY),
+    fire: (w) => {
+      const ok = useClassActive2(w);
+      const seconds = w.content.classByKey.get('voltbolt')!.active2.overdriveSeconds ?? 0;
+      for (let t = 0; t < Math.ceil((seconds + 0.5) * 60); t++) updateClassPassives(w, 1 / 60);
+      return ok;
+    },
+  },
 ];
 
 /** The hold/release Active1 kinds (`isChargeKind`, classes.ts) — fb061 added `ground_poison`. */
@@ -404,8 +425,8 @@ function label(c: KitCase, cls: ClassDef): string {
 /* ------------------------------------------------------------------- tests */
 
 describe('c005: every §4 class Active changes something observable', () => {
-  it('covers all 26 Actives — every class, both slots, exactly once', () => {
-    expect(content.classes.classes).toHaveLength(13);
+  it('covers all 28 Actives — every class, both slots, exactly once', () => {
+    expect(content.classes.classes).toHaveLength(14);
     const seen = CASES.map((c) => `${c.classKey}:${c.slot}`);
     expect(new Set(seen).size, 'a duplicated case row').toBe(seen.length);
     const wanted = content.classes.classes.flatMap((c) => [`${c.key}:1`, `${c.key}:2`]);

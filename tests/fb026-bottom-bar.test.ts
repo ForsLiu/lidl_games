@@ -25,8 +25,8 @@ const content = loadContent();
 const CLASS_KEYS = content.classes.classes.map((c) => c.key);
 
 describe('fb026 bottom bar — sweep fraction matches sim cooldown fields', () => {
-  it('covers all 13 classes', () => {
-    expect(CLASS_KEYS.length).toBe(13);
+  it('covers all 14 classes', () => {
+    expect(CLASS_KEYS.length).toBe(14);
   });
 
   for (const key of CLASS_KEYS) {

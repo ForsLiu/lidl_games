@@ -97,6 +97,10 @@ export const AREA_SCALED_ACTIVE_KINDS: ReadonlySet<ClassEffect['kind']> = new Se
   'time_mark', // fireTimeMark
   'time_lock', // fireTimeLock
   'spreading_madness', // fireSpreadingMadness (fb057)
+  // fb059: the end-of-window burst is `classArea(eff.radius)`, then x(1 +
+  // the character's total attack-speed bonus) — the preview shows the Area
+  // half, the bonus half grows with play (`overdriveBurst`, classes.ts).
+  'overdrive_voltbolt', // overdriveBurst (fb059)
 ]);
 
 export interface SkillVfxEntry {
@@ -107,8 +111,11 @@ export interface SkillVfxEntry {
   color: string;
 }
 
-/** fb021: a basic attack is either a melee `swing` (rendered as a `CastFx` slash, like a class Active's `line` shape) or a `projectile` (a travelling `Tracer`, the same mechanism `shot`/`spit` already use for tower/enemy attacks — `theme.ts`'s `STYLES` needs a matching row keyed by the class for the latter). */
-export type BasicAttackShape = 'swing' | 'projectile';
+/**
+ * fb021: a basic attack is either a melee `swing` (rendered as a `CastFx` slash, like a class Active's `line` shape) or a `projectile` (a travelling `Tracer`, the same mechanism `shot`/`spit` already use for tower/enemy attacks — `theme.ts`'s `STYLES` needs a matching row keyed by the class for the latter).
+ * fb059: `hitscan` (Voltbolt) is an instant lightning line from the character to the target — the jagged `Tracer` chain arcs already use, drawn full-length the moment the hit lands (no travel), styled by the class's own `STYLES` row.
+ */
+export type BasicAttackShape = 'swing' | 'projectile' | 'hitscan';
 
 /**
  * fb055: the moment a basic attack lands, distinct per class so the three
@@ -136,7 +143,7 @@ export interface ClassVfxEntry {
   basic: BasicVfxEntry;
 }
 
-/** SPEC-FINAL §13's thirteen real classes (fb013 Time Lord, fb057 Madness King). */
+/** SPEC-FINAL §13's fourteen real classes (fb013 Time Lord, fb057 Madness King, fb059 Voltbolt). */
 export const CLASS_VFX: Record<string, ClassVfxEntry> = {
   swordsman: {
     q: { indicator: 'charge ring at the Warden, radius grows with hold', fire: 'expanding slash nova + knockback', color: '#e0c46c' },
@@ -217,7 +224,34 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     passive: { cue: "a madness glow on the struck enemy, brightening with each madness attack it makes (MADNESS_VFX)", color: '#c257d9' },
     basic: { shape: 'projectile', fire: 'a spinning crown-topped scepter shard hurled at the target', color: '#d4a93a', impact: 'crown' },
   },
+  // fb059 (§4.2 Voltbolt): the fifth visible class — "instant lightning bolt
+  // line, delayed chain arcs, crackling ball, Overdrive aura that intensifies
+  // with stacks, ring burst on expiry" (VOLT_VFX).
+  voltbolt: {
+    q: { indicator: 'landing ring at the cursor, clamped to basic range', fire: 'a crackling ball that flies to the point and hovers, zapping the nearest enemy (VOLT_VFX.ball)', color: '#7ff0ff' },
+    e: { indicator: 'burst ring at the Warden', fire: 'an Overdrive aura that brightens and widens with each stack, then a ring burst on expiry (VOLT_VFX.aura/burst)', color: '#ffe45c' },
+    passive: { cue: 'a delayed chain arc from the struck enemy to the next (VOLT_VFX.chain)', color: '#7ff0ff' },
+    basic: { shape: 'hitscan', fire: 'an instant jagged lightning line to the target', color: '#bff6ff' },
+  },
 };
+
+/**
+ * fb059 (§4.2 Voltbolt): the kit's own effects beyond the registry row's
+ * cast flashes — every one driven by sim state or a sim fx event, never a
+ * client-side timer (§12.3).
+ */
+export const VOLT_VFX = {
+  chain: { fire: "a jagged arc from the previous link's enemy to the next, 0.1 s after the hit (sim `volt_chain`)", color: '#7ff0ff' },
+  ball: { fire: "a crackling orb at each live ball's position, arcing to its target on every shot (sim `volt_ball_shot`)", color: '#7ff0ff' },
+  aura: { fire: "a ring around the Warden while Overdrive runs, brighter and wider per stack (`overdriveAuraStyle`)", color: '#ffe45c' },
+  burst: { fire: 'a ring burst at the Overdrive burst radius on expiry (sim `overdrive_burst`)', color: '#ffe45c' },
+} as const;
+
+/** fb059: the Overdrive aura's ramp — alpha 0.35 -> 0.9 and radius 12 -> 22 px over stacks 0..20. */
+export function overdriveAuraStyle(stacks: number): { alpha: number; radiusPx: number } {
+  const t = Math.max(0, Math.min(20, stacks)) / 20;
+  return { alpha: 0.35 + 0.55 * t, radiusPx: 12 + 10 * t };
+}
 
 /**
  * fb057 (§4.2 Madness King, the Madness status): "teammate-attack and

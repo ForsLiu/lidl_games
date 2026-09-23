@@ -5,6 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 — BACKLOG-CONTENT.md fb059 (Voltbolt, class #14) done
+  (owner-directed session, full repository scope; the previous session's
+  fb056/fb061/fb062/fb057 were squash-merged as PR #151, so this branch was
+  restarted from master).** Voltbolt ships as the fifth visible class: *Arc*
+  (hitscan basic + a 0.1 s delayed chain link to the nearest unhit enemy in
+  r3, else the original), *Lightning Ball* (thrown, hovering, fires the
+  basic attack at total attack speed, +25% of the move bonus as damage),
+  *Overdrive* (three links 25/12.5/12.5%, additive +2.5%/+2.5% stacks reset
+  at the end, a move/attack-bonus-scaled end burst; E declines while open),
+  *Lightning Accelerate* (tower projectiles x2, towers take 50% of the
+  character's total attack/move bonuses). New `src/sim/charspeed.ts` owns the
+  character's live attack/move composition. Unlock `live_wire` (300 chain
+  jumps in a run — Voltbolt links, Chain Surge jumps, Tesla Coil chains).
+  Roster 14 through SPEC-FINAL §4/§13/§14 G8 (91 pairs), every roster test,
+  q7; `tests/class-voltbolt.test.ts` 58 cases. Review REQUEST-CHANGES ->
+  APPROVE (Major: links struck during the defeat beat), QA PASS (Major: the
+  unlock was unreachable in a normal profile) — every finding fixed
+  test-first. G8/late-game scaling unmeasured: fb203; a pre-existing Time
+  Lock NaN-aim bug found by QA: fb204. Readings: QUESTIONS Q219.
+
 - **2026-09-23 (scheduled routine, third run) — same stall, no owner
   notification this time (already sent on the second run, ~5.7h ago).**
   Preflight: no open PR and no branch touched BACKLOG.md-adjacent files in

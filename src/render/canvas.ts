@@ -52,6 +52,8 @@ import {
   CLASS_VFX,
   MADNESS_VFX,
   madnessRampColor,
+  overdriveAuraStyle,
+  VOLT_VFX,
   CORE_VFX,
   type BasicImpactShape,
   type VfxShape,
@@ -854,7 +856,11 @@ export class Renderer {
           const cls = w.content.classByKey.get(w.cfg.classKey);
           const entry = cls ? CLASS_VFX[w.cfg.classKey] : undefined;
           if (!entry) break;
-          if (entry.basic.shape === 'swing') {
+          if (entry.basic.shape === 'hitscan') {
+            // fb059 (Voltbolt): an instant lightning line — the jagged
+            // tracer drawn full-length the moment the hit lands.
+            if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, w.cfg.classKey, true));
+          } else if (entry.basic.shape === 'swing') {
             this.pushCast('line', e.x, e.y, e.a, e.b, entry.basic.color);
             // fb055: Swordsman's sword-swing-arc sweep, layered over the
             // straight slash line above (kept as-is so it still reads as a
@@ -877,6 +883,18 @@ export class Renderer {
         }
         // fb057 (§4.2 Madness King): the Madness status's two attack shapes
         // (MADNESS_VFX) and the stack ramp that brightens with each attack.
+        // fb059 (§4.2 Voltbolt): delayed chain arcs and Lightning Ball shots
+        // are instant jagged lines like the basic attack itself; Overdrive's
+        // expiry burst is a ring at the radius it actually struck.
+        case 'volt_chain':
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'voltbolt', true));
+          break;
+        case 'volt_ball_shot':
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'voltbolt', true));
+          break;
+        case 'overdrive_burst':
+          this.pushCast('nova', e.x, e.y, e.a, 0, VOLT_VFX.burst.color);
+          break;
         case 'madness_hit':
           this.pushCast('line', e.x, e.y, e.a, e.b, MADNESS_VFX.teammate.color);
           break;
@@ -1162,6 +1180,7 @@ export class Renderer {
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
+    this.drawLightningBalls(w, view);
     this.drawTracers(view);
     this.drawCasts(view);
     this.drawBasicImpacts(view);
@@ -1703,6 +1722,36 @@ export class Renderer {
    * distinct from `reducedFlash`, which only dims brightness and does
    * nothing about the jitter itself.
    */
+  /**
+   * fb059 (§4.2 Voltbolt *Lightning Ball*): each live ball, a small bright
+   * orb with a flickering crackle ring — the flicker keyed off the ball's own
+   * remaining life (sim state), so a paused frame holds still; reduced-flash
+   * and reduced-motion both drop the flicker to a steady ring.
+   */
+  private drawLightningBalls(w: World, view: ViewState): void {
+    if (w.lightningBalls.length === 0) return;
+    const ctx = this.ctx;
+    const calm = view.settings.reducedFlash || view.settings.reducedMotion;
+    ctx.save();
+    for (const b of w.lightningBalls) {
+      const px = b.x * TILE;
+      const py = b.y * TILE;
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = VOLT_VFX.ball.color;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+      const flicker = calm ? 0 : Math.floor(b.remaining * 20) % 3;
+      ctx.globalAlpha = calm ? 0.5 : 0.4 + 0.2 * flicker;
+      ctx.strokeStyle = VOLT_VFX.ball.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 8 + flicker, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawTracers(view: ViewState): void {
     const ctx = this.ctx;
     const reduced = view.settings.reducedFlash;
@@ -1789,6 +1838,18 @@ export class Renderer {
     // registry passive cue with nothing drawing it before this fix (QA fb016
     // finding #2). `classArmorBonus` is the same live sim state the armor
     // formula itself reads, so the ring appears exactly when the bonus does.
+    // fb059 (§4.2 Voltbolt): the Overdrive aura, brighter and wider per stack.
+    if (wd.overdriveRemaining > 0) {
+      const aura = overdriveAuraStyle(wd.overdriveStacks);
+      ctx.save();
+      ctx.globalAlpha = aura.alpha;
+      ctx.strokeStyle = VOLT_VFX.aura.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, aura.radiusPx, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (classArmorBonus(w) > 0) {
       const color = CLASS_VFX[w.cfg.classKey]?.passive.color ?? '#ffd166';
       ctx.strokeStyle = `${color}aa`;

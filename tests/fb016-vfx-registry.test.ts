@@ -57,7 +57,7 @@ const realCoreKeys = content.cores.cores.map((c) => c.key);
 
 describe('fb016: the VFX registry covers every real class and Core', () => {
   it('has a CLASS_VFX row for every class, with populated q/e/passive fields', () => {
-    expect(realClassKeys.length).toBe(13); // SPEC-FINAL §13, fb013, fb057
+    expect(realClassKeys.length).toBe(14); // SPEC-FINAL §13, fb013, fb057, fb059
     for (const key of realClassKeys) {
       const entry = CLASS_VFX[key];
       expect(entry, key).toBeDefined();
@@ -69,8 +69,9 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
       }
       expect(entry.passive.cue.length, `${key}.passive.cue`).toBeGreaterThan(0);
       expect(entry.passive.color, `${key}.passive.color`).toMatch(/^#[0-9a-f]{6}$/i);
-      // fb021: every class's basic attack needs its own registered fire shape.
-      expect(['swing', 'projectile']).toContain(entry.basic.shape);
+      // fb021: every class's basic attack needs its own registered fire shape
+      // (fb059 added `hitscan`, Voltbolt's instant lightning line).
+      expect(['swing', 'projectile', 'hitscan']).toContain(entry.basic.shape);
       expect(entry.basic.fire.length, `${key}.basic.fire`).toBeGreaterThan(0);
       expect(entry.basic.color, `${key}.basic.color`).toMatch(/^#[0-9a-f]{6}$/i);
     }

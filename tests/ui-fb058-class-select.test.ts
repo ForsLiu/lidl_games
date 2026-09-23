@@ -59,19 +59,20 @@ function classDetail(root: HTMLElement): HTMLElement {
   return panel.querySelector<HTMLElement>('.sw-classdetail')!;
 }
 
-describe('fb058: Class-select screen — normal profile shows exactly 4 classes', () => {
-  it('renders exactly 4 class cards, one per NORMAL_PROFILE_CLASS_KEYS entry, with showHiddenClasses off', () => {
+describe('fb058: Class-select screen — normal profile shows exactly 5 classes', () => {
+  it('renders exactly 5 class cards, one per NORMAL_PROFILE_CLASS_KEYS entry, with showHiddenClasses off', () => {
     // fb057: Madness King joined the visible roster as its 4th card
-    // ("alongside Swordsman, Plaguebringer, Time Lord").
+    // ("alongside Swordsman, Plaguebringer, Time Lord"); fb059: Voltbolt as
+    // its 5th ("Add to the VISIBLE roster").
     const { root } = openHub();
     const cards = [...root.querySelectorAll<HTMLElement>('.sw-classcard[data-class]')];
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(5);
     expect(new Set(cards.map((c) => c.dataset.class))).toEqual(new Set(NORMAL_PROFILE_CLASS_KEYS));
-    expect([...NORMAL_PROFILE_CLASS_KEYS].sort()).toEqual(['madness_king', 'plaguebringer', 'swordsman', 'time_lord']);
+    expect([...NORMAL_PROFILE_CLASS_KEYS].sort()).toEqual(['madness_king', 'plaguebringer', 'swordsman', 'time_lord', 'voltbolt']);
   });
 
-  it('the 13-class roster stays fully defined in content.classes regardless of what the screen shows', () => {
-    expect(content.classes.classes.length).toBeGreaterThanOrEqual(13);
+  it('the 14-class roster stays fully defined in content.classes regardless of what the screen shows', () => {
+    expect(content.classes.classes.length).toBeGreaterThanOrEqual(14);
   });
 });
 
@@ -108,7 +109,7 @@ describe('fb058: the dev "show hidden classes" toggle reveals the full roster', 
     hub.openTab('run');
 
     const cards = [...root.querySelectorAll<HTMLElement>('.sw-classcard[data-class]')];
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(5);
     expect(new Set(cards.map((c) => c.dataset.class))).toEqual(new Set(NORMAL_PROFILE_CLASS_KEYS));
     const detail = classDetail(root);
     expect([...detail.querySelectorAll('.sw-cs-skill')]).toHaveLength(4);
