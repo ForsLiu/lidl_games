@@ -263,6 +263,67 @@ closed).
       count pin moves on the next full-tier run). Acceptance: each of (a)-(g)
       fixed with a test, (h) measured and pinned — refs: fb057 review,
       SPEC-FINAL §4.2, §14 G8.
+      **Shipped 2026-09-23 (scheduled routine), (a)-(e2):** (a) both radii
+      moved to `data/classes.json`'s `whispers` row as `madnessSearchRadius`/
+      `madnessWanderRadius` (`REQUIRED_PASSIVE_FIELDS`-guarded, `num.
+      positive().optional()`), read by two new `enemies.ts` helpers; q7/c008/
+      the class-descriptions ledger regenerated (2 `in_code` rows closed to
+      `match`/`field`). (b) `updateMadnessAttack`/`madnessMoveTarget` now
+      call `w.nearestEnemy(..., isOtherLiveMadnessTarget)`, a module-level
+      filter function with a module-level "self id" set immediately before
+      each call (safe: the sim tick is single-threaded, neither caller
+      re-enters before its own call returns) — no more per-tick closure
+      allocation or full-roster scan. (c) `updateConvertedSummon`
+      (classes.ts): the target search now excludes submerged enemies
+      (`(e) => !e.submerged`, matching the madness search's own exclusion) so
+      "only submerged left" correctly counts as "none left"; the passability
+      check is now axis-decomposed (two independent `passable` calls, mirror-
+      ing `moveEnemy`'s own wall-slide) instead of one combined-tile
+      all-or-nothing test. (d) `fireSpreadingMadness` no longer unconditionally
+      clears `madnessFromPassive` on every enemy it touches — **this reverses
+      Q217(15)'s logged reading**, which turned out to be the bug itself, not
+      a design choice (see QUESTIONS Q218(a)): an already-Whispers-held enemy
+      now keeps its slot when Active2 merely extends its duration; a *fresh*
+      Active2-only mad enemy still takes no slot (unchanged, since
+      `madnessFromPassive` starts `false` and nothing sets it true here
+      anymore). (e) No code change: Q217(13) already answered this exact
+      question (self-kills count) and shipped code already reflects it —
+      QUESTIONS Q218(b) records the review's alternative reading as filed,
+      not adopted. (e2) new `madnessMaxStacks` field (`whispers` row,
+      `num.int().positive().optional()`, `REQUIRED_PASSIVE_FIELDS`), default
+      20 chosen and logged (QUESTIONS Q218(c), no owner/spec number exists);
+      `registerMadnessAttack` now takes `w` and refuses to grow past it.
+      Six new regression tests in `tests/class-madness-king.test.ts`
+      (submerged-exclusion death, axis-slide — verified failing against the
+      pre-fix single-check via a scoped manual revert, a second discriminating
+      axis-order case, stack cap) plus the existing "Spreading Madness ...
+      releases its passive slot" test rewritten to assert the corrected (d)
+      behaviour; `tests/fb085-enablers.test.ts`'s three `whispers` fixtures
+      gained the three new required fields. `npx tsc --noEmit` clean; targeted
+      tests + `npm run test:fast` green (4843 passed, 34 pre-existing skips).
+      Light tier (`[polish]`). code-reviewer REQUEST-CHANGES on the first
+      pass: (c)'s axis-decomposed fix checked the Y branch against `s.x`
+      *after* the X branch may have already mutated it, so whichever axis
+      happened to be checked first could still flip the other's outcome —
+      the exact bug class this fix exists to close, and the first test did
+      not discriminate it (blocked both the diagonal and the "north" tile,
+      so the coupled and independent versions agreed by coincidence). Fixed
+      by snapshotting `s.x`/`s.y` into `ox`/`oy` before either branch and
+      checking both against those; the new second test (only the diagonal
+      tile blocked, both real axes open) fails on the coupled version and
+      passes on the fix — confirmed by the same scoped-revert method as the
+      first. code-reviewer's other finding (`nearestEnemy`'s strict-`<`/
+      lowest-id tie-break differs slightly from the old loops' inclusive-`<=`/
+      last-encountered one) was Nit-level, not a determinism hazard, and left
+      as-is. Re-verified green after the fix (targeted: 47/47).
+      **Left `[ ]` — out of this lane's Scope or too large for one item:**
+      (f)/(g) filed below as cross-lane findings (render/UI, not
+      `src/sim/**`); (h) needs a live re-measurement of the excluded,
+      ~1-hour `tests/p6e-class-diversity.test.ts` sweep (working rule 8: not
+      run speculatively outside a `[balance]` item or one whose acceptance
+      is itself a gate re-measurement — which this clause is, but the sweep
+      alone exceeds one scheduled-routine item's time budget, same class of
+      deferral fb197 logged). Item stays open for (f)/(g)/(h) alone.
 
 - [ ] (fb059) [feat] normal priority: new class #14, Voltbolt (visible
       roster) — hitscan basic attack (normal damage type, no travel time);
@@ -408,6 +469,20 @@ are still blocked by the separate SPEC-FINAL.md wall above).
   fingerprint-distance check and its measurement method: `c033`/`c039`/
   `c040`; Bloodlord's specific wall: `c039`). Closed as superseded rather
   than executed — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D, c032-c041.
+
+### Filed 2026-09-23 — fb202(f)/(g) cross-lane findings (not this lane's to fix)
+
+- **(f) Madness King's basic-attack projectile (render lane).** The owner
+  asked for a distinct crown/scepter projectile sprite; it currently reuses
+  Engineer's `bolt` shape (only the impact VFX is distinct today,
+  `CLASS_VFX`/`MADNESS_VFX`, `src/render/vfx-registry.ts`). Needs a new
+  sprite/shape in `src/render/**`, out of this lane's Scope
+  (`src/sim/**`/`data/classes.json`/`data/equipment.json` only).
+- **(g) DPS panel shows the raw `madness` source key (UI lane).** The panel
+  (`src/ui/**`, BACKLOG-UI.md's territory) prints `MADNESS_SOURCE` (`'madness'`,
+  `src/sim/enemies.ts`) verbatim instead of a display label the way every
+  other damage source already resolves one. Needs a label mapping in the UI
+  lane, out of this lane's Scope.
 
 ### Filed 2026-09-07 — fb062 cross-lane findings (not this lane's to fix)
 

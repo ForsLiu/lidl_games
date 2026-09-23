@@ -258,7 +258,12 @@ describe('fb057 Whispers cap — madnessCap enemies at once, then nothing until 
 /* ------------------------------------------------------ the Madness status */
 
 describe('fb057 QA regressions', () => {
-  it('Spreading Madness on an enemy Whispers holds releases its passive slot (Active2 madness takes no slot)', () => {
+  it('Spreading Madness on an enemy Whispers already holds keeps its passive slot (fb202 code-review correction)', () => {
+    // fb202: the old behaviour here (Active2 releasing an already-Whispers-
+    // held enemy's slot) was itself the bug — it let Spreading Madness
+    // silently free a cap slot for an enemy still mad the whole time,
+    // undercounting the passive's live cap. Active2 only ever extends the
+    // clock; an enemy the passive already holds keeps its slot.
     const CAP = Math.round(PASSIVE.madnessCap!);
     const w = world();
     const held = Array.from({ length: CAP }, (_, i) => bag(w, WX + 1 + i, WY));
@@ -266,10 +271,10 @@ describe('fb057 QA regressions', () => {
     const first = held[0]!;
     expect(first.madnessFromPassive).toBe(true);
     expect(useClassActive2(w, first.x, first.y)).toBe(true);
-    expect(first.madnessFromPassive, 'Active2 took this madness over; it must not hold a Whispers slot').toBe(false);
+    expect(first.madnessFromPassive, 'Active2 must not evict an already-passive-held enemy from its slot').toBe(true);
     const fresh = bag(w, WX + 1, WY + 6);
     basicHit(w, fresh);
-    expect(fresh.madnessRemaining, 'a slot freed by Active2 must be claimable').toBeGreaterThan(0);
+    expect(fresh.madnessRemaining, 'the cap is still fully held — no slot was freed').toBe(0);
   });
 
   it("Mind Manipulation's elite slow lasts its own window even under a longer, weaker slow (a frost aura)", () => {
@@ -341,6 +346,20 @@ describe('fb057 Madness — a mad enemy attacks the nearest other enemy within r
     const c = bag(ctl, WX + 1, WY);
     tickEnemies(ctl, 1);
     expect(c.hp, 'an unmad enemy struck itself').toBe(c.maxHp);
+  });
+
+  it('madnessStacks caps at madnessMaxStacks instead of growing without bound (fb202, QA: 2,509 stacks over 60 s)', () => {
+    // Each stack's own +attack-speed shortens the next attack's cooldown,
+    // which lets the next stack land sooner — an uncapped positive-feedback
+    // loop with no natural ceiling. Refreshing the madness clock every tick
+    // (self-strikes alone, no other enemy nearby) isolates the loop from the
+    // status simply lapsing.
+    const w = world();
+    const a = bag(w, WX + 1, WY);
+    const cap = Math.round(PASSIVE.madnessMaxStacks!);
+    expect(cap, 'harness: this class must author a real cap for the test to mean anything').toBeGreaterThan(0);
+    tickEnemies(w, 30, () => applyMadness(a, PASSIVE.madnessDurationSeconds!));
+    expect(a.madnessStacks).toBe(cap);
   });
 
   it('each madness attack speeds the next: the cooldown after strike k is contactInterval / (1 + (k-1) x madnessAtkSpdPerStack)', () => {
@@ -571,6 +590,84 @@ describe('fb057 Mind Manipulation — converts the non-elite nearest the cursor'
     };
     expect(lastsWith(false), 'the teammate outlived the cleared wave').toBe(0);
     expect(lastsWith(true), 'the teammate died with enemies still to come').toBe(1);
+  });
+
+  it('dies when only submerged enemies remain, not just when none do at all (fb202 code-review correction)', () => {
+    // A submerged enemy (a diving Burrower) is unreachable — before this fix,
+    // `nearestEnemy` found it anyway, so the teammate walked at an unreachable
+    // target forever and never triggered the "wave cleared" death check.
+    const w = world();
+    const e = bag(w, WX + 1, WY, { speed: true });
+    useClassActive(w, e.x, e.y);
+    w.compact();
+    expect(converted(w)).toHaveLength(1);
+    const foe = bag(w, WX + 5, WY);
+    foe.submerged = true;
+    for (let t = 0; t < 30; t++) updateClassSummons(w, DT);
+    expect(converted(w), 'a submerged-only remainder must count as none left').toHaveLength(0);
+  });
+
+  /**
+   * Sets a converted teammate right at a tile-corner boundary, aimed
+   * up-right at a far target so the very next step crosses both axes at
+   * once, and clears the four tiles around the corner (anchored on the
+   * Warden's own known-clear tile rather than an absolute coordinate, since
+   * the "probed board" may wall off arbitrary tiles elsewhere). Returns the
+   * summon and the corner's own (cx, cy).
+   */
+  function cornerSetup(w: World): { s: ClassSummon; cx: number; cy: number } {
+    const e = bag(w, WX + 1, WY, { speed: true });
+    useClassActive(w, e.x, e.y);
+    w.compact();
+    const s = converted(w)[0]!;
+    const cx = Math.floor(w.warden.x);
+    const cy = Math.floor(w.warden.y);
+    s.x = cx + 0.999;
+    s.y = cy + 0.999;
+    bag(w, cx + 20, cy + 20); // far up-right — keeps the approach direction diagonal
+    for (const [tx, ty] of [
+      [cx, cy],
+      [cx + 1, cy],
+      [cx, cy + 1],
+      [cx + 1, cy + 1],
+    ]) {
+      w.grid.blocked[w.grid.idx(tx!, ty!)] = 0;
+    }
+    return { s, cx, cy };
+  }
+
+  it('slides along an open axis instead of stalling completely against a blocked diagonal tile (fb202 code-review correction)', () => {
+    // The old passability check tested one combined destination tile
+    // (floor(nx), floor(ny)) and rejected the whole step — both axes — the
+    // instant that single tile was blocked, even when sliding along one open
+    // axis (a maze corner's corridor) was perfectly legal.
+    const w = world();
+    const { s, cx, cy } = cornerSetup(w);
+    // A wall corner: the diagonal tile and the "north" tile are blocked; the
+    // "east" tile stays open, like a corridor bending east.
+    w.grid.blocked[w.grid.idx(cx + 1, cy + 1)] = 1;
+    w.grid.blocked[w.grid.idx(cx, cy + 1)] = 1;
+    updateClassSummons(w, DT);
+    expect(s.x, 'must still slide east through the open tile').toBeGreaterThan(cx + 1);
+    expect(s.y, 'north stays blocked, unlike the old all-or-nothing stall').toBeCloseTo(cy + 0.999, 6);
+  });
+
+  it("checks each axis against the pre-move position, not a value the other axis's own branch already wrote (fb202 code-review Major)", () => {
+    // A first-draft fix checked passability for X/Y independently but let the
+    // Y branch read `s.x` *after* the X branch may have already written it —
+    // so whichever axis happened to be checked first could flip the other's
+    // outcome. Here only the diagonal tile is blocked; both the "east" tile
+    // (the candidate X move) and the "north" tile, read against the
+    // ORIGINAL x, are open — a real diagonal-adjacent corner where both axes
+    // should independently pass. The coupled draft instead evaluates the Y
+    // branch against the already-updated (east) x, which lands on the
+    // blocked diagonal tile, and wrongly refuses the Y move.
+    const w = world();
+    const { s, cx, cy } = cornerSetup(w);
+    w.grid.blocked[w.grid.idx(cx + 1, cy + 1)] = 1; // only the diagonal tile
+    updateClassSummons(w, DT);
+    expect(s.x, 'the east tile was open').toBeGreaterThan(cx + 1);
+    expect(s.y, "the north tile, read against the ORIGINAL x, was open too").toBeGreaterThan(cy + 1);
   });
 
   it("a convert that was mad keeps its stacked bonus: interval / (1 + n x atk) and speed x (1 + n x move)", () => {

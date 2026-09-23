@@ -5,6 +5,56 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-23 (scheduled routine) — BACKLOG-CONTENT.md fb202 (a)-(e2) shipped,
+  item stays open for (f)/(g)/(h).** fb057's code-review follow-up list had
+  eight sub-clauses; this session shipped the five in this lane's Scope:
+  (a) the Madness status's r3 search / r1 wander moved from `enemies.ts`
+  literals onto `data/classes.json`'s `whispers` row as `madnessSearchRadius`/
+  `madnessWanderRadius` (rule 4), q7/c008/class-descriptions ledgers
+  regenerated. (b) `updateMadnessAttack`/`madnessMoveTarget` replaced their
+  O(live enemies) per-tick scans with `w.nearestEnemy`'s spatial-hash lookup
+  (a module-level filter function, no per-call closure). (c)
+  `updateConvertedSummon` (classes.ts) now excludes submerged enemies from
+  its target search (was walking forever at an unreachable Burrower instead
+  of dying with the wave) and checks passability per-axis instead of one
+  combined-tile all-or-nothing test (was stalling completely at a maze
+  corner where sliding along one open axis was legal). (d) **Reverses a prior
+  logged reading (Q217(15)):** `fireSpreadingMadness` no longer strips an
+  already-Whispers-held enemy's slot just because Active2 touched it too —
+  that was the bug QA found (a capped passive silently losing count of a
+  still-mad enemy), not the intended design; QUESTIONS Q218(a) records the
+  correction. (e) No code change — Q217(13) already answered the self-kill
+  question fb202 re-raised, and shipped code already matched it (Q218(b)).
+  (e2) new `madnessMaxStacks` data field (default 20, chosen and logged,
+  Q218(c) — no owner/spec number exists) stops the uncapped attack-speed
+  feedback loop QA measured at 2,509 stacks over 60 s.
+  Six new regression tests (`tests/class-madness-king.test.ts`): submerged-
+  only-remaining death, axis-slide at a blocked diagonal, a second axis-order
+  case, and the stack cap; the existing "Spreading Madness ... releases its
+  passive slot" test was rewritten to assert the corrected (d) behaviour
+  instead of the bug. `tests/fb085-enablers.test.ts`'s three `whispers`
+  fixtures gained the three new required fields (their absence would have
+  thrown at load). **code-reviewer REQUEST-CHANGES on the first pass:** (c)'s
+  axis-decomposed fix checked the Y branch against `s.x` after the X branch
+  may have already mutated it, so which axis got checked first could still
+  flip the other's outcome — the same bug class this fix exists to close,
+  and the first test did not discriminate it. Fixed by snapshotting `s.x`/
+  `s.y` before either branch; the added second test (only the diagonal tile
+  blocked, both real axes open) fails on the coupled version, passes on the
+  fix — both new axis tests verified against a scoped manual revert-and-
+  restore of the relevant lines. `npx tsc --noEmit` clean; targeted tests
+  green (47/47 after the fix); `npm run test:fast` green (4843 passed, 34
+  pre-existing skips).
+  **Left open, not this session's:** (f) a distinct Madness King basic-attack
+  projectile and (g) the DPS panel's raw `madness` source key are both
+  outside this lane's Scope (render/UI) — filed as cross-lane findings in
+  BACKLOG-CONTENT.md's Queue for the render/UI lanes to pick up. (h)
+  measuring Madness King's G8 band needs the excluded, ~1-hour
+  `tests/p6e-class-diversity.test.ts` sweep — too large for one scheduled-
+  routine item (same class of deferral as fb197), left for a session with
+  room for a long-running item. Light tier (`[polish]`). — refs: SPEC-FINAL
+  §4.2, §14 G8, fb057 review, BACKLOG-CONTENT.md fb202, QUESTIONS Q218.
+
 - **2026-09-23 (scheduled routine) — BACKLOG-UI.md fb201 CLOSED: every Active1
   damage sentence in `src/ui/class-info.ts` now applies the §6.3 "Active1
   potency" skill card.** Two other sessions had independently implemented this

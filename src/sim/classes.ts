@@ -1618,7 +1618,23 @@ function fireMindManipulation(w: World, cls: ClassDef, aimX: number | undefined,
  */
 const CONVERTED_LIFETIME = 1e9;
 
-/** fb057 (§4.2 Madness King *Spreading Madness*): "makes every enemy in a circle (r4 ⚖ at the cursor) go mad for 10 s". */
+/**
+ * fb057 (§4.2 Madness King *Spreading Madness*): "makes every enemy in a
+ * circle (r4 ⚖ at the cursor) go mad for 10 s".
+ *
+ * fb202 (code review correction): a *fresh* Active2 madness (the enemy held
+ * no Whispers slot before this hit) never counts toward the passive's cap —
+ * `madnessFromPassive` is already `false` on any such enemy (set at spawn,
+ * `enemies.ts`, and reset the instant a prior madness lapses,
+ * `tickTimers`), so `applyMadness`'s duration extension alone is correct and
+ * needs no bookkeeping here. What this used to also do — unconditionally
+ * clear `madnessFromPassive` on every enemy this AoE touched — released an
+ * *already passive-held* enemy's slot the moment Spreading Madness merely
+ * extended its duration, undercounting the passive's live cap while that
+ * enemy was still mad (QA: a Whispers-capped enemy nudged by Spreading
+ * Madness let the passive re-mad a 6th enemy). An enemy the passive already
+ * holds keeps its slot; Active2 only ever extends the clock.
+ */
 function fireSpreadingMadness(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
@@ -1628,9 +1644,6 @@ function fireSpreadingMadness(w: World, cls: ClassDef, aimX: number | undefined,
   for (const e of w.enemiesInRadius(cx, cy, radius)) {
     if (e.dead) continue;
     applyMadness(e, eff.madnessDurationSeconds ?? 0);
-    // "Active2's madness does not count toward the passive's cap" (QA): once
-    // Spreading Madness holds an enemy the passive had, its slot frees.
-    if (e.madnessRemaining > 0) e.madnessFromPassive = false;
   }
   w.emit('class_active2', cx, cy, radius, 0);
 }
@@ -1641,9 +1654,21 @@ function fireSpreadingMadness(w: World, cls: ClassDef, aimX: number | undefined,
  * enemy attack (`MADNESS_SOURCE`: an enemy killing an enemy). "When no
  * enemies remain / the wave is cleared, it dies": no live enemy on the field
  * and nothing left to spawn.
+ *
+ * fb202 (code review), two fixes: (1) the target search now excludes
+ * submerged enemies — a Burrower mid-dive is unreachable, so "only submerged
+ * enemies left" must count as "none left" the same way `enemies.ts`'s own
+ * madness search already excludes them (`updateMadnessAttack`/
+ * `madnessMoveTarget`), rather than leaving the teammate to walk forever at
+ * a target it can never close on and never dying with the wave. (2) the
+ * passability check is now axis-decomposed, not one combined-tile test —
+ * the old single `passable(nx, ny)` rejected the whole step whenever the
+ * diagonal destination tile was blocked even when one axis alone was open,
+ * stalling a teammate dead against a maze corner exactly where `moveEnemy`'s
+ * own wall-slide (below) keeps walking.
  */
 function updateConvertedSummon(w: World, s: ClassSummon, dt: number): void {
-  const target = w.nearestEnemy(s.x, s.y, Infinity);
+  const target = w.nearestEnemy(s.x, s.y, Infinity, (e) => !e.submerged);
   if (!target) {
     if (w.spawnQueue.length === 0) s.remaining = 0;
     return;
@@ -1655,10 +1680,18 @@ function updateConvertedSummon(w: World, s: ClassSummon, dt: number): void {
     const step = (s.speed ?? 0) * dt;
     const nx = clamp(s.x + n.x * step, 0.4, GRID_W - 0.4);
     const ny = clamp(s.y + n.y * step, 0.4, GRID_H - 0.4);
-    if (w.grid.passable(Math.floor(nx), Math.floor(ny))) {
-      s.x = nx;
-      s.y = ny;
-    }
+    // fb202 (code review, Major): both checks must read the pre-move
+    // coordinates — `moveEnemy`'s own wall-slide (enemies.ts) fixes `cx`/`cy`
+    // once before either branch so the two axis decisions are independent of
+    // each other and of evaluation order. Checking `s.x` for the y-branch
+    // after the x-branch had already written it made the y-check probe the
+    // *new* column (sometimes the very diagonal tile this fix exists to
+    // route around), so which axis got checked first could silently flip
+    // the outcome.
+    const ox = s.x;
+    const oy = s.y;
+    if (w.grid.passable(Math.floor(nx), Math.floor(oy))) s.x = nx;
+    if (w.grid.passable(Math.floor(ox), Math.floor(ny))) s.y = ny;
     return;
   }
   if (s.attackCooldown > 0) return;
