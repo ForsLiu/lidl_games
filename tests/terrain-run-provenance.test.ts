@@ -103,7 +103,14 @@ import { sampleSeeds } from './terrain-sample';
 
 const cfg = loadTerrain();
 
-/** `world.ts`'s Fourth Gate list — a different generator input, so a different population. */
+/**
+ * The static base list plus the static Fourth Gate — the pre-fb156 live lists.
+ * fb156 moved live runs onto per-seed jittered gates (`jitterGates`/
+ * `jitterModifierGate`), so this file's sweeps now measure the static
+ * populations only; the jittered populations' stranding rates are recorded in
+ * QUESTIONS Q220 (code review measurement, seeds 1..3000) and the arm itself
+ * is BACKLOG-TERRAIN.md fb205.
+ */
 const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 /** A Grid carrying `map` exactly — no Warden clearing, no retry. */

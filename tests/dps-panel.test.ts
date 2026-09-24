@@ -1,36 +1,36 @@
 /**
  * DPS summary panel data model (owner feedback `feature-dps-summary`,
- * BACKLOG.md fb007; SPEC-FINAL §11). The acceptance criterion is that the
- * panel's totals reconcile with `RunReport`'s own damage-share telemetry —
- * these tests check the model directly against `World.damageByWeapon`/
- * `damageByType` and, in the last test, against a real `RunReport` built at
- * run end.
+ * BACKLOG.md fb007; SPEC-FINAL §11), reshaped by fb160 (owner feedback
+ * `ui-dps-panel-bars`): whole-run totals only — no per-wave view — one bar
+ * per source, segmented by damage type. The acceptance criterion is that the
+ * panel's numbers reconcile with the sim's damage ledgers: these tests check
+ * the model against `World.damageBySourceType` and the two flat ledgers
+ * (`damageByWeapon`/`damageByType`) it must agree with, and against a real
+ * `RunReport` built at run end; `tests/ui-fb160-dps-bars.test.ts` reconciles
+ * the *rendered* numbers and colors.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
-import { Run, damageSince, startWave } from '../src/sim/run';
+import { Run, startWave } from '../src/sim/run';
 import { advanceToNextBlock, finishSundering } from '../src/sim/sundering';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
-import { dpsPanelData } from '../src/ui/dps-panel';
+import { dpsPanelData, waveDamageBySource } from '../src/ui/dps-panel';
 import { cfg, runWithPolicy } from './helpers';
 
 describe('DPS panel data model', () => {
   it('is all zero on a fresh run', () => {
     const w = new World(cfg({ practice: true }));
     const data = dpsPanelData(w);
-    expect(data.run.damage).toBe(0);
-    expect(data.run.dps).toBe(0);
-    expect(data.run.bySource).toEqual([]);
-    expect(data.run.byType).toEqual([]);
-    expect(data.wave.damage).toBe(0);
-    expect(data.wave.bySource).toEqual([]);
+    expect(data.damage).toBe(0);
+    expect(data.dps).toBe(0);
+    expect(data.bars).toEqual([]);
   });
 
-  it('credits a hit to both the by-source and by-type breakdowns, in both windows', () => {
+  it('credits a hit to its source bar, in the segment of its damage type', () => {
     const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e = spawnEnemy(w, 'husk', 3, 3)!;
@@ -38,39 +38,165 @@ describe('DPS panel data model', () => {
     damageEnemy(w, e, 50, arrow.key, { type: 'normal' });
 
     const data = dpsPanelData(w);
-    expect(data.run.damage).toBeGreaterThan(0);
-    expect(data.run.bySource.map((r) => r.key)).toContain(arrow.key);
-    expect(data.run.bySource.find((r) => r.key === arrow.key)!.label).toBe(arrow.name);
-    expect(data.run.byType.find((r) => r.key === 'normal')!.damage).toBe(data.run.damage);
-    // Act I, wave 0 (no `startWave` called yet): the wave window equals the
-    // run window since `damageAtWaveStart` is still empty.
-    expect(data.wave.damage).toBe(data.run.damage);
-    expect(data.wave.dps).toBeCloseTo(data.run.dps, 6);
+    expect(data.damage).toBeGreaterThan(0);
+    const bar = data.bars.find((b) => b.key === arrow.key)!;
+    expect(bar.label).toBe(arrow.name);
+    expect(bar.damage).toBe(data.damage);
+    expect(bar.dps).toBeCloseTo(data.damage, 6);
+    expect(bar.segments.map((g) => g.type)).toEqual(['normal']);
+    expect(bar.segments[0]!.share).toBe(1);
   });
 
-  it('`startWave` isolates the current Act I wave from earlier waves without touching the whole-run total', () => {
+  it('splits one source across the types it dealt, sorted by amount, shares summing to 1', () => {
+    const w = new World(cfg({ practice: true }));
+    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    e.armor = 0;
+    damageEnemy(w, e, 30, 'tesla_coil', { type: 'normal' });
+    damageEnemy(w, e, 10, 'tesla_coil', { type: 'electric' });
+    const bar = dpsPanelData(w).bars.find((b) => b.key === 'tesla_coil')!;
+    expect(bar.segments.map((g) => g.type)).toEqual(['normal', 'electric']);
+    expect(bar.segments.reduce((s, g) => s + g.share, 0)).toBeCloseTo(1, 12);
+    expect(bar.segments[0]!.damage).toBeCloseTo(w.damageBySourceType.tesla_coil!.normal!, 12);
+    expect(bar.segments[1]!.damage).toBeCloseTo(w.damageBySourceType.tesla_coil!.electric!, 12);
+  });
+
+  it('sorts bars by total, the top bar full length and the rest in proportion', () => {
+    const w = new World(cfg({ practice: true }));
+    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    e.armor = 0;
+    damageEnemy(w, e, 10, 'arrow_spire', { type: 'normal' });
+    damageEnemy(w, e, 40, 'mortar', { type: 'burning' });
+    const data = dpsPanelData(w);
+    expect(data.bars.map((b) => b.key)).toEqual(['mortar', 'arrow_spire']);
+    expect(data.bars[0]!.length).toBe(1);
+    expect(data.bars[1]!.length).toBeCloseTo(data.bars[1]!.damage / data.bars[0]!.damage, 12);
+  });
+
+  it('is whole-run only: a new wave does not reset it (fb160 removed the per-wave view)', () => {
     const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e1 = spawnEnemy(w, 'husk', 3, 3)!;
-    startWave(w); // wave 1 begins
+    startWave(w);
     w.tick = 60;
     damageEnemy(w, e1, 40, arrow.key, { type: 'normal' });
-
-    let data = dpsPanelData(w);
-    expect(data.wave.damage).toBe(data.run.damage);
-
-    startWave(w); // wave 2 begins: this wave's damage resets to 0
+    startWave(w);
     w.tick = 120;
-    data = dpsPanelData(w);
-    expect(data.wave.damage).toBe(0);
-    expect(data.run.damage).toBe(40); // whole-run total is untouched
+    const e2 = spawnEnemy(w, 'husk', 4, 4)!;
+    damageEnemy(w, e2, 25, arrow.key, { type: 'normal' });
+    const data = dpsPanelData(w);
+    expect(data).not.toHaveProperty('wave');
+    expect(data.damage).toBe(65);
+    expect(data.seconds).toBe(2);
+  });
 
+  it('stays whole-run across the Sundering and back (Act II damage adds to the same bars)', () => {
+    const w = new World(cfg({ practice: true }));
+    const arrow = w.content.towerByKey.get('arrow_spire')!;
+    const e1 = spawnEnemy(w, 'husk', 3, 3)!;
+    w.tick = 60;
+    damageEnemy(w, e1, 30, arrow.key, { type: 'poison' });
+    finishSundering(w);
+    expect(w.huntsWarden).toBe(true);
+    w.tick = 360;
+    const e2 = w.enemies[0] ?? spawnEnemy(w, 'husk', 4, 4)!;
+    damageEnemy(w, e2, 10, arrow.key, { type: 'poison' });
+    advanceToNextBlock(w);
+    const data = dpsPanelData(w);
+    expect(data.damage).toBeCloseTo(40, 6);
+    expect(data.bars.find((b) => b.key === arrow.key)!.segments[0]!.damage).toBeCloseTo(40, 6);
+  });
+
+  it('labels a mad or converted enemy\'s damage by the Madness King\'s passive, not the raw key (fb160 QA)', () => {
+    const w = new World(cfg({ practice: true, classKey: 'madness_king' }));
+    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    damageEnemy(w, e, 10, 'madness', {});
+    const cls = w.content.classByKey.get('madness_king')!;
+    expect(dpsPanelData(w).bars[0]!.label).toBe(`${cls.name} — ${cls.passive.name} (maddened enemies)`);
+  });
+
+  it('colors each segment from data/damagetypes.json, and the colorblind palette on request', () => {
+    const w = new World(cfg({ practice: true }));
+    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    damageEnemy(w, e, 5, 'ember_brazier', { type: 'burning' });
+    const fire = w.content.damageTypeByKey.get('burning')!;
+    expect(dpsPanelData(w).bars[0]!.segments[0]!.color).toBe(fire.color);
+    expect(dpsPanelData(w, true).bars[0]!.segments[0]!.color).toBe(fire.colorblindColor || fire.color);
+  });
+
+  /** The three ledgers the bars must agree with, all at once, against a real report. */
+  function reconcile(data: ReturnType<typeof dpsPanelData>, report: { damageTotal: number; damageByWeapon: Record<string, number>; damageByType: Record<string, number>; damageBySourceType: Record<string, Record<string, number>> }): void {
+    expect(data.damage).toBeCloseTo(report.damageTotal, 2);
+    for (const key of Object.keys(report.damageByWeapon)) {
+      if ((report.damageByWeapon[key] ?? 0) <= 0) continue;
+      const bar = data.bars.find((b) => b.key === key);
+      expect(bar, `panel is missing source ${key}`).toBeDefined();
+      expect(bar!.damage).toBeCloseTo(report.damageByWeapon[key] ?? 0, 2);
+      for (const [type, amount] of Object.entries(report.damageBySourceType[key] ?? {})) {
+        if (amount <= 0) continue;
+        const seg = bar!.segments.find((g) => g.type === type);
+        expect(seg, `${key} is missing its ${type} segment`).toBeDefined();
+        expect(seg!.damage).toBeCloseTo(amount, 2);
+      }
+    }
+    // Every type column of the matrix sums to the flat by-type ledger.
+    for (const [type, total] of Object.entries(report.damageByType)) {
+      const sum = data.bars.reduce((s, b) => s + (b.segments.find((g) => g.type === type)?.damage ?? 0), 0);
+      expect(sum, `type ${type}`).toBeCloseTo(total, 2);
+    }
+  }
+
+  it("reconciles with the real RunReport's ledgers at run end", () => {
+    const { report, run } = runWithPolicy(cfg({ policy: 'hybrid', practice: true }), 'hybrid', 60 * 60 * 20);
+    expect(report.damageTotal).toBeGreaterThan(0);
+    reconcile(dpsPanelData(run.world), report);
+  });
+
+  it('reconciles with RunReport through a Sundering into Act II (cycles: 3)', () => {
+    const run = new Run(cfg({ policy: 'hybrid', cycles: 3, practice: true }));
+    const policy = makePolicy('hybrid');
+    const buildTicks = 2530; // ~42s: past the 15s build phase, into real tower-vs-enemy combat
+    while (!run.done && run.world.tick < buildTicks) run.step(policy.act(run.world));
+    expect(run.done, 'setup died before any Act I combat happened').toBe(false);
+    finishSundering(run.world);
+    const stop = run.world.tick + 300;
+    while (!run.done && run.world.tick < stop) run.step(policy.act(run.world));
+    expect(run.world.huntsWarden, 'the harness left Act II too early').toBe(true);
+    reconcile(dpsPanelData(run.world), run.report());
+  });
+});
+
+/**
+ * The wave window the DPS panel no longer shows (fb160) still feeds the VS
+ * wielded-attacks panel's "This wave" line (fb037), so fb007's window tests
+ * — including QA's advanceToNextBlock regression — move here with it rather
+ * than disappearing with the panel view.
+ */
+describe('waveDamageBySource (the VS panel\'s wave window)', () => {
+  const at = (w: World, key: string): number => waveDamageBySource(w).find((r) => r.key === key)?.damage ?? 0;
+
+  it('`startWave` isolates the current Act I wave from earlier waves', () => {
+    const w = new World(cfg({ practice: true }));
+    const arrow = w.content.towerByKey.get('arrow_spire')!;
+    const e1 = spawnEnemy(w, 'husk', 3, 3)!;
+    startWave(w);
+    w.tick = 60;
+    damageEnemy(w, e1, 40, arrow.key, { type: 'normal' });
+    expect(at(w, arrow.key)).toBe(40);
+    startWave(w);
+    w.tick = 120;
+    expect(at(w, arrow.key)).toBe(0);
     const e2 = spawnEnemy(w, 'husk', 4, 4)!;
     w.tick = 180;
     damageEnemy(w, e2, 25, arrow.key, { type: 'normal' });
-    data = dpsPanelData(w);
-    expect(data.wave.damage).toBe(25);
-    expect(data.run.damage).toBe(65);
+    expect(at(w, arrow.key)).toBe(25);
+    const row = waveDamageBySource(w).find((r) => r.key === arrow.key)!;
+    expect(row.dps).toBeCloseTo(25 / ((180 - 60) / 60), 6); // the second startWave ran at tick 60
   });
 
   it('the Sundering isolates the current VS wave the same way `act2DamageSoFar` does', () => {
@@ -79,173 +205,29 @@ describe('DPS panel data model', () => {
     const e1 = spawnEnemy(w, 'husk', 3, 3)!;
     w.tick = 60;
     damageEnemy(w, e1, 30, arrow.key, { type: 'poison' });
-
-    finishSundering(w); // enters Act II; snapshots damageAtSunder/Type
-    expect(w.huntsWarden).toBe(true);
-    w.act2Time = 5;
-    w.tick = 360;
-    const e2 = w.enemies[0] ?? spawnEnemy(w, 'husk', 4, 4)!;
-    damageEnemy(w, e2, 10, arrow.key, { type: 'poison' });
-
-    const data = dpsPanelData(w);
-    expect(data.run.damage).toBeCloseTo(40, 6); // 30 + 10, whole run
-    expect(data.wave.damage).toBeCloseTo(10, 6); // only what landed after the Sundering
-    expect(data.wave.seconds).toBe(5);
-    expect(data.wave.dps).toBeCloseTo(2, 6);
-  });
-
-  // qa-playtester finding on fb007 (post-commit verification, 2026-08-29):
-  // `advanceToNextBlock` (`sim/sundering.ts`) flips the phase back to
-  // `act1_build` the instant a VS wave ends, but only `startWave` (the *next*
-  // TD wave actually spawning) retakes the `damageAtWaveStart`/
-  // `damageTypeAtWaveStart`/`waveStartTick` snapshot. Reproduced on a real
-  // hybrid-policy bot run: the whole build-phase countdown between a VS
-  // wave's end and the next TD wave's start read the "current wave" window
-  // as the stale pre-Sundering snapshot, folding the entire just-finished VS
-  // wave's damage and duration under the previous TD wave's label (measured
-  // ~96% of a whole run's damage misattributed to "Wave 3" this way).
-  it('advanceToNextBlock resets the wave window instead of carrying the Sundering snapshot into it', () => {
-    const w = new World(cfg({ practice: true }));
-    const arrow = w.content.towerByKey.get('arrow_spire')!;
-    const e1 = spawnEnemy(w, 'husk', 3, 3)!;
-    w.tick = 60;
-    damageEnemy(w, e1, 30, arrow.key, { type: 'poison' }); // pre-Sundering TD damage
-
     finishSundering(w);
     w.act2Time = 5;
     w.tick = 360;
     const e2 = w.enemies[0] ?? spawnEnemy(w, 'husk', 4, 4)!;
-    damageEnemy(w, e2, 10, arrow.key, { type: 'poison' }); // VS-wave damage
+    damageEnemy(w, e2, 10, arrow.key, { type: 'poison' });
+    const row = waveDamageBySource(w).find((r) => r.key === arrow.key)!;
+    expect(row.damage).toBeCloseTo(10, 6);
+    expect(row.dps).toBeCloseTo(2, 6);
+  });
 
-    advanceToNextBlock(w); // VS wave ends, back to act1_build; no startWave yet
+  it('advanceToNextBlock resets the window instead of carrying the Sundering snapshot into it (fb007 QA)', () => {
+    const w = new World(cfg({ practice: true }));
+    const arrow = w.content.towerByKey.get('arrow_spire')!;
+    const e1 = spawnEnemy(w, 'husk', 3, 3)!;
+    w.tick = 60;
+    damageEnemy(w, e1, 30, arrow.key, { type: 'poison' });
+    finishSundering(w);
+    w.act2Time = 5;
+    w.tick = 360;
+    const e2 = w.enemies[0] ?? spawnEnemy(w, 'husk', 4, 4)!;
+    damageEnemy(w, e2, 10, arrow.key, { type: 'poison' });
+    advanceToNextBlock(w);
     expect(w.huntsWarden).toBe(false);
-
-    const data = dpsPanelData(w);
-    expect(data.run.damage).toBeCloseTo(40, 6); // whole-run total unaffected
-    expect(data.wave.damage).toBe(0);
-    expect(data.wave.bySource).toEqual([]);
-  });
-
-  it("reconciles with the real RunReport's damageByWeapon/damageByType at run end", () => {
-    const { report, run } = runWithPolicy(cfg({ policy: 'hybrid', practice: true }), 'hybrid', 60 * 60 * 20);
-    const data = dpsPanelData(run.world);
-
-    expect(report.damageTotal).toBeGreaterThan(0);
-    const sourceTotal = data.run.bySource.reduce((sum, r) => sum + r.damage, 0);
-    expect(sourceTotal).toBeCloseTo(report.damageTotal, 2);
-    for (const key of Object.keys(report.damageByWeapon)) {
-      const row = data.run.bySource.find((r) => r.key === key);
-      expect(row, `panel is missing source ${key}`).toBeDefined();
-      // `key` is one of `report.damageByWeapon`'s own keys, so the read is always in range.
-      expect(row!.damage).toBeCloseTo(report.damageByWeapon[key] ?? 0, 2);
-    }
-    for (const key of Object.keys(report.damageByType)) {
-      const row = data.run.byType.find((r) => r.key === key);
-      expect(row, `panel is missing damage type ${key}`).toBeDefined();
-      // `key` is one of `report.damageByType`'s own keys, so the read is always in range.
-      expect(row!.damage).toBeCloseTo(report.damageByType[key] ?? 0, 2);
-    }
-  });
-
-  // qa-playtester finding on fb007 (round 1): the test above (cycles: 1)
-  // never reaches Act II — the bot dies defeat_core in Act I every time — so
-  // it only ever exercised the damageAtWaveStart branch of windowData, not
-  // the damageAtSunder one, despite the module doc describing both.
-  //
-  // qa-playtester finding on fb007 (round 2): a first fix asserted
-  // `run.world.sundered` *after* `runWithPolicy` returns, but `sundered` is a
-  // one-way flag (`sundering.ts`) that stays true long after the world has
-  // moved on into `results` — by the time the run loop exits, `huntsWarden`
-  // is back to false and `dpsPanelData` has already fallen back to the Act I
-  // branch again, same as the cycles:1 test.
-  //
-  // qa-playtester finding on fb007 (round 3): snapshotting at the *first*
-  // tick `huntsWarden && sundered` goes true is a zero/zero instant —
-  // `finishSundering` resets `act2Time` to 0 and copies `damageAtSunder` from
-  // the current totals on that same tick — so `data.wave.damage`/`seconds`
-  // are always 0 there regardless of which snapshot windowData subtracts. A
-  // mutation that swapped in `damageAtWaveStart` for the Act II branch still
-  // passed every assertion below unchanged, because none of them touched the
-  // wave window's actual values. Keep re-snapshotting for a further 300
-  // ticks (5s) after the Sundering, inside the VS wave's 75s duration, so the
-  // final snapshot holds real accrued Act II damage, and check it against an
-  // expectation computed independently from `world.damageAtSunder` directly
-  // (a `>0` check alone isn't enough — the wrong snapshot also yields a
-  // positive, just incorrect, number; this mutation was verified to slip
-  // past a bare `>0` assertion in qa-playtester's round-3 pass).
-  it('reconciles with RunReport through a Sundering into Act II (cycles: 3)', () => {
-    const run = new Run(cfg({ policy: 'hybrid', cycles: 3, practice: true }));
-    const policy = makePolicy('hybrid');
-    // fb025 (enemy HP x10 + attacker attack speed x0.7): Act I's own wave
-    // clear, which used to reach naturally within this window, no longer
-    // reliably happens for any shipped bot (see BALANCE.md/PROGRESS.md) — so
-    // this test no longer waits on a natural wave-clear to trigger the
-    // Sundering. It instead plays a real, bounded stretch of Act I (towers
-    // built and firing at real enemies, so `damageByWeapon` accrues
-    // genuinely, exactly like before) and then forces the transition via
-    // `finishSundering` directly — the same jump `src/ui/audit-hook.ts`'s
-    // dev shortcut already uses, not a new pattern invented for this test.
-    const buildTicks = 2530; // ~42s: past the 15s build phase, into real tower-vs-enemy combat
-    while (!run.done && run.world.tick < buildTicks) {
-      run.step(policy.act(run.world));
-    }
-    expect(run.done, 'setup died before any Act I combat happened').toBe(false);
-    expect(
-      Object.keys(run.world.damageByWeapon).length,
-      'setup produced no real Act I damage to snapshot at the Sundering',
-    ).toBeGreaterThan(0);
-    finishSundering(run.world);
-
-    const maxTicks = run.world.tick + 60 * 60 * 45;
-    let data: ReturnType<typeof dpsPanelData> | undefined;
-    let report: ReturnType<typeof run.report> | undefined;
-    let sunderTick: number | undefined;
-    while (!run.done && run.world.tick < maxTicks) {
-      run.step(policy.act(run.world));
-      if (run.world.huntsWarden && run.world.sundered) {
-        if (sunderTick === undefined) sunderTick = run.world.tick;
-        data = dpsPanelData(run.world);
-        report = run.report();
-        if (run.world.tick - sunderTick >= 300) break;
-      }
-    }
-    expect(data, 'run never reached the Sundering (huntsWarden && sundered)').toBeDefined();
-
-    const expectedWaveByWeapon = damageSince(run.world.damageByWeapon, run.world.damageAtSunder);
-    // `k` is one of `expectedWaveByWeapon`'s own keys, so the read is always in range.
-    const expectedWaveDamage = Object.keys(expectedWaveByWeapon).reduce(
-      (sum, k) => sum + (expectedWaveByWeapon[k] ?? 0),
-      0,
-    );
-    expect(
-      expectedWaveDamage,
-      'test setup produced no real Act II damage to distinguish the snapshots with',
-    ).toBeGreaterThan(0);
-    expect(data!.wave.damage).toBeCloseTo(expectedWaveDamage, 6);
-    for (const key of Object.keys(expectedWaveByWeapon)) {
-      const row = data!.wave.bySource.find((r) => r.key === key);
-      expect(row, `wave window is missing source ${key}`).toBeDefined();
-      // `key` is one of `expectedWaveByWeapon`'s own keys, so the read is always in range.
-      expect(row!.damage).toBeCloseTo(expectedWaveByWeapon[key] ?? 0, 6);
-    }
-    expect(data!.wave.seconds).toBeGreaterThan(0);
-
-    const sourceTotal = data!.run.bySource.reduce((sum, r) => sum + r.damage, 0);
-    expect(sourceTotal).toBeCloseTo(report!.damageTotal, 2);
-    for (const key of Object.keys(report!.damageByWeapon)) {
-      const row = data!.run.bySource.find((r) => r.key === key);
-      expect(row, `panel is missing source ${key}`).toBeDefined();
-      // `key` is one of `report!.damageByWeapon`'s own keys, so the read is always in range.
-      expect(row!.damage).toBeCloseTo(report!.damageByWeapon[key] ?? 0, 2);
-    }
-    for (const key of Object.keys(report!.damageByType)) {
-      const row = data!.run.byType.find((r) => r.key === key);
-      expect(row, `panel is missing damage type ${key}`).toBeDefined();
-      // `key` is one of `report!.damageByType`'s own keys, so the read is always in range.
-      expect(row!.damage).toBeCloseTo(report!.damageByType[key] ?? 0, 2);
-    }
-    // The whole point of this test: prove the damageAtSunder branch, not
-    // damageAtWaveStart, produced the wave window above.
-    expect(data!.wave.label).toMatch(/^VS wave/);
+    expect(at(w, arrow.key)).toBe(0);
   });
 });

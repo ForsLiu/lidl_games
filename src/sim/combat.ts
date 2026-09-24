@@ -420,6 +420,8 @@ export function chainHit(
   let py = originY;
   for (let i = 0; i < chains && cur; i++) {
     hit.add(cur.id);
+    // fb059 (QA): every jump past the first is a chain hit (Voltbolt's unlock quest).
+    if (i > 0) w.chainHits++;
     total += dealHit(w, cur, damage, source, fx, { fromX: px, fromY: py });
     if (!cur.dead) applyEffects(w, cur, fx);
     w.emit('arc', px, py, cur.x, cur.y);

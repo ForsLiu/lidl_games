@@ -492,6 +492,22 @@ const signal = {
     expect(w.warden.attackCooldown, 'the basic attack never fired, so there is nothing to read').toBeLessThan(1e9);
     return e.madnessRemaining;
   },
+
+  /**
+   * Voltbolt *Arc* (fb059): damage the delayed chain link deals a second
+   * enemy standing within r3 of the struck one. The primary sits nearer the
+   * Warden, so the basic attack picks it; only the chain can reach the other.
+   * Ticked past the 0.1 s link delay so the link has landed.
+   */
+  arc(c: Content, classKey = 'voltbolt'): number {
+    const w = passiveWorld(classKey, c);
+    dummy(w, WX + 1, WY);
+    const second = dummy(w, WX + 2.5, WY);
+    attack(w);
+    expect(w.warden.attackCooldown, 'the basic attack never fired, so there is nothing to read').toBeLessThan(1e9);
+    tickPassives(w, 0.5);
+    return second.maxHp - second.hp;
+  },
 };
 
 /** Long enough that `updateGuardianStance`'s ledger has cleared `stanceSeconds`. */
@@ -703,6 +719,11 @@ describe('c006 — passives dispatched by `passive.kind`', () => {
     const control = hit('engineer');
     expect(control.atImpact).toBeGreaterThan(0);
     expect(control.dots).toBe(0);
+  });
+
+  it('voltbolt Arc: a basic attack chains to a second enemy after its delay, the Engineer attack does not', () => {
+    expect(signal.arc(content)).toBeGreaterThan(0);
+    expect(signal.arc(content, 'engineer')).toBe(0);
   });
 
   it('madness_king Whispers: a character attack drives its target mad, the Engineer attack does not', () => {
@@ -1009,6 +1030,7 @@ const KILLS: readonly Kill[] = [
   },
   { name: 'Time Flow', classKey: 'time_lord', measure: signal.timeFlow, mutate: (r) => delete r.passive.kind },
   { name: 'Whispers', classKey: 'madness_king', measure: signal.whispers, mutate: (r) => delete r.passive.kind },
+  { name: 'Arc', classKey: 'voltbolt', measure: signal.arc, mutate: (r) => delete r.passive.kind },
 ];
 
 describe('c006 — the harness fails when a passive loses its binding', () => {
@@ -1031,7 +1053,7 @@ describe('c006 — the harness fails when a passive loses its binding', () => {
 /* ------------------------------------------------------------- the census */
 
 describe('c006 — every class is on trial', () => {
-  it('all thirteen passives have a case above, and a kill row under it', () => {
+  it('all fourteen passives have a case above, and a kill row under it', () => {
     // The failure this guards is a new class shipping with an untested
     // passive, which is exactly how the slot got to 12 rows and 0 tests. Keep
     // these in sync by adding a case, never by adding a key.
@@ -1049,6 +1071,7 @@ describe('c006 — every class is on trial', () => {
       'paladin',
       'time_lord',
       'madness_king',
+      'voltbolt',
     ];
     const authored = content.classes.classes.map((c) => c.key);
     expect([...authored].sort()).toEqual([...covered].sort());

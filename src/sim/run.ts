@@ -1186,6 +1186,8 @@ export function hashWorld(w: World): string {
   // window that decides how much of a hit banks — which is the same rule
   // x002's leechAccumulator review named.
   h.num(w.warden.overloadRemaining).num(w.warden.standStillTimer);
+  // fb059: Voltbolt's Overdrive window and its stacks gate attack/move speed and the end burst.
+  h.num(w.warden.overdriveRemaining).int(w.warden.overdriveStacks);
   h.num(w.warden.wrathStored).num(w.warden.clarionRemaining);
   // fb013: Time Lord's ammo-style charge gate and Time Flow's converted DoT
   // are the same class of future-damage-gating state as the cooldowns above.
@@ -1322,6 +1324,19 @@ export function hashWorld(w: World): string {
   h.int(w.mindTicks.length);
   for (const t of w.mindTicks) h.int(t.enemyId).int(t.ticksLeft).num(t.timer).num(t.damage);
   h.int(w.enemyOnEnemyKills);
+  // fb059: Voltbolt's pending chain links and live Lightning Balls gate future
+  // damage; the chain-hit tally feeds its unlock quest.
+  h.int(w.voltChains.length);
+  for (const c of w.voltChains) {
+    h.num(c.timer).bool(c.fresh).int(c.fromId).num(c.fromX).num(c.fromY).int(c.originalId).num(c.baseDamage).str(c.source);
+    h.int(c.hitIds.length);
+    for (const id of c.hitIds) h.int(id);
+    h.int(c.muls.length);
+    for (const m of c.muls) h.num(m);
+  }
+  h.int(w.lightningBalls.length);
+  for (const b of w.lightningBalls) h.int(b.id).num(b.x).num(b.y).num(b.tx).num(b.ty).num(b.remaining).num(b.attackCooldown);
+  h.int(w.chainHits);
   h.int(w.timeLockZones.length);
   for (const z of w.timeLockZones) {
     h.int(z.id).num(z.x).num(z.y).num(z.radius).num(z.remaining).num(z.dotSeconds).num(z.dps);
@@ -1393,6 +1408,13 @@ export function hashWorld(w: World): string {
   ]) {
     for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k] ?? 0);
   }
+  // fb160: the per-source-and-type matrix, hashed like the flat ledgers above.
+  for (const src of Object.keys(w.damageBySourceType).sort()) {
+    const row = w.damageBySourceType[src] ?? {};
+    const types = Object.keys(row).sort();
+    h.str(src).int(types.length);
+    for (const t of types) h.str(t).num(row[t] ?? 0);
+  }
   h.int(w.waveStartTick);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
@@ -1409,6 +1431,13 @@ export function buildReport(w: World): RunReport {
   for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k] ?? 0;
   const damageByWeaponVs: Record<string, number> = {};
   for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k] ?? 0;
+  const damageBySourceType: Record<string, Record<string, number>> = {};
+  for (const src of Object.keys(w.damageBySourceType).sort()) {
+    const row = w.damageBySourceType[src] ?? {};
+    const out: Record<string, number> = {};
+    for (const t of Object.keys(row).sort()) out[t] = row[t] ?? 0;
+    damageBySourceType[src] = out;
+  }
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -1437,6 +1466,7 @@ export function buildReport(w: World): RunReport {
     damageByWeapon,
     damageByWeaponVs,
     damageByType,
+    damageBySourceType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
     spawnedByWave: w.spawnedByWave.slice(),

@@ -171,6 +171,17 @@ export function scanWorld(w: World): string[] {
   nonNeg('warden.dashCharges', wd.dashCharges);
   finite('warden.armorShred', wd.armorShred);
   finite('warden.leechAccumulator', wd.leechAccumulator);
+  // fb059 (QA): Voltbolt's Overdrive window/stacks and every live Lightning
+  // Ball — a non-finite aim once produced a NaN ball that lived its full span.
+  finite('warden.overdriveRemaining', wd.overdriveRemaining);
+  nonNeg('warden.overdriveStacks', wd.overdriveStacks);
+  for (const b of w.lightningBalls) {
+    finite(`lightningBall#${b.id}.x`, b.x);
+    finite(`lightningBall#${b.id}.y`, b.y);
+    finite(`lightningBall#${b.id}.tx`, b.tx);
+    finite(`lightningBall#${b.id}.ty`, b.ty);
+    finite(`lightningBall#${b.id}.remaining`, b.remaining);
+  }
   if (!bad(wd.x) && (wd.x < 0 || wd.x > GRID_W)) out.push(`warden.x=${wd.x} is off-grid`);
   if (!bad(wd.y) && (wd.y < 0 || wd.y > GRID_H)) out.push(`warden.y=${wd.y} is off-grid`);
 

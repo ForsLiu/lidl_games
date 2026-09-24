@@ -48,6 +48,12 @@ import { fileURLToPath, URL } from 'node:url';
  * on a 4-core host at load ~13, on a change that never touches the render
  * path. Split out of `tests/render-fb060-dot-tick-numbers.test.ts` (whose
  * behavioural cases stay fast), budget unchanged.
+ *
+ * `q13-perf-stability` is the seventh (2026-09-23): q13's granularity-
+ * stability case read **43.1%** against its 40% bound in CI run 800's fast
+ * tier, on a commit that never touches the sim tick. Split out of
+ * `tests/q13-perf-ratio.test.ts` with the recorded-ceiling case (the same
+ * wall-clock measurement); both bounds unchanged.
  */
 export default defineConfig({
   resolve: {
@@ -63,6 +69,7 @@ export default defineConfig({
       'tests/terrain-cost-retry-ratio.test.ts',
       'tests/terrain-cost-ceiling.test.ts',
       'tests/render-fb060-dot-tick-perf.test.ts',
+      'tests/q13-perf-stability.test.ts',
     ],
     testTimeout: 240000,
     fileParallelism: false,

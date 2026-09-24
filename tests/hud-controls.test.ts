@@ -16,6 +16,7 @@ import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
 import { buildTower } from '../src/sim/towers';
+import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -452,18 +453,22 @@ describe('in-run control row', () => {
     expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(false);
   });
 
-  it('the DPS panel shows this-wave and whole-run damage broken down by source and by type', () => {
+  it('the DPS panel shows whole-run damage as a source bar segmented by damage type (fb160)', () => {
     const w = new World(cfg());
     const arrow = w.content.towerByKey.get('arrow_spire')!;
-    w.damageByWeapon[arrow.key] = 120;
-    w.damageTotal = 120;
-    w.damageByType.normal = 120;
+    // Credited through the real choke point, so all three ledgers agree.
+    const e = spawnEnemy(w, w.content.enemies.enemies[0]!.key, 3, 3)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    e.armor = 0;
+    damageEnemy(w, e, 120, arrow.key, { type: 'normal' });
     hud.toggleDpsPanel(w);
     hud.update(w);
     const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
     expect(panel.textContent).toContain(arrow.name);
-    expect(panel.textContent).toContain('Normal');
     expect(panel.textContent).toContain('120');
+    const seg = panel.querySelector<HTMLElement>('.sw-dpsseg[data-type="normal"]')!;
+    expect(seg.title).toContain('Normal');
   });
 
   /** Builds one buildable, unblocking tower under the Warden — enough for `wieldedAttacks` to see it. */

@@ -6982,6 +6982,19 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       35 skipped, up from fb135's 4545). — refs: BACKLOG-TERRAIN.md fb064i
       Log, BACKLOG.md fb129.
 
+- [ ] (fb207) [bug] a stored input log recorded before a sim-code change
+      replays silently to a different game — acceptance: `RunConfig` carries
+      a sim/generator version stamp (bumped by any change that moves a
+      seed's run, e.g. fb156's jittered gates); `World`/`replayRecorded` and
+      `tryResumePersistedRun` (src/ui/main.ts) refuse a config stamped with
+      another version, loudly, as they already do for a content-hash
+      mismatch; a regression test next to tests/q18-content-hash-replay.test.ts
+      shows an older-stamped config is rejected rather than replayed. Found
+      by fb156's QA: seed 1 recorded at e50cc79 replays on the fb156 build to
+      hash aae0b13d (not 4835a7e9), 13 structures instead of 14, because
+      `contentHash` covers `/data` only — refs: SPEC-FINAL §12 rule 2,
+      QUESTIONS Q220(8), BACKLOG-TERRAIN.md fb156.
+
 
 ## Retired from the queue by SPEC-FINAL
 

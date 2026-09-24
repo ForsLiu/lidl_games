@@ -117,6 +117,12 @@ export function jitterGates(seed: number): GateDef[] {
 }
 
 /**
+ * fb156 QA bug 2: the modifier gate's highest `tx`, two short of the base
+ * south gate's lowest (`GATE_JITTER_MARGIN`), so the two are never adjacent.
+ */
+export const MODIFIER_GATE_MAX_TX = GATE_JITTER_MARGIN - 2;
+
+/**
  * fb178 (BACKLOG-TERRAIN.md; owner feedback `terrain-four-gates`: "tier
  * modifiers that add a gate now go to 5"): a seed-jittered position for the
  * tier-modifier's fifth gate, `'south2'` — `grid.ts`'s `MODIFIER_GATES` ships
@@ -124,15 +130,18 @@ export function jitterGates(seed: number): GateDef[] {
  * seed, which is the owner order's own "now go to 5" restated without a
  * carved-out exception. This is its sibling: same key, same edge, jittered.
  *
- * **Range.** `[1, GATE_JITTER_MARGIN - 1]` = `[1, 7]` on the south edge
+ * **Range.** `[1, MODIFIER_GATE_MAX_TX]` = `[1, 6]` on the south edge
  * (`ty: GRID_H - 1`) — the same side of the same edge `MODIFIER_GATES`'
  * static `tx: 3` already sits on. Structurally clear of two things, both
  * checked by a 1000+-seed sweep of the live 5-gate list in
  * `tests/terrain-modifier-gate-jitter.test.ts` rather than trusted from the
  * arithmetic alone: `jitterGates`' own south gate, whose `tx` is drawn from
  * `[GATE_JITTER_MARGIN, GRID_W - 1 - GATE_JITTER_MARGIN]` = `[8, 47]`, so the
- * two ranges never overlap on any seed; and the south-west corner (`tx: 0`),
- * excluded by starting the range at `1` rather than `0`.
+ * two ranges never overlap on any seed — nor touch: fb156's QA found `[1, 7]`
+ * put south2 at x=7 beside a south gate at x=8 on 23 of 5,001 seeds, two
+ * gates down one corridor, so the cap leaves a one-tile gap
+ * (`MODIFIER_GATE_MAX_TX`); and the south-west corner (`tx: 0`), excluded by
+ * starting the range at `1` rather than `0`.
  *
  * **RNG stream.** `` `${TERRAIN_STREAM}:gates:south2` `` — a sub-key distinct
  * from `jitterGates`' own `` `${TERRAIN_STREAM}:gates` ``, so the two draws
@@ -145,5 +154,28 @@ export function jitterGates(seed: number): GateDef[] {
  */
 export function jitterModifierGate(seed: number): GateDef {
   const rng = new Rng(fnv1a(`${TERRAIN_STREAM}:gates:south2`, seed >>> 0));
-  return { key: 'south2', tx: rng.intRange(1, GATE_JITTER_MARGIN - 1), ty: GRID_H - 1 };
+  return { key: 'south2', tx: rng.intRange(1, MODIFIER_GATE_MAX_TX), ty: GRID_H - 1 };
+}
+
+/**
+ * fb156: whether `(tx, ty)` is a position `jitterGates` can give the base
+ * gate `key` — on that gate's own edge, inside `GATE_JITTER_MARGIN`'s band —
+ * so a terrain dump from a live (jittered) run can be told apart from one
+ * describing a gate no build ever places (`parseTerrainDump`).
+ */
+export function isJitteredGatePosition(key: string, tx: number, ty: number): boolean {
+  const inBand = (v: number, span: number): boolean =>
+    Number.isInteger(v) && v >= GATE_JITTER_MARGIN && v <= span - 1 - GATE_JITTER_MARGIN;
+  switch (key) {
+    case 'west':
+      return tx === 0 && inBand(ty, GRID_H);
+    case 'east':
+      return tx === GRID_W - 1 && inBand(ty, GRID_H);
+    case 'north':
+      return ty === 0 && inBand(tx, GRID_W);
+    case 'south':
+      return ty === GRID_H - 1 && inBand(tx, GRID_W);
+    default:
+      return false;
+  }
 }

@@ -51,6 +51,24 @@
  * row, where `negative`/`zero` are still accepted as before. One additive
  * line, nothing else moved.
  *
+ * Regenerated 2026-09-23 (fb059): Voltbolt (class #14) lands its kit's
+ * fields on the shapes fb085 pre-wired — `passive.arcChainDamageMul` /
+ * `arcChainRadius` / `arcChainDelaySeconds` (Arc), `active1.ballLifetimeSeconds`
+ * / `moveSpeedDamageEfficiency` and the new `ballSpeed` (Lightning Ball),
+ * `active2.overdriveSeconds` / `overdriveChain1Mul`..`3Mul` /
+ * `overdriveAtkSpdPerHit` / `overdriveMoveSpdPerHit` (Overdrive), and
+ * `towerPassive.projectileSpeedBonus` / `towerStatConversionEfficiency`
+ * (Lightning Accelerate). Unlike fb057's, these arrive with loader range
+ * rules (`validateClassEffect`/`validateClassPassive`, fb059): every one
+ * refuses `negative`, and the four that must move time forward (`arcChainRadius`,
+ * `ballLifetimeSeconds`, `ballSpeed`, `overdriveSeconds`) plus Overdrive's three
+ * chain shares (code review: a zero closes up the three-link pattern) refuse
+ * `zero` too — so only `zero` (where a zero is a legal "off") and `fractional`
+ * stay open.
+ * `vsupgrades.skillCards.voltbolt[]` is the new class's three cards, the same
+ * shape every other class's card block has. Additive lines only; nothing
+ * existing moved, `INEFFECTIVE` unchanged.
+ *
  * Regenerated 2026-09-22 (fb057): Madness King (class #13) lands its kit's
  * fields on the shapes fb085 pre-wired for them — `passive.madnessDurationSeconds`
  * / `madnessCap` / `madnessAtkSpdPerStack` / `madnessMoveSpdPerStack`
@@ -409,6 +427,8 @@ import type { RefVerdict } from '../tools/fuzz-data';
 
 /** Canonical field path -> mutation families `loadContent()` accepts for it. */
 export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
+  'classes.classes[].active1.ballLifetimeSeconds': ['fractional'],
+  'classes.classes[].active1.ballSpeed': ['fractional'],
   'classes.classes[].active1.burnDps': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.burnDuration': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.chainCount': ['negative', 'zero', 'fractional'],
@@ -436,6 +456,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.minGroundDurationSeconds': ['fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.minRadius': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.moveMulWhileCharging': ['negative', 'zero', 'fractional'],
+  'classes.classes[].active1.moveSpeedDamageEfficiency': ['zero', 'fractional'],
   'classes.classes[].active1.name': ['to-string', 'empty-string'],
   'classes.classes[].active1.overclockAtkSpdMul': ['negative', 'zero', 'fractional'],
   'classes.classes[].active1.overclockSeconds': ['negative', 'zero', 'fractional'],
@@ -462,6 +483,12 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.madnessDurationSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.maxCharges': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.name': ['to-string', 'empty-string'],
+  'classes.classes[].active2.overdriveAtkSpdPerHit': ['zero', 'fractional'],
+  'classes.classes[].active2.overdriveChain1Mul': ['fractional'],
+  'classes.classes[].active2.overdriveChain2Mul': ['fractional'],
+  'classes.classes[].active2.overdriveChain3Mul': ['fractional'],
+  'classes.classes[].active2.overdriveMoveSpdPerHit': ['zero', 'fractional'],
+  'classes.classes[].active2.overdriveSeconds': ['fractional'],
   'classes.classes[].active2.overloadExtraChains': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.overloadSeconds': ['negative', 'zero', 'fractional'],
   'classes.classes[].active2.pactAtkSpdMul': ['negative', 'zero', 'fractional'],
@@ -490,6 +517,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].maxHpMul': ['fractional'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
+  'classes.classes[].passive.arcChainDamageMul': ['zero', 'fractional'],
+  'classes.classes[].passive.arcChainDelaySeconds': ['zero', 'fractional'],
+  'classes.classes[].passive.arcChainRadius': ['fractional'],
   'classes.classes[].passive.chainCap': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.chainGrowth': ['negative', 'zero', 'fractional'],
   'classes.classes[].passive.charDotSeconds': ['fractional'],
@@ -541,6 +571,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].towerPassive.mods.towerPoisonDamage': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].towerPassive.mods.towerRange': ['negative', 'zero', 'fractional', 'drop-key'],
   'classes.classes[].towerPassive.name': ['to-string', 'empty-string'],
+  'classes.classes[].towerPassive.projectileSpeedBonus': ['zero', 'fractional'],
+  'classes.classes[].towerPassive.towerStatConversionEfficiency': ['zero', 'fractional'],
   'classes.classes[].towerPassive.waveInterval': ['negative', 'zero', 'fractional'],
   'cores.cores[].baseHp': ['fractional'],
   'cores.cores[].effects': ['drop-key'],
@@ -1022,6 +1054,11 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'vsupgrades.skillCards.time_lord[].maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.skillCards.time_lord[].name': ['to-string', 'empty-string'],
   'vsupgrades.skillCards.time_lord[].perRank': ['fractional'],
+  'vsupgrades.skillCards.voltbolt[].desc': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.voltbolt[].key': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.voltbolt[].maxRank': ['negative', 'zero', 'fractional'],
+  'vsupgrades.skillCards.voltbolt[].name': ['to-string', 'empty-string'],
+  'vsupgrades.skillCards.voltbolt[].perRank': ['fractional'],
   'vsupgrades.statBoons': ['drop-element'],
   'vsupgrades.statBoons[].desc': ['to-string', 'empty-string'],
   'vsupgrades.statBoons[].key': ['to-string', 'empty-string'],
@@ -1233,6 +1270,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'vsupgrades.skillCards.time_lord[].effect': 'checked',
   'vsupgrades.skillCards.time_lord[].key': 'open',
   'vsupgrades.skillCards.time_lord[].name': 'open',
+  'vsupgrades.skillCards.voltbolt[].desc': 'open',
+  'vsupgrades.skillCards.voltbolt[].effect': 'checked',
+  'vsupgrades.skillCards.voltbolt[].key': 'open',
+  'vsupgrades.skillCards.voltbolt[].name': 'open',
   'vsupgrades.statBoons[].desc': 'open',
   'vsupgrades.statBoons[].key': 'open',
   'vsupgrades.statBoons[].name': 'open',

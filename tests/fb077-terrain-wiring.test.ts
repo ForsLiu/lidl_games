@@ -32,6 +32,8 @@ import { buildTower } from '../src/sim/towers';
 import { applyRunTerrain, wardenSpawnTile, World } from '../src/sim/world';
 import {
   generateTerrain,
+  jitterGates,
+  jitterModifierGate,
   loadTerrain,
   parseTerrain,
   terrainOverlay,
@@ -63,18 +65,19 @@ function coreTileIndices(w: number): number[] {
 describe('fb077 — World generates and applies real terrain', () => {
   it('applies the deterministic generated map before build, gate/Core tiles forced open', () => {
     const w = new World(runCfg({ seed: 1 }));
-    // fb153b (BACKLOG.md, main-lane): `World` reads the real base four gates
-    // (`GATES.slice()`, not the stale `slice(0, 3)`), so this control map
-    // must be generated against the same four to match `w.grid` byte for
-    // byte below.
-    const gates = GATES.slice();
+    // fb153b (BACKLOG.md, main-lane): `World` reads the real base four gates,
+    // and fb156 jitters them per seed (`jitterGates`), so this control map
+    // must be generated against the seed's own four to match `w.grid` byte
+    // for byte below.
+    const gates = jitterGates(1);
+    expect(w.gates).toEqual(gates);
     const expected = generateTerrain(1, terrainCfg, gates);
     const expectedOverlay = terrainOverlay(expected, terrainCfg);
     // applyRunTerrain also force-clears a 3x3 block around the Warden's own
     // spawn tile (clearOverlayBlock, world.ts) — a structural position that
     // is neither a GateDef nor TileType.Core, so it needs its own exclusion
     // here the same way Gate/Core tiles get one below.
-    const { tx: wtx, ty: wty } = wardenSpawnTile(new Grid());
+    const { tx: wtx, ty: wty } = wardenSpawnTile(new Grid(gates));
     for (let i = 0; i < expectedOverlay.kind.length; i++) {
       // Gate/Core tiles are forced back to normal ground by `Grid.applyTerrain`
       // regardless of what the raw map painted there; everywhere else the
@@ -159,12 +162,13 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
     const SEEDS = 60;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const w = new World(runCfg({ seed, modifiers: ['gate'] }));
-      // fb153b: the base list is the real four `GATES` (west/north/east/south)
-      // and the `gate` modifier adds a fifth, `MODIFIER_GATES[0]` (`south2`)
-      // by reference — not the stale `{ key: 'south', tx: 12, ty: GRID_H - 1 }`
-      // literal `World` used to hand-type.
+      // fb153b: the base list is the real four gates (west/north/east/south)
+      // and the `gate` modifier adds a fifth (`south2`); fb156 jitters all
+      // five per seed — the base four via `jitterGates`, the fifth via
+      // `jitterModifierGate`, on the south edge clear of the base south's band.
       expect(w.gates).toHaveLength(5);
-      expect(w.gates.some((g) => g.key === 'south2' && g.tx === 3 && g.ty === GRID_H - 1)).toBe(true);
+      expect(w.gates).toEqual([...jitterGates(seed), jitterModifierGate(seed)]);
+      expect(w.gates.some((g) => g.key === 'south2' && g.ty === GRID_H - 1)).toBe(true);
       expect(w.grid.allGatesReachable()).toBe(true);
     }
   });
@@ -234,7 +238,10 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
 describe('fb077 — practice (Training Grounds) runs stay on the flat arena (item 5)', () => {
   it('never generates terrain; grid matches an untouched flat Grid', () => {
     const w = new World(runCfg({ seed: 97, practice: true }));
-    const flat = new Grid();
+    // fb156: a practice run jitters its gates like any other (fb065g's A/B
+    // control needs both arms on the same gates), so the untouched flat
+    // control is built on the same seed's list.
+    const flat = new Grid(jitterGates(97));
     expect(w.grid.terrainKind).toEqual(flat.terrainKind);
     expect(w.grid.blocked).toEqual(flat.blocked);
     expect(w.terrainFallback).toBe(false);

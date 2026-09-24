@@ -141,7 +141,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { updateProjectiles } from '../src/sim/combat';
-import { useClassActive, useClassActive2 } from '../src/sim/classes';
+import { updateClassPassives, useClassActive, useClassActive2 } from '../src/sim/classes';
 import { loadContent, type Content, type TowerDef } from '../src/sim/content';
 import { applyDamageType } from '../src/sim/damagetypes';
 import { applyDot, spawnEnemy, updateEnemies } from '../src/sim/enemies';
@@ -284,6 +284,17 @@ function animist(c: Content, o: WorldOpts = {}): World {
  */
 function madnessKing(c: Content, o: WorldOpts = {}): World {
   const w = animist(c, { ...o, classKey: 'madness_king' });
+  const grove = c.classByKey.get('animist')!.towerPassive.mods;
+  if (Object.keys(grove).length > 0) {
+    w.stats.addAll('test:wide-grove-graft', grove);
+    w.recomputeDerived();
+  }
+  return w;
+}
+
+/** fb059: a Voltbolt world, Wide Grove grafted on exactly as `madnessKing` does it. */
+function voltbolt(c: Content, o: WorldOpts = {}): World {
+  const w = animist(c, { ...o, classKey: 'voltbolt' });
   const grove = c.classByKey.get('animist')!.towerPassive.mods;
   if (Object.keys(grove).length > 0) {
     w.stats.addAll('test:wide-grove-graft', grove);
@@ -674,8 +685,11 @@ const CARRIERS: ReadonlyArray<{ fn: string; sites: Record<string, number> }> = [
   // with Wide Grove (the Animist's own tower passive) and have no Grove
   // consumer to measure; `equip-class-sets-behaviour.test.ts` measures both.
   // fb057: 20 -> 21, `fireSpreadingMadness`'s circle — its CONSUMERS row is
-  // "Madness King's *Spreading Madness* circle".
-  { fn: 'classArea', sites: { 'src/sim/classes.ts': 21 } },
+  // "Madness King's *Spreading Madness* circle". fb059: 21 -> 22,
+  // `overdriveBurst`'s ring — its CONSUMERS row is "Voltbolt's *Overdrive*
+  // end burst". (fb059 also moved the basic attack's splash `classArea` call
+  // into `landCharacterHit` — the same one site, not a new one.)
+  { fn: 'classArea', sites: { 'src/sim/classes.ts': 22 } },
   {
     fn: 'effectiveTowerAoe',
     sites: { 'src/sim/classes.ts': 2, 'src/sim/towers.ts': 2, 'src/sim/vswield.ts': 5 },
@@ -1132,6 +1146,23 @@ const CONSUMERS: readonly Consumer[] = [
       const base = c.towerByKey.get(FROST)!.attack!.range;
       dummy(w, p.x + base * 0.5, p.y);
       return frenziedAimMul(w, p.s);
+    },
+  },
+  {
+    // fb059: Overdrive's end burst strikes `classArea(w, eff.radius)` x (1 +
+    // the total attack-speed bonus) — a class Active's footprint, so the
+    // character route. Run to the window's end and read the burst's own event.
+    site: "Voltbolt's *Overdrive* end burst",
+    read: R_CLASS_AREA,
+    route: 'character',
+    measure: (c, o) => {
+      const w = voltbolt(c, { ...o, phase: 'act1_wave' });
+      expect(useClassActive2(w), 'harness cast no Overdrive').toBe(true);
+      const ticks = Math.ceil(((c.classByKey.get('voltbolt')!.active2.overdriveSeconds ?? 0) + 0.5) * 60);
+      for (let i = 0; i < ticks; i++) updateClassPassives(w, 1 / 60);
+      const burst = [...w.fx].reverse().find((f) => f.k === 'overdrive_burst');
+      expect(burst, 'harness saw no Overdrive burst').toBeDefined();
+      return burst!.a;
     },
   },
 ];
@@ -1694,6 +1725,8 @@ describe('c024: Chronal Surge fired for real, and its area half reaches the same
     // casts no Spreading Madness and fields no Frenzied Aim.
     "Madness King's *Spreading Madness* circle",
     "Madness King's *Frenzied Aim* distance scale, off a Frost Obelisk's aura range",
+    // fb059: and for Voltbolt's — a Time Lord casts no Overdrive.
+    "Voltbolt's *Overdrive* end burst",
   ];
 
   /**

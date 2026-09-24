@@ -1933,3 +1933,126 @@ Q200 did not collide and are unchanged below).
   Revisit if a playtest finds 20 stacks (∼3x speed) reachable in ordinary
   play rather than only the pathological repro.
   — refs: SPEC-FINAL §4.2, BACKLOG-CONTENT.md fb202, QUESTIONS Q217.
+
+- **Q219. [fb059] Voltbolt — readings the owner text leaves open, chosen and
+  logged (working rule 5; every [designer note] in the owner feedback built
+  as written).** (1) **"Total" bonus.** "The character's total attack-speed /
+  movement-speed bonus" is the live multiplier the character actually
+  attacks/moves at, less 1 (`charspeed.ts`): every stat source including the
+  class's own +30% movement band, the per-tick multipliers (Recall Totem's
+  aura, an Archer-style draw penalty) and Overdrive's own stacks — and in VS
+  the two VS-only factors the character's wielded cadence reads, a Time
+  Core's bonus and a Beacon shrine's haste (code review). Overdrive's
+  attack-speed stacks speed the character's basic attack and its Lightning
+  Ball; they do not reach the VS wielded tower attacks, which keep their own
+  §6.1 cadence. Every Voltbolt conversion (Lightning Ball damage, the burst's
+  damage and radius, Lightning Accelerate's two tower conversions) floors a
+  negative bonus at 0 — a slow is never a malus, the same floor Frenzied Aim
+  took (Q217(6)). (2) **Chain delay and link order.** "The chain lands 0.1 s
+  after the first hit"; Overdrive's second and third links each land the same
+  delay after the previous one (a visible chain), each searching r3 around the
+  enemy the previous link struck (where it was struck, if it has since died) for
+  the nearest enemy *this attack* has not hit, else the original target; a
+  link with no live candidate at all (the original died too) fizzles and ends
+  its attack's chain. r3 is a target-search radius, so Area does not widen it
+  (`classArea`'s rule). (3) **Which hits count as "basic attacks".** A
+  Lightning Ball shot is "the character's basic attack", so it chains, counts
+  as an Overdrive stack, and — being Active1's damage (`class_active`) — takes
+  Active1 potency; its chains inherit its source. The basic attack itself
+  stays TD-only (Q117); the ball fires in both phases, so Overdrive can still
+  stack in VS through it. (4) **Ball flight.** The owner text gives travel but
+  no speed: `ballSpeed` 12 tiles/s ⚖ (a new required `lightning_ball` field).
+  An unaimed cast (a bot's bare Command) throws at the nearest enemy in range,
+  else along the facing to full range. (5) **Chain shares are positive.** A zero Overdrive share would close up
+  the three-link pattern and land the next link a delay early, so the loader
+  refuses it (code review). **Overdrive recast** (QA): Voltbolt's own VS
+  cards (cooldown -50%, +2 s window) make the cooldown shorter than the
+  window, so E *declines* while a window is open — nothing fires, nothing is
+  billed — and every cast is exactly one full window and one burst. (6) **Burst**:
+  base 150 ⚖ ("medium-high": Pyromancer's 200 is the high Active burst, Chain
+  Surge's 75 the medium), radius r3 ⚖ Area-scaled, source `class_active2`,
+  read with the window's stacks still on, then the stacks reset. (7) **Bands**:
+  range 6 / dps 48 / interval 1.0 / move +0.3 — the Archer's high/medium/medium
+  values plus the Swordsman's high movement; basic damage type Normal per the
+  designer note (no Electric splash). (8) **Lightning Accelerate**: "tower
+  projectile speed" is the flight speed of the two tower kinds that fire a
+  real projectile (`pierce` bolts, `lob` shells — the lob's lead is computed
+  at the boosted speed); the §4.2 row and the in-game sentence state the 50%
+  once, since one field backs both conversions (c015/c008's one-field-one-claim
+  rule). Not phase-gated, like Frenzied Aim. (9) **Unlock quest reachability**
+  (designer-fill "300 chain hits in one run"): Voltbolt's own links would make
+  it unreachable before the class it unlocks, and QA found Stormcaller — the
+  first reading's second source — is not in the normal-profile roster either,
+  so a normal player could never unlock a *visible* class. `max_chain_hits`
+  therefore counts every chain jump past the first hit, whoever throws it:
+  Voltbolt's links, Stormcaller's Chain Surge jumps, and Tesla Coil's chain
+  jumps and step-3 electric arc (towers any class can build). A per-run best,
+  not a lifetime sum. (10) **Class-line card** "Sustained Current":
+  Overdrive +1 s/rank. (11) **G8 at 14 classes**: 91 pairs; Voltbolt's
+  win-rate row and the pair census are unmeasured (the ~1 h p6e sweep is
+  outside this item, working rule 8) — skipped with no number claimed, as
+  fb057 did for Madness King. — refs: SPEC-FINAL §4.2 (Voltbolt row), §13,
+  §14 G8; owner feedback `feature-class-voltbolt`, BACKLOG-CONTENT.md fb059.
+- **Q220. [fb156] Four jittered gates in live play — readings chosen and
+  logged (working rule 5).** (1) **"Jittered along the edge" is per map.**
+  The terrain lane shipped both a static nudged layout (`GATES`) and a
+  per-seed `jitterGates`, and left the live run on the static list, flagging
+  the choice for a human sanity-check. The owner's "maps generate with 4
+  spawn gates ... jittered along the edge" reads as a property of each
+  generated map, so a live run now plays `jitterGates(seed)` (plus
+  `jitterModifierGate(seed)` for the Fourth Gate); the static lists stay the
+  tools' and tests' defaults. (2) **Practice jitters too**, so fb065g's
+  flat-vs-generated A/B control keeps differing by terrain alone. (3)
+  **Terrain dumps**: a base gate anywhere the jitter can place it is a real
+  arena and parses; anything else (wrong edge, corner, outside the band) is
+  still refused. (4) **Sweeps not re-recorded.** The owner's "sweeps
+  re-recorded" is a balance measurement (working rule 8); the gate layout
+  now varies by seed, so every seed-pinned balance number (G1/G8/G14/G23,
+  BALANCE.md) is expected to drift within its noise — the one seed-pinned
+  mechanism test this reached (fb196's control pair) was re-swept and
+  re-pinned. The re-measurement is filed as BACKLOG-TERRAIN.md fb205 (code
+  review: the clause is fb156's own acceptance, so it is not claimed done).
+  (5) **Code-review measurements recorded, not yet tests** (fb205 adds the
+  arm): on seeds 1..3000 the jittered four-gate lists strand the Core on 5
+  raw maps (437, 491, 1406, 1968, 2668) and the five-gate lists on 8 (122,
+  1164, 1407, 1440, 1713, 2113, 2126, 2844); zero fallbacks — every one is
+  rescued by `applyRunTerrain`'s Warden clearing. (6) **Loader bound**:
+  `maxCoreLegalFrac`/`flatCoreAnchorCount` still prove their ceiling over the
+  static `GATES`; a band some jittered seeds could meet may be refused (fb205).
+  (7) **Dump strictness** (revised after QA): a base gate at its static
+  position is accepted without checking the tile under it, because the
+  parser deliberately round-trips hand-built grids with walled-in gates
+  (fb064k); a gate accepted only because it is inside its jitter band must
+  stand on open (Normal) ground, since every jittered gate a build writes
+  does — so QA's `west=0,20`-on-rock dump is refused. (8) **Replays**:
+  `contentHash` covers `/data`, not code, so a pre-fb156 replay bundle or
+  persisted resume log replays on different gates silently (QA: seed 1 hash
+  4835a7e9 → aae0b13d); filed as BACKLOG.md fb207 (sim version stamp).
+  (9) **South2 spacing** (QA bug 2): the modifier gate's range is capped at
+  `[1, 6]` (`MODIFIER_GATE_MAX_TX`), a tile short of the base south band's
+  8, so the two gates are never adjacent; `[1, 7]` put them side by side on
+  23 of 5,001 seeds. This moves the fifth gate on every modifier seed.
+  (10) **boss.test "a scripted run reaches it"** now fails its "fight lasts
+  over 20 s" check on seed 4 (11.98 s, 22.37 s at e50cc79). The assertion
+  is kept as is: fb099 fixed the same floor at the cause (a boss HP retune),
+  and the jittered maps only widened the spread of fight lengths (seeds
+  1-10: 12-38 s vs 22-29 s, same 5 wins). The fix belongs to the balance
+  re-measurement, BACKLOG-TERRAIN.md fb205.
+  — refs: SPEC-FINAL §10, owner feedback `terrain-four-gates`,
+  BACKLOG-TERRAIN.md fb156.
+- **Q221. [fb160] DPS panel bars — readings chosen and logged (working rule
+  5).** (1) **Whole run only, in this panel only.** The owner removed the DPS
+  panel's per-wave view; the VS wielded-attacks panel's own "This wave" line
+  (fb037) is a different panel and keeps its window (`waveDamageBySource`).
+  (2) **One ledger, three views.** The bars read a new source x type matrix
+  credited at the same `damageEnemy` choke point as the two flat ledgers,
+  with the same fb162 overkill clamp, so the three can never disagree; it is
+  hashed and reported like them. (3) **Bar length** is relative to the top
+  source (the top bar is full), segment widths are each type's share of its
+  own source. (4) **Colors** follow the Settings accessible palette (the
+  types' `colorblindColor`), the same switch the floating numbers use (fb005).
+  (5) **Hover** is the segment's native title ("Burning: 1,234 (56%)") — no
+  new tooltip machinery. (6) **Labels** name the class's Active/passive
+  (`Voltbolt — Lightning Ball`) instead of "Active 1"/"Active 2".
+  — refs: SPEC-FINAL §11, owner feedback `ui-dps-panel-bars`,
+  BACKLOG-UI.md fb160.

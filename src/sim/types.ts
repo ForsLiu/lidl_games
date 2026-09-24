@@ -625,6 +625,14 @@ export interface Warden {
   /** SPEC-FINAL §4.2 Stormcaller *Overload*: seconds left of the +2-jump/double-wire-rate window. */
   overloadRemaining: number;
   /**
+   * fb059 (§4.2 Voltbolt *Overdrive*): seconds left of the window, and the
+   * basic attacks landed during it — each one +`overdriveAtkSpdPerHit` attack
+   * speed and +`overdriveMoveSpdPerHit` move speed, additive within this one
+   * source (§2), reset when the window ends.
+   */
+  overdriveRemaining: number;
+  overdriveStacks: number;
+  /**
    * §4.2 Paladin *Guardian Stance*: seconds the Warden has held still, and the
    * position that "still" is measured against. Compared each tick rather than
    * derived from `input.mx/my` so a Warden walled in against terrain (input
@@ -708,6 +716,59 @@ export interface MindTick {
   timer: number;
   tickSeconds: number;
   damage: number;
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Arc*): one pending chain link of a basic attack. "The
+ * chain lands 0.1 s after the first hit" — each further link (Overdrive's
+ * second and third) lands the same delay after the one before it, searching
+ * r3 around the enemy the previous link struck for the nearest enemy this
+ * attack has not hit yet, else striking the attack's original target again.
+ */
+export interface VoltChain {
+  /** Seconds until this link lands. */
+  timer: number;
+  /**
+   * Queued this tick: the chain update skips its countdown once, so a link
+   * lands exactly `arcChainDelaySeconds` after its hit whether the hit came
+   * from the Warden's own update (before the chain update) or a Lightning
+   * Ball's (inside it) — code review, fb059.
+   */
+  fresh: boolean;
+  /** The enemy the previous link struck — the search origin (its last position if it has died since). */
+  fromId: number;
+  fromX: number;
+  fromY: number;
+  /** The attack's original target: the fallback when nothing unhit is in reach. */
+  originalId: number;
+  /** Every enemy this attack has struck so far. */
+  hitIds: number[];
+  /** The triggering hit's damage; this link deals `baseDamage * muls[0]`. */
+  baseDamage: number;
+  /** This link's multiplier first, then every later link's, in order. */
+  muls: number[];
+  /** `class_basic` for the character's own attack, `class_active` for a Lightning Ball's. */
+  source: string;
+}
+
+/**
+ * fb059 (§4.2 Voltbolt *Lightning Ball*): a thrown ball that travels to its
+ * target point, hovers there for the rest of its life, and meanwhile fires the
+ * character's basic attack (chains included) at the character's total attack
+ * speed.
+ */
+export interface LightningBall {
+  id: number;
+  x: number;
+  y: number;
+  /** The (range-clamped) point it travels to and then hovers at. */
+  tx: number;
+  ty: number;
+  /** Tiles per second while travelling. */
+  speed: number;
+  /** Seconds of life left. */
+  remaining: number;
+  attackCooldown: number;
 }
 
 /** §4.2 Necromancer: "kills leave corpses 6 s" — what *Raise* consumes. */
@@ -892,6 +953,12 @@ export interface RunReport {
   damageByWeaponVs: Record<string, number>;
   /** fb007: cumulative damage by §3 damage-type key (`data/damagetypes.json`). */
   damageByType: Record<string, number>;
+  /**
+   * fb160: cumulative damage by source *and* §3 type — each source row sums to
+   * its `damageByWeapon` entry, each type column to its `damageByType` entry.
+   * What the DPS panel's type-segmented source bars read.
+   */
+  damageBySourceType: Record<string, Record<string, number>>;
   damageTotal: number;
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[];

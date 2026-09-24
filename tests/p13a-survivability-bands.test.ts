@@ -34,9 +34,10 @@ function deriveBare(classKey: string) {
 }
 
 describe('p13a: per-class survivability bands load and apply (QUESTIONS Q196)', () => {
-  it('all 13 classes carry the authored fields', () => {
-    // fb057's Madness King (the 13th) ships at the inert x1.0/+0 default.
-    expect(content.classes.classes).toHaveLength(13);
+  it('all 14 classes carry the authored fields', () => {
+    // fb057's Madness King (the 13th) and fb059's Voltbolt (the 14th) ship at
+    // the inert x1.0/+0 default.
+    expect(content.classes.classes).toHaveLength(14);
     for (const cls of content.classes.classes) {
       expect(cls.maxHpMul, cls.key).toBeGreaterThan(0);
       expect(Number.isFinite(cls.defenseBonus), cls.key).toBe(true);

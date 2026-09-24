@@ -56,13 +56,16 @@ describe('placement rules (SPEC 3.1)', () => {
     // `ty: 10` this test hardcoded — so its only interior exit tile is
     // `(1, 12)`, flanked by `(1, 11)`/`(1, 13)`, not `(1, 9)`/`(1, 11)`
     // around a `(1, 10)` that is nowhere near the real gate. Re-measured
-    // against the real board, not hand-derived.
-    warp(w, 1, 12);
-    expect(buildTower(w, 1, 1, 11).ok).toBe(true);
-    expect(buildTower(w, 1, 1, 13).ok).toBe(true);
-    expect(w.grid.wouldBlockPath([[1, 12]])).toBe(true); // it is a seal…
-    expect(checkBuild(w, 1, 1, 12)).toBeNull(); // …and it is legal
-    expect(buildTower(w, 1, 1, 12).ok).toBe(true);
+    // against the real board, not hand-derived. fb156: the run's west gate is
+    // jittered per seed now, so its exit tile is read off the live world.
+    const west = w.gates.find((g) => g.key === 'west')!;
+    const ey = west.ty;
+    warp(w, 1, ey);
+    expect(buildTower(w, 1, 1, ey - 1).ok).toBe(true);
+    expect(buildTower(w, 1, 1, ey + 1).ok).toBe(true);
+    expect(w.grid.wouldBlockPath([[1, ey]])).toBe(true); // it is a seal…
+    expect(checkBuild(w, 1, 1, ey)).toBeNull(); // …and it is legal
+    expect(buildTower(w, 1, 1, ey).ok).toBe(true);
     expect(w.grid.allGatesReachable()).toBe(false);
   });
 

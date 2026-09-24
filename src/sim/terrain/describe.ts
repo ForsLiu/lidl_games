@@ -58,6 +58,7 @@ import {
   type TerrainConfig,
   type TerrainKey,
 } from './config';
+import { isJitteredGatePosition } from './gates';
 import { flatTerrain, MAX_TERRAIN_SEED, MIN_TERRAIN_SEED, terrainHash } from './generate';
 import type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
 
@@ -710,6 +711,9 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     if (m === null) fail(`gate "${key}" is not "tx,ty": "${raw}"`);
     return [Number(m[1]), Number(m[2])];
   };
+  // The base gates parsed off their static position (see the open-ground
+  // check after the rows are decoded).
+  const jittered: GateDef[] = [];
   const gates = GATES.map((g) => {
     const raw = req(gateLine, 'gates', g.key);
     const [tx, ty] = at(g.key, raw);
@@ -723,10 +727,19 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     // says, which is what a human retyping a paste needs. Restoring this was a
     // review finding — the first version printed the parsed numbers, so
     // `west=007,10` complained about `7,10`, a string absent from the dump.
-    if (tx !== g.tx || ty !== g.ty) {
-      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty}`);
+    // fb156: a live run jitters its gates per seed (`jitterGates`), so a base
+    // gate is also legal anywhere that jitter can place it on its own edge;
+    // a position no build produces (another edge, a corner, outside the band)
+    // is still refused.
+    if (tx === g.tx && ty === g.ty) return { key: g.key, tx: g.tx, ty: g.ty };
+    if (!isJitteredGatePosition(g.key, tx, ty)) {
+      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty} or within its edge's jitter band`);
     }
-    return { key: g.key, tx: g.tx, ty: g.ty };
+    // A jittered position survives into the parsed map, so it takes the strict
+    // (one-spelling) form, the same round-trip rule the modifier gates follow.
+    const [sx, sy] = at(g.key, raw, true);
+    jittered.push({ key: g.key, tx: sx, ty: sy });
+    return { key: g.key, tx: sx, ty: sy };
   });
   // fb065f: the modifier gates, when present.
   //
@@ -761,6 +774,10 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     if (clash !== undefined) {
       fail(`gate "${key}" is at ${raw}, where gate "${clash.key}" already is`);
     }
+    // fb156: a live run's modifier gate is jittered too, so off its static
+    // position it joins the open-ground check below, like the base gates.
+    const fixed = MODIFIER_GATES.find((g) => g.key === key);
+    if (fixed === undefined || fixed.tx !== tx || fixed.ty !== ty) jittered.push({ key, tx, ty });
     gates.push({ key, tx, ty });
   }
 
@@ -855,6 +872,24 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
     }
   }
 
+  // fb156 QA bug 4: a gate accepted *only* because it sits off its static
+  // position (a base gate in its jitter band, a moved modifier gate) must
+  // stand on open ground. Every jittered gate a build writes does —
+  // the generator and `Grid` force gate tiles to Normal — so one over Rock is
+  // an arena no build produces, and before this check a dump could claim
+  // `gateReach=1` with its west gate inside a wall. A gate at its static
+  // position is deliberately exempt: fb064k round-trips hand-built grids with
+  // walled-in gates (tests/terrain-describe.test.ts), and that position was
+  // accepted, unchecked, before fb156 too. Run after both integrity checks, so
+  // a corrupted glyph on a gate's tile is reported as the row fault it is, and
+  // only on an arena-sized dump — the only frame the jitter band means
+  // anything in, the same condition the hash check uses.
+  for (const g of w === GRID_W && h === GRID_H ? jittered : []) {
+    if (kind[g.ty * w + g.tx] !== TerrainKind.Normal) {
+      fail(`gate "${g.key}" is at ${g.tx},${g.ty}, which is not open ground`);
+    }
+  }
+
   // Integrity check 3 (fb064s): the flat-arena mark means these exact bytes.
   //
   // Neither check above can stand in for it. The histogram counts kinds and not
@@ -874,7 +909,8 @@ export function parseTerrainDump(text: string, cfg: TerrainConfig = loadTerrain(
   // `requested` meant to be a seed at all", which is the question fb064s found
   // unanswerable, and not "is it the right one".
   if (source === SOURCE_FLAT) {
-    const flat = flatTerrain();
+    // fb156: the flat arena is built on the run's own (jittered) gate list.
+    const flat = flatTerrain(gates);
     // Dimensions first, and with their own message (QA bug 3). Folding them
     // into the byte compare made a 3x3 dump — fb064f's announced non-arena
     // Training Grounds shape is the realistic case — report "these are not the

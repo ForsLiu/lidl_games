@@ -17,7 +17,7 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   // 12th (Time Lord) past a direct owner directive, so both actual/target
   // moved together. p6f retired the legacy `frost_warden` row (Q38). fb057
   // added the 13th (Madness King) the same way, actual and target together.
-  classes: { actual: '13', target: '13', met: true },
+  classes: { actual: '14', target: '14', met: true },
   towers: { actual: '10', target: '10', met: true },
   // fb015: data/equipment.json's real §7 table replaced the hardcoded 0/unbuilt row.
   // fb056: + §7.1's fifteen class-set items (Plaguebringer 6, Time Lord 6, Swordsman 3).
@@ -28,8 +28,9 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   treeNodes: { actual: '120', target: '120', met: true },
   // fb013: `chrono_veteran` (Time Lord's unlock) is the 10th quest, still
   // inside the 8-12 band. fb057: `mob_mentality` (Madness King's unlock) is
-  // the 11th, still inside it.
-  quests: { actual: '11', target: '8-12', met: true },
+  // the 11th, still inside it. fb059: `live_wire` (Voltbolt's unlock) is the
+  // 12th — the top of the band.
+  quests: { actual: '12', target: '8-12', met: true },
   tiers: { actual: 'T1-T5', target: 'T1-T5', met: true },
   bosses: { actual: '2', target: '2', met: true },
 };

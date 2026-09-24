@@ -23,7 +23,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { tickClassCharge, useClassActive, useClassActive2, poisonBarrelValues } from '../src/sim/classes';
+import { tickClassCharge, updateClassPassives, useClassActive, useClassActive2, poisonBarrelValues } from '../src/sim/classes';
 import { loadContent, type ClassEffect } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import type { TickInput } from '../src/sim/types';
@@ -192,6 +192,20 @@ describe('fb173: every AREA_SCALED_ACTIVE_KINDS sentence prints authored * areaM
       fire: (w) => void useClassActive2(w, w.warden.x, w.warden.y),
       template: (r) => `every enemy within ${trimNum(r)} tiles of the cursor`,
     },
+    {
+      // fb059: Overdrive's end burst lands at `classArea(w, eff.radius)` x (1 +
+      // the total attack-speed bonus) — 0 in this bare world, so the Area half
+      // is the whole radius here. Run to the window's end so it really fires.
+      kind: 'overdrive_voltbolt',
+      classKey: 'voltbolt',
+      which: 'active2',
+      fire: (w, cls) => {
+        useClassActive2(w);
+        const ticks = Math.ceil(((cls!.active2.overdriveSeconds ?? 0) + 0.5) * 60);
+        for (let i = 0; i < ticks; i++) updateClassPassives(w, 1 / 60);
+      },
+      template: (r) => `within ${trimNum(r)} tiles — the damage`,
+    },
   ];
 
   for (const c of CASES) {
@@ -330,6 +344,8 @@ function lastFxRadiusOrZoneOrAura(w: World, kind: string): number {
       return w.timeLockZone!.radius;
     case 'recall_totem':
       return w.classSummons.find((s) => s.isAura)!.auraRadius!;
+    case 'overdrive_voltbolt':
+      return lastFxRadius(w, 'overdrive_burst');
     default:
       return lastFxRadius(
         w,
@@ -390,7 +406,7 @@ function view(over: Partial<ViewState> = {}): ViewState {
 const TILE = 32; // matches src/render/canvas.ts's TILE constant
 
 describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Area-scales', () => {
-  it('is exactly the 10-member set this file\'s own classes.ts audit found (9, plus fb057\'s spreading_madness)', () => {
+  it('is exactly the 11-member set this file\'s own classes.ts audit found (9, plus fb057\'s spreading_madness and fb059\'s overdrive_voltbolt)', () => {
     expect(new Set(AREA_SCALED_ACTIVE_KINDS)).toEqual(
       new Set([
         'burst_damage',
@@ -403,6 +419,7 @@ describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Are
         'time_mark',
         'time_lock',
         'spreading_madness',
+        'overdrive_voltbolt',
       ]),
     );
   });
@@ -426,6 +443,8 @@ describe('fb115: AREA_SCALED_ACTIVE_KINDS names exactly the kinds classes.ts Are
       'poison_boost',
       // fb057: Mind Manipulation's radius is `nearestEnemy`'s pick radius.
       'mind_manipulation',
+      // fb059: Lightning Ball authors `radius: 0` — its reach is basic range.
+      'lightning_ball',
     ]) {
       expect(AREA_SCALED_ACTIVE_KINDS.has(unscaled as never)).toBe(false);
     }

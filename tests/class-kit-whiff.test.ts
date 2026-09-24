@@ -1,6 +1,7 @@
 /**
- * c007 (BACKLOG-CONTENT, lane `content`) — **the whiff policy for the 26
- * class Actives** (24 at c007; fb057's Madness King added two), pinned.
+ * c007 (BACKLOG-CONTENT, lane `content`) — **the whiff policy for the 28
+ * class Actives** (24 at c007; fb057's Madness King and fb059's Voltbolt
+ * added two each), pinned.
  *
  * c005 proved every Active is live *when it has something to act on*. This
  * file asks the opposite question, which c005's report loop explicitly does
@@ -15,7 +16,7 @@
  * Wall "still pays its cooldown when no tile could be placed"). A refactor
  * could flip the other five in either direction and nothing would notice.
  *
- * **The measured policy, and it is uniform: casting always costs.** All 26
+ * **The measured policy, and it is uniform: casting always costs.** All 28
  * pay in full, with no exception and no partial refund — a `repair_heal`
  * with no tower in radius is billed exactly what a repair that landed is
  * billed. That is a coherent rule and this file is where it now lives.
@@ -38,11 +39,12 @@
  *   - `acts` — did the cast change anything about the world? Measured as a
  *     diff of `snapshot()` below.
  * A row with `pays: true, acts: false` is a pure whiff: paid for nothing.
- * **Fifteen of the 26 are**, in an empty world; the other eleven still do
+ * **Fifteen of the 28 are**, in an empty world; the other thirteen still do
  * something, because what they do does not need a target at all (drop a
- * cloud, dash, open a window, plant a totem, raise a wall). Those eleven are
+ * cloud, dash, open a window, plant a totem, raise a wall, throw a ball).
+ * Those thirteen are
  * not evidence of anything being wrong, and saying so per row is the point of
- * the table. The 15/11 split is asserted below, not just written here, so the
+ * the table. The 15/13 split is asserted below, not just written here, so the
  * prose and the table cannot drift apart.
  *
  * **The observable set is c005's, plus `w.tempWalls`** (Ice Wall's product,
@@ -208,10 +210,13 @@ function snapshot(w: World): string {
       s.atkSpdBuffRemaining,
     ]),
     tempWalls: w.tempWalls.map((t) => [t.structureIds.length, t.remaining]),
+    // fb059: Lightning Ball's product is the ball itself.
+    lightningBalls: w.lightningBalls.map((b) => [b.id, b.x, b.y, b.tx, b.ty, b.remaining]),
     timeLock: w.timeLockZone
       ? [w.timeLockZone.id, w.timeLockZone.x, w.timeLockZone.y, w.timeLockZone.radius, w.timeLockZone.remaining]
       : null,
-    warden: [wd.x, wd.y, wd.hp, wd.overloadRemaining, wd.clarionRemaining],
+    // fb059: Overdrive's product is its window (the Overload precedent).
+    warden: [wd.x, wd.y, wd.hp, wd.overloadRemaining, wd.clarionRemaining, wd.overdriveRemaining, wd.overdriveStacks],
   });
 }
 
@@ -521,6 +526,22 @@ const ROWS: readonly WhiffRow[] = [
     acts: false,
     why: 'madness is a status on an enemy, so a circle with no enemy in it maddens nothing; the cast flash is fx only',
   },
+  {
+    classKey: 'voltbolt',
+    slot: 1, // Lightning Ball (lightning_ball)
+    reports: true,
+    pays: true,
+    acts: true,
+    why: 'the ball is thrown and lives its full span whether or not anything is in range — it simply finds nothing to zap',
+  },
+  {
+    classKey: 'voltbolt',
+    slot: 2, // Overdrive (overdrive_voltbolt)
+    reports: true,
+    pays: true,
+    acts: true,
+    why: 'a self-buff window, like Overload: it opens with no target, and its end burst strikes whatever is there (here, nothing)',
+  },
 ];
 
 function label(row: WhiffRow, cls: ClassDef): string {
@@ -530,9 +551,9 @@ function label(row: WhiffRow, cls: ClassDef): string {
 
 /* ------------------------------------------------------------------- tests */
 
-describe('c007: the whiff policy of all 26 class Actives', () => {
-  it('covers all 26 Actives exactly once, each with a rationale', () => {
-    expect(content.classes.classes).toHaveLength(13);
+describe('c007: the whiff policy of all 28 class Actives', () => {
+  it('covers all 28 Actives exactly once, each with a rationale', () => {
+    expect(content.classes.classes).toHaveLength(14);
     const seen = ROWS.map((r) => `${r.classKey}:${r.slot}`);
     expect(new Set(seen).size, 'a duplicated row').toBe(seen.length);
     const wanted = content.classes.classes.flatMap((c) => [`${c.key}:1`, `${c.key}:2`]);
@@ -543,11 +564,13 @@ describe('c007: the whiff policy of all 26 class Actives', () => {
     // The measurement this file exists to pin, asserted rather than only
     // written in the header — a row flipped without the prose following it is
     // exactly how the two drift apart.
-    expect(ROWS.filter((r) => r.pays), 'the whole point: casting always costs').toHaveLength(26);
+    expect(ROWS.filter((r) => r.pays), 'the whole point: casting always costs').toHaveLength(28);
     // fb057: Madness King's two Actives both need an enemy to act on, so both
     // join the pure whiffs (13 -> 15); the need-no-target group is unchanged.
+    // fb059: Voltbolt's two need no target (a thrown ball, a self-buff
+    // window), so both join the need-no-target group (11 -> 13).
     expect(ROWS.filter((r) => !r.acts), 'pure whiffs — paid in full, changed nothing').toHaveLength(15);
-    expect(ROWS.filter((r) => r.acts), 'act on an empty board because they need no target').toHaveLength(11);
+    expect(ROWS.filter((r) => r.acts), 'act on an empty board because they need no target').toHaveLength(13);
   });
 
   it('the world every row fires into really is empty, and bills at full price', () => {

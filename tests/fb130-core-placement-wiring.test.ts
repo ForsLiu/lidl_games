@@ -18,7 +18,7 @@ import { applyCommand, Run } from '../src/sim/run';
 import { World } from '../src/sim/world';
 import { buildTower, sellTower } from '../src/sim/towers';
 import { inCoreBuildRange, placeCoreCommand } from '../src/sim/cores';
-import { CORE_H, CORE_W, GATES } from '../src/sim/grid';
+import { CORE_H, CORE_W } from '../src/sim/grid';
 import {
   legalCoreAnchors,
   maxGateDetour,
@@ -122,8 +122,9 @@ describe('fb130 — place_core Command wiring', () => {
   it('rejects a tile within coreGateClearance of a spawn gate', () => {
     const w = practiceWorld();
     const before = w.grid.coreOrigin();
-    const gate = GATES[0];
-    if (!gate) throw new Error('expected at least one gate in GATES');
+    // fb156: the run's own (seed-jittered) gate, not the static default.
+    const gate = w.gates[0];
+    if (!gate) throw new Error('expected at least one gate in w.gates');
     const result = placeCoreCommand(w, gate.tx + 1, gate.ty);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(['near-gate', 'off-grid', 'not-normal']).toContain(result.reason);

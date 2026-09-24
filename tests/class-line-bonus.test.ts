@@ -8,7 +8,7 @@
  * the gap ("So can the p7a skill-card branches (`classLineBonus`) inside
  * Thousand Cuts, Frost Touch and Spreading Plague") and it was never filed
  * until c016. It is also bigger than those three — `classLineBonus` is read at
- * **twelve** call sites (thirteen since fb057), exactly one per class, spread
+ * **twelve** call sites (fourteen since fb057/fb059), exactly one per class, spread
  * over three files:
  *
  *   | class         | card              | call site                           |
@@ -25,6 +25,7 @@
  *   | paladin       | Righteous Fury    | `classes.ts` `fireJudgement`        |
  *   | time_lord     | Lingering Stasis  | `classes.ts` `fireTimeLock`         |
  *   | madness_king  | Louder Whispers   | `enemies.ts` `applyWhispersMadness` |
+ *   | voltbolt      | Sustained Current | `classes.ts` `fireOverdrive`        |
  *
  * Every one of those is a bare `+ classLineBonus(w)` inside an expression that
  * is already correct without it, so deleting the term leaves the whole suite
@@ -587,6 +588,27 @@ const ROWS: Row[] = [
       return withinBudget(crowd.filter(({ e }) => e.madnessRemaining > 0).length, budget, 'Whispers targets');
     },
   },
+  {
+    classKey: 'voltbolt',
+    card: 'voltbolt_overdrive_duration',
+    observable: 'ticks the Overdrive window stays open',
+    dir: 'up',
+    // fb059: `fireOverdrive` opens the window for `overdriveSeconds +
+    // classLineBonus(w)`. Counted to the tick the window closes, the budget
+    // derived from `/data` plus the card's own max, the same shape as Time
+    // Lock's row above.
+    measure: (ranks, c) => {
+      const w = lineWorld('voltbolt', ranks, c);
+      cast2(w, 1);
+      expect(w.warden.overdriveRemaining, 'Overdrive never opened').toBeGreaterThan(0);
+      const budget = Math.round(60 * ((cls(w).active2.overdriveSeconds ?? 5) + maxBonus('voltbolt') + 5));
+      for (let t = 1; t <= budget; t++) {
+        updateClassPassives(w, DT);
+        if (w.warden.overdriveRemaining <= 0) return t;
+      }
+      throw new Error(`harness budget: the Overdrive window outlived ${budget} ticks and never closed`);
+    },
+  },
 ];
 
 /* ------------------------------------------------------------------ the census */
@@ -606,7 +628,7 @@ describe('c016 — every class_line skill card is on trial', () => {
     cards.filter((c) => c.effect === 'class_line').map((c) => ({ classKey, card: c })),
   );
 
-  it('the thirteen authored class_line cards are exactly the rows measured below', () => {
+  it('the fourteen authored class_line cards are exactly the rows measured below', () => {
     expect(authored.map((a) => `${a.classKey}:${a.card.key}`).sort()).toEqual(
       ROWS.map((r) => `${r.classKey}:${r.card}`).sort(),
     );

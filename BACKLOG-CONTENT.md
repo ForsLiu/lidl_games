@@ -325,30 +325,75 @@ closed).
       alone exceeds one scheduled-routine item's time budget, same class of
       deferral fb197 logged). Item stays open for (f)/(g)/(h) alone.
 
-- [ ] (fb059) [feat] normal priority: new class #14, Voltbolt (visible
-      roster) — hitscan basic attack (normal damage type, no travel time);
-      Passive "Arc" (basic attacks chain once more at 25% damage to the
-      nearest not-yet-hit enemy in r3, applying on-hit effects, 0.1s
-      delayed chain visual); Active1 "Lightning Ball" (thrown to cursor,
-      lives 2.5s, fires the character's basic attack incl. passive/
-      Overdrive chains at total attack speed, damage boosted by 25%
-      efficiency of total move-speed bonus); Active2 "Overdrive" (5s: 3
-      total chains at 25%/12.5%/12.5%, each basic attack during it adds
-      +2.5%/+2.5% atk-speed/move-speed stacking additively per SPEC-FINAL
-      §2, reset at expiry; end-of-duration normal-damage burst around the
-      character scaled by move-speed bonus for damage and attack-speed
-      bonus for radius); Tower passive "Lightning Accelerate" (+100%
-      tower projectile speed; towers gain 50%-efficiency conversions of
-      the character's total attack-speed and move-speed bonuses). Roster
-      becomes 14 (G8 diversity ->=11/14, SPEC-FINAL §4.2/§13 census, Codex,
-      dev profile, class-select, attack-sprite registry). Acceptance:
-      tests per the feedback's "Done when" list (chain targeting/fallback,
-      0.1s chain delay, Lightning Ball's attack-speed/move-speed-efficiency
-      math, Overdrive's 3-chain pattern + additive stacking + reset, burst
-      damage/radius scaling, tower projectile-speed/stat-conversion
-      formulas, replay determinism, hitscan has zero travel time) — refs:
-      SPEC-FINAL §4.2 (designer-fill addition), §13 (census), §14 (G8),
-      owner feedback `feature-class-voltbolt`.
+- [x] (fb059) [feat] normal priority: **DONE 2026-09-23 (main-lane session,
+      full repository scope).** New class #14, Voltbolt (visible roster, the
+      fifth card), on fb085's pre-wired seams. *Arc*: every basic attack — a
+      hitscan Normal strike, no travel — queues a `VoltChain` link landing
+      exactly 0.1 s later (6 ticks, a `fresh` flag and a 1e-9 tolerance) on
+      the nearest enemy within r3 of the struck one that this attack has not
+      hit, else the original target; all hits go through one shared
+      `landCharacterHit`, so on-hit riders (Plague Flask poison, proven with
+      its class gate lifted) ride every link. *Lightning Ball*: thrown to the
+      cursor (clamped to basic range, `ballSpeed` 12 ⚖ — a new required
+      field), hovers, lives 2.5 s, fires the basic attack (chains included)
+      at the character's total attack speed, damage x(1 + 25% of the total
+      move-speed bonus) x Active1 potency. *Overdrive*: 5 s, three links
+      (25/12.5/12.5%), +2.5%/+2.5% attack/move speed per basic attack
+      (additive within the source, `charspeed.ts`), reset at the end; end
+      burst `characterDamage(150 ⚖) x (1 + move bonus)` over `classArea(r3 ⚖) x
+      (1 + attack bonus)`; E declines while a window is open. *Lightning
+      Accelerate*: tower projectile speed x2 (pierce bolts, lob shells and
+      their lead), towers +50% of the character's total attack-speed bonus
+      as attack speed and +50% of its move bonus as damage. `charspeed.ts`
+      (new) owns the character's live attack/move composition so towers and
+      classes share it without an import cycle. Unlock `live_wire` (300 chain
+      hits in one run, `max_chain_hits`), counting every chain jump past the
+      first — Voltbolt links, Chain Surge jumps, Tesla Coil chains/step-3 arc.
+      Loader range rules, hash coverage, VFX (hitscan line, delayed arcs,
+      crackling ball, stack-ramped aura, burst ring), tooltip sentences,
+      tower-info, SPEC-FINAL §4 row + §13 (14) + §14 G8 (91 pairs). Every
+      roster test gains a real Voltbolt row (c005/c006/c007/c008 re-hashed
+      with 18 match rows/c009 three clauses/c013/c015/c016/c021, fb108/fb115,
+      q7 census re-recorded, its `negative`/`zero` floors re-pinned to 0.71/0.79
+      with dated notes); new `tests/class-voltbolt.test.ts` (58 cases: the
+      owner's whole "Done when" list, replay determinism, hash coverage,
+      loader refusals). **Review (full tier):** code-reviewer REQUEST-CHANGES
+      -> APPROVE after test-first fixes: chain links dealt damage during the
+      defeat beat (Major; `w.dying` guard), a ball shot's link landed a tick
+      late, the VS cadence omitted shrine haste, a zero chain share closed up
+      the pattern, and the fast tier caught tower-info missing the damage
+      share. **qa-playtester: PASS** on every acceptance clause; three bugs
+      fixed test-first — `live_wire` was unreachable in a normal profile
+      (Stormcaller is hidden; tower chains now count), Overdrive recast was
+      reachable with Voltbolt's own cards (now declines), a non-finite aim made
+      a NaN ball (sanitized; `scanWorld` now covers balls). Follow-ups fb203
+      (balance/G8) and fb204 (a pre-existing Time Lock NaN aim) below.
+      Readings: QUESTIONS Q219. — refs: SPEC-FINAL §4.2 (designer-fill
+      addition), §13, §14 (G8), owner feedback `feature-class-voltbolt`.
+
+- [ ] (fb203) [balance] Voltbolt's late-game scaling and its G8 row are
+      unmeasured (fb059 QA). With the owner's formulas as specced, the
+      character's total attack-speed multiplier reached x7.6-x14 in VS on
+      seed 1 (full tree + boons), which puts Overdrive's burst radius
+      (`classArea(r3) x (1 + attack bonus)`) at 35-55 tiles — map-wide — and
+      Lightning Accelerate gave towers up to x3.4 attack speed / x1.87 damage
+      by TD wave 18. Acceptance: measure Voltbolt's G8 win-rate row and the
+      91-pair fingerprint census (the excluded ~1 h `p6e` sweep, working rule
+      8 — this item's acceptance *is* the measurement); if out of band, tune
+      the ⚖ values (burst base/radius, ball speed) or propose a cap on the
+      burst-radius multiplier in QUESTIONS.md for an owner verdict (the
+      formula itself is owner text) — refs: fb059, QUESTIONS Q219(11).
+
+- [ ] (fb204) [bug] a non-finite aim reaches Time Lord's *Time Lock* zone
+      position (fb059 QA, pre-existing — the same defect fb059 fixed for
+      Lightning Ball): `useClassActive2(w, NaN, NaN)` places a zone at NaN,
+      which then lives its full span and feeds NaN into `hashWorld`. A mouse
+      cannot produce it; a replay bundle or hand-edited input log can.
+      Acceptance: a failing regression test first; every aimed Active treats
+      a non-finite aim as unaimed; `tests/q15-command-domain-fuzz.test.ts`
+      probes every class's aimed Actives (today it probes Engineer and
+      Swordsman only) and `scanWorld` (`tools/invariants.ts`) covers
+      `timeLockZones` — refs: fb059 QA finding 3, q15.
 
 - [x] (fb061) [feat] normal priority: **DONE 2026-09-22 (main-lane session,
       full repository scope — the out-of-Scope test-file wall the Finding

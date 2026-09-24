@@ -498,7 +498,7 @@ const FULL_TREE = allTreeNodeIds(content);
 const BAND_LO = 0.35;
 const BAND_HI = 0.70;
 
-/** The thirteen §4-shaped classes (fb013 Time Lord, fb057 Madness King). */
+/** The fourteen §4-shaped classes (fb013 Time Lord, fb057 Madness King, fb059 Voltbolt). */
 const CLASS_KEYS = content.classes.classes.map((c) => c.key);
 
 /** T1, one class, one seed — hybrid economy/kiting, `tests/helpers.ts`'s shared kit script (`scriptClassKit`/`buyCoreUpgrades`, via `runScripted`) layered on top per BACKLOG p10w's de-dup — was a local copy of the same logic, now the shared implementation (p10s precedent). */
@@ -1004,7 +1004,13 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // tier measures it and records the real wins/12 in this comment.
   it.skip('madness_king', () => assertBand('madness_king'));
 
-  it('every one of the thirteen §4 classes was actually measured (no key silently skipped)', () => {
+  // fb059 (2026-09-23): Voltbolt, the 14th class — the same precedent as
+  // Madness King's row above: in the sweep through `CLASS_KEYS`, never yet
+  // measured (this full-tier file is outside fb059's verification too), so
+  // `.skip`-ed with no number claimed until a full-tier run records one.
+  it.skip('voltbolt', () => assertBand('voltbolt'));
+
+  it('every one of the fourteen §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());
   });
 });
@@ -1058,7 +1064,7 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   // exactly. Re-enable point: same wall as clause (i) (own-kit share never
   // clears MATERIALITY_SHARE, so every class's fingerprint is dominated by
   // shared tower usage) — P10 / an owner verdict on Q160.
-  it.skip('every one of the 78 class-pairs has fingerprint distance >=0.15 (clause ii)', () => {
+  it.skip('every one of the 91 class-pairs has fingerprint distance >=0.15 (clause ii)', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     const pairs: { a: string; b: string; distance: number }[] = [];
     for (let i = 0; i < vectors.length; i++) {
@@ -1076,7 +1082,7 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
       .map((p) => `${p.a}/${p.b} ${p.distance.toFixed(4)}`)
       .join(', ');
     expect(failing.length, `${failing.length}/${pairs.length} pairs below 0.15 — ${breakdown}`).toBe(0);
-  }); // measured: 16/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07). fb057 (2026-09-22): 13 classes make it 78 pairs (SPEC-FINAL §14 G8) — not re-measured.
+  }); // measured: 16/66 pairs below 0.15 (T3, 12 seeds, 2026-09-07). fb057 (2026-09-22): 13 classes make it 78 pairs (SPEC-FINAL §14 G8) — not re-measured. fb059 (2026-09-23): 14 classes, 91 pairs — not re-measured either.
 
   // Pins the honest T3 measurement (16/66, see the skip above) so a future
   // change is forced to re-examine this rather than silently drifting.
@@ -1105,6 +1111,7 @@ describe('p6e: G8 diversity, BALANCE DIRECTION v2 §D (p12d)', () => {
   // the twelve-class roster; the new count is a measurement, not a literal,
   // and fb057 did not run this full-tier file. Expect this row to move on
   // the next full-tier run — re-pin it there with the measured number.
+  // fb059 (2026-09-23): the same again for Voltbolt (78 -> 91 pairs).
   it('the current (red) fingerprint-distance failure count is pinned, not silently drifting', () => {
     const vectors = CLASS_KEYS.map((k) => ({ key: k, vector: shareVector(measurements.get(k)!.allDamage) }));
     let failing = 0;
