@@ -16,7 +16,7 @@ import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { enemyAttackMarkup } from './enemy-info';
-import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
+import { dpsPanelData, type DpsPanelData, type DpsRow, type DpsWindow } from './dps-panel';
 import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { characterBasicRange } from '../sim/classes';
@@ -861,7 +861,7 @@ export class Hud {
       this.dpsPanelEl.querySelector('[data-act="dock"]')?.addEventListener('click', () => this.dockDpsPanel());
       body = this.dpsPanelEl.querySelector('.sw-dps-body') as HTMLElement;
     }
-    body.innerHTML = dpsPanelBodyMarkup(dpsPanelData(w));
+    body.innerHTML = dpsPanelBodyMarkup(dpsPanelData(w, this.settings.accessiblePalette));
   }
 
   private syncDpsPanelToggle(): void {
@@ -2385,24 +2385,42 @@ function formatSeconds(v: number): string {
   return String(Math.round(v * 10) / 10);
 }
 
-function dpsRowsMarkup(rows: DpsWindow['bySource']): string {
-  if (rows.length === 0) return '<p class="sw-note dim">No damage dealt yet.</p>';
-  return `<ul class="sw-statlist">${rows
-    .map((r) => `<li>${r.label}: <b>${formatDamage(r.damage)}</b> (${formatDps(r.dps)}/s)</li>`)
-    .join('')}</ul>`;
+/** fb160: one `title`-tooltip segment of a source's bar, colored by damage type. */
+function dpsSegmentMarkup(seg: DpsRow['segments'][number]): string {
+  const pct = Math.round(seg.percent * 10) / 10;
+  return `<span class="sw-dps-seg" style="width:${seg.percent}%;background:${seg.color}" title="${seg.label}: ${formatDamage(seg.damage)} (${pct}%)"></span>`;
 }
 
+/**
+ * fb160: one horizontal bar per source, segmented by damage type, the
+ * source's total printed at the bar's right end — the owner feedback's own
+ * layout (`ui-dps-panel-bars`). Rows already arrive sorted by damage
+ * descending (`dps-panel.ts`'s own `rows()` sort).
+ */
+function dpsBarRowMarkup(r: DpsRow): string {
+  return `<li class="sw-dps-bar-row">
+      <span class="sw-dps-bar-label">${r.label}</span>
+      <div class="sw-dps-track">${r.segments.map(dpsSegmentMarkup).join('')}</div>
+      <b class="sw-dps-bar-total">${formatDamage(r.damage)}</b>
+    </li>`;
+}
+
+function dpsBarsMarkup(rows: DpsWindow['bySource']): string {
+  if (rows.length === 0) return '<p class="sw-note dim">No damage dealt yet.</p>';
+  return `<ul class="sw-dps-bars">${rows.map(dpsBarRowMarkup).join('')}</ul>`;
+}
+
+/**
+ * fb160: whole-run totals only (owner feedback `ui-dps-panel-bars`'s own
+ * "no per-wave view" wording) — total damage at the top, then the
+ * segmented-bar list. `dpsPanelData`'s `wave` window still exists and is
+ * still computed (`vs-panel.ts` reads it), just not rendered by this body
+ * any more; see `dps-panel.ts`'s module doc.
+ */
 function dpsWindowMarkup(win: DpsWindow): string {
   return `<div class="sw-sub">${win.label} <i>(${formatSeconds(win.seconds)}s)</i></div>
     <div class="sw-row small"><span>Total</span><b>${formatDamage(win.damage)} (${formatDps(win.dps)}/s)</b></div>
-    <details class="sw-charstat" open>
-      <summary><span>By source</span></summary>
-      ${dpsRowsMarkup(win.bySource)}
-    </details>
-    <details class="sw-charstat">
-      <summary><span>By damage type</span></summary>
-      ${dpsRowsMarkup(win.byType)}
-    </details>`;
+    ${dpsBarsMarkup(win.bySource)}`;
 }
 
 /**
@@ -2421,13 +2439,14 @@ export function dpsPanelShellMarkup(): string {
 }
 
 /**
- * SPEC-FINAL §11 (fb007): damage dealt and DPS over the current wave and the
- * whole run, broken down by source and by damage type. See `dps-panel.ts`
- * for why the source rows read correctly in both phases without a separate
- * TD/VS split.
+ * SPEC-FINAL §11 (fb007, redesigned by fb160/`ui-dps-panel-bars`): whole-run
+ * damage total, then one segmented bar per source. See `dps-panel.ts` for
+ * why the source rows read correctly across both Act I and Act II without a
+ * separate TD/VS split, and for why `data.wave` still exists but is no
+ * longer rendered here.
  */
 export function dpsPanelBodyMarkup(data: DpsPanelData): string {
-  return `${dpsWindowMarkup(data.wave)}${dpsWindowMarkup(data.run)}`;
+  return dpsWindowMarkup(data.run);
 }
 
 /**

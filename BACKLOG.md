@@ -49,6 +49,75 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+- [x] (fb160) [feat] **DONE 2026-09-24 (scheduled routine), main-lane
+      companion to the UI-lane item (BACKLOG-UI.md fb160, owner feedback
+      `ui-dps-panel-bars`) — picked up per this routine's own instruction
+      that a lane item whose Log names an out-of-scope block is main lane's
+      to do, including the blocking part.** Three prior scheduled runs
+      (2026-09-23, all logged in PROGRESS.md) confirmed fb160 was stalled on
+      exactly this: the DPS panel's segmented-bar redesign needs a combined
+      source x type damage ledger that did not exist, and none of those
+      sessions were licensed to invent it. This session's own routine
+      instructions explicitly authorized exactly that pickup, so it landed
+      here rather than staying stalled a fourth time.
+      **Sim-side (this item, `src/sim/**`):** new `World.damageByWeaponType`
+      (source -> type -> amount), credited in `damageEnemy`
+      (`src/sim/enemies.ts`) at the same choke point as the existing
+      `damageByWeapon`/`damageByType` flats, so it can never drift from
+      them. Snapshotted at all three sites the flat accumulators already
+      snapshot at — `startWave` (`run.ts`), `finishSundering`/
+      `advanceToNextBlock` (`sundering.ts`) — via a new `cloneDamageMatrix`
+      helper (`world.ts`) that deep-copies each source's row so a snapshot
+      can't alias the live matrix. New `damageMatrixSince` (`run.ts`, the
+      nested sibling of `damageSince`) isolates a window the same way. Folded
+      into `hashWorld`'s replay hash (sorted source then type, matching every
+      sibling accumulator's own convention) and `RunReport.damageByWeaponType`
+      (`buildReport`) — closes a real, if narrow, replay-determinism gap: two
+      runs can share both flat accumulators' marginals yet disagree on which
+      source dealt which type, which neither existing accumulator alone
+      would catch (proved with a same-marginals/different-split test that
+      hashes differently before the fix, identically after reverting it).
+      **UI-side (BACKLOG-UI.md fb160's own acceptance, done in the same
+      session since the sim half unblocked it):** `dps-panel.ts`'s
+      `dpsPanelData` gives each `bySource` row a `segments` array (per-type
+      split, colored via `damageStyleColor`, `colorblind`-aware);
+      `hud.ts`'s `dpsPanelBodyMarkup` now renders the owner's exact layout —
+      total at the top, one segmented horizontal bar per source sorted by
+      total, native `title` tooltip per segment ("Label: amount (pct%)"),
+      total printed at the bar's right end. Owner feedback's own "(no
+      per-wave view)" wording is honoured in what the panel *shows*; the
+      underlying `wave` window stayed in `dpsPanelData`'s data model
+      (unrendered) because `vs-panel.ts`'s "live DPS this wave" column still
+      reads `.wave.bySource` — deleting it would have silently regressed a
+      shipped, tested fb037 feature the feedback never named. Logged as
+      QUESTIONS Q219 rather than assumed.
+      New `tests/fb160-dps-panel-bars.test.ts` (8 tests: matrix crediting,
+      segment sum/percent/sort, colorblind color switch, snapshot isolation
+      and non-aliasing across the wave/Sunder boundary, RunReport
+      reconciliation, hash divergence on identical marginals, rendered-DOM
+      shape). `tests/hud-controls.test.ts`'s one DPS-panel assertion
+      rewritten to route through a real `damageEnemy` call and check the new
+      tooltip instead of now-removed visible "By damage type" text.
+      **Review/QA (full tier, touches `src/sim`):** code-reviewer
+      REQUEST-CHANGES on one Major — the new test file failed
+      `npx tsc --noEmit` under `noUncheckedIndexedAccess` (unchecked
+      array-index reads on DOM `querySelectorAll` results and a matrix-row
+      snapshot) — fixed with `!` assertions at each site, re-verified clean.
+      qa-playtester independently confirmed every acceptance clause
+      (bars/segments/colors/tooltip/total-at-top/sort/right-end total/docked
+      style), ran `npm run test:fast` green (321 files, 4873 passed, 34
+      pre-existing skips), and stress-tested the specific regression risk
+      named in its brief — forced two full Sundering/block-end cycles on a
+      real hybrid-bot run, sampling every 30 ticks with colorblind toggled:
+      every row's segments summed back to its own total in both windows at
+      every sample, confirming the new matrix snapshots stay correctly
+      paired with the pre-existing flat ones across the transition boundary.
+      Its one process finding (this diff hadn't yet updated BACKLOG.md/
+      BACKLOG-UI.md/PROGRESS.md when it ran mid-session) is resolved by this
+      entry and BACKLOG-UI.md's matching one. `npx tsc --noEmit` clean —
+      refs: BACKLOG-UI.md fb160, SPEC-FINAL §11, owner feedback
+      `ui-dps-panel-bars`, QUESTIONS Q219.
+
 - [x] (fb200) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
       (BACKLOG-UI.md fb151, filed 2026-09-05 by qa-playtester during fb112
       verification).** Dash Slash's (and any `dash_line` class active's) real

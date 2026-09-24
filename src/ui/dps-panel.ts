@@ -1,17 +1,23 @@
 /**
  * DPS summary panel data model (owner feedback `feature-dps-summary`,
- * BACKLOG.md fb007; SPEC-FINAL §11).
+ * BACKLOG.md fb007, extended by fb007's segmented-bar redesign, owner
+ * feedback `ui-dps-panel-bars`, BACKLOG-UI.md fb160; SPEC-FINAL §11).
  *
- * Everything here is read straight off `World.damageByWeapon`/`damageByType`
- * — the same two accumulators `damageEnemy` (`sim/enemies.ts`) credits on
- * every hit and `buildReport` copies verbatim into `RunReport` at run end —
- * so the panel's "whole run" totals cannot drift from what `RunReport`
- * reports (a test asserts them equal at that point). The "this wave" window
- * isolates a slice of those same accumulators via `damageSince()` against
- * whichever snapshot marks the window's start: `damageAtWaveStart` for an
- * Act I wave (`startWave`, `sim/run.ts`), `damageAtSunder` for the current VS
- * wave (`finishSundering`, `sim/sundering.ts`) — the same snapshot A5's own
- * `act2DamageSoFar` already isolates Act II with.
+ * Everything here is read straight off `World.damageByWeapon`/`damageByType`/
+ * `damageByWeaponType` — the same three accumulators `damageEnemy`
+ * (`sim/enemies.ts`) credits on every hit and `buildReport` copies verbatim
+ * into `RunReport` at run end — so the panel's "whole run" totals cannot
+ * drift from what `RunReport` reports (a test asserts them equal at that
+ * point). The "this wave" window isolates a slice of those same accumulators
+ * via `damageSince()`/`damageMatrixSince()` against whichever snapshot marks
+ * the window's start: `damageAtWaveStart` for an Act I wave (`startWave`,
+ * `sim/run.ts`), `damageAtSunder` for the current VS wave
+ * (`finishSundering`, `sim/sundering.ts`) — the same snapshot A5's own
+ * `act2DamageSoFar` already isolates Act II with. Both windows stay computed
+ * here (`vs-panel.ts`'s "live DPS this wave" column reads `.wave.bySource`),
+ * even though fb160's redesigned panel body (`hud.ts`'s `dpsPanelBodyMarkup`)
+ * only renders the `run` window now, per the owner feedback's own "whole-run
+ * totals only (no per-wave view)" wording.
  *
  * "Source" rows cover tower types (TD) and wielded tower-type attacks (VS)
  * alike, since both credit the same tower-key source string (`towers.ts`,
@@ -19,20 +25,36 @@
  * wave), so one row per key already reads correctly in either phase — plus
  * class actives/passives/summons and the handful of other literal sources
  * `damageEnemy` sees (Core effects, reflect damage). "Type" rows cover the
- * six §3 damage types.
+ * six §3 damage types. fb160: each `bySource` row also carries `segments`,
+ * that same row's damage split by type — the combined matrix
+ * `damageByWeaponType` exists precisely because neither flat accumulator can
+ * reconstruct this split on its own.
  *
  * Presentation only — this module never writes to the World.
  */
 
-import { damageTypeDef } from '../sim/damagetypes';
-import { damageSince } from '../sim/run';
+import { damageStyleColor, damageTypeDef } from '../sim/damagetypes';
+import { damageMatrixSince, damageSince } from '../sim/run';
 import type { World } from '../sim/world';
+
+/** fb160: one damage-type slice of a `bySource` row's segmented bar. */
+export interface DpsSegment {
+  key: string;
+  label: string;
+  color: string;
+  damage: number;
+  dps: number;
+  /** 0-100, this segment's share of its own row's total damage. */
+  percent: number;
+}
 
 export interface DpsRow {
   key: string;
   label: string;
   damage: number;
   dps: number;
+  /** fb160: this row's damage split by §3 type, sorted by damage descending. Empty for a `byType` row (a type cannot be split by itself). */
+  segments: DpsSegment[];
 }
 
 export interface DpsWindow {
@@ -95,7 +117,37 @@ function totalOf(byKey: Record<string, number>): number {
   return total;
 }
 
-function rows(w: World, byKey: Record<string, number>, seconds: number): DpsRow[] {
+/** fb160: a row's damage split by type, sorted by damage descending like `rows()` itself. */
+function segmentsFor(
+  w: World,
+  sourceRow: Record<string, number> | undefined,
+  rowDamage: number,
+  seconds: number,
+  colorblind: boolean,
+): DpsSegment[] {
+  if (!sourceRow) return [];
+  return Object.keys(sourceRow)
+    .map((type) => {
+      const damage = sourceRow[type] ?? 0;
+      return {
+        key: type,
+        label: sourceLabel(w, type),
+        color: damageStyleColor(w, type, colorblind),
+        damage,
+        dps: seconds > 0 ? damage / seconds : 0,
+        percent: rowDamage > 0 ? (damage / rowDamage) * 100 : 0,
+      };
+    })
+    .sort((a, b) => b.damage - a.damage || a.key.localeCompare(b.key));
+}
+
+function rows(
+  w: World,
+  byKey: Record<string, number>,
+  seconds: number,
+  matrix: Record<string, Record<string, number>> | undefined,
+  colorblind: boolean,
+): DpsRow[] {
   return Object.keys(byKey)
     .map((key) => {
       const damage = byKey[key] ?? 0;
@@ -104,6 +156,7 @@ function rows(w: World, byKey: Record<string, number>, seconds: number): DpsRow[
         label: sourceLabel(w, key),
         damage,
         dps: seconds > 0 ? damage / seconds : 0,
+        segments: segmentsFor(w, matrix?.[key], damage, seconds, colorblind),
       };
     })
     .sort((a, b) => b.damage - a.damage || a.key.localeCompare(b.key));
@@ -115,6 +168,8 @@ function windowData(
   bySource: Record<string, number>,
   byType: Record<string, number>,
   seconds: number,
+  matrix: Record<string, Record<string, number>>,
+  colorblind: boolean,
 ): DpsWindow {
   const damage = totalOf(bySource);
   return {
@@ -122,21 +177,36 @@ function windowData(
     seconds,
     damage,
     dps: seconds > 0 ? damage / seconds : 0,
-    bySource: rows(w, bySource, seconds),
-    byType: rows(w, byType, seconds),
+    // Only `bySource` rows get a per-type `segments` breakdown: a `byType`
+    // row already *is* one type, so splitting it by type again is meaningless.
+    bySource: rows(w, bySource, seconds, matrix, colorblind),
+    byType: rows(w, byType, seconds, undefined, colorblind),
   };
 }
 
 /**
  * Builds the panel's data model. Called fresh every time the panel needs to
- * redraw — cheap: both accumulators hold at most a few dozen keys.
+ * redraw — cheap: all three accumulators hold at most a few dozen keys.
+ * `colorblind` selects `data/damagetypes.json`'s `colorblindColor` for each
+ * bar segment, matching every other per-damage-type color read in the
+ * renderer (`damageStyleColor`'s own callers in `canvas.ts`).
  */
-export function dpsPanelData(w: World): DpsPanelData {
-  const run = windowData(w, 'Whole run', w.damageByWeapon, w.damageByType, w.tick / 60);
+export function dpsPanelData(w: World, colorblind = false): DpsPanelData {
+  const run = windowData(
+    w,
+    'Whole run',
+    w.damageByWeapon,
+    w.damageByType,
+    w.tick / 60,
+    w.damageByWeaponType,
+    colorblind,
+  );
 
   // Act II (including its level-up interrupt) isolates its window at the
   // Sundering, exactly like A5's own `act2DamageSoFar`; Act I isolates it at
-  // the current wave's `startWave` call.
+  // the current wave's `startWave` call. Still computed for `vs-panel.ts`'s
+  // "live DPS this wave" column even though the DPS panel's own body
+  // (`hud.ts`) no longer renders this window — see the module doc.
   const wave = w.huntsWarden
     ? windowData(
         w,
@@ -144,6 +214,8 @@ export function dpsPanelData(w: World): DpsPanelData {
         damageSince(w.damageByWeapon, w.damageAtSunder),
         damageSince(w.damageByType, w.damageTypeAtSunder),
         w.act2Time,
+        damageMatrixSince(w.damageByWeaponType, w.damageMatrixAtSunder),
+        colorblind,
       )
     : windowData(
         w,
@@ -151,6 +223,8 @@ export function dpsPanelData(w: World): DpsPanelData {
         damageSince(w.damageByWeapon, w.damageAtWaveStart),
         damageSince(w.damageByType, w.damageTypeAtWaveStart),
         (w.tick - w.waveStartTick) / 60,
+        damageMatrixSince(w.damageByWeaponType, w.damageMatrixAtWaveStart),
+        colorblind,
       );
 
   return { wave, run };

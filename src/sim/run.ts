@@ -74,7 +74,7 @@ import {
   type RunReport,
   type TickInput,
 } from './types';
-import { cycleWaveEnd, nightLengthSeconds, World } from './world';
+import { cloneDamageMatrix, cycleWaveEnd, nightLengthSeconds, World } from './world';
 import type { RunConfig } from './types';
 
 // Registered once at module load, not per-Run: the handlers are stateless and
@@ -812,6 +812,7 @@ export function startWave(w: World): void {
   // fight only takes this snapshot once, at the base wave's own start).
   w.damageAtWaveStart = { ...w.damageByWeapon };
   w.damageTypeAtWaveStart = { ...w.damageByType };
+  w.damageMatrixAtWaveStart = cloneDamageMatrix(w.damageByWeaponType);
   w.waveStartTick = w.tick;
 }
 
@@ -1061,6 +1062,24 @@ export function damageSince(
   for (const key of Object.keys(current)) {
     const delta = (current[key] ?? 0) - (snapshot[key] ?? 0);
     if (delta > 0) out[key] = delta;
+  }
+  return out;
+}
+
+/**
+ * fb160: the nested-matrix sibling of `damageSince` — same "current minus
+ * snapshot, dropping non-positive deltas" rule, applied per source row so
+ * the DPS panel's "this wave" window can isolate segmented-bar data the same
+ * way `damageSince` isolates the flat by-source/by-type totals.
+ */
+export function damageMatrixSince(
+  current: Record<string, Record<string, number>>,
+  snapshot: Record<string, Record<string, number>>,
+): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const source of Object.keys(current)) {
+    const row = damageSince(current[source] ?? {}, snapshot[source] ?? {});
+    if (Object.keys(row).length > 0) out[source] = row;
   }
   return out;
 }
@@ -1393,6 +1412,17 @@ export function hashWorld(w: World): string {
   ]) {
     for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k] ?? 0);
   }
+  // fb160: the combined source x type matrix carries information neither flat
+  // accumulator above does (two runs can share both marginals yet disagree on
+  // which source dealt which type) — same "a consumer reads state this hash
+  // didn't cover" gap class this function's own comment already names.
+  for (const mat of [w.damageByWeaponType, w.damageMatrixAtSunder, w.damageMatrixAtWaveStart]) {
+    for (const source of Object.keys(mat).sort()) {
+      const row = mat[source] ?? {};
+      h.str(source);
+      for (const type of Object.keys(row).sort()) h.str(type).num(row[type] ?? 0);
+    }
+  }
   h.int(w.waveStartTick);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
@@ -1409,6 +1439,15 @@ export function buildReport(w: World): RunReport {
   for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k] ?? 0;
   const damageByWeaponVs: Record<string, number> = {};
   for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k] ?? 0;
+  const damageByWeaponType: Record<string, Record<string, number>> = {};
+  for (const source of Object.keys(w.damageByWeaponType).sort()) {
+    const srcRow = w.damageByWeaponType[source] ?? {};
+    const row: Record<string, number> = {};
+    for (const type of Object.keys(srcRow).sort()) {
+      row[type] = srcRow[type] ?? 0;
+    }
+    damageByWeaponType[source] = row;
+  }
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -1437,6 +1476,7 @@ export function buildReport(w: World): RunReport {
     damageByWeapon,
     damageByWeaponVs,
     damageByType,
+    damageByWeaponType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
     spawnedByWave: w.spawnedByWave.slice(),

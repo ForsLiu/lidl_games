@@ -16,6 +16,7 @@ import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
 import { buildTower } from '../src/sim/towers';
+import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -452,18 +453,28 @@ describe('in-run control row', () => {
     expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(false);
   });
 
-  it('the DPS panel shows this-wave and whole-run damage broken down by source and by type', () => {
+  // fb160 (owner feedback `ui-dps-panel-bars`) redesigned the panel body to
+  // whole-run totals only: one segmented bar per source instead of the old
+  // "by source"/"by damage type" lists, so a source's per-type split now
+  // lives in each bar segment's `title` tooltip rather than as visible text.
+  it('the DPS panel shows whole-run damage as one segmented bar per source', () => {
     const w = new World(cfg());
     const arrow = w.content.towerByKey.get('arrow_spire')!;
-    w.damageByWeapon[arrow.key] = 120;
-    w.damageTotal = 120;
-    w.damageByType.normal = 120;
+    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    damageEnemy(w, e, 120, arrow.key, { type: 'normal' });
     hud.toggleDpsPanel(w);
     hud.update(w);
     const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
     expect(panel.textContent).toContain(arrow.name);
-    expect(panel.textContent).toContain('Normal');
     expect(panel.textContent).toContain('120');
+    const seg = panel.querySelector('.sw-dps-seg') as HTMLElement;
+    expect(seg, 'no segment rendered for the Normal-type hit').toBeTruthy();
+    expect(seg.title).toContain('Normal');
+    expect(seg.title).toContain('120');
+    expect(seg.title).toContain('100');
+    expect(seg.style.background).toBeTruthy();
+    // fb160: whole-run only — no per-wave section left in the rendered body.
+    expect(panel.textContent).not.toContain('Wave 0');
   });
 
   /** Builds one buildable, unblocking tower under the Warden — enough for `wieldedAttacks` to see it. */

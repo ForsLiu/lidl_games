@@ -557,6 +557,14 @@ export class World {
   damageTotal = 0;
   /** fb007 DPS panel: cumulative damage by §3 damage-type key, the same choke point as `damageByWeapon`. */
   damageByType: Record<string, number> = {};
+  /**
+   * fb160 DPS panel bars: the combined `damageByWeapon` x `damageByType`
+   * matrix (source -> type -> amount), credited at the same `damageEnemy`
+   * choke point as the two flat accumulators above. Neither flat accumulator
+   * can reconstruct this on its own — the panel's segmented-bar redesign
+   * needs each source's damage split by type to draw the bar's segments.
+   */
+  damageByWeaponType: Record<string, Record<string, number>> = {};
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[] = [];
   leaksByWave: number[] = [];
@@ -574,9 +582,13 @@ export class World {
   damageAtSunder: Record<string, number> = {};
   /** fb007: `damageByType` snapshot at the same moment as `damageAtSunder`. */
   damageTypeAtSunder: Record<string, number> = {};
+  /** fb160: `damageByWeaponType` snapshot at the same moment as `damageAtSunder`. */
+  damageMatrixAtSunder: Record<string, Record<string, number>> = {};
   /** fb007 DPS panel: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so its "this wave" window can be isolated the same way `damageAtSunder` isolates Act II. */
   damageAtWaveStart: Record<string, number> = {};
   damageTypeAtWaveStart: Record<string, number> = {};
+  /** fb160: `damageByWeaponType` snapshot at the same moment as `damageAtWaveStart`. */
+  damageMatrixAtWaveStart: Record<string, Record<string, number>> = {};
   /** Tick `damageAtWaveStart` was taken at, so the panel can compute the window's elapsed seconds. */
   waveStartTick = 0;
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
@@ -1184,6 +1196,21 @@ export class World {
 
 export function makeStats(): Stats {
   return emptyStats();
+}
+
+/**
+ * fb160: a deep-enough copy of `World.damageByWeaponType` for a point-in-time
+ * snapshot (`damageAtWaveStart`'s/`damageAtSunder`'s matrix siblings). A
+ * shallow `{ ...matrix }` would share each source's inner row object with the
+ * live matrix, so `damageEnemy`'s later `matrixRow[dmgType] += ...` mutation
+ * would silently corrupt the snapshot too — each row needs its own copy.
+ */
+export function cloneDamageMatrix(
+  matrix: Record<string, Record<string, number>>,
+): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const key of Object.keys(matrix)) out[key] = { ...matrix[key] };
+  return out;
 }
 
 /**

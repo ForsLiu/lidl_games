@@ -261,8 +261,9 @@ not already expose it) logs that need below instead of reaching into
       skipped, unchanged). Full tier. — refs: fb112, `canvas.ts`'s
       `class_active2` draw, BACKLOG.md (main lane).
 
-- [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
-      (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):
+- [x] (fb160) [feat] **DONE 2026-09-24 (scheduled routine, main lane) —
+      exactly the main-lane companion this item's own blocking note called
+      for.** DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
       type, each wielded attack, each class active, basic attack, Core — each
       bar segmented by damage TYPE in the damage-type colors, with the source's
@@ -272,6 +273,15 @@ not already expose it) logs that need below instead of reaching into
       a test reconciles the rendered numbers against the sim's damage ledger;
       colors come from `data/damagetypes.json` — refs: SPEC-FINAL §11, owner
       feedback `ui-dps-panel-bars`.
+      **Shipped:** the missing main-lane state (`World.damageByWeaponType`, a
+      source x type damage matrix credited at `damageEnemy`'s existing choke
+      point) landed alongside the panel redesign in one session — see
+      BACKLOG.md's own fb160 entry for the full write-up (sim-side
+      accumulator/snapshots/hash/RunReport plumbing, the segmented-bar UI,
+      the `wave`-window-kept-but-unrendered decision logged as QUESTIONS
+      Q219, and the full review/QA pass). Full tier: code-reviewer
+      REQUEST-CHANGES (one Major, a test-file typecheck break, fixed) then
+      clean; qa-playtester PASS on every acceptance clause.
 
 ### Kept live (cross-lane test dependency)
 

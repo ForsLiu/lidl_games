@@ -892,6 +892,8 @@ export interface RunReport {
   damageByWeaponVs: Record<string, number>;
   /** fb007: cumulative damage by §3 damage-type key (`data/damagetypes.json`). */
   damageByType: Record<string, number>;
+  /** fb160: `damageByWeapon` x `damageByType` combined, source -> type -> amount, for the DPS panel's segmented bars. */
+  damageByWeaponType: Record<string, Record<string, number>>;
   damageTotal: number;
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[];

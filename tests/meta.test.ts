@@ -318,6 +318,7 @@ describe('quest metrics (Q101, p2e)', () => {
       damageByWeapon: {},
       damageByWeaponVs: {},
       damageByType: {},
+      damageByWeaponType: {},
       damageTotal: 0,
       spawnedByWave: [],
       leaksByWave: [],
