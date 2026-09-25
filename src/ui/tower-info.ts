@@ -24,6 +24,8 @@ import {
   effectiveTowerAoe,
   effectiveTowerRange,
   inBuildRange,
+  lightningAccelerateAtkSpdMul,
+  lightningAccelerateDamageMul,
   maxLevel,
   sellValue,
   towerCost,
@@ -156,9 +158,15 @@ function fmt(n: number, dp = 1): string {
   return String(r);
 }
 
-/** Damage-per-shot after upgrades, Power and Constellation tower damage — every factor `towerDamage` applies. */
+/**
+ * Damage-per-shot after upgrades, Power and Constellation tower damage — every
+ * run-wide factor `towerDamage` applies, fb059's Lightning Accelerate share of
+ * the character's movement-speed bonus included.
+ */
 function shotDamage(w: World, def: TowerDef, a: TowerAttack, tier: number): number {
-  return a.damage * upgradeStatMul(w, def, tier) * w.derived.powerMul * w.derived.towerDamageMul;
+  return (
+    a.damage * upgradeStatMul(w, def, tier) * w.derived.powerMul * w.derived.towerDamageMul * lightningAccelerateDamageMul(w)
+  );
 }
 
 function shotInterval(a: TowerAttack, speedMul: number): number {
@@ -254,7 +262,10 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
   // Warden-level derived stat, not structure-specific, so it's available
   // and must be included here too, or the build-menu tooltip understates
   // every tower's fire rate by exactly Wind Slash's bonus (QA-found bug).
-  const speedMul = existing ? attackSpeedFor(w, existing) : w.derived.attackSpeedMul * w.derived.towerAttackSpeedMul;
+  // fb059: the unbuilt preview carries Lightning Accelerate's run-wide share too.
+  const speedMul = existing
+    ? attackSpeedFor(w, existing)
+    : w.derived.attackSpeedMul * w.derived.towerAttackSpeedMul * lightningAccelerateAtkSpdMul(w);
   const hasNext = tier < maxLevel(def);
   const a = def.attack;
   const stats: StatLine[] = [];

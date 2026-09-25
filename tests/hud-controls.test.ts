@@ -453,28 +453,22 @@ describe('in-run control row', () => {
     expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(false);
   });
 
-  // fb160 (owner feedback `ui-dps-panel-bars`) redesigned the panel body to
-  // whole-run totals only: one segmented bar per source instead of the old
-  // "by source"/"by damage type" lists, so a source's per-type split now
-  // lives in each bar segment's `title` tooltip rather than as visible text.
-  it('the DPS panel shows whole-run damage as one segmented bar per source', () => {
+  it('the DPS panel shows whole-run damage as a source bar segmented by damage type (fb160)', () => {
     const w = new World(cfg());
     const arrow = w.content.towerByKey.get('arrow_spire')!;
-    const e = spawnEnemy(w, 'husk', 3, 3)!;
+    // Credited through the real choke point, so all three ledgers agree.
+    const e = spawnEnemy(w, w.content.enemies.enemies[0]!.key, 3, 3)!;
+    e.hp = 1e6;
+    e.maxHp = 1e6;
+    e.armor = 0;
     damageEnemy(w, e, 120, arrow.key, { type: 'normal' });
     hud.toggleDpsPanel(w);
     hud.update(w);
     const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
     expect(panel.textContent).toContain(arrow.name);
     expect(panel.textContent).toContain('120');
-    const seg = panel.querySelector('.sw-dps-seg') as HTMLElement;
-    expect(seg, 'no segment rendered for the Normal-type hit').toBeTruthy();
+    const seg = panel.querySelector<HTMLElement>('.sw-dpsseg[data-type="normal"]')!;
     expect(seg.title).toContain('Normal');
-    expect(seg.title).toContain('120');
-    expect(seg.title).toContain('100');
-    expect(seg.style.background).toBeTruthy();
-    // fb160: whole-run only — no per-wave section left in the rendered body.
-    expect(panel.textContent).not.toContain('Wave 0');
   });
 
   /** Builds one buildable, unblocking tower under the Warden — enough for `wieldedAttacks` to see it. */

@@ -460,6 +460,61 @@ const signal = {
     };
     return Math.max(0, speed(true) - speed(false));
   },
+
+  /**
+   * Voltbolt *Lightning Accelerate* (fb059), clause 1: how much faster a
+   * Ballista bolt leaves the tower than under the control class.
+   */
+  laProjectileSpeed(c: Content, classKey: string): number {
+    const speed = (k: string): number => {
+      const w = towerWorld(k, c);
+      const s = place(w, BALLISTA, BUILD_TX, BUILD_TY);
+      dummy(w, WX + 4, WY);
+      fireOnce(w, s);
+      const p = w.projectiles[0];
+      expect(p, 'the ballista fired nothing to measure').toBeDefined();
+      return Math.hypot(p!.vx, p!.vy);
+    };
+    return Math.max(0, speed(classKey) - speed(CONTROL));
+  },
+
+  /**
+   * Clause 2: the share of the character's attack-speed bonus a spire gains.
+   * Within the class, not against a control: a test +20% attack-speed source
+   * already speeds every class's towers by exactly x1.2 (`attackSpeedFor`
+   * multiplies `w.derived.attackSpeedMul` in for everyone) — the signal is
+   * whatever the tower gains beyond that.
+   */
+  laAttackSpeed(c: Content, classKey: string): number {
+    const speed = (bonus: number): number => {
+      const w = towerWorld(classKey, c);
+      if (bonus !== 0) {
+        w.stats.addAll('test:atk-speed', { attackSpeed: bonus });
+        w.recomputeDerived();
+      }
+      return attackSpeedFor(w, place(w, SPIRE, BUILD_TX, BUILD_TY));
+    };
+    const extra = speed(0.2) / speed(0) - 1.2;
+    return extra > 1e-9 ? extra : 0;
+  },
+
+  /**
+   * Clause 3: the share of the character's movement-speed bonus a spire
+   * gains as damage — a test +20% move-speed source, which no other tower
+   * rule reads, so every other class's ratio is exactly 1.
+   */
+  laDamage(c: Content, classKey: string): number {
+    const dmg = (bonus: number): number => {
+      const w = towerWorld(classKey, c);
+      if (bonus !== 0) {
+        w.stats.addAll('test:move-speed', { moveSpeedPct: bonus });
+        w.recomputeDerived();
+      }
+      return towerDamage(w, place(w, SPIRE, BUILD_TX, BUILD_TY), 10);
+    };
+    const extra = dmg(0.2) / dmg(0) - 1;
+    return extra > 1e-9 ? extra : 0;
+  },
 };
 
 /* ------------------------------------------------ the twelve tower passives */
@@ -674,6 +729,23 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     // ...and a second interval is worth more than the first, so a surge that
     // fires once and then stops is red too.
     expect(reachAfter('time_lord', SURGE_INTERVAL * 2)).toBeGreaterThan(reachAfter('time_lord', SURGE_INTERVAL));
+  });
+
+  it('Voltbolt *Lightning Accelerate* — faster tower projectiles, and a share of the character\'s speed bonuses', () => {
+    expect(signal.laProjectileSpeed(content, 'voltbolt')).toBeGreaterThan(0);
+    expect(signal.laAttackSpeed(content, 'voltbolt')).toBeGreaterThan(0);
+    expect(signal.laDamage(content, 'voltbolt')).toBeGreaterThan(0);
+    for (const k of [CONTROL, SPEED_CONTROL, 'madness_king']) {
+      expect(signal.laProjectileSpeed(content, k), k).toBe(0);
+      expect(signal.laAttackSpeed(content, k), k).toBe(0);
+      expect(signal.laDamage(content, k), k).toBe(0);
+    }
+    // "+100%": the bolt flies exactly (1 + projectileSpeedBonus) times as fast.
+    const tp = content.classByKey.get('voltbolt')!.towerPassive;
+    const control = content.towerByKey.get(BALLISTA)!.attack!.projectileSpeed ?? 14;
+    expect(signal.laProjectileSpeed(content, 'voltbolt')).toBeCloseTo(control * (tp.projectileSpeedBonus ?? 0), 9);
+    // 50% efficiency: a +20% attack-speed source buys the spire +10% more on top of its own x1.2.
+    expect(signal.laAttackSpeed(content, 'voltbolt')).toBeCloseTo(1.2 * (tp.towerStatConversionEfficiency ?? 0) * 0.2, 9);
   });
 
   it('Madness King *Frenzied Aim* — a spire fires faster the closer its nearest enemy stands', () => {
@@ -967,11 +1039,32 @@ const KILLS: readonly Kill[] = [
     measure: signal.frenziedAim,
     mutate: (r) => void (r.towerPassive.frenziedAimFlatBonus = 0),
   },
+  // fb059: `kind`-driven, two fields, three clauses — the attack-speed and
+  // damage conversions share `towerStatConversionEfficiency` (the shared-key
+  // shape Deep Winter's frozen half already has).
+  {
+    name: 'Lightning Accelerate (projectile speed)',
+    classKey: 'voltbolt',
+    measure: signal.laProjectileSpeed,
+    mutate: (r) => void (r.towerPassive.projectileSpeedBonus = 0),
+  },
+  {
+    name: 'Lightning Accelerate (attack speed)',
+    classKey: 'voltbolt',
+    measure: signal.laAttackSpeed,
+    mutate: (r) => void (r.towerPassive.towerStatConversionEfficiency = 0),
+  },
+  {
+    name: 'Lightning Accelerate (damage)',
+    classKey: 'voltbolt',
+    measure: signal.laDamage,
+    mutate: (r) => void (r.towerPassive.towerStatConversionEfficiency = 0),
+  },
 ];
 
 describe('c009: the negative control — each signal dies with its own binding', () => {
-  it('covers all thirteen tower passives, every clause of each', () => {
-    expect(content.classes.classes.length).toBe(13);
+  it('covers all fourteen tower passives, every clause of each', () => {
+    expect(content.classes.classes.length).toBe(14);
     expect(new Set(KILLS.map((k) => k.classKey)).size).toBe(content.classes.classes.length);
     // Every shipped `mods` key and every `chronal_surge` field is somebody's
     // mutation target, so a *fourteenth* clause authored on an existing row
@@ -988,12 +1081,13 @@ describe('c009: the negative control — each signal dies with its own binding',
     // (fb057) Frenzied Aim's one, plus the extra clause-halves that share a
     // key with a sibling row (today only Deep Winter's `frozen` half, which
     // rides `towerDamageVsChilled`).
-    const SHARED_KEY_ROWS = ['Deep Winter (frozen)'];
+    // fb059: Lightning Accelerate's damage half rides the attack-speed half's field.
+    const SHARED_KEY_ROWS = ['Deep Winter (frozen)', 'Lightning Accelerate (damage)'];
     expect(KILLS.map((k) => k.name)).toEqual(expect.arrayContaining(SHARED_KEY_ROWS));
     expect(
       KILLS.length,
-      'one KILLS row per authored mods key, plus Chronal Surge’s two fields and Frenzied Aim’s one',
-    ).toBe(authored.size + 2 + 1 + SHARED_KEY_ROWS.length);
+      'one KILLS row per authored mods key, plus Chronal Surge’s two fields, Frenzied Aim’s one and Lightning Accelerate’s two',
+    ).toBe(authored.size + 2 + 1 + 2 + SHARED_KEY_ROWS.length);
     // The `mods` count above cannot see a `kind`-driven field, so pin Chronal
     // Surge's shape too: a third bonus added to the only such row would
     // otherwise be invisible to both assertions.
@@ -1016,6 +1110,16 @@ describe('c009: the negative control — each signal dies with its own binding',
         .sort(),
     ).toEqual(['frenziedAimFlatBonus']);
     expect(Object.keys(rawMk.mods)).toEqual([]);
+    // fb059: the third `kind`-driven row, pinned the same way.
+    const rawVb = (content.raw.classes as { classes: RawClassRow[] }).classes.find((c) => c.key === 'voltbolt')!
+      .towerPassive;
+    expect(rawVb.kind).toBe('lightning_accelerate');
+    expect(
+      Object.keys(rawVb)
+        .filter((k) => !['name', 'description', 'mods', 'kind'].includes(k))
+        .sort(),
+    ).toEqual(['projectileSpeedBonus', 'towerStatConversionEfficiency']);
+    expect(Object.keys(rawVb.mods)).toEqual([]);
   });
 
   for (const k of KILLS) {

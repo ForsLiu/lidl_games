@@ -131,6 +131,7 @@ import { describe, expect, it } from 'vitest';
 import {
   active2CdrFactor,
   tickClassCharge,
+  updateClassPassives,
   updateClassSummons,
   useClassActive,
   useClassActive2,
@@ -370,6 +371,10 @@ function spamActive2(
   for (let t = 0; t < ticks; t++) {
     if (useClassActive2(w, AX, AY)) casts++;
     updateWarden(w, idle(), DT);
+    // fb059: the kit's timed windows age here — Voltbolt's Overdrive declines
+    // E while its window is open, so a harness that never closed the window
+    // would count one cast and call the card dead.
+    updateClassPassives(w, DT);
     updateClassSummons(w, DT);
     // See the header: four Active2s are dashes, and only the parked Warden
     // makes the three worlds of a row otherwise identical.
@@ -427,9 +432,10 @@ function foreignRanks(classKey: string): Ranks {
 /* --------------------------------------------------- the twelve cast ladders */
 
 describe("c019 — every active2_cdr card raises its own class's cast rate", () => {
-  it('all thirteen classes are covered, and each authors exactly one active2_cdr card', () => {
-    // fb057: Madness King's *Spreading Madness Cooldown* is the 13th ladder.
-    expect(CLASS_KEYS.length).toBe(13);
+  it('all fourteen classes are covered, and each authors exactly one active2_cdr card', () => {
+    // fb057: Madness King's *Spreading Madness Cooldown* is the 13th ladder;
+    // fb059: Voltbolt's *Overdrive Cooldown* the 14th.
+    expect(CLASS_KEYS.length).toBe(14);
     for (const k of CLASS_KEYS) expect(cdrCard(k).maxRank, `${k} cdr maxRank`).toBeGreaterThanOrEqual(2);
   });
 

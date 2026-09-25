@@ -30,12 +30,51 @@
   34 pre-existing skips). Full details in BACKLOG.md's own fb160 entry and
   BACKLOG-UI.md's matching closure note; the wave/run dual-window design
   tension (owner text says "no per-wave view" but `vs-panel.ts` still reads
-  the wave window) is logged as QUESTIONS Q219 rather than guessed past
+  the wave window) is logged as QUESTIONS Q222 rather than guessed past
   silently. fb059/fb202(h)/fb064c/fb064e/fb064f remain open and out of this
   run's budget — unchanged from the three prior runs' assessment, still
   either full-class-sized or blocked on a sub-item this routine isn't
   licensed to invent on its own. — refs: BACKLOG.md fb160, BACKLOG-UI.md
-  fb160, QUESTIONS Q219, PROGRESS.md's three 2026-09-23 entries below.
+  fb160, QUESTIONS Q222, PROGRESS.md's three 2026-09-23 entries below.
+- **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
+  session, full repository scope).** Built the sim state it was blocked on —
+  `World.damageBySourceType`, credited at `damageEnemy` beside the two flat
+  ledgers, hashed and reported — and redrew the DPS panel whole-run only: the
+  total at the top, one type-segmented bar per source in the damage types'
+  own (or colorblind) colors, sorted by total, source totals at the bar ends,
+  hover titles with amount and percent. The VS panel keeps its "This wave"
+  line via `waveDamageBySource`. Rendered numbers reconciled against a real
+  report (`tests/ui-fb160-dps-bars.test.ts`). Readings: QUESTIONS Q221.
+- **2026-09-23 — BACKLOG-TERRAIN.md fb156 (four gates) gameplay half done
+  (owner-directed session, full repository scope).** Every live run now plays
+  its seed's own jittered gates — `jitterGates(seed)` (one per edge, inside
+  the jitter band) plus `jitterModifierGate(seed)` under the Fourth Gate
+  modifier — with the `Grid` built on that list; practice jitters too (so
+  fb065g's A/B control still differs by terrain alone). Waves, leaks and VS
+  spawns already read `w.gates`; path indicators gained a fifth color; terrain
+  dumps parse a jittered gate. New `tests/fb156-live-four-gates.test.ts`;
+  c014's board, fb077/terrain-dump fixtures and fb196's control seeds
+  re-derived by measurement. SPEC-FINAL §10 amended (4 gates, 5 with the
+  modifier). Balance sweeps not re-recorded (rule 8; Q220).
+- **2026-09-23 — BACKLOG-CONTENT.md fb059 (Voltbolt, class #14) done
+  (owner-directed session, full repository scope; the previous session's
+  fb056/fb061/fb062/fb057 were squash-merged as PR #151, so this branch was
+  restarted from master).** Voltbolt ships as the fifth visible class: *Arc*
+  (hitscan basic + a 0.1 s delayed chain link to the nearest unhit enemy in
+  r3, else the original), *Lightning Ball* (thrown, hovering, fires the
+  basic attack at total attack speed, +25% of the move bonus as damage),
+  *Overdrive* (three links 25/12.5/12.5%, additive +2.5%/+2.5% stacks reset
+  at the end, a move/attack-bonus-scaled end burst; E declines while open),
+  *Lightning Accelerate* (tower projectiles x2, towers take 50% of the
+  character's total attack/move bonuses). New `src/sim/charspeed.ts` owns the
+  character's live attack/move composition. Unlock `live_wire` (300 chain
+  jumps in a run — Voltbolt links, Chain Surge jumps, Tesla Coil chains).
+  Roster 14 through SPEC-FINAL §4/§13/§14 G8 (91 pairs), every roster test,
+  q7; `tests/class-voltbolt.test.ts` 58 cases. Review REQUEST-CHANGES ->
+  APPROVE (Major: links struck during the defeat beat), QA PASS (Major: the
+  unlock was unreachable in a normal profile) — every finding fixed
+  test-first. G8/late-game scaling unmeasured: fb203; a pre-existing Time
+  Lock NaN-aim bug found by QA: fb204. Readings: QUESTIONS Q219.
 
 - **2026-09-23 (scheduled routine, third run) — same stall, no owner
   notification this time (already sent on the second run, ~5.7h ago).**
@@ -7458,6 +7497,14 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb156: `tests/boss.test.ts` "a scripted run reaches it, kills it and
+  wins" fails (full suite only; not in `test:fast` or CI), fix owner fb205.**
+  Deliberately left red rather than `.skip`-ed. The owner's standing order
+  for this run is "never weaken tests", and fb099 fixed this same 20 s floor
+  at the cause (a boss HP retune). On fb156's jittered gates, seed 4's boss
+  fight lasts 11.98 s (22.37 s at e50cc79). Over seeds 1-10 the win count is
+  unchanged (5) and fight lengths spread from 22-29 s to 12-38 s. The fix is
+  tuning, owned by BACKLOG-TERRAIN.md fb205; see QUESTIONS Q220(10).
 - **fb153b/fb197: `tests/fb196-night1-basehpmul.test.ts`'s two scripted-bot
   control-pair assertions (swordsman, pyromancer) are `.skip`-ed, re-enable
   point fb197.** fb153b's `GATES.east`/`world.ts:591` coordinate fix changes

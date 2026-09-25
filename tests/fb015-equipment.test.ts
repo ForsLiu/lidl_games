@@ -283,7 +283,7 @@ function minimalReport(): import('../src/sim/types').RunReport {
     damageByWeapon: {},
     damageByWeaponVs: {},
     damageByType: {},
-    damageByWeaponType: {},
+    damageBySourceType: {},
     damageTotal: 0,
     damageThroughMinute8: null,
     spawnedByWave: [],

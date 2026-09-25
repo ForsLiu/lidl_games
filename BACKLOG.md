@@ -49,7 +49,7 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
-- [x] (fb160) [feat] **DONE 2026-09-24 (scheduled routine), main-lane
+- [x] (fb208) [feat] **DONE 2026-09-24 (scheduled routine), main-lane
       companion to the UI-lane item (BACKLOG-UI.md fb160, owner feedback
       `ui-dps-panel-bars`) — picked up per this routine's own instruction
       that a lane item whose Log names an out-of-scope block is main lane's
@@ -90,7 +90,7 @@ still in test headers.
       (unrendered) because `vs-panel.ts`'s "live DPS this wave" column still
       reads `.wave.bySource` — deleting it would have silently regressed a
       shipped, tested fb037 feature the feedback never named. Logged as
-      QUESTIONS Q219 rather than assumed.
+      QUESTIONS Q222 rather than assumed.
       New `tests/fb160-dps-panel-bars.test.ts` (8 tests: matrix crediting,
       segment sum/percent/sort, colorblind color switch, snapshot isolation
       and non-aliasing across the wave/Sunder boundary, RunReport
@@ -116,7 +116,19 @@ still in test headers.
       BACKLOG-UI.md/PROGRESS.md when it ran mid-session) is resolved by this
       entry and BACKLOG-UI.md's matching one. `npx tsc --noEmit` clean —
       refs: BACKLOG-UI.md fb160, SPEC-FINAL §11, owner feedback
-      `ui-dps-panel-bars`, QUESTIONS Q219.
+      `ui-dps-panel-bars`, QUESTIONS Q222.
+      **Post-merge note (2026-09-25, branch merge into master):** this
+      session's own `damageByWeaponType`/`cloneDamageMatrix`/
+      `damageMatrixSince`/`tests/fb160-dps-panel-bars.test.ts` were superseded
+      at merge time by master's independently-shipped equivalent
+      (`World.damageBySourceType`, no snapshot-matrix helpers needed — the
+      DPS panel reads the live matrix directly), which is what BACKLOG-UI.md's
+      fb160 entry now describes and what actually ships. Renumbered fb160 ->
+      fb208 here only to clear an id collision with BACKLOG-UI.md's fb160
+      (both branches independently completed the same owner feedback item;
+      per CLAUDE.md's id-uniqueness rule, the collision is fixed by renaming
+      rather than allow-listed) — the technical narrative above describes
+      this branch's own (superseded) implementation, kept for history.
 
 - [x] (fb200) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
       (BACKLOG-UI.md fb151, filed 2026-09-05 by qa-playtester during fb112
@@ -7050,6 +7062,19 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       --noEmit` clean; `npm run test:fast` green (314 files / 4547 passed /
       35 skipped, up from fb135's 4545). — refs: BACKLOG-TERRAIN.md fb064i
       Log, BACKLOG.md fb129.
+
+- [ ] (fb207) [bug] a stored input log recorded before a sim-code change
+      replays silently to a different game — acceptance: `RunConfig` carries
+      a sim/generator version stamp (bumped by any change that moves a
+      seed's run, e.g. fb156's jittered gates); `World`/`replayRecorded` and
+      `tryResumePersistedRun` (src/ui/main.ts) refuse a config stamped with
+      another version, loudly, as they already do for a content-hash
+      mismatch; a regression test next to tests/q18-content-hash-replay.test.ts
+      shows an older-stamped config is rejected rather than replayed. Found
+      by fb156's QA: seed 1 recorded at e50cc79 replays on the fb156 build to
+      hash aae0b13d (not 4835a7e9), 13 structures instead of 14, because
+      `contentHash` covers `/data` only — refs: SPEC-FINAL §12 rule 2,
+      QUESTIONS Q220(8), BACKLOG-TERRAIN.md fb156.
 
 
 ## Retired from the queue by SPEC-FINAL

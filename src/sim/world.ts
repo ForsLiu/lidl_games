@@ -9,8 +9,6 @@ import {
   GRID_H,
   GRID_W,
   Grid,
-  GATES,
-  MODIFIER_GATES,
   type Field,
   type GateDef,
   type TerrainOverlay,
@@ -19,6 +17,8 @@ import { RngSet } from './rng';
 import {
   flatTerrain,
   generateTerrain,
+  jitterGates,
+  jitterModifierGate,
   loadTerrain,
   terrainOverlay,
   verifyTerrainMap,
@@ -43,6 +43,8 @@ import type {
   Structure,
   TimeLockZone,
   MindTick,
+  VoltChain,
+  LightningBall,
   Warden,
 } from './types';
 
@@ -543,6 +545,16 @@ export class World {
   enemyOnEnemyKills = 0;
   /** fb057 (Mind Manipulation's elite/boss branch): pending tick trains, see `MindTick`. */
   mindTicks: MindTick[] = [];
+  /** fb059 (Voltbolt *Arc* and *Overdrive*): chain links waiting on their 0.1 s delay, see `VoltChain`. */
+  voltChains: VoltChain[] = [];
+  /** fb059 (Voltbolt *Lightning Ball*): live balls. */
+  lightningBalls: LightningBall[] = [];
+  /**
+   * fb059: character chain hits landed this run — Voltbolt's *Arc* and *Overdrive*
+   * links and Stormcaller's Chain Surge jumps past the first — for Voltbolt's
+   * unlock quest ("300 chain hits in one run").
+   */
+  chainHits = 0;
   /**
    * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
    * VS wave that actually ends by its own means — the block timer
@@ -558,13 +570,13 @@ export class World {
   /** fb007 DPS panel: cumulative damage by §3 damage-type key, the same choke point as `damageByWeapon`. */
   damageByType: Record<string, number> = {};
   /**
-   * fb160 DPS panel bars: the combined `damageByWeapon` x `damageByType`
-   * matrix (source -> type -> amount), credited at the same `damageEnemy`
-   * choke point as the two flat accumulators above. Neither flat accumulator
-   * can reconstruct this on its own — the panel's segmented-bar redesign
-   * needs each source's damage split by type to draw the bar's segments.
+   * fb160 (owner feedback `ui-dps-panel-bars`): the same damage again, split
+   * by source *and* §3 type — `damageBySourceType[source][type]` — credited
+   * at the one choke point both flat ledgers above are, so each source row's
+   * type segments sum to its `damageByWeapon` entry and each type column to
+   * its `damageByType` entry. The DPS panel's segmented bars read it.
    */
-  damageByWeaponType: Record<string, Record<string, number>> = {};
+  damageBySourceType: Record<string, Record<string, number>> = {};
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[] = [];
   leaksByWave: number[] = [];
@@ -580,15 +592,16 @@ export class World {
   looseInTheDark = 0;
   /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
   damageAtSunder: Record<string, number> = {};
-  /** fb007: `damageByType` snapshot at the same moment as `damageAtSunder`. */
+  /**
+   * fb007: `damageByType` snapshot at the same moment as `damageAtSunder`.
+   * fb160 retired the DPS panel's per-wave view, so no UI reads the by-type
+   * snapshots any more; they stay written and hashed (sim state) for a future
+   * per-wave type view.
+   */
   damageTypeAtSunder: Record<string, number> = {};
-  /** fb160: `damageByWeaponType` snapshot at the same moment as `damageAtSunder`. */
-  damageMatrixAtSunder: Record<string, Record<string, number>> = {};
-  /** fb007 DPS panel: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so its "this wave" window can be isolated the same way `damageAtSunder` isolates Act II. */
+  /** fb007: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so a "this wave" window can be isolated the same way `damageAtSunder` isolates Act II — since fb160 read by the VS panel's wave line (`waveDamageBySource`) for the by-weapon half only. */
   damageAtWaveStart: Record<string, number> = {};
   damageTypeAtWaveStart: Record<string, number> = {};
-  /** fb160: `damageByWeaponType` snapshot at the same moment as `damageAtWaveStart`. */
-  damageMatrixAtWaveStart: Record<string, Record<string, number>> = {};
   /** Tick `damageAtWaveStart` was taken at, so the panel can compute the window's elapsed seconds. */
   waveStartTick = 0;
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
@@ -706,8 +719,6 @@ export class World {
     this.coreKey = cfg.core ?? defaultCoreKey(content);
     this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 6));
     this.rng = new RngSet(cfg.seed);
-    this.grid = new Grid();
-    this.grid.breachBase = content.towers.breach.base;
 
     this.modKeys = cfg.modifiers.slice();
     this.mods = emptyModifierEffects();
@@ -729,23 +740,25 @@ export class World {
       if (e.coreHp) this.mods.coreHp += e.coreHp;
     }
 
-    // fb153b (BACKLOG.md, main-lane follow-up to fb156): the base arena always
-    // carries all four `GATES` (west/north/east/south) now, not the pre-resize
-    // three — `slice(0, 3)` silently dropped the real `south` gate on every
-    // run. The `gate` modifier ("Fourth Gate", `data/modifiers.json`) adds a
-    // fifth: `MODIFIER_GATES[0]` (`south2`) by reference, not a hand-typed
-    // literal, so it can never drift off `grid.ts`'s own maintained position.
-    this.gates = GATES.slice();
-    if (this.mods.extraGates > 0) {
-      const south2 = MODIFIER_GATES[0];
-      if (south2 === undefined) throw new Error('unreachable: MODIFIER_GATES is a fixed non-empty literal');
-      this.gates.push(south2);
-      for (const g of this.gates) {
-        this.grid.tile[this.grid.idx(g.tx, g.ty)] = 2;
-      }
-      this.grid.markDirty();
-      this.grid.refresh();
-    }
+    // fb156 (owner order `terrain-four-gates`: "maps generate with 4 spawn
+    // gates by default (N, S, E, W edges, jittered along the edge)... tier
+    // modifiers that add gates now go to 5"). A generated run draws its four
+    // gates per seed from `jitterGates` (its own `terrain:gates` RNG
+    // sub-stream, so no other stream's cursor moves) and the Fourth Gate
+    // modifier's fifth from `jitterModifierGate` — structurally clear of the
+    // base south gate's jitter band (fb178). A practice run (Training
+    // Grounds, fb064f) jitters too: its flat arena is built on whatever gate
+    // list it is handed (`flatTerrain(this.gates)`), and fb065g's A/B control
+    // needs the practice arm to differ from the generated arm by terrain
+    // alone, not by where its gates sit. The static `GATES`/`MODIFIER_GATES`
+    // stay the tools' and tests' default lists. The `Grid` is built on the
+    // final list, so its gate tiles are baked in at construction (fb177)
+    // rather than patched afterwards.
+    const baseGates: GateDef[] = jitterGates(cfg.seed);
+    if (this.mods.extraGates > 0) baseGates.push(jitterModifierGate(cfg.seed));
+    this.gates = baseGates;
+    this.grid = new Grid(this.gates);
+    this.grid.breachBase = content.towers.breach.base;
     this.terrainCfg = terrainCfg;
     // fb130: Training Grounds (fb064f) never generates terrain at all, so
     // there is no `applyRunTerrain` call to hand back a `TerrainMap` —
@@ -877,6 +890,8 @@ export class World {
       armorShred: 0,
       leechAccumulator: 0,
       overloadRemaining: 0,
+      overdriveRemaining: 0,
+      overdriveStacks: 0,
       standStillTimer: 0,
       lastStillX: spawn.tx,
       lastStillY: spawn.ty,
@@ -1196,21 +1211,6 @@ export class World {
 
 export function makeStats(): Stats {
   return emptyStats();
-}
-
-/**
- * fb160: a deep-enough copy of `World.damageByWeaponType` for a point-in-time
- * snapshot (`damageAtWaveStart`'s/`damageAtSunder`'s matrix siblings). A
- * shallow `{ ...matrix }` would share each source's inner row object with the
- * live matrix, so `damageEnemy`'s later `matrixRow[dmgType] += ...` mutation
- * would silently corrupt the snapshot too — each row needs its own copy.
- */
-export function cloneDamageMatrix(
-  matrix: Record<string, Record<string, number>>,
-): Record<string, Record<string, number>> {
-  const out: Record<string, Record<string, number>> = {};
-  for (const key of Object.keys(matrix)) out[key] = { ...matrix[key] };
-  return out;
 }
 
 /**

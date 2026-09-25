@@ -1,7 +1,7 @@
 /**
  * c021 (BACKLOG-CONTENT, lane `content`) — **the twelve `active1_potency`
  * cards, on trial: the last of the three §6.3 cards with no cross-class
- * coverage.** (Thirteen since fb057's Madness King.)
+ * coverage.** (Thirteen since fb057's Madness King, fourteen since fb059's Voltbolt.)
  *
  * `c016` closed `class_line` (twelve rows), `c019` closed `active2_cdr`
  * (twelve ladders plus two named deviations). `active1_potency` was touched
@@ -13,7 +13,7 @@
  *
  * **"Potency" is not "damage", and pretending otherwise measured a kit wrong.**
  * The item's acceptance says the card must move "its own Active1's damage";
- * **seven** of the thirteen Active1s author `damage: 0` and carry their
+ * **eight** of the fourteen Active1s author `damage: 0` and carry their
  * magnitude somewhere else entirely (`data/classes.json`):
  *
  *   | class       | Active1           | what potency actually multiplies       |
@@ -25,6 +25,7 @@
  *   | paladin     | `clarion_taunt`   | `tauntDurationSeconds` — a longer taunt |
  *   | time_lord   | `time_mark`       | `markPast/PresentDotDps` — the mark DoTs|
  *   | madness_king | `mind_manipulation` | the elite/boss branch's tick damage  |
+ *   | voltbolt    | `lightning_ball`  | each ball shot (a basic hit) and its chain |
  *
  * **This table said "four" and listed four, and that is exactly how this file
  * shipped a false deviation.** Bloodlord and Time Lord also author `damage: 0`;
@@ -365,6 +366,22 @@ const CASES: readonly PotencyCase[] = [
       return before - e.hp;
     },
   },
+  {
+    classKey: 'voltbolt',
+    // fb059: the ball fires the character's basic attack — potency scales
+    // each shot (and so the Arc link that chains off it, whose base is the
+    // shot). The window holds the first shot and its 0.1 s link, and ends
+    // well before the second shot at the basic interval.
+    what: "Lightning Ball's shots and their chain links",
+    read: (w) => {
+      const e = dummy(w, WX + 1, WY);
+      const before = e.hp;
+      castActive1(w);
+      for (let t = 0; t < 20; t++) updateClassPassives(w, DT);
+      expect(w.lightningBalls, 'harness: the ball is already gone').toHaveLength(1);
+      return before - e.hp;
+    },
+  },
 ];
 
 /** Every *other* class's `active1_potency` card at max rank — the key-leak probe. */
@@ -381,8 +398,8 @@ function foreignRanks(classKey: string): Ranks {
 /* ------------------------------------------------------------ the coverage */
 
 describe('c021 — every class is on trial, and every window comes out of /data', () => {
-  it('all thirteen classes are covered, once each', () => {
-    expect(CASES.length).toBe(13);
+  it('all fourteen classes are covered, once each', () => {
+    expect(CASES.length).toBe(14);
     expect([...CASES].map((c) => c.classKey).sort()).toEqual([...CLASS_KEYS].sort());
   });
 
@@ -752,6 +769,14 @@ describe('c021 — the card moves its named magnitude and nothing else', () => {
         castActive1(w);
         // Both at once, Poison Barrel's way: one number that moves if either does.
         return e.mindSlowAmount * 1000 + e.mindSlowRemaining; // fb057 QA: the elite slow is its own timed status
+      },
+    },
+    {
+      classKey: 'voltbolt',
+      field: 'ballLifetimeSeconds (how long the ball lives, not what it deals)',
+      read: (w) => {
+        castActive1(w);
+        return w.lightningBalls[0]!.remaining;
       },
     },
   ];

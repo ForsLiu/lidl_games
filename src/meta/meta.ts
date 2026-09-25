@@ -133,6 +133,10 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
     // pre-Madness-King way an enemy kills an enemy, so the quest is reachable
     // before the class it unlocks).
     enemy_on_enemy_kills: w.enemyOnEnemyKills,
+    // fb059 (Voltbolt's unlock, `live_wire`): "300 chain hits in one run" —
+    // best single run, not banked. Counts Voltbolt's chain links and
+    // Stormcaller's Chain Surge jumps, so it is reachable before Voltbolt is.
+    max_chain_hits: w.chainHits,
     fastest_win_seconds: won ? report.totalSeconds : Number.POSITIVE_INFINITY,
   };
 }

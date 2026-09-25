@@ -15,11 +15,12 @@ import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 /**
  * SPEC-FINAL §4: only the owner-verbatim/owner-priority classes show in a
  * normal profile — the original three plus fb057's Madness King ("visible
- * roster, 4th alongside Swordsman/Plaguebringer/Time Lord"). Every other
+ * roster, 4th alongside Swordsman/Plaguebringer/Time Lord") and fb059's
+ * Voltbolt ("Add to the VISIBLE roster"). Every other
  * class stays fully playable (sim gates, quest unlocks, Tuner, dev profile) —
  * this list gates the Hub's Class screen only.
  */
-export const NORMAL_PROFILE_CLASS_KEYS: readonly string[] = ['swordsman', 'plaguebringer', 'time_lord', 'madness_king'];
+export const NORMAL_PROFILE_CLASS_KEYS: readonly string[] = ['swordsman', 'plaguebringer', 'time_lord', 'madness_king', 'voltbolt'];
 
 export type Band = 'low' | 'medium' | 'high';
 export type AoeBand = 'yes' | 'no' | 'small';
@@ -48,6 +49,8 @@ export const CLASS_BANDS: Record<string, ClassBandProfile> = {
   time_lord: { range: 'medium', dmg: 'medium', spd: 'medium', aoe: 'no', move: 'medium' },
   // fb057: "range long (high) · damage low · attack speed slow · AoE no · movement fast (high)".
   madness_king: { range: 'high', dmg: 'low', spd: 'low', aoe: 'no', move: 'high' },
+  // fb059: "range long (high) · damage medium · attack speed medium · AoE no · movement high".
+  voltbolt: { range: 'high', dmg: 'medium', spd: 'medium', aoe: 'no', move: 'high' },
 };
 
 interface BandRow {

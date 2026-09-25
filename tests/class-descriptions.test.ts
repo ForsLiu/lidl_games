@@ -274,6 +274,12 @@ const WORD_NUMBERS: readonly { cls: string; slot: Slot; word: string; why: strin
     word: 'once',
     why: '"mad from Whispers at once" means concurrently — the idiom scoping the `5` cap to live madness, not a count of its own.',
   },
+  {
+    cls: 'voltbolt',
+    slot: 'passive',
+    word: 'once',
+    why: '"chains once more" is the rule that Arc adds one link — `voltChainMuls` returns a single multiplier outside Overdrive; the link count is structural, the magnitude is the `25%` claim.',
+  },
 ];
 
 /* -------------------------------------------------------------- the ledger */
@@ -655,6 +661,50 @@ const LEDGER: readonly Claim[] = [
     means: 'the flat point-blank bonus on top of the character attack-speed bonus',
     keywords: ['attack-speed bonus', 'point-blank'],
     status: { kind: 'field', path: ['towerPassive', 'frenziedAimFlatBonus'], as: 'pct' },
+  },
+  /* -------------------------------------------------- §4.2 Voltbolt (fb059) */
+  {
+    cls: 'voltbolt',
+    slot: 'passive',
+    token: '25%',
+    means: "the chain link's share of the basic hit's damage",
+    keywords: ['chains', 'damage'],
+    status: { kind: 'field', path: ['passive', 'arcChainDamageMul'], as: 'pct' },
+  },
+  {
+    cls: 'voltbolt',
+    slot: 'passive',
+    token: '0.1 s',
+    means: 'seconds between the hit and its chain link landing',
+    keywords: ['after the hit'],
+    status: { kind: 'field', path: ['passive', 'arcChainDelaySeconds'] },
+  },
+  {
+    cls: 'voltbolt',
+    slot: 'passive',
+    token: '3',
+    means: 'tiles the chain searches around the struck enemy',
+    keywords: ['nearest enemy', 'tiles'],
+    status: { kind: 'field', path: ['passive', 'arcChainRadius'] },
+  },
+  {
+    cls: 'voltbolt',
+    slot: 'towerPassive',
+    token: '100%',
+    means: 'tower projectile speed bonus',
+    keywords: ['projectiles', 'faster'],
+    status: { kind: 'field', path: ['towerPassive', 'projectileSpeedBonus'], as: 'pct' },
+  },
+  {
+    cls: 'voltbolt',
+    slot: 'towerPassive',
+    token: '50%',
+    // One numeral, one field, both conversions — the sentence states the
+    // efficiency once (c015: a field may back only one claim); c008 pins both
+    // halves against §4.2.
+    means: "share of the character's total attack-speed and movement-speed bonuses towers gain",
+    keywords: ['towers gain', 'speed bonuses'],
+    status: { kind: 'field', path: ['towerPassive', 'towerStatConversionEfficiency'], as: 'pct' },
   },
 ];
 
@@ -1111,7 +1161,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
         ).toBeUndefined();
       }
     }
-    expect(described.length, 'SPEC-FINAL §13 ships 13 classes x 2 described slots').toBe(26);
+    expect(described.length, 'SPEC-FINAL §13 ships 14 classes x 2 described slots').toBe(28);
     // Every declared word-number belongs to a slot that exists.
     for (const w of WORD_NUMBERS) {
       expect(described, `WORD_NUMBERS names ${w.cls}.${w.slot}, which is not a described slot`).toContain(
@@ -1121,7 +1171,7 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
     }
   });
 
-  it('census: 36 field · 0 sibling · 0 in code · 1 prose, over 24 sentences, 2 wordless, 5 word-numbers', () => {
+  it('census: 41 field · 0 sibling · 0 in code · 1 prose, over 26 sentences, 2 wordless, 6 word-numbers', () => {
     // The census is the barrier: a new deviation cannot be absorbed into an
     // existing status, and closing one — fb127/c010 moved Conduction's two
     // numbers onto its own passive row, so its former `sibling` claims are
@@ -1139,7 +1189,9 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
     // fb057: Madness King's two sentences add five `field` claims (fb202
     // moved Whispers' "within 3 tiles" off enemies.ts's MADNESS_TARGET_RADIUS
     // onto `madnessSearchRadius`, closing the one `in_code` claim it used to
-    // add) and one declared word-number ("at once").
-    }).toEqual({ field: 36, sibling: 0, in_code: 0, prose: 1, sentences: 24, wordless: 2, wordNumbers: 5 });
+    // add) and one declared word-number ("at once"). fb059: Voltbolt's two
+    // sentences add five `field` claims (Arc's 25%/0.1 s/3, Lightning
+    // Accelerate's 100%/50%) and one word-number ("chains once more").
+    }).toEqual({ field: 41, sibling: 0, in_code: 0, prose: 1, sentences: 26, wordless: 2, wordNumbers: 6 });
   });
 });

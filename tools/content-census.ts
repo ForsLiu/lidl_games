@@ -58,10 +58,11 @@ export function census(content: Content): CensusRow[] {
     key: 'classes',
     label: 'Classes',
     actual: String(classCount),
-    // fb057: 12 -> 13 (Madness King), the bump the fb085 note above names.
-    target: '13',
-    met: classCount === 13,
-    note: classCount === 13 ? undefined : 'P6 incomplete — see PROGRESS.md P6 audit line',
+    // fb057: 12 -> 13 (Madness King), the bump the fb085 note above names;
+    // fb059: 13 -> 14 (Voltbolt).
+    target: '14',
+    met: classCount === 14,
+    note: classCount === 14 ? undefined : 'P6 incomplete — see PROGRESS.md P6 audit line',
   });
 
   const towerCount = content.towers.towers.length;

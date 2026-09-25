@@ -191,7 +191,8 @@ describe('fb085(b): Madness King/Voltbolt Active kinds + REQUIRED_EFFECT_FIELDS'
       eliteConvertSlowAmount: 0.9,
     },
     spreading_madness: { madnessDurationSeconds: 10 },
-    lightning_ball: { ballLifetimeSeconds: 2.5, moveSpeedDamageEfficiency: 0.25 },
+    // fb059 added `ballSpeed` (the travel speed the owner text implies but never numbers).
+    lightning_ball: { ballLifetimeSeconds: 2.5, moveSpeedDamageEfficiency: 0.25, ballSpeed: 12 },
     overdrive_voltbolt: {
       overdriveSeconds: 5,
       overdriveChain1Mul: 0.25,

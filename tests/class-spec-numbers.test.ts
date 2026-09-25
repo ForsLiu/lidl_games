@@ -109,8 +109,10 @@ const content = loadContent();
 // day) re-hashed again, deliberately — §4's heading became "13 classes", the
 // §4.2 table gained the Madness King row and the Unlocks paragraph its
 // `mob_mentality` sentence; every figure in the new row is a ledger row
-// below, and no pre-existing row's quoted text moved.
-const SPEC_4_SHA256 = 'b4f5d0fa5a6fae5165c75dd7a9ceb6c735b6484a0ccf8e475876b60a2b4d539f';
+// below, and no pre-existing row's quoted text moved. fb059 (2026-09-23)
+// re-hashed once more, the same way: "14 classes", the Voltbolt row (all
+// eighteen figures ledgered below) and the `live_wire` Unlocks sentence.
+const SPEC_4_SHA256 = 'ca26064ab9359fac34042b63907bc337895321aaedf590448594219a0b67d24f';
 
 /** §3's own Burning row — Pyro's "3 Burning" is stated in units of it. */
 const BURNING = content.damageTypeByKey.get('burning');
@@ -1683,6 +1685,161 @@ const LEDGER: readonly Figure[] = [
       'A `kind`-driven field, not a `mods` stat key (`frenziedAimMul`, towers.ts), so it carries no ' +
       'c027 behavioural pointer; tests/class-tower-passive-liveness.test.ts kills it by zeroing this field.',
   },
+  /* ------------------------------------------------------ §4.2 Voltbolt */
+  {
+    cls: 'voltbolt',
+    clause: 'Arc (passive)',
+    figure: 'chains once more at 25% damage',
+    spec: 0.25,
+    path: ['passive', 'arcChainDamageMul'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Arc (passive)',
+    figure: 'the nearest enemy within r3 of the struck enemy',
+    spec: 3,
+    path: ['passive', 'arcChainRadius'],
+    status: { kind: 'match' },
+    note: 'A `nearestEnemy` search radius around the struck enemy, not an AoE, so Area never widens it.',
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Arc (passive)',
+    figure: 'landing 0.1 s after the hit',
+    spec: 0.1,
+    path: ['passive', 'arcChainDelaySeconds'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Ball',
+    figure: '12 tiles/s ⚖',
+    spec: 12,
+    path: ['active1', 'ballSpeed'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Ball',
+    figure: 'it lives 2.5 s in all',
+    spec: 2.5,
+    path: ['active1', 'ballLifetimeSeconds'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Ball',
+    figure: '25% of the total movement-speed bonus',
+    spec: 0.25,
+    path: ['active1', 'moveSpeedDamageEfficiency'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Ball',
+    figure: '8 s ⚖ cooldown',
+    spec: 8,
+    path: ['active1', 'cooldownSeconds'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: '5 s window',
+    spec: 5,
+    path: ['active2', 'overdriveSeconds'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: 'first chain 25%',
+    quote: 'chains three times (25%/12.5%/12.5%)',
+    spec: 0.25,
+    path: ['active2', 'overdriveChain1Mul'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: 'second chain 12.5%',
+    quote: 'chains three times (25%/12.5%/12.5%)',
+    spec: 0.125,
+    path: ['active2', 'overdriveChain2Mul'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: 'third chain 12.5%',
+    quote: 'chains three times (25%/12.5%/12.5%)',
+    spec: 0.125,
+    path: ['active2', 'overdriveChain3Mul'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: '+2.5% attack speed',
+    spec: 0.025,
+    path: ['active2', 'overdriveAtkSpdPerHit'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: '+2.5% movement speed',
+    spec: 0.025,
+    path: ['active2', 'overdriveMoveSpdPerHit'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: 'base 150 ⚖',
+    spec: 150,
+    path: ['active2', 'damage'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: 'r3 ⚖',
+    spec: 3,
+    path: ['active2', 'radius'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Overdrive',
+    figure: '10 s cooldown',
+    spec: 10,
+    path: ['active2', 'cooldownSeconds'],
+    status: { kind: 'match' },
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Accelerate (tower passive)',
+    figure: 'tower projectile speed +100%',
+    spec: 1,
+    path: ['towerPassive', 'projectileSpeedBonus'],
+    status: { kind: 'match' },
+    note:
+      'A `kind`-driven field, not a `mods` stat key (`towerProjectileSpeedMul`, towers.ts), so it carries no ' +
+      'c027 behavioural pointer; tests/class-tower-passive-liveness.test.ts kills it by zeroing this field.',
+  },
+  {
+    cls: 'voltbolt',
+    clause: 'Lightning Accelerate (tower passive)',
+    figure: "towers gain 50% of the character's total attack-speed and movement-speed bonuses",
+    spec: 0.5,
+    path: ['towerPassive', 'towerStatConversionEfficiency'],
+    status: { kind: 'match' },
+    note:
+      'One field for both conversions, stated once in §4.2 (fb059). `kind`-driven like the row above; ' +
+      'c009 kills each conversion by zeroing it.',
+  },
 ];
 
 /* ------------------------------------------------------------- machinery */
@@ -1853,6 +2010,7 @@ const SPEC_4_HEADING: Readonly<Record<string, string>> = {
   paladin: '| **Paladin** |',
   time_lord: '| **Time Lord** |',
   madness_king: '| **Madness King** |',
+  voltbolt: '| **Voltbolt** |',
 };
 
 /**
@@ -2007,15 +2165,15 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('covers all thirteen classes, and only classes that exist', () => {
+  it('covers all fourteen classes, and only classes that exist', () => {
     const shipped = new Set(RAW.classes.map((c) => c.key));
-    expect(shipped.size).toBe(13);
+    expect(shipped.size).toBe(14);
     const covered = new Set(LEDGER.map((f) => f.cls));
     expect([...shipped].filter((k) => !covered.has(k)), 'class with no §4 figure in the ledger').toEqual([]);
     expect([...covered].filter((k) => !shipped.has(k)), 'ledger row for a class that does not exist').toEqual([]);
   });
 
-  it('every one of the 13x4 class slots holds a figure or a declared reason it has none', () => {
+  it('every one of the 14x4 class slots holds a figure or a declared reason it has none', () => {
     // "At least one row per class" is too weak to catch a missed figure: the
     // Swordsman's Thousand Cuts row was in fact missing while three other
     // Swordsman rows kept that check green. Coverage is per *slot*, and a slot
@@ -2141,15 +2299,16 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
       // in_code (the Madness status's r3 search and r1 wander, fb085's
       // enemies.ts literals). fb202 (rule 4) moved both onto the `whispers`
       // passive row (`madnessSearchRadius`/`madnessWanderRadius`), closing
-      // both as matches.
-      match: 84,
+      // both as matches. fb059 (Voltbolt) added eighteen rows, all matches —
+      // every figure in the new §4.2 row is authored where it is stated.
+      match: 102,
       retuned: 19,
       elsewhere: 1,
       in_code: 5,
       unimplemented: 0,
       defect: 0,
     });
-    expect(LEDGER).toHaveLength(109);
+    expect(LEDGER).toHaveLength(127);
   });
 
   it('every authorised deviation names a backlog item or Q-number that can be looked up', () => {

@@ -43,7 +43,8 @@ describe('c038: roster size is read live, not pinned to a stale literal', () => 
 
     expect(rosterSize(thirteen)).toBe(ROSTER_SIZE + 1);
     expect(pairCount(rosterSize(thirteen))).toBe(pairCount(ROSTER_SIZE + 1));
-    // The formula itself, not just the live count: 13 classes make 78 pairs,
+    // The formula itself, not just the live count: n + 1 classes make n more
+    // pairs than n do (fb059: 14 -> 15 is 91 -> 105),
     // one more class making one fewer pair would be the regression this row
     // exists to catch (an off-by-one in `pairCount`, not in the roster read).
     expect(pairCount(rosterSize(thirteen))).not.toBe(PAIR_COUNT);

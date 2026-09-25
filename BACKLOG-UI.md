@@ -59,7 +59,19 @@ not already expose it) logs that need below instead of reaching into
       `fb176`) as one-liners. **One exception, found by running
       `npx vitest run tests/fb038-status.test.ts` after the first pass (it
       reddened one case):** `fb055` stays live under a new
-      `### Kept live (cross-lane test dependency)` heading with an
+      `- [ ] (fb206) [bug] a class passive's on-hit DoT is booked under the damage
+      *type* key as its source (fb160 QA): Swordsman's Thousand Cuts bleeding
+      shows as its own "Bleeding" bar in the DPS panel instead of a Bleeding
+      segment on the attack that applied it, because `applyEffects`
+      (`src/sim/combat.ts`) falls back to `fx.source ?? k` and the class hit
+      effects built from `passiveOnHit` pass no `source`. A sim attribution
+      change (main lane) that moves `damageByWeapon` and so G8's damage-source
+      fingerprints — measure G8 with it. Acceptance: a failing regression test
+      first (no §3 type key ever appears as a `damageBySourceType` source for a
+      class kit); class hit effects carry their own source; G8's fingerprint
+      census re-measured — refs: fb160 QA finding 2, SPEC-FINAL §11/§14.
+
+### Kept live (cross-lane test dependency)` heading with an
       explanatory note, rather than archiving — that test (main-lane Scope,
       not editable here) hard-codes `fb055`'s feedback citation resolving to
       `BACKLOG-UI.md`, and `tools/status.ts`'s own `feedbackLedger` gives an
@@ -261,9 +273,38 @@ not already expose it) logs that need below instead of reaching into
       skipped, unchanged). Full tier. — refs: fb112, `canvas.ts`'s
       `class_active2` draw, BACKLOG.md (main lane).
 
-- [x] (fb160) [feat] **DONE 2026-09-24 (scheduled routine, main lane) —
-      exactly the main-lane companion this item's own blocking note called
-      for.** DPS panel shows whole-run totals only (no per-wave view):
+- [x] (fb160) [feat] **DONE 2026-09-23 (main-lane session, full repository
+      scope — the sim state it was blocked on is built here too).** The sim
+      gained the ledger the 2026-09-06 note asked for:
+      `World.damageBySourceType[source][type]`, credited at `damageEnemy`'s one
+      choke point beside `damageByWeapon`/`damageByType` (so each source row
+      sums to its by-source entry and each type column to its by-type entry),
+      hashed, and copied into `RunReport.damageBySourceType`. The panel
+      (`dps-panel.ts`, `hud.ts`, `style.css`) is whole-run only: the total and
+      its DPS at the top, then one bar per source sorted by total, its length
+      relative to the top source, split into one segment per damage type in
+      that type's `data/damagetypes.json` color (its colorblind color under
+      the accessible palette), the source total at the bar's end, and each
+      segment's hover title "Type: amount (n%)". Source labels name the kit
+      (e.g. "Voltbolt — Lightning Ball"). The VS wielded-attacks panel keeps
+      its own "This wave" line through `waveDamageBySource` (the old wave
+      window, split out — the owner removed the per-wave view from the DPS
+      panel only). Tests: `tests/dps-panel.test.ts` rewritten for the new
+      model (whole-run across waves and the Sundering; segment/bar/sort/color
+      rules; three-ledger reconciliation against a real `RunReport`, TD and
+      through Act II) and new `tests/ui-fb160-dps-bars.test.ts` reconciling
+      the *rendered* totals, widths, colors and hover text against the report
+      on a real bot run, plus the live docked panel under both palettes.
+      **Review (full tier):** code-reviewer REQUEST-CHANGES -> APPROVE — the
+      per-tick `innerHTML` rebuild recreated the hovered segment every frame
+      so its tooltip could never appear (now updated in place,
+      `syncDpsPanelBody`, identity pinned by a test), and a shrinking flex
+      item flattened near-top bars (own lane); `/data` strings escaped
+      (shared `escapeHtml`). **qa-playtester: PASS** on every clause (13
+      classes reconciled through Act II, live Chromium checks); its raw
+      "madness" label fixed test-first; its bleed-attribution finding is a
+      pre-existing sim issue filed as fb206. Readings: QUESTIONS Q221.
+      (Original text follows.) DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
       type, each wielded attack, each class active, basic attack, Core — each
       bar segmented by damage TYPE in the damage-type colors, with the source's
@@ -279,7 +320,7 @@ not already expose it) logs that need below instead of reaching into
       BACKLOG.md's own fb160 entry for the full write-up (sim-side
       accumulator/snapshots/hash/RunReport plumbing, the segmented-bar UI,
       the `wave`-window-kept-but-unrendered decision logged as QUESTIONS
-      Q219, and the full review/QA pass). Full tier: code-reviewer
+      Q222, and the full review/QA pass). Full tier: code-reviewer
       REQUEST-CHANGES (one Major, a test-file typecheck break, fixed) then
       clean; qa-playtester PASS on every acceptance clause.
 

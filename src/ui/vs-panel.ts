@@ -9,7 +9,7 @@
  * same helpers `fireWielded` (`sim/vswield.ts`) itself fires with —
  * `wieldedRangeFor`/`wieldedPierceFor`/`wieldedAoeFor` — so this panel cannot
  * quote a number the live attack disagrees with. The "live DPS this wave"
- * column reuses `dpsPanelData`'s own wave window (fb007) rather than
+ * column reuses the DPS panel's wave window (`waveDamageBySource`, fb007/fb160) rather than
  * re-deriving a second damage accumulator.
  *
  * Presentation only — this module never writes to the World.
@@ -29,7 +29,7 @@ import {
   wieldedSplashFor,
 } from '../sim/vswield';
 import type { World } from '../sim/world';
-import { dpsPanelData } from './dps-panel';
+import { waveDamageBySource } from './dps-panel';
 import { formatWieldSplash, trimNum } from './info-format';
 
 export interface VsPanelRow {
@@ -120,7 +120,7 @@ function vsLineageSpecial(w: World, a: TowerAttack, p: AttackProfile, pierce: nu
  * redraw — cheap: at most a handful of built tower types.
  */
 export function vsPanelRows(w: World): VsPanelRow[] {
-  const waveBySource = new Map(dpsPanelData(w).wave.bySource.map((r) => [r.key, r]));
+  const waveBySource = new Map(waveDamageBySource(w).map((r) => [r.key, r]));
   return wieldedAttacks(w)
     .map((wl) => {
       const def = w.content.towerById.get(wl.towerId)!;

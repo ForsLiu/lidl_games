@@ -964,6 +964,12 @@ const ClassEffectSchema = z.object({
   ballLifetimeSeconds: num.optional(),
   moveSpeedDamageEfficiency: num.optional(),
   /**
+   * `lightning_ball` (fb059): the ball's travel speed (tiles/s) toward the
+   * cursor point it then hovers at — the owner text gives the travel but no
+   * speed, so it is authored here rather than hardcoded.
+   */
+  ballSpeed: num.optional(),
+  /**
    * `overdrive_voltbolt` (Voltbolt Active2, fb059): the window's own
    * duration, its 3-chain damage multipliers ("25%/12.5%/12.5%"), and the
    * additive per-basic-attack attack-speed/move-speed stacking during it
@@ -1814,6 +1820,34 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
       }
     }
   }
+  // fb059 (§4.2 Voltbolt): the ranges that keep each number payable — a ball
+  // that cannot move or live, a window that never opens, or a negative
+  // multiplier/stack is an Active that loads and then does nothing (or heals).
+  if (eff.kind === 'lightning_ball') {
+    requirePositive(eff.ballSpeed, `${where}: lightning_ball's ballSpeed`);
+    requirePositive(eff.ballLifetimeSeconds, `${where}: lightning_ball's ballLifetimeSeconds`);
+    requireNonNegative(eff.moveSpeedDamageEfficiency, `${where}: lightning_ball's moveSpeedDamageEfficiency`);
+  }
+  if (eff.kind === 'overdrive_voltbolt') {
+    requirePositive(eff.overdriveSeconds, `${where}: overdrive_voltbolt's overdriveSeconds`);
+    // "chains three times": a zero share would close up the pattern and land
+    // the next link a delay early (code review), so all three are positive.
+    requirePositive(eff.overdriveChain1Mul, `${where}: overdrive_voltbolt's overdriveChain1Mul`);
+    requirePositive(eff.overdriveChain2Mul, `${where}: overdrive_voltbolt's overdriveChain2Mul`);
+    requirePositive(eff.overdriveChain3Mul, `${where}: overdrive_voltbolt's overdriveChain3Mul`);
+    requireNonNegative(eff.overdriveAtkSpdPerHit, `${where}: overdrive_voltbolt's overdriveAtkSpdPerHit`);
+    requireNonNegative(eff.overdriveMoveSpdPerHit, `${where}: overdrive_voltbolt's overdriveMoveSpdPerHit`);
+  }
+}
+
+/** fb059: an authored number that must be > 0 (undefined is the REQUIRED_* tables' job). */
+function requirePositive(v: number | undefined, what: string): void {
+  if (v !== undefined && !(v > 0)) throw new Error(`${what} must be positive`);
+}
+
+/** fb059: an authored number that must be >= 0. */
+function requireNonNegative(v: number | undefined, what: string): void {
+  if (v !== undefined && !(v >= 0)) throw new Error(`${what} must not be negative`);
 }
 
 /**
@@ -1858,7 +1892,7 @@ const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
   // fb085 enablers (fb057/fb059 — see `ClassEffectSchema`'s own field comments).
   mind_manipulation: ['maxCharges', 'rechargeSeconds', 'eliteConvertTicks', 'eliteConvertTickSeconds', 'eliteConvertSlowAmount'],
   spreading_madness: ['madnessDurationSeconds'],
-  lightning_ball: ['ballLifetimeSeconds', 'moveSpeedDamageEfficiency'],
+  lightning_ball: ['ballLifetimeSeconds', 'moveSpeedDamageEfficiency', 'ballSpeed'],
   overdrive_voltbolt: [
     'overdriveSeconds',
     'overdriveChain1Mul',
@@ -1910,6 +1944,18 @@ export function validateClassPassive(passive: { kind?: string }, where: string):
         throw new Error(`${where}: ${kind} needs ${f}`);
       }
     }
+  }
+  const p = passive as { kind?: string } & Record<string, number | undefined>;
+  // fb059 (§4.2 Voltbolt): a chain that searches nowhere, lands before its
+  // hit, or deals negative damage; a tower conversion that slows or shrinks.
+  if (p.kind === 'arc') {
+    requireNonNegative(p.arcChainDamageMul, `${where}: arc's arcChainDamageMul`);
+    requirePositive(p.arcChainRadius, `${where}: arc's arcChainRadius`);
+    requireNonNegative(p.arcChainDelaySeconds, `${where}: arc's arcChainDelaySeconds`);
+  }
+  if (p.kind === 'lightning_accelerate') {
+    requireNonNegative(p.projectileSpeedBonus, `${where}: lightning_accelerate's projectileSpeedBonus`);
+    requireNonNegative(p.towerStatConversionEfficiency, `${where}: lightning_accelerate's towerStatConversionEfficiency`);
   }
 }
 

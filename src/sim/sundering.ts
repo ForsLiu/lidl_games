@@ -10,7 +10,7 @@
 
 import { markAuraDirty } from './towers';
 import { applyTerrainPassives } from './weapons';
-import { cloneDamageMatrix, World } from './world';
+import { World } from './world';
 
 export function finishSundering(w: World): void {
   petrify(w);
@@ -29,7 +29,6 @@ export function finishSundering(w: World): void {
   w.sundered = true;
   w.damageAtSunder = { ...w.damageByWeapon };
   w.damageTypeAtSunder = { ...w.damageByType };
-  w.damageMatrixAtSunder = cloneDamageMatrix(w.damageByWeaponType);
   w.phase = 'act2';
   w.act2Time = 0;
   w.directorTimer = 0;
@@ -78,7 +77,6 @@ export function advanceToNextBlock(w: World): void {
   // the previous TD wave's stale label (QA-filed post-commit).
   w.damageAtWaveStart = { ...w.damageByWeapon };
   w.damageTypeAtWaveStart = { ...w.damageByType };
-  w.damageMatrixAtWaveStart = cloneDamageMatrix(w.damageByWeaponType);
   w.waveStartTick = w.tick;
   // p10h: the reverse half of the transition sweep — no TD-side event existed
   // for this boundary before (unlike 'sunder' on the way into VS), so the
