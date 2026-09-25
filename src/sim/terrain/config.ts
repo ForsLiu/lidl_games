@@ -51,10 +51,13 @@ const INTERIOR_TILES = (GRID_W - 2) * (GRID_H - 2);
  * one is only excluded because its *other* border tiles are rock; two adjacent
  * gates would open an anchor this count never sees.
  *
- * `gates` defaults to the static `GATES` (every existing call site is
- * unchanged), but fb205 needs the same geometry over an arbitrary gate list —
- * `jitterDomainCoreAnchorFloor` below sweeps it over the positions
- * `jitterGates`/`jitterModifierGate` can actually draw.
+ * **`gates` (fb205, BACKLOG-TERRAIN.md).** Defaults to the static `GATES` —
+ * every existing call site and every pinned test value is unchanged — but
+ * fb156 moved live runs onto `jitterGates(seed)`, a *different* gate list per
+ * seed, so a caller that actually cares which map it is measuring (the loader
+ * ceiling below, a sweep, `jitterDomainCoreAnchorRange`,
+ * `jitterDomainCoreAnchorFloor`) must be able to pass one in rather than
+ * always re-deriving the static layout's own count.
  */
 export function flatCoreAnchorCount(clearance: number, gates: readonly GateDef[] = GATES): number {
   let anchors = 0;
@@ -131,9 +134,142 @@ function floorTo6(value: number): number {
   return Math.floor(value * 1e6) / 1e6;
 }
 
-export function maxCoreLegalFrac(clearance: number): number {
-  const a = flatCoreAnchorCount(clearance);
+/** `gates` forwards to `flatCoreAnchorCount` — see its own fb205 note. */
+export function maxCoreLegalFrac(clearance: number, gates: readonly GateDef[] = GATES): number {
+  const a = flatCoreAnchorCount(clearance, gates);
   return a === 0 ? 0 : a / (a + 1);
+}
+
+/**
+ * fb205 (BACKLOG-TERRAIN.md, QUESTIONS Q220 point 6): `flatCoreAnchorCount`
+ * over every gate list `jitterGates` can draw for a live run, not just the
+ * static `GATES` default — the exact `{ min, max }` of the flat-map anchor
+ * count across the whole jitter domain at a given `coreGateClearance`.
+ *
+ * **Why this exists, and why the loader ceiling below does not call it.**
+ * fb156's QA bug 5 found the mismatch this closes: at `coreGateClearance: 16`
+ * the static-gate count is 41 while this function's own domain sweep (below)
+ * measures the true range as **{ min: 0, max: 513 }** — the static list is
+ * neither the worst nor the best seed's layout, so a caller that needs the
+ * true bound (a sweep flagging a fragile clearance/`minCoreLegalFrac` pair,
+ * or a future Tuner warning, fb064f) needs this function, not
+ * `flatCoreAnchorCount(clearance)` alone.
+ *
+ * It is deliberately **not** wired into `TerrainFileSchema`'s own
+ * `minCoreLegalFrac` ceiling check. Tried first, per this file's own
+ * "measured, not assumed" standard: swapping the loader's `coreCeiling` to
+ * `maxCoreLegalFrac(cfg.coreGateClearance, worstCaseGates)` (the `min` arm)
+ * reddened `tests/terrain-generation.test.ts`'s own "17 is still payable"
+ * clause — the domain worst case at clearance 17 is 0, so a loader using it
+ * would refuse `minCoreLegalFrac: 0.001` there, a band that test's own
+ * acceptance text says must load. That is exactly the failure shape this
+ * file's `maxCoreLegalFrac` doc already names and rejects for the
+ * `minBuildableNormalFrac` band: "a false rejection is worse than the silent
+ * fallback it was meant to prevent." At the shipped `coreGateClearance: 3`
+ * the two ceilings coincide exactly (both 1441 anchors — clearance 3 never
+ * reaches the jitter margin, so no gate pair's exclusion zone ever overlaps
+ * regardless of where each lands), so the shipped config's behavior is
+ * unchanged either way; the divergence only shows up at clearances no shipped
+ * or tested band actually uses past the "still payable" edge case above.
+ * Widening the ceiling to the domain `max` instead would re-open fb064g's
+ * original hole one step removed — a `minCoreLegalFrac` payable on the *best*
+ * jittered seed but not on most others loads clean and then falls back on
+ * everything else, the same silent-failure shape with a friendlier ceiling
+ * number. So the loader keeps proving its ceiling over the static default,
+ * as it always has; this function is the honest instrument for a caller that
+ * wants the domain's real shape instead, per the same "verify, don't guess"
+ * rule this lane's own gate work already followed twice today (fb156's own
+ * two 1000+-seed sweeps).
+ *
+ * **How it stays fast enough to run inside a test.** The naive approach —
+ * try every one of `jitterGates`' 16x16x40x40 = 409,600 draws and re-run
+ * `flatCoreAnchorCount`'s O(anchors) scan for each — measured at ~23 s for a
+ * single clearance, unusable in a suite this lane already keeps under a
+ * per-item budget. `flatCoreAnchorCount`'s own per-anchor check (any of an
+ * anchor's 4 corners within Chebyshev `clearance` of any gate) is exactly
+ * "the anchor's 2x2 footprint touches a Chebyshev square of radius
+ * `clearance` around that gate" — a single axis-aligned rectangle in anchor
+ * space, `[gx-clearance-1, gx+clearance] x [gy-clearance-1, gy+clearance]`
+ * clipped to the anchor bounds (the `-1` on the low side accounts for the
+ * anchor's own top-left corner reaching one tile further than its own (x,y)).
+ * Illegal anchors are the union of the 4 gates' rectangles; legal count is
+ * `totalAnchors - |union|`, and a union of 4 rectangles is exact by
+ * inclusion-exclusion (15 terms — 4 singles, 6 pairs, 4 triples, 1
+ * quadruple — each a rectangle intersection, itself O(1)). That turns one
+ * combination's count into a handful of arithmetic ops instead of an
+ * anchor-by-anchor scan, and the whole 409,600-combination domain sweep into
+ * ~150-250 ms, measured — cheap enough to call directly from a test.
+ * `tests/terrain-config-jitter-domain.test.ts` pins this fast path against
+ * `flatCoreAnchorCount`'s own per-anchor scan across a spread of clearances
+ * and random gate draws, so the two cannot silently drift apart.
+ */
+export function jitterDomainCoreAnchorRange(clearance: number): { min: number; max: number } {
+  const vLo = GATE_JITTER_MARGIN;
+  const vHi = GRID_H - 1 - GATE_JITTER_MARGIN;
+  const hLo = GATE_JITTER_MARGIN;
+  const hHi = GRID_W - 1 - GATE_JITTER_MARGIN;
+  const AX0 = 1;
+  const AX1 = GRID_W - 3;
+  const AY0 = 1;
+  const AY1 = GRID_H - 3;
+  const total = (AX1 - AX0 + 1) * (AY1 - AY0 + 1);
+
+  type Rect = { x0: number; x1: number; y0: number; y1: number };
+  const rectFor = (tx: number, ty: number): Rect => ({
+    x0: Math.max(AX0, tx - clearance - 1),
+    x1: Math.min(AX1, tx + clearance),
+    y0: Math.max(AY0, ty - clearance - 1),
+    y1: Math.min(AY1, ty + clearance),
+  });
+  const area = (r: Rect): number => {
+    const w = r.x1 - r.x0 + 1;
+    const h = r.y1 - r.y0 + 1;
+    return w > 0 && h > 0 ? w * h : 0;
+  };
+  const inter = (a: Rect, b: Rect): Rect => ({
+    x0: Math.max(a.x0, b.x0),
+    x1: Math.min(a.x1, b.x1),
+    y0: Math.max(a.y0, b.y0),
+    y1: Math.min(a.y1, b.y1),
+  });
+  // Union of `rects` via inclusion-exclusion — exact for any count, used here
+  // at exactly 4 (west, north, east, south; `jitterGates`' own order).
+  const unionArea = (rects: readonly Rect[]): number => {
+    let total2 = 0;
+    const n = rects.length;
+    for (let mask = 1; mask < 1 << n; mask++) {
+      let r: Rect | null = null;
+      let bits = 0;
+      for (let i = 0; i < n; i++) {
+        if (mask & (1 << i)) {
+          bits++;
+          const ri = rects[i];
+          if (ri) r = r ? inter(r, ri) : ri;
+        }
+      }
+      if (r) total2 += bits % 2 === 1 ? area(r) : -area(r);
+    }
+    return total2;
+  };
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (let tyW = vLo; tyW <= vHi; tyW++) {
+    const rw = rectFor(0, tyW);
+    for (let tyE = vLo; tyE <= vHi; tyE++) {
+      const re = rectFor(GRID_W - 1, tyE);
+      for (let txN = hLo; txN <= hHi; txN++) {
+        const rn = rectFor(txN, 0);
+        for (let txS = hLo; txS <= hHi; txS++) {
+          const rs = rectFor(txS, GRID_H - 1);
+          const anchors = total - unionArea([rw, rn, re, rs]);
+          if (anchors < min) min = anchors;
+          if (anchors > max) max = anchors;
+        }
+      }
+    }
+  }
+  return { min, max };
 }
 
 /**

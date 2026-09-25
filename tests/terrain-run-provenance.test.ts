@@ -159,36 +159,14 @@ function strandedIn(
   return { stranded, checked };
 }
 
-/**
- * fb205: `strandedIn`'s jittered-gate sibling. Every seed here carries its
- * *own* gate list (`jitterGates(seed)`, plus `jitterModifierGate(seed)` under
- * the modifier), unlike `strandedIn`'s one shared list for the whole sweep —
- * so a `Grid` cannot be reused across seeds the way `strandedIn`'s can: its
- * gate tiles are baked in at construction (fb177) and would still read the
- * *previous* seed's positions. One `Grid` per seed, matching how a live run
- * actually builds one (`world.ts`'s own `new Grid()`, which fb156 has not yet
- * wired to a seed's jittered list — this file's own header note).
- */
-function strandedInJittered(
-  seeds: readonly number[],
-  withModifier: boolean,
-  c: TerrainConfig = cfg,
-): { stranded: number[]; checked: number } {
-  const stranded: number[] = [];
-  let checked = 0;
-  for (const seed of seeds) {
-    const gates: readonly GateDef[] = withModifier
-      ? [...jitterGates(seed), jitterModifierGate(seed)]
-      : jitterGates(seed);
-    const map = generateTerrain(seed, c, gates);
-    if (map.fallback) continue;
-    checked++;
-    const g = new Grid(gates);
-    g.applyTerrain(terrainOverlay(map, c));
-    if (!g.allGatesReachable()) stranded.push(seed);
-  }
-  return { stranded, checked };
-}
+// `strandedInJittered` (fb205, `strandedIn`'s jittered-gate sibling — one
+// `Grid` per seed rather than `strandedIn`'s one shared `Grid`, since a
+// jittered seed's gate tiles are baked in at `Grid` construction, fb177) is
+// defined once, further down this file, alongside the `fallbacks`-tracking
+// describe block it was built for — this branch's own earlier, weaker
+// duplicate (same computation, no `fallbacks` field) is merged away rather
+// than kept as dead weight in a file already over `vitest.fast.config.ts`'s
+// own ~60s-per-file budget (BACKLOG-TERRAIN.md's Log).
 
 describe('fb065h — a run plays its own seed’s map', () => {
   it('bounds the retry rate over the whole domain sample, on both gate lists', () => {
@@ -332,76 +310,6 @@ describe('fb065h — a run plays its own seed’s map', () => {
     expect(strandedIn([2910647699, 3204297108], GATES, noJitter).stranded).toEqual([]);
   });
 
-  it('fb205 — the jittered-gate arm: a live seed’s own gates, over the same domain sample', () => {
-    // fb156 moved live runs onto per-seed jittered gates. Unlike the static
-    // lists above (zero strand in this sample), the jittered populations are a
-    // real hazard: a fourth (or fifth) gate at a *bad* per-seed position gives
-    // the flood fewer ways in than the tools'/tests' own nudged-for-coverage
-    // static layout does. Measured, not assumed — the exact stranded list,
-    // over the same 12,000-seed domain sample layer 1 uses above.
-    const four = strandedInJittered(sampleSeeds(), false);
-    expect(four.checked).toBe(12000);
-    expect(four.stranded).toEqual([
-      20043156, 156766113, 201147387, 361492635, 1050118209, 1408031709, 1513974105, 2209042122,
-      2301383805, 2881203675, 3282782622, 3918436998, -976, 3000001424, 3000001535, 2147484253,
-    ]);
-
-    // The five-gate (base + modifier) population is a different draw
-    // (`jitterModifierGate` has its own RNG sub-key) and a different, larger
-    // stranded set — not the four-gate list plus extras.
-    const five = strandedInJittered(sampleSeeds(), true);
-    expect(five.checked).toBe(12000);
-    expect(five.stranded).toEqual([
-      160345248, 214032273, 220474716, 301363167, 654265878, 1060139787, 1823927196, 2209042122,
-      3111699969, 3138901395, 3289940892, 3735185286, 3875487378, 4012210335, 4204051971, -1335,
-      -1215, -1087, -998, -259, 3000000677, 3000000964, 3000001753, 2147482966, 2147483440,
-      2147483535, 2147484119,
-    ]);
-  });
-
-  it('fb205 — and the Warden clearing rescues every one of them too', () => {
-    // The static-gate case's own finding (`and the bound is not tight` above)
-    // restated for the jittered populations: every seed the previous test
-    // strands on its *raw* map is still rescued by `applyRunTerrain`'s Warden
-    // clearing, on its first attempt (no fallback) — the mechanism that keeps
-    // a live run playable does not depend on which gate list drew the map.
-    const warn = console.warn;
-    console.warn = (): void => {};
-    try {
-      for (const [withModifier, seeds] of [
-        [false, [
-          20043156, 156766113, 201147387, 361492635, 1050118209, 1408031709, 1513974105,
-          2209042122, 2301383805, 2881203675, 3282782622, 3918436998, -976, 3000001424,
-          3000001535, 2147484253,
-        ]],
-        [true, [
-          160345248, 214032273, 220474716, 301363167, 654265878, 1060139787, 1823927196,
-          2209042122, 3111699969, 3138901395, 3289940892, 3735185286, 3875487378, 4012210335,
-          4204051971, -1335, -1215, -1087, -998, -259, 3000000677, 3000000964, 3000001753,
-          2147482966, 2147483440, 2147483535, 2147484119,
-        ]],
-      ] as ReadonlyArray<readonly [boolean, readonly number[]]>) {
-        for (const seed of seeds) {
-          const gates: readonly GateDef[] = withModifier
-            ? [...jitterGates(seed), jitterModifierGate(seed)]
-            : jitterGates(seed);
-
-          const raw = new Grid(gates);
-          raw.applyTerrain(terrainOverlay(generateTerrain(seed, cfg, gates), cfg));
-          expect(raw.allGatesReachable(), `seed ${seed} strands the Core on its own map`).toBe(
-            false,
-          );
-
-          const run = new Grid(gates);
-          expect(applyRunTerrain(run, gates, seed, cfg), `seed ${seed} fell back`).toBe(false);
-          expect(run.allGatesReachable(), `seed ${seed} playable`).toBe(true);
-        }
-      }
-    } finally {
-      console.warn = warn;
-    }
-  });
-
   it('states the limit of the seed: it reproduces the map, not the board', () => {
     // The sentence a bug report needs, as an assertion. Regenerating from the
     // seed gives the map; the grid a run played is that map plus the Warden
@@ -435,5 +343,116 @@ describe('fb065h — a run plays its own seed’s map', () => {
     // seed can rebuild the map; these 8 tiles are what they cannot know from
     // it.
     expect(differs).toBe(8);
+  });
+});
+
+/**
+ * fb205 (BACKLOG-TERRAIN.md, QUESTIONS Q220 point 5): the jittered-gate arm
+ * of this file's own stranding sweep. fb156 moved live runs onto per-seed
+ * `jitterGates(seed)`/`jitterModifierGate(seed)`, a genuinely different
+ * population from the static lists above — measured here rather than
+ * assumed, the same standard this file already holds itself to for
+ * `GATES`/`FOUR`. Kept in this file rather than split out (fb166's own
+ * precedent, logged in this lane file's Log, for exactly this shape: moving
+ * a test to keep the fast tier under its own ~60s-per-file rule needs
+ * `vitest.fast.config.ts`, outside this lane's Scope) — filed there for the
+ * merge instead.
+ *
+ * A jittered `Grid` must be constructed `new Grid(gates)` with *that seed's*
+ * own gate list — `new Grid()`'s default only bakes the static `GATES`
+ * border tiles, so checking reachability against it while the overlay was
+ * generated for a different (jittered) gate list silently checks the wrong
+ * tiles. Confirmed by re-deriving: doing it wrong here first read stranded
+ * in the thousands (every seed's jittered gate tile was rock or interior
+ * under the static grid's own idea of where its border gates are); the
+ * numbers below are with the grid built on the same list the map was.
+ */
+function strandedInJittered(
+  seeds: readonly number[],
+  withModifier: boolean,
+  c: TerrainConfig = cfg,
+): { stranded: number[]; checked: number; fallbacks: number } {
+  const stranded: number[] = [];
+  let checked = 0;
+  let fallbacks = 0;
+  for (const seed of seeds) {
+    const gates: readonly GateDef[] = withModifier
+      ? [...jitterGates(seed), jitterModifierGate(seed)]
+      : jitterGates(seed);
+    const map = generateTerrain(seed, c, gates);
+    if (map.fallback) {
+      fallbacks++;
+      continue;
+    }
+    checked++;
+    const g = new Grid(gates);
+    g.applyTerrain(terrainOverlay(map, c));
+    if (!g.allGatesReachable()) stranded.push(seed);
+  }
+  return { stranded, checked, fallbacks };
+}
+
+describe('fb205 — the jittered-gate populations strand their own rare Cores too', () => {
+  it('measured over the 12,000-seed domain sample: 16 on the 4-gate jittered layout, 27 on the 5-gate one', () => {
+    const FOUR_GATE_STRANDED = [
+      20043156, 156766113, 201147387, 361492635, 1050118209, 1408031709, 1513974105, 2209042122,
+      2301383805, 2881203675, 3282782622, 3918436998, -976, 3000001424, 3000001535, 2147484253,
+    ];
+    const four = strandedInJittered(sampleSeeds(), false);
+    expect({ checked: four.checked, fallbacks: four.fallbacks, stranded: four.stranded }).toEqual({
+      checked: 12000,
+      fallbacks: 0,
+      stranded: FOUR_GATE_STRANDED,
+    });
+
+    const FIVE_GATE_STRANDED = [
+      160345248, 214032273, 220474716, 301363167, 654265878, 1060139787, 1823927196, 2209042122,
+      3111699969, 3138901395, 3289940892, 3735185286, 3875487378, 4012210335, 4204051971, -1335,
+      -1215, -1087, -998, -259, 3000000677, 3000000964, 3000001753, 2147482966, 2147483440,
+      2147483535, 2147484119,
+    ];
+    const five = strandedInJittered(sampleSeeds(), true);
+    expect({ checked: five.checked, fallbacks: five.fallbacks, stranded: five.stranded }).toEqual({
+      checked: 12000,
+      fallbacks: 0,
+      stranded: FIVE_GATE_STRANDED,
+    });
+
+    // A wider population than either static list's 12,000-seed sample (which
+    // found zero apiece) — not a contradiction, a different population: every
+    // seed's *own* gate positions vary here, so more of the domain's rare hard
+    // layouts land inside this same 12,000-seed window than land inside the
+    // fixed-gate one.
+    expect(four.stranded.length).toBeGreaterThan(0);
+    expect(five.stranded.length).toBeGreaterThan(0);
+  });
+
+  it('and the bound is not tight here either: every one is rescued by the Warden clearing, zero retries', () => {
+    const warn = console.warn;
+    console.warn = (): void => {};
+    try {
+      for (const [withModifier, seeds] of [
+        [false, [20043156, 361492635, -976, 2147484253]],
+        [true, [160345248, 654265878, -259, 2147484119]],
+      ] as ReadonlyArray<readonly [boolean, readonly number[]]>) {
+        for (const seed of seeds) {
+          const gates: readonly GateDef[] = withModifier
+            ? [...jitterGates(seed), jitterModifierGate(seed)]
+            : jitterGates(seed);
+
+          const raw = new Grid(gates);
+          raw.applyTerrain(terrainOverlay(generateTerrain(seed, cfg, gates), cfg));
+          expect(raw.allGatesReachable(), `seed ${seed} strands the Core on its own map`).toBe(
+            false,
+          );
+
+          const run = new Grid(gates);
+          expect(applyRunTerrain(run, gates, seed, cfg), `seed ${seed} fell back`).toBe(false);
+          expect(run.allGatesReachable(), `seed ${seed} playable`).toBe(true);
+        }
+      }
+    } finally {
+      console.warn = warn;
+    }
   });
 });
