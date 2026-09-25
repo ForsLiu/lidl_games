@@ -5,6 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-25 — BACKLOG-CONTENT.md fb203 (Voltbolt G8 measurement) done
+  (balance-analyst session, lane `content`), negative result, no `/data`
+  change.** Voltbolt's G8 win-rate row and 91-pair fingerprint census were
+  unmeasured since fb059 shipped the class. `tests/p6e-class-diversity.
+  test.ts` is out of this lane's Scope, so a new in-Scope file,
+  `tests/class-voltbolt-g8-band.test.ts`, reproduces its harness for
+  Voltbolt alone at G8's real T3 reference tier (opt-in via
+  `VOLTBOLT_G8_MEASURE=1`, c033's convention). Measured (seeds 1-12, T3,
+  reproduced twice, byte-identical): **8/12 (66.7%) win rate — in band**
+  (the [35,70]% G8 band, right at the ceiling). Also ran the full,
+  unmodified `p6e-class-diversity.test.ts` (168 runs, ~58 min) for the
+  official 91-pair fingerprint census — 50/91 pairs fail the 0.15 floor,
+  red but pre-existing (a stale, never-re-measured 28-pair baseline
+  predates 9 days of unrelated roster/balance changes and both Madness
+  King's and Voltbolt's own additions). A scratch 4-seed directional script
+  isolating Voltbolt's own 13 pairs found **0/13 failing** — Voltbolt is the
+  roster's most fingerprint-distinct class, not a contributor to the wall.
+  Verdict: Voltbolt clears G8 on both clauses measured for it; no ⚖ lever
+  tuned, no QUESTIONS.md cap filed (the decision tree resolved to "in band"
+  both ways). Two out-of-Scope follow-ups (re-pointing `p6e`'s stale
+  `voltbolt` skip comment and its `28`-pair drift pin) logged to
+  BACKLOG-CONTENT.md's Queue for the next lane touching that file.
+  Targeted tests (735 passed/2 skipped) and `npm run test:fast` green, `git
+  diff data/` empty. Readings: none — refs: fb059, QUESTIONS Q219(11),
+  SPEC-FINAL §14 G8, BACKLOG-CONTENT.md fb203.
 - **2026-09-25 — BACKLOG-CONTENT.md fb204 (non-finite aim, Time Lock + Deadeye
   Draw) done (scheduled routine, lane `content`).** A hand-edited input log
   or replay bundle's `NaN`/`Infinity` aim reached Time Lord's Time Lock zone
