@@ -17,6 +17,12 @@
  * whole-document JSON editor exactly as p9c's own header already documents
  * it must stay available. This module only narrows how much of the document
  * needs that fallback; it never removes it.
+ *
+ * fb064f (QUESTIONS Q223): `terrain` joined the widget set on top of the
+ * original four — this module needed no terrain-specific code for that, only
+ * the caller-side registration (`tuner.ts`'s `FIELD_EDITOR_KEYS`), since
+ * terrain's schema shapes (nested objects, an array of tile objects) are
+ * exactly the generic shapes this walker already handles.
  */
 import { z } from 'zod';
 
@@ -61,9 +67,16 @@ function rowLabel(row: unknown, index: number): string {
   return `#${index}`;
 }
 
-function labeled(label: string, input: HTMLElement): HTMLElement {
+/**
+ * fb064f: every rendered field/group carries its own dotted `path` as
+ * `data-tuner-path` (the same join a server-side `ZodIssue.path` uses,
+ * `tunerSave.ts`'s `issue.path.join('.')`) so a refused save can point back
+ * at the exact widget that caused it — see `highlightTunerFieldErrors` below.
+ */
+function labeled(label: string, input: HTMLElement, path: FieldPath): HTMLElement {
   const row = document.createElement('label');
   row.className = 'sw-tuner-field';
+  row.dataset.tunerPath = path.join('.');
   const span = document.createElement('span');
   span.className = 'sw-tuner-field-label';
   span.textContent = label;
@@ -72,9 +85,10 @@ function labeled(label: string, input: HTMLElement): HTMLElement {
   return row;
 }
 
-function wrapDetails(label: string, content: HTMLElement): HTMLElement {
+function wrapDetails(label: string, content: HTMLElement, path: FieldPath): HTMLElement {
   const details = document.createElement('details');
   details.className = 'sw-tuner-field-details';
+  details.dataset.tunerPath = path.join('.');
   const summary = document.createElement('summary');
   summary.textContent = label;
   details.appendChild(summary);
@@ -129,7 +143,7 @@ export function renderField(
       const n = Number(input.value);
       if (input.value.trim() !== '' && Number.isFinite(n)) onChange(path, n);
     });
-    return labeled(label, input);
+    return labeled(label, input, path);
   }
 
   if (inner instanceof z.ZodBoolean) {
@@ -138,7 +152,7 @@ export function renderField(
     input.className = 'sw-tuner-field-input';
     input.checked = value === true;
     input.addEventListener('change', () => onChange(path, input.checked));
-    return labeled(label, input);
+    return labeled(label, input, path);
   }
 
   if (inner instanceof z.ZodEnum) {
@@ -152,7 +166,7 @@ export function renderField(
     }
     if (typeof value === 'string') select.value = value;
     select.addEventListener('change', () => onChange(path, select.value));
-    return labeled(label, select);
+    return labeled(label, select, path);
   }
 
   if (inner instanceof z.ZodString) {
@@ -163,13 +177,13 @@ export function renderField(
     input.addEventListener('input', () => {
       onChange(path, nullable && input.value === '' ? null : input.value);
     });
-    return labeled(label, input);
+    return labeled(label, input, path);
   }
 
   if (inner instanceof z.ZodObject) {
     const obj = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
     const group = renderObjectFields(inner.shape as Record<string, z.ZodTypeAny>, obj, path, onChange);
-    return group ? wrapDetails(label, group) : null;
+    return group ? wrapDetails(label, group, path) : null;
   }
 
   if (inner instanceof z.ZodArray) {
@@ -189,7 +203,7 @@ export function renderField(
         any = true;
       }
     });
-    return any ? wrapDetails(label, group) : null;
+    return any ? wrapDetails(label, group, path) : null;
   }
 
   if (inner instanceof z.ZodDiscriminatedUnion) {
@@ -215,7 +229,7 @@ export function renderField(
         if (field) group.appendChild(field);
       }
     }
-    return wrapDetails(label, group);
+    return wrapDetails(label, group, path);
   }
 
   return null;
@@ -252,4 +266,54 @@ export function applyFieldChange(doc: unknown, path: FieldPath, value: unknown):
   const lastKey = path[path.length - 1];
   if (lastKey !== undefined) cursor[lastKey] = value;
   return clone;
+}
+
+/**
+ * fb064f: marks the widget (or nearest ancestor group) a refused save's
+ * `ZodIssue.path` points at, per `config.ts`'s own `superRefine` comment
+ * ("fb064f's Tuner highlights by path") anticipating this — a designer
+ * refused on `constraints.minCoreLegalFrac` should see that exact field
+ * lit up, not just a flat status line. Called with an empty `errors` list to
+ * clear a stale highlight (a fresh save attempt, or a successful one).
+ *
+ * A path with no widget of its own (an array-of-scalars field, a union) has
+ * no exact match — `renderField` returns `null` for those and they carry no
+ * `data-tuner-path` — so the search walks up to the nearest ancestor path
+ * that *does* have a rendered element (its enclosing object/array group),
+ * same as a human reading the dotted path would.
+ *
+ * code-reviewer (fb064f, Major): a highlighted leaf can sit inside a
+ * collapsed `<details class="sw-tuner-field-details">` — `wrapDetails` never
+ * sets `.open`, so every nested group starts closed — and a native
+ * `<details>` hides its whole content subtree while closed, so the mark
+ * would be invisible until the designer happened to expand the right
+ * section themselves. Every ancestor `<details>` of a marked element is
+ * force-opened so the highlight is actually on screen.
+ */
+export function highlightTunerFieldErrors(root: HTMLElement, errors: { path: string }[]): void {
+  const fields = Array.from(root.querySelectorAll<HTMLElement>('[data-tuner-path]'));
+  for (const el of fields) el.classList.remove('sw-tuner-field-error');
+
+  const byPath = new Map<string, HTMLElement>();
+  for (const el of fields) {
+    const p = el.dataset.tunerPath;
+    if (p !== undefined && !byPath.has(p)) byPath.set(p, el);
+  }
+
+  for (const err of errors) {
+    if (!err.path) continue;
+    let parts = err.path.split('.');
+    let el: HTMLElement | undefined;
+    while (parts.length > 0 && !el) {
+      el = byPath.get(parts.join('.'));
+      if (!el) parts = parts.slice(0, -1);
+    }
+    if (!el) continue;
+    el.classList.add('sw-tuner-field-error');
+    let details = el.closest<HTMLDetailsElement>('details.sw-tuner-field-details');
+    while (details) {
+      details.open = true;
+      details = details.parentElement?.closest<HTMLDetailsElement>('details.sw-tuner-field-details') ?? null;
+    }
+  }
 }
