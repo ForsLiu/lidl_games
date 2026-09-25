@@ -18,7 +18,7 @@
  * it must stay available. This module only narrows how much of the document
  * needs that fallback; it never removes it.
  *
- * fb064f (QUESTIONS Q222): `terrain` joined the widget set on top of the
+ * fb064f (QUESTIONS Q223): `terrain` joined the widget set on top of the
  * original four — this module needed no terrain-specific code for that, only
  * the caller-side registration (`tuner.ts`'s `FIELD_EDITOR_KEYS`), since
  * terrain's schema shapes (nested objects, an array of tile objects) are

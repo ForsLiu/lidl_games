@@ -5,7 +5,7 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-25 — BACKLOG.md fb208 / BACKLOG-TERRAIN.md fb064f (Tuner terrain
+- **2026-09-25 — BACKLOG.md fb210 / BACKLOG-TERRAIN.md fb064f (Tuner terrain
   page + Training Grounds override) done (scheduled routine, main-lane
   session).** Picked up per this routine's out-of-scope-authorization rule:
   fb064f's own Log named it blocked on main-lane files. `terrain` gained a

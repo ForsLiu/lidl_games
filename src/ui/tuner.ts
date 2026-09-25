@@ -57,7 +57,7 @@ import { applyFieldChange, highlightTunerFieldErrors, renderDocumentFields } fro
  * terrain page, density/ratios editable") and `config.ts`'s superRefine
  * comment ("fb064f's Tuner highlights by path") both anticipate typed,
  * per-path terrain widgets — not just the fallback whole-document textarea
- * every other collection already had. Logged as QUESTIONS Q222.
+ * every other collection already had. Logged as QUESTIONS Q223.
  */
 const FIELD_EDITOR_KEYS = new Set(['towers', 'classes', 'cores', 'waves', 'terrain']);
 

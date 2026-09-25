@@ -7076,7 +7076,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `contentHash` covers `/data` only — refs: SPEC-FINAL §12 rule 2,
       QUESTIONS Q220(8), BACKLOG-TERRAIN.md fb156.
 
-- [x] (fb208) [feat] **DONE 2026-09-25 (scheduled routine, main-lane
+- [x] (fb210) [feat] **DONE 2026-09-25 (scheduled routine, main-lane
       session).** BACKLOG-TERRAIN.md fb064f, picked up under this routine's
       instruction to take any lane item whose Log names it blocked on an
       out-of-scope need: "Tuner terrain page (density/ratios editable) and
@@ -7087,7 +7087,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       tuner.ts`) that QUESTIONS Q150's owner verdict had named exactly four
       collections for (towers/classes/cores/waves) — extending it to a fifth
       is a deliberate reopening of that named scope, logged as QUESTIONS
-      Q222 rather than folded in silently, because `src/sim/terrain/
+      Q223 rather than folded in silently, because `src/sim/terrain/
       config.ts`'s own `superRefine` already carries a comment written to
       anticipate it ("fb064f's Tuner highlights by path"). A refused save
       now calls new `highlightTunerFieldErrors` (`src/ui/tuner-fields.ts`)
@@ -7098,7 +7098,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       every ancestor `<details>` open since `wrapDetails` never sets `.open`
       and a collapsed one hides its whole subtree — a code-reviewer Major
       finding, fixed before commit, together with an initially-fabricated
-      QUESTIONS.md citation in the same diff (also fixed: Q222 is a real
+      QUESTIONS.md citation in the same diff (also fixed: Q223 is a real
       entry). The Training Grounds flat-arena override needed no new
       production code — fb064n/fb130/fb156 had already wired a practice
       run's `Grid` straight to `flatTerrain(w.gates)` — confirmed here by a
@@ -7116,14 +7116,14 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `data/terrain.json`, and no regression to the original four
       collections); filed one pre-existing bug (fb209, not introduced by
       this item) — refs: BACKLOG-TERRAIN.md fb064f, QUESTIONS Q150 ORDER,
-      Q222.
+      Q223.
 
 - [ ] (fb209) [bug] `applyFieldChange` (`src/ui/tuner-fields.ts`) throws an
       uncaught `TypeError` when a Tuner typed widget is edited while the
       backing textarea holds valid-but-non-object JSON (`null`, a bare
       number/string/boolean) — pre-existing, reproducible today on all five
       `FIELD_EDITOR_KEYS` collections (towers/classes/cores/waves/terrain),
-      found by qa-playtester verifying fb208/fb064f but not caused by it.
+      found by qa-playtester verifying fb210/fb064f but not caused by it.
       Repro: mount any typed-field collection, set the `.sw-tuner-editor`
       textarea to `'null'` (or `'42'`/`'"x"'`/`'true'`/`'false'`) and fire
       `input` — the field panel keeps rendering blank widgets against a `{}`
@@ -7136,7 +7136,7 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `FIELD_EDITOR_KEYS` collection); a widget edit against a non-object
       document either no-ops safely or the field panel itself is suppressed,
       matching the "leave it alone" treatment `renderFieldsPanel` already
-      gives genuinely invalid JSON — refs: qa-playtester (fb208/fb064f QA
+      gives genuinely invalid JSON — refs: qa-playtester (fb210/fb064f QA
       pass), `src/ui/tuner-fields.ts`, `src/ui/tuner.ts`.
 
 
