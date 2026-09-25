@@ -35,15 +35,31 @@
  * describe (a dynamic-key record, a raw-string array, an unmatched
  * discriminated-union variant) still falls through to the textarea exactly
  * as before this item.
+ *
+ * fb064f: `terrain` joins the typed-field set on top of Q150's original
+ * four. `src/sim/terrain/config.ts`'s own `superRefine` already blames a
+ * refusal on the specific field a designer should fix (e.g.
+ * `coreGateClearance` vs `constraints.minCoreLegalFrac`) with a comment
+ * naming this item as the reason — a flat status line alone leaves that
+ * targeting unused, so a failed Save now also highlights the matching
+ * widget (`highlightTunerFieldErrors`, `tuner-fields.ts`), which needs the
+ * fields to exist as real per-path DOM elements in the first place.
  */
 import { isDevBuild } from '../meta/devprofile';
 import { TUNER_FILES } from '../sim/content';
 import type { CodexCollection } from './codex-collections';
 import { clearTunerDraft, getTunerDraft, setTunerDirty, setTunerDraft } from './tuner-state';
-import { applyFieldChange, renderDocumentFields } from './tuner-fields';
+import { applyFieldChange, highlightTunerFieldErrors, renderDocumentFields } from './tuner-fields';
 
-/** fb044: only these four get the typed-field panel — the owner's own scoping in Q150's ORDER verdict. */
-const FIELD_EDITOR_KEYS = new Set(['towers', 'classes', 'cores', 'waves']);
+/**
+ * fb044: the original four are the owner's own scoping in Q150's ORDER
+ * verdict. `terrain` was added by fb064f, whose own item text ("Tuner
+ * terrain page, density/ratios editable") and `config.ts`'s superRefine
+ * comment ("fb064f's Tuner highlights by path") both anticipate typed,
+ * per-path terrain widgets — not just the fallback whole-document textarea
+ * every other collection already had. Logged as QUESTIONS Q222.
+ */
+const FIELD_EDITOR_KEYS = new Set(['towers', 'classes', 'cores', 'waves', 'terrain']);
 
 export interface TunerSaveResponse {
   ok: boolean;
@@ -168,9 +184,11 @@ function installEditableEditor(container: HTMLElement, collection: CodexCollecti
         clearTunerDraft(tunerFile);
         status.textContent = 'Saved — reload to play with the new data.';
         status.classList.remove('sw-tuner-error');
+        highlightTunerFieldErrors(fieldsHost, []);
       } else {
         status.textContent = formatErrors(result.errors);
         status.classList.add('sw-tuner-error');
+        highlightTunerFieldErrors(fieldsHost, result.errors ?? []);
       }
     });
   });

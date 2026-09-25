@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-25 — BACKLOG.md fb208 / BACKLOG-TERRAIN.md fb064f (Tuner terrain
+  page + Training Grounds override) done (scheduled routine, main-lane
+  session).** Picked up per this routine's out-of-scope-authorization rule:
+  fb064f's own Log named it blocked on main-lane files. `terrain` gained a
+  real Codex/Tuner page (`src/ui/codex-collections.ts`, the `warden`
+  single-document pattern) and joined the typed-per-field-widget set
+  (`FIELD_EDITOR_KEYS`, `src/ui/tuner.ts`) — extending it past QUESTIONS
+  Q150's named four (towers/classes/cores/waves) to a fifth, logged as Q222
+  rather than folded in silently, since `terrain/config.ts`'s own
+  `superRefine` comment ("fb064f's Tuner highlights by path") already
+  anticipated it. A refused save now highlights the exact widget (or nearest
+  ancestor group for a no-widget field shape) a schema error's path names,
+  via new `highlightTunerFieldErrors` (`src/ui/tuner-fields.ts`), forcing
+  every ancestor `<details>` open since a collapsed one hides its subtree.
+  The Training Grounds flat-arena override needed no new code (fb064n/
+  fb130/fb156 already wired practice runs to `flatTerrain(w.gates)`);
+  confirmed with a new interior-tile-match regression test. New
+  `tests/fb064f-tuner-terrain.test.ts` (6 tests). code-reviewer:
+  REQUEST-CHANGES (a fabricated QUESTIONS.md citation, and highlighted
+  widgets invisible inside collapsed `<details>`) → both fixed → clean.
+  qa-playtester: PASS on every clause via real DOM exercising; filed one
+  pre-existing, not-introduced-by-this-item bug against the shared
+  `tuner-fields.ts` engine (fb209: a non-object Tuner document crashes any
+  typed-widget edit, reproducible on all five collections, not just
+  terrain). `npx tsc --noEmit` clean; `npm run test:fast` green (324 files,
+  5018 passed, 34 pre-existing skips). Readings: QUESTIONS Q222.
 - **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
   session, full repository scope).** Built the sim state it was blocked on —
   `World.damageBySourceType`, credited at `damageEnemy` beside the two flat
