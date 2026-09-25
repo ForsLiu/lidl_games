@@ -7076,6 +7076,69 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       `contentHash` covers `/data` only — refs: SPEC-FINAL §12 rule 2,
       QUESTIONS Q220(8), BACKLOG-TERRAIN.md fb156.
 
+- [x] (fb210) [feat] **DONE 2026-09-25 (scheduled routine, main-lane
+      session).** BACKLOG-TERRAIN.md fb064f, picked up under this routine's
+      instruction to take any lane item whose Log names it blocked on an
+      out-of-scope need: "Tuner terrain page (density/ratios editable) and
+      the Training Grounds flat-arena override." `terrain` gained a
+      `CodexCollection` entry (`src/ui/codex-collections.ts`, mirroring the
+      `warden` single-document pattern: `raw: content.raw.mapTerrain`) and
+      joined the typed-per-field-widget set (`FIELD_EDITOR_KEYS`, `src/ui/
+      tuner.ts`) that QUESTIONS Q150's owner verdict had named exactly four
+      collections for (towers/classes/cores/waves) — extending it to a fifth
+      is a deliberate reopening of that named scope, logged as QUESTIONS
+      Q223 rather than folded in silently, because `src/sim/terrain/
+      config.ts`'s own `superRefine` already carries a comment written to
+      anticipate it ("fb064f's Tuner highlights by path"). A refused save
+      now calls new `highlightTunerFieldErrors` (`src/ui/tuner-fields.ts`)
+      to mark the exact widget a schema error's `path` names, walking up to
+      the nearest ancestor `<details>` group when the path names a field
+      shape with no widget of its own (`constraints.minCorridorWidth`'s
+      `z.union`, `highGround.families[].traits`'s string array), and forces
+      every ancestor `<details>` open since `wrapDetails` never sets `.open`
+      and a collapsed one hides its whole subtree — a code-reviewer Major
+      finding, fixed before commit, together with an initially-fabricated
+      QUESTIONS.md citation in the same diff (also fixed: Q223 is a real
+      entry). The Training Grounds flat-arena override needed no new
+      production code — fb064n/fb130/fb156 had already wired a practice
+      run's `Grid` straight to `flatTerrain(w.gates)` — confirmed here by a
+      new regression test matching every interior tile at seeds 1/2/40 (the
+      one-tile border ring is excluded: measured 0 interior diffs / 168
+      border diffs at every seed, `Grid` walls off the border a structurally
+      different way than `flatTerrain`'s literal Rock tiles, by design, not
+      a defect). New `tests/fb064f-tuner-terrain.test.ts` (6 tests). `npx
+      tsc --noEmit` clean; `npm run test:fast` green (324 files, 5018
+      passed, 34 pre-existing skips). code-reviewer: REQUEST-CHANGES (two
+      Majors, both above) -> fixes applied -> clean. qa-playtester: PASS,
+      confirmed every clause via real DOM exercising (every terrain leaf
+      field type, multi-error highlighting, garbage/empty error paths, rapid
+      reject/reject/succeed cycling, tab-switch remount, the real on-disk
+      `data/terrain.json`, and no regression to the original four
+      collections); filed one pre-existing bug (fb209, not introduced by
+      this item) — refs: BACKLOG-TERRAIN.md fb064f, QUESTIONS Q150 ORDER,
+      Q223.
+
+- [ ] (fb209) [bug] `applyFieldChange` (`src/ui/tuner-fields.ts`) throws an
+      uncaught `TypeError` when a Tuner typed widget is edited while the
+      backing textarea holds valid-but-non-object JSON (`null`, a bare
+      number/string/boolean) — pre-existing, reproducible today on all five
+      `FIELD_EDITOR_KEYS` collections (towers/classes/cores/waves/terrain),
+      found by qa-playtester verifying fb210/fb064f but not caused by it.
+      Repro: mount any typed-field collection, set the `.sw-tuner-editor`
+      textarea to `'null'` (or `'42'`/`'"x"'`/`'true'`/`'false'`) and fire
+      `input` — the field panel keeps rendering blank widgets against a `{}`
+      stand-in (`renderDocumentFields`'s doc-not-an-object fallback), and
+      editing one throws inside `applyFieldChange`'s `cursor[lastKey] =
+      value` (`structuredClone(null)` is still `null`; same shape of crash
+      for a number/string/boolean root). Acceptance: a failing regression
+      test first (e.g. `tests/tuner-fields-nonobject-doc.test.ts`, parallel
+      to `tests/fb044-tuner-per-field.test.ts`, against at least one
+      `FIELD_EDITOR_KEYS` collection); a widget edit against a non-object
+      document either no-ops safely or the field panel itself is suppressed,
+      matching the "leave it alone" treatment `renderFieldsPanel` already
+      gives genuinely invalid JSON — refs: qa-playtester (fb210/fb064f QA
+      pass), `src/ui/tuner-fields.ts`, `src/ui/tuner.ts`.
+
 
 ## Retired from the queue by SPEC-FINAL
 
