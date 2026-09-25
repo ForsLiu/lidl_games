@@ -421,7 +421,7 @@ the merge — never edited from this lane.
       stays in the fast tier, at its new cost, until then. (2)
       **`flatCoreAnchorCount`/`maxCoreLegalFrac` bound over
       the jitter domain, done as a measurement, not a loader change** — see
-      QUESTIONS Q222 for the full reasoning. New `jitterDomainCoreAnchorFloor`/
+      QUESTIONS Q224 for the full reasoning. New `jitterDomainCoreAnchorFloor`/
       `jitterDomainMaxCoreLegalFrac` (`src/sim/terrain/config.ts`) prove the
       true minimum anchor count over both live gate populations (exact up to
       `coreGateClearance` 3, the shipped value; a sound-but-conservative 0
@@ -459,7 +459,7 @@ the merge — never edited from this lane.
       outside `src/sim/terrain/**`/`data/terrain.json`/`tests/terrain*`, this
       lane's hard Scope boundary. Filed in the Log below for the main lane /
       **balance-analyst** to pick up at the merge, per Scope's own "out-of-
-      scope need -> Log" rule — refs: QUESTIONS Q220 item 10, QUESTIONS Q222.
+      scope need -> Log" rule — refs: QUESTIONS Q220 item 10, QUESTIONS Q224.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
