@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-25 (scheduled terrain-lane routine) — BACKLOG-TERRAIN.md fb205
+  (re-record the sweeps at fb156's jittered gates), 3 of 4 clauses done.**
+  Added a jittered-gate arm to `tests/terrain-run-provenance.test.ts`'s
+  stranding sweep: over the same 12,000-seed domain sample, `jitterGates`
+  strands 16 seeds and `+jitterModifierGate` strands 27 (all 43 confirmed
+  rescued by the Warden clearing, no fallback) — the file now runs 61 s ->
+  136 s (a per-seed gate list rules out the shared-`Grid` sweep trick);
+  `vitest.fast.config.ts` itself is outside this lane's Scope (code-reviewer
+  caught a first version editing it directly), so the exclude-list addition
+  is filed in BACKLOG-TERRAIN.md's Log for the main lane instead. Built
+  `jitterDomainCoreAnchorFloor`/`jitterDomainMaxCoreLegalFrac`
+  (`src/sim/terrain/config.ts`, new `tests/terrain-jitter-anchor-floor.
+  test.ts`): a proven (not sampled) minimum `flatCoreAnchorCount` over both
+  live gate populations, exact through the shipped `coreGateClearance` (3).
+  **Deliberately not wired into the loader's `minCoreLegalFrac` check** —
+  measured, that swap reddens legal `fb064g` test fixtures, the same false-
+  rejection shape this file's own doc comments argue against (QUESTIONS
+  Q224). Ran `tools/sweep.ts` (engineer/hybrid: T3/12 seeds 25% win, T1/10
+  seeds 60% win) and the real `tests/boss.test.ts` harness, which gives
+  G14's T1/T5 companion checks their first recorded numbers (T1 50%, need
+  >=55%; T5 30%, need <=20%) — red, same direction as the pre-existing
+  G1/G8/G14/G23 over-ceiling family (Q160/Q161/p11a), not attributed to
+  jitter specifically (no static-gate control run in budget this session).
+  **Left `[ ]`: the file's own "a scripted run reaches it, kills it and
+  wins" seed-4 floor (11.98 s, re-confirmed unchanged from Q220) needs a
+  balance-data fix (`data/enemies.json`/towers, per fb099's precedent) —
+  outside this lane's Scope, filed in BACKLOG-TERRAIN.md's Log for the main
+  lane/balance-analyst.** `npm run test:fast`: 324 files passed, 9 skipped,
+  0 failed (`tests/boss.test.ts` excluded from this tier, unaffected by that
+  count). `npx tsc --noEmit`: clean. Full-tier verification (touches
+  `/src/sim`) — refs: QUESTIONS Q220 item 10, Q224.
 - **2026-09-25 — BACKLOG-CONTENT.md fb204 (non-finite aim, Time Lock + Deadeye
   Draw) done (scheduled routine, lane `content`).** A hand-edited input log
   or replay bundle's `NaN`/`Infinity` aim reached Time Lord's Time Lock zone

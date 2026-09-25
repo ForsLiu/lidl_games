@@ -2105,3 +2105,30 @@ Q200 did not collide and are unchanged below).
   here explicitly for an owner veto rather than folded silently into "the
   spec-consistent default." — refs: BACKLOG-TERRAIN.md fb064f, QUESTIONS
   Q150 ORDER, `src/sim/terrain/config.ts` superRefine.
+- **Q224. [fb205] `jitterDomainMaxCoreLegalFrac` built, not wired into the
+  loader's `minCoreLegalFrac` check — a scope call, logged (working rule 5).**
+  fb205's text reads "bound `flatCoreAnchorCount`/`maxCoreLegalFrac` ... over
+  the jitter domain rather than the static `GATES`", which could mean
+  replacing the loader's own ceiling. Measured, that swap reddens three of
+  `tests/terrain-generation.test.ts`'s own `fb064g` cases (`coreGateClearance:
+  13`/`minCoreLegalFrac: 0.186`, and the `17`/`0.001` pair) — configs that
+  file's own header comment pins as *legal, generator-satisfied* data,
+  refused only because a stricter, jitter-domain-true ceiling is smaller than
+  the static one at those clearances. That is the exact false-rejection shape
+  the same `maxCoreLegalFrac` doc comment already argues is worse than the
+  fallback it would prevent ("Refusing data the generator actually satisfies
+  ... fb064a's lesson"), and every one of those configs is still fully
+  playable on the static `GATES` list every non-live caller
+  (`generateTerrain`'s own default, every tool, every other test) actually
+  generates against. **Chosen default: build `jitterDomainCoreAnchorFloor`/
+  `jitterDomainMaxCoreLegalFrac` as proven, tested functions
+  (`src/sim/terrain/config.ts`, `tests/terrain-jitter-anchor-floor.test.ts`)
+  and use them to *measure* the shipped config's exposure (zero at
+  `coreGateClearance: 3` — its ceiling is ~0.999 either way, and the shipped
+  `minCoreLegalFrac` is 0.15), but leave the loader's own check on the static
+  value.** Whether to harden the loader itself — reject at load vs. accept and
+  let a bad seed's own `fallback` flag carry the risk — is a policy trade the
+  owner should make with both false-accept and false-reject costs in view,
+  not a default this item should force through a hard rejection of otherwise-
+  legal test/Tuner data. — refs: BACKLOG-TERRAIN.md fb205, fb156 QA bug 5,
+  fb064g.

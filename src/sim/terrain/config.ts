@@ -10,8 +10,9 @@
 import { z } from 'zod';
 
 import raw from '../../../data/terrain.json';
-import { GATES, GRID_H, GRID_W, MODIFIER_GATES } from '../grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../grid';
 import { Hasher } from '../hash';
+import { GATE_JITTER_MARGIN, MODIFIER_GATE_MAX_TX } from './gates';
 
 /**
  * The arena's own limits, which several bands are unsatisfiable past.
@@ -49,8 +50,13 @@ const INTERIOR_TILES = (GRID_W - 2) * (GRID_H - 2);
  * gates are adjacent along a border. A gate tile is normal, so a 2x2 touching
  * one is only excluded because its *other* border tiles are rock; two adjacent
  * gates would open an anchor this count never sees.
+ *
+ * `gates` defaults to the static `GATES` (every existing call site is
+ * unchanged), but fb205 needs the same geometry over an arbitrary gate list —
+ * `jitterDomainCoreAnchorFloor` below sweeps it over the positions
+ * `jitterGates`/`jitterModifierGate` can actually draw.
  */
-export function flatCoreAnchorCount(clearance: number): number {
+export function flatCoreAnchorCount(clearance: number, gates: readonly GateDef[] = GATES): number {
   let anchors = 0;
   for (let y = 1; y <= GRID_H - 3; y++) {
     for (let x = 1; x <= GRID_W - 3; x++) {
@@ -58,7 +64,7 @@ export function flatCoreAnchorCount(clearance: number): number {
       for (let dy = 0; dy < 2 && ok; dy++) {
         for (let dx = 0; dx < 2 && ok; dx++) {
           let near = Number.MAX_SAFE_INTEGER;
-          for (const g of GATES) {
+          for (const g of gates) {
             const d = Math.max(Math.abs(x + dx - g.tx), Math.abs(y + dy - g.ty));
             if (d < near) near = d;
           }
@@ -127,6 +133,122 @@ function floorTo6(value: number): number {
 
 export function maxCoreLegalFrac(clearance: number): number {
   const a = flatCoreAnchorCount(clearance);
+  return a === 0 ? 0 : a / (a + 1);
+}
+
+/**
+ * fb205 (BACKLOG-TERRAIN.md; fb156 QA bug 5): `maxCoreLegalFrac`'s ceiling was
+ * `flatCoreAnchorCount`'s value at the tools'/tests' static `GATES` — sound
+ * before fb156, when every live run played that exact list. Since fb156, a
+ * live run plays `jitterGates(seed)` (4 gates) or, under the Fourth Gate
+ * modifier, that plus `jitterModifierGate(seed)` (5) — a different gate list
+ * *per seed* — and the static ceiling is no longer a bound over what a real
+ * seed can draw. Measured counterexample at `coreGateClearance: 16`: the
+ * static ceiling reads 41 anchors while jittered layouts range 0-449, so a
+ * `minCoreLegalFrac` the loader accepted as "at most what 41 anchors buys"
+ * silently exceeded what many real seeds could ever reach — 11 of 400 sampled
+ * seeds exhausted `maxAttempts` and shipped the flat fallback.
+ *
+ * This returns the true minimum `flatCoreAnchorCount` over both live
+ * populations, proven rather than sampled — a bound every real seed's gates
+ * can actually meet, for `minCoreLegalFrac` to be measured against.
+ *
+ * **Not wired into the loader's own `minCoreLegalFrac` check** (still
+ * `maxCoreLegalFrac`'s static-`GATES` value, in `superRefine` below):
+ * swapping it in would reject `coreGateClearance`/`minCoreLegalFrac` pairs
+ * this file's own `fb064g` test pins as payable on the static list every
+ * non-live caller (`generateTerrain`'s own default, every tool, every other
+ * test) still generates against — the exact false-rejection shape this
+ * ceiling's doc comment already argues is worse than the fallback it
+ * prevents. Whether the loader should reject at load or accept and let a
+ * seed's own `fallback` flag carry the risk is a policy call for the owner
+ * (SPEC-FINAL `[designer-fill]`), not this item's to force through a hard
+ * rejection; `tests/terrain-jitter-anchor-floor.test.ts` uses this function to
+ * measure, not gate, the shipped config's exposure.
+ *
+ * **The proof.** Split the five gate slots into two groups.
+ *
+ * 1. `west`, `north`, `east`, `south` (`jitterGates`' own four). Each draws
+ *    its one free coordinate uniformly inside `[GATE_JITTER_MARGIN, span - 1 -
+ *    GATE_JITTER_MARGIN]` on its own edge. For any `clearance` with
+ *    `2 * clearance < GATE_JITTER_MARGIN`, no two of these four zones —
+ *    nor either border corner — can ever come within `clearance` of each
+ *    other: the margin keeps every draw at least `GATE_JITTER_MARGIN` tiles
+ *    from the nearest corner and from every other gate's own draw range (by
+ *    construction — `vHi - vLo` and `hHi - hLo` are exactly `span - 1 - 2 *
+ *    GATE_JITTER_MARGIN`, so two gates on perpendicular edges are never
+ *    closer than `GATE_JITTER_MARGIN`). With no overlap possible, each gate's
+ *    own exclusion zone is a fixed size wherever it lands — sliding a gate
+ *    along its edge only translates its zone, never clips it against a
+ *    corner or another gate's zone — so the *combined* anchor count these
+ *    four gates alone produce is the same for every draw. `flatCoreAnchorCount
+ *    (clearance)` (the existing static-`GATES`-default call, itself one legal
+ *    point in this domain) already computes that one true value — checked by
+ *    `tests/terrain-jitter-anchor-floor.test.ts` against a further sample of
+ *    the draw space instead of trusted from this argument alone.
+ * 2. `south2` (`jitterModifierGate`'s own draw), only present under the
+ *    Fourth Gate modifier. Its range — `[1, MODIFIER_GATE_MAX_TX]`, hugging
+ *    the southwest corner — is *not* margin-protected from `south`'s own
+ *    range (`south.tx` can draw as low as `GATE_JITTER_MARGIN`, only
+ *    `MODIFIER_GATE_MAX_TX` tiles from `south2`'s own high end), so this pair
+ *    can interact at clearances small enough that every other pair cannot.
+ *    Every other gate (`west`/`north`/`east`) sits far enough from the
+ *    southwest corner, at any clearance satisfying clause 1's bound, to never
+ *    interact with `south2` either (the nearest of them, `west`, is
+ *    `GATE_JITTER_MARGIN` rows from `south2`'s edge by the same margin
+ *    construction). So `south`/`south2` is the *only* interacting pair, over
+ *    a domain small enough to search exactly: `south.tx` ranges over
+ *    `span - 1 - 2 * GATE_JITTER_MARGIN` positions and `south2.tx` over
+ *    `MODIFIER_GATE_MAX_TX`, a few hundred combinations at the shipped grid,
+ *    holding `west`/`north`/`east` at any one legal point (clause 1 already
+ *    proved their own position never matters).
+ *
+ * The overall minimum is the smaller of the two groups' minimums — group 1
+ * covers a live run *without* the modifier, group 2 *with* it, and a
+ * `data/terrain.json` edit does not know in advance which a real run will
+ * carry.
+ *
+ * Past the threshold (`2 * clearance >= GATE_JITTER_MARGIN`), the zones can
+ * overlap in ways this proof does not cover, so rather than guess this
+ * returns 0 — the same "no proof, refuse everything positive" shape
+ * `maxCoreLegalFrac`'s own doc comment already uses past `coreGateClearance
+ * 27` on the static board. `GATE_JITTER_MARGIN` is 8, so this covers
+ * `coreGateClearance` up to 3 exactly — the shipped value.
+ */
+export function jitterDomainCoreAnchorFloor(clearance: number): number {
+  if (2 * clearance >= GATE_JITTER_MARGIN) return 0;
+
+  // Group 1: west/north/east/south, any legal point — proven position-
+  // independent below this threshold. `GATES`' own static positions are one
+  // such point.
+  const withoutModifier = flatCoreAnchorCount(clearance);
+
+  // Group 2: south/south2 is the only pair that can interact; west/north/east
+  // are held at `GATES`' own (legal, and by clause 1, immaterial) positions.
+  const [west, north, east] = GATES;
+  const southTxLo = GATE_JITTER_MARGIN;
+  const southTxHi = GRID_W - 1 - GATE_JITTER_MARGIN;
+  let withModifier = Number.POSITIVE_INFINITY;
+  for (let southTx = southTxLo; southTx <= southTxHi; southTx++) {
+    for (let south2Tx = 1; south2Tx <= MODIFIER_GATE_MAX_TX; south2Tx++) {
+      const gates: readonly GateDef[] = [
+        west!,
+        north!,
+        east!,
+        { key: 'south', tx: southTx, ty: GRID_H - 1 },
+        { key: 'south2', tx: south2Tx, ty: GRID_H - 1 },
+      ];
+      const a = flatCoreAnchorCount(clearance, gates);
+      if (a < withModifier) withModifier = a;
+    }
+  }
+
+  return Math.min(withoutModifier, withModifier);
+}
+
+/** `maxCoreLegalFrac`'s own ceiling formula, applied to `jitterDomainCoreAnchorFloor`. */
+export function jitterDomainMaxCoreLegalFrac(clearance: number): number {
+  const a = jitterDomainCoreAnchorFloor(clearance);
   return a === 0 ? 0 : a / (a + 1);
 }
 
@@ -501,6 +623,20 @@ export const TerrainFileSchema = z
     // 56x32's largest nearest-gate distance; was 17 at 36x20), where no
     // tile can be an anchor — which is what lets it subsume the standalone
     // `coreGateClearance` check this replaced.
+    //
+    // Deliberately still checked against `maxCoreLegalFrac`'s static-`GATES`
+    // value, not `jitterDomainMaxCoreLegalFrac` (fb205) — that would reject
+    // `coreGateClearance` values this very test file's `fb064g` case pins as
+    // payable (13, 17: legal on the static list every non-live caller —
+    // `generateTerrain`'s own default, every existing test and tool — still
+    // generates against), the identical false-rejection shape this ceiling's
+    // own doc comment already argues against. `jitterDomainMaxCoreLegalFrac`
+    // is exact and sound for what it claims (the live, seed-varying
+    // population), and is used to warn/measure that population separately
+    // (`tests/terrain-jitter-anchor-floor.test.ts`) — SPEC-FINAL's `[designer-
+    // fill]`/`⚖` marks a loader-level policy change (reject at load vs. accept
+    // and let the per-seed fallback flag it) as the owner's to make, not this
+    // item's to force through a hard rejection.
     const coreCeiling = maxCoreLegalFrac(cfg.coreGateClearance);
     if (c.minCoreLegalFrac > coreCeiling) {
       ctx.addIssue({
