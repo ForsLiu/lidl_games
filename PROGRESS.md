@@ -12,7 +12,7 @@
   real Codex/Tuner page (`src/ui/codex-collections.ts`, the `warden`
   single-document pattern) and joined the typed-per-field-widget set
   (`FIELD_EDITOR_KEYS`, `src/ui/tuner.ts`) — extending it past QUESTIONS
-  Q150's named four (towers/classes/cores/waves) to a fifth, logged as Q222
+  Q150's named four (towers/classes/cores/waves) to a fifth, logged as Q223
   rather than folded in silently, since `terrain/config.ts`'s own
   `superRefine` comment ("fb064f's Tuner highlights by path") already
   anticipated it. A refused save now highlights the exact widget (or nearest
@@ -30,7 +30,38 @@
   `tuner-fields.ts` engine (fb209: a non-object Tuner document crashes any
   typed-widget edit, reproducible on all five collections, not just
   terrain). `npx tsc --noEmit` clean; `npm run test:fast` green (324 files,
-  5018 passed, 34 pre-existing skips). Readings: QUESTIONS Q222.
+  5018 passed, 34 pre-existing skips). Readings: QUESTIONS Q223.
+- **2026-09-24 (scheduled routine) — BACKLOG-UI.md fb160 unstalled and
+  shipped: the three prior 2026-09-23 runs' bind resolved by this run's own
+  instructions, not by a design change.** Preflight: no open PR, no branch
+  touched BACKLOG.md-adjacent files in the last 60 min, `feedback/` empty
+  outside `processed/`. Re-grepped every backlog file: the same six
+  owner-directed lane items the last three runs found were still open. This
+  run's own task prompt added a clause none of the prior three had —
+  "any lane item whose Log says it is blocked on an out-of-scope need is
+  yours: move it to BACKLOG.md and do it, including the out-of-scope part"
+  — which names exactly fb160's own situation (`BACKLOG-UI.md`'s fb160 reads
+  "blocked on new main-lane sim state, see this file's Log"). That is the
+  precise bind all three 2026-09-23 entries above describe hitting and
+  declining to cross on their own authority. Executed it: built the missing
+  sim-side state (`World.damageByWeaponType`, credited at `damageEnemy`'s
+  existing choke point, snapshotted/hashed/reported the same way its sibling
+  accumulators are) and the DPS panel's segmented-bar redesign in one pass.
+  Full tier (touches `src/sim`): code-reviewer REQUEST-CHANGES on one Major
+  (a new test file failed `tsc --noEmit` under `noUncheckedIndexedAccess`,
+  fixed with `!` assertions, re-verified clean), then approved; qa-playtester
+  confirmed every acceptance clause and stress-tested the wave/Sunder
+  snapshot-pairing regression risk directly (two full transition cycles, 47
+  samples, no mismatch). `npm run test:fast` green (321 files, 4873 passed,
+  34 pre-existing skips). Full details in BACKLOG.md's own fb160 entry and
+  BACKLOG-UI.md's matching closure note; the wave/run dual-window design
+  tension (owner text says "no per-wave view" but `vs-panel.ts` still reads
+  the wave window) is logged as QUESTIONS Q222 rather than guessed past
+  silently. fb059/fb202(h)/fb064c/fb064e/fb064f remain open and out of this
+  run's budget — unchanged from the three prior runs' assessment, still
+  either full-class-sized or blocked on a sub-item this routine isn't
+  licensed to invent on its own. — refs: BACKLOG.md fb160, BACKLOG-UI.md
+  fb160, QUESTIONS Q222, PROGRESS.md's three 2026-09-23 entries below.
 - **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
   session, full repository scope).** Built the sim state it was blocked on —
   `World.damageBySourceType`, credited at `damageEnemy` beside the two flat

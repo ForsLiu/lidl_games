@@ -2056,8 +2056,29 @@ Q200 did not collide and are unchanged below).
   (`Voltbolt — Lightning Ball`) instead of "Active 1"/"Active 2".
   — refs: SPEC-FINAL §11, owner feedback `ui-dps-panel-bars`,
   BACKLOG-UI.md fb160.
-
-- **Q222. [fb064f] Tuner terrain page — `FIELD_EDITOR_KEYS` extended past
+- **Q222. [fb160] DPS panel bars: kept the wave/run dual-window data model,
+  redesigned only the rendered body — genuine tension between the owner
+  feedback's literal wording and an existing dependency, resolved without
+  asking.** Owner feedback `ui-dps-panel-bars` (fb160) reads "the DPS panel
+  shows only whole-run damage (no per-wave view)". Taken completely
+  literally — deleting `dpsPanelData`'s `wave` window outright — this breaks
+  `vs-panel.ts`'s "live DPS this wave" column (`vsPanelRows` reads
+  `dpsPanelData(w).wave.bySource`), which fb037 shipped and nothing in this
+  feedback mentions touching. Chosen: `dpsPanelData` still computes and
+  returns both `wave` and `run` (so `vs-panel.ts` is untouched and its own
+  10 tests stay green); only the DPS panel's own rendered body
+  (`hud.ts`'s `dpsPanelBodyMarkup`) changed to show the `run` window alone —
+  total at the top, one segmented bar per source, sorted by total, hover-
+  tooltip per segment (type + amount + percent), colors from
+  `data/damagetypes.json` via `colorblind`-aware `damageStyleColor`. This
+  satisfies the feedback's own visible-outcome description (what a player
+  sees opening the DPS panel) without a silent regression to a shipped,
+  tested, still-referenced feature the feedback never named. Revisit only if
+  a future owner verdict explicitly asks for the wave window's data to be
+  removed too. — refs: BACKLOG-UI.md fb160, `feedback/processed/`
+  `20260905-190000-feature-ui-dps-panel-bars.md`, `src/ui/dps-panel.ts`'s own
+  module doc, `src/ui/vs-panel.ts`.
+- **Q223. [fb064f] Tuner terrain page — `FIELD_EDITOR_KEYS` extended past
   Q150 ORDER's named four, and path-based error highlighting chosen (working
   rule 5).** Q150's owner verdict named exactly four collections for the
   typed per-field Tuner widgets — towers, classes, cores, waves — and fb044
