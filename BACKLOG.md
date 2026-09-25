@@ -49,6 +49,87 @@ still in test headers.
 > completions. `tools/status.ts`'s feedback ledger reads the archive too, so
 > nothing drops off STATUS.md's ledger.
 
+- [x] (fb208) [feat] **DONE 2026-09-24 (scheduled routine), main-lane
+      companion to the UI-lane item (BACKLOG-UI.md fb160, owner feedback
+      `ui-dps-panel-bars`) — picked up per this routine's own instruction
+      that a lane item whose Log names an out-of-scope block is main lane's
+      to do, including the blocking part.** Three prior scheduled runs
+      (2026-09-23, all logged in PROGRESS.md) confirmed fb160 was stalled on
+      exactly this: the DPS panel's segmented-bar redesign needs a combined
+      source x type damage ledger that did not exist, and none of those
+      sessions were licensed to invent it. This session's own routine
+      instructions explicitly authorized exactly that pickup, so it landed
+      here rather than staying stalled a fourth time.
+      **Sim-side (this item, `src/sim/**`):** new `World.damageByWeaponType`
+      (source -> type -> amount), credited in `damageEnemy`
+      (`src/sim/enemies.ts`) at the same choke point as the existing
+      `damageByWeapon`/`damageByType` flats, so it can never drift from
+      them. Snapshotted at all three sites the flat accumulators already
+      snapshot at — `startWave` (`run.ts`), `finishSundering`/
+      `advanceToNextBlock` (`sundering.ts`) — via a new `cloneDamageMatrix`
+      helper (`world.ts`) that deep-copies each source's row so a snapshot
+      can't alias the live matrix. New `damageMatrixSince` (`run.ts`, the
+      nested sibling of `damageSince`) isolates a window the same way. Folded
+      into `hashWorld`'s replay hash (sorted source then type, matching every
+      sibling accumulator's own convention) and `RunReport.damageByWeaponType`
+      (`buildReport`) — closes a real, if narrow, replay-determinism gap: two
+      runs can share both flat accumulators' marginals yet disagree on which
+      source dealt which type, which neither existing accumulator alone
+      would catch (proved with a same-marginals/different-split test that
+      hashes differently before the fix, identically after reverting it).
+      **UI-side (BACKLOG-UI.md fb160's own acceptance, done in the same
+      session since the sim half unblocked it):** `dps-panel.ts`'s
+      `dpsPanelData` gives each `bySource` row a `segments` array (per-type
+      split, colored via `damageStyleColor`, `colorblind`-aware);
+      `hud.ts`'s `dpsPanelBodyMarkup` now renders the owner's exact layout —
+      total at the top, one segmented horizontal bar per source sorted by
+      total, native `title` tooltip per segment ("Label: amount (pct%)"),
+      total printed at the bar's right end. Owner feedback's own "(no
+      per-wave view)" wording is honoured in what the panel *shows*; the
+      underlying `wave` window stayed in `dpsPanelData`'s data model
+      (unrendered) because `vs-panel.ts`'s "live DPS this wave" column still
+      reads `.wave.bySource` — deleting it would have silently regressed a
+      shipped, tested fb037 feature the feedback never named. Logged as
+      QUESTIONS Q222 rather than assumed.
+      New `tests/fb160-dps-panel-bars.test.ts` (8 tests: matrix crediting,
+      segment sum/percent/sort, colorblind color switch, snapshot isolation
+      and non-aliasing across the wave/Sunder boundary, RunReport
+      reconciliation, hash divergence on identical marginals, rendered-DOM
+      shape). `tests/hud-controls.test.ts`'s one DPS-panel assertion
+      rewritten to route through a real `damageEnemy` call and check the new
+      tooltip instead of now-removed visible "By damage type" text.
+      **Review/QA (full tier, touches `src/sim`):** code-reviewer
+      REQUEST-CHANGES on one Major — the new test file failed
+      `npx tsc --noEmit` under `noUncheckedIndexedAccess` (unchecked
+      array-index reads on DOM `querySelectorAll` results and a matrix-row
+      snapshot) — fixed with `!` assertions at each site, re-verified clean.
+      qa-playtester independently confirmed every acceptance clause
+      (bars/segments/colors/tooltip/total-at-top/sort/right-end total/docked
+      style), ran `npm run test:fast` green (321 files, 4873 passed, 34
+      pre-existing skips), and stress-tested the specific regression risk
+      named in its brief — forced two full Sundering/block-end cycles on a
+      real hybrid-bot run, sampling every 30 ticks with colorblind toggled:
+      every row's segments summed back to its own total in both windows at
+      every sample, confirming the new matrix snapshots stay correctly
+      paired with the pre-existing flat ones across the transition boundary.
+      Its one process finding (this diff hadn't yet updated BACKLOG.md/
+      BACKLOG-UI.md/PROGRESS.md when it ran mid-session) is resolved by this
+      entry and BACKLOG-UI.md's matching one. `npx tsc --noEmit` clean —
+      refs: BACKLOG-UI.md fb160, SPEC-FINAL §11, owner feedback
+      `ui-dps-panel-bars`, QUESTIONS Q222.
+      **Post-merge note (2026-09-25, branch merge into master):** this
+      session's own `damageByWeaponType`/`cloneDamageMatrix`/
+      `damageMatrixSince`/`tests/fb160-dps-panel-bars.test.ts` were superseded
+      at merge time by master's independently-shipped equivalent
+      (`World.damageBySourceType`, no snapshot-matrix helpers needed — the
+      DPS panel reads the live matrix directly), which is what BACKLOG-UI.md's
+      fb160 entry now describes and what actually ships. Renumbered fb160 ->
+      fb208 here only to clear an id collision with BACKLOG-UI.md's fb160
+      (both branches independently completed the same owner feedback item;
+      per CLAUDE.md's id-uniqueness rule, the collision is fixed by renaming
+      rather than allow-listed) — the technical narrative above describes
+      this branch's own (superseded) implementation, kept for history.
+
 - [x] (fb200) [bug] **DONE 2026-09-22, main-lane companion to the UI-lane item
       (BACKLOG-UI.md fb151, filed 2026-09-05 by qa-playtester during fb112
       verification).** Dash Slash's (and any `dash_line` class active's) real
@@ -6994,6 +7075,69 @@ duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
       hash aae0b13d (not 4835a7e9), 13 structures instead of 14, because
       `contentHash` covers `/data` only — refs: SPEC-FINAL §12 rule 2,
       QUESTIONS Q220(8), BACKLOG-TERRAIN.md fb156.
+
+- [x] (fb210) [feat] **DONE 2026-09-25 (scheduled routine, main-lane
+      session).** BACKLOG-TERRAIN.md fb064f, picked up under this routine's
+      instruction to take any lane item whose Log names it blocked on an
+      out-of-scope need: "Tuner terrain page (density/ratios editable) and
+      the Training Grounds flat-arena override." `terrain` gained a
+      `CodexCollection` entry (`src/ui/codex-collections.ts`, mirroring the
+      `warden` single-document pattern: `raw: content.raw.mapTerrain`) and
+      joined the typed-per-field-widget set (`FIELD_EDITOR_KEYS`, `src/ui/
+      tuner.ts`) that QUESTIONS Q150's owner verdict had named exactly four
+      collections for (towers/classes/cores/waves) — extending it to a fifth
+      is a deliberate reopening of that named scope, logged as QUESTIONS
+      Q223 rather than folded in silently, because `src/sim/terrain/
+      config.ts`'s own `superRefine` already carries a comment written to
+      anticipate it ("fb064f's Tuner highlights by path"). A refused save
+      now calls new `highlightTunerFieldErrors` (`src/ui/tuner-fields.ts`)
+      to mark the exact widget a schema error's `path` names, walking up to
+      the nearest ancestor `<details>` group when the path names a field
+      shape with no widget of its own (`constraints.minCorridorWidth`'s
+      `z.union`, `highGround.families[].traits`'s string array), and forces
+      every ancestor `<details>` open since `wrapDetails` never sets `.open`
+      and a collapsed one hides its whole subtree — a code-reviewer Major
+      finding, fixed before commit, together with an initially-fabricated
+      QUESTIONS.md citation in the same diff (also fixed: Q223 is a real
+      entry). The Training Grounds flat-arena override needed no new
+      production code — fb064n/fb130/fb156 had already wired a practice
+      run's `Grid` straight to `flatTerrain(w.gates)` — confirmed here by a
+      new regression test matching every interior tile at seeds 1/2/40 (the
+      one-tile border ring is excluded: measured 0 interior diffs / 168
+      border diffs at every seed, `Grid` walls off the border a structurally
+      different way than `flatTerrain`'s literal Rock tiles, by design, not
+      a defect). New `tests/fb064f-tuner-terrain.test.ts` (6 tests). `npx
+      tsc --noEmit` clean; `npm run test:fast` green (324 files, 5018
+      passed, 34 pre-existing skips). code-reviewer: REQUEST-CHANGES (two
+      Majors, both above) -> fixes applied -> clean. qa-playtester: PASS,
+      confirmed every clause via real DOM exercising (every terrain leaf
+      field type, multi-error highlighting, garbage/empty error paths, rapid
+      reject/reject/succeed cycling, tab-switch remount, the real on-disk
+      `data/terrain.json`, and no regression to the original four
+      collections); filed one pre-existing bug (fb209, not introduced by
+      this item) — refs: BACKLOG-TERRAIN.md fb064f, QUESTIONS Q150 ORDER,
+      Q223.
+
+- [ ] (fb209) [bug] `applyFieldChange` (`src/ui/tuner-fields.ts`) throws an
+      uncaught `TypeError` when a Tuner typed widget is edited while the
+      backing textarea holds valid-but-non-object JSON (`null`, a bare
+      number/string/boolean) — pre-existing, reproducible today on all five
+      `FIELD_EDITOR_KEYS` collections (towers/classes/cores/waves/terrain),
+      found by qa-playtester verifying fb210/fb064f but not caused by it.
+      Repro: mount any typed-field collection, set the `.sw-tuner-editor`
+      textarea to `'null'` (or `'42'`/`'"x"'`/`'true'`/`'false'`) and fire
+      `input` — the field panel keeps rendering blank widgets against a `{}`
+      stand-in (`renderDocumentFields`'s doc-not-an-object fallback), and
+      editing one throws inside `applyFieldChange`'s `cursor[lastKey] =
+      value` (`structuredClone(null)` is still `null`; same shape of crash
+      for a number/string/boolean root). Acceptance: a failing regression
+      test first (e.g. `tests/tuner-fields-nonobject-doc.test.ts`, parallel
+      to `tests/fb044-tuner-per-field.test.ts`, against at least one
+      `FIELD_EDITOR_KEYS` collection); a widget edit against a non-object
+      document either no-ops safely or the field panel itself is suppressed,
+      matching the "leave it alone" treatment `renderFieldsPanel` already
+      gives genuinely invalid JSON — refs: qa-playtester (fb210/fb064f QA
+      pass), `src/ui/tuner-fields.ts`, `src/ui/tuner.ts`.
 
 
 ## Retired from the queue by SPEC-FINAL

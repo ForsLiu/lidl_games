@@ -491,8 +491,26 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
 - [ ] (fb064e) [feat] *(out of scope — UI lane)* organic terrain rendering
       (marching-squares edges, texture variation) over the square collision
       grid, plus path indicators drawn around terrain.
-- [ ] (fb064f) [feat] *(out of scope — main lane)* Tuner terrain page
+- [x] (fb064f) [feat] *(out of scope — main lane)* Tuner terrain page
       (density/ratios editable) and the Training Grounds flat-arena override.
+      **Shipped by main lane (BACKLOG.md fb210, 2026-09-25, scheduled
+      routine — this lane item's own Log named it blocked on main-lane files,
+      picked up per the routine's out-of-scope-authorization instruction).**
+      Terrain gained a real `CodexCollection` entry (`src/ui/codex-
+      collections.ts`, the `warden` single-document precedent) and joined
+      Q150 ORDER's typed-per-field-widget set (`FIELD_EDITOR_KEYS`,
+      `src/ui/tuner.ts` — logged as QUESTIONS Q223, since Q150 named exactly
+      four collections and this reopens that scope for a fifth); a refused
+      save now highlights the exact widget (or nearest ancestor group for a
+      field shape with no widget of its own, e.g. `constraints.
+      minCorridorWidth`'s `z.union`) a schema error's `path` names, per
+      `config.ts`'s own superRefine comment anticipating exactly this
+      ("fb064f's Tuner highlights by path"). The Training Grounds flat-arena
+      override itself needed no new code — fb064n/fb130/fb156 already wired
+      a practice run's `Grid` straight to `flatTerrain(w.gates)`, confirmed
+      here by a new interior-tile-match regression test (the one-tile border
+      ring is walled off a structurally different way by each, by design).
+      No terrain-lane file touched.
 
 ### Generated 2026-09-07 (lane generation rule — fb064c/fb064d/fb064e/fb064f all
 ### need only out-of-scope files, so the Queue had zero actionable items; per the

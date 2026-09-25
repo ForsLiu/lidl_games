@@ -2056,3 +2056,52 @@ Q200 did not collide and are unchanged below).
   (`Voltbolt — Lightning Ball`) instead of "Active 1"/"Active 2".
   — refs: SPEC-FINAL §11, owner feedback `ui-dps-panel-bars`,
   BACKLOG-UI.md fb160.
+- **Q222. [fb160] DPS panel bars: kept the wave/run dual-window data model,
+  redesigned only the rendered body — genuine tension between the owner
+  feedback's literal wording and an existing dependency, resolved without
+  asking.** Owner feedback `ui-dps-panel-bars` (fb160) reads "the DPS panel
+  shows only whole-run damage (no per-wave view)". Taken completely
+  literally — deleting `dpsPanelData`'s `wave` window outright — this breaks
+  `vs-panel.ts`'s "live DPS this wave" column (`vsPanelRows` reads
+  `dpsPanelData(w).wave.bySource`), which fb037 shipped and nothing in this
+  feedback mentions touching. Chosen: `dpsPanelData` still computes and
+  returns both `wave` and `run` (so `vs-panel.ts` is untouched and its own
+  10 tests stay green); only the DPS panel's own rendered body
+  (`hud.ts`'s `dpsPanelBodyMarkup`) changed to show the `run` window alone —
+  total at the top, one segmented bar per source, sorted by total, hover-
+  tooltip per segment (type + amount + percent), colors from
+  `data/damagetypes.json` via `colorblind`-aware `damageStyleColor`. This
+  satisfies the feedback's own visible-outcome description (what a player
+  sees opening the DPS panel) without a silent regression to a shipped,
+  tested, still-referenced feature the feedback never named. Revisit only if
+  a future owner verdict explicitly asks for the wave window's data to be
+  removed too. — refs: BACKLOG-UI.md fb160, `feedback/processed/`
+  `20260905-190000-feature-ui-dps-panel-bars.md`, `src/ui/dps-panel.ts`'s own
+  module doc, `src/ui/vs-panel.ts`.
+- **Q223. [fb064f] Tuner terrain page — `FIELD_EDITOR_KEYS` extended past
+  Q150 ORDER's named four, and path-based error highlighting chosen (working
+  rule 5).** Q150's owner verdict named exactly four collections for the
+  typed per-field Tuner widgets — towers, classes, cores, waves — and fb044
+  shipped exactly that set. fb064f's own text ("Tuner terrain page
+  (density/ratios editable)") and, independently, `src/sim/terrain/
+  config.ts`'s `superRefine` comment ("fb064f's Tuner highlights by path",
+  written well before this item was picked up) both read as anticipating a
+  fifth, terrain-specific typed-widget page rather than leaving terrain to
+  the whole-document JSON textarea every non-widget collection already had.
+  Chosen default: add `'terrain'` to `FIELD_EDITOR_KEYS`
+  (`src/ui/tuner.ts`), which the generic `tuner-fields.ts` walker already
+  renders for free (no terrain-specific widget code needed — its `ZodObject`/
+  `ZodNumber`/array-of-object shapes are exactly the shapes the walker
+  already handles), and build `highlightTunerFieldErrors` (`tuner-fields.ts`)
+  so a refused save marks the exact widget (or nearest ancestor group, for a
+  path like `constraints.minCorridorWidth` a `z.ZodUnion` field has no widget
+  of its own) a schema issue's `path` names — the feature `config.ts`'s own
+  comment was written to support. Every `data-tuner-path` ancestor `<details>`
+  of a highlighted element is force-opened (code-reviewer, Major), since
+  `wrapDetails` never sets `.open` and a native `<details>` hides its whole
+  subtree while collapsed. Reason: CLAUDE.md working rule 5 (never stop to
+  ask; fill a genuine gap with the most spec-consistent default and log it)
+  — this reopens a named owner scope rather than a true gap, so it is logged
+  here explicitly for an owner veto rather than folded silently into "the
+  spec-consistent default." — refs: BACKLOG-TERRAIN.md fb064f, QUESTIONS
+  Q150 ORDER, `src/sim/terrain/config.ts` superRefine.
