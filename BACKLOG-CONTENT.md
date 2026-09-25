@@ -384,16 +384,57 @@ closed).
       burst-radius multiplier in QUESTIONS.md for an owner verdict (the
       formula itself is owner text) — refs: fb059, QUESTIONS Q219(11).
 
-- [ ] (fb204) [bug] a non-finite aim reaches Time Lord's *Time Lock* zone
-      position (fb059 QA, pre-existing — the same defect fb059 fixed for
-      Lightning Ball): `useClassActive2(w, NaN, NaN)` places a zone at NaN,
-      which then lives its full span and feeds NaN into `hashWorld`. A mouse
-      cannot produce it; a replay bundle or hand-edited input log can.
-      Acceptance: a failing regression test first; every aimed Active treats
-      a non-finite aim as unaimed; `tests/q15-command-domain-fuzz.test.ts`
-      probes every class's aimed Actives (today it probes Engineer and
-      Swordsman only) and `scanWorld` (`tools/invariants.ts`) covers
-      `timeLockZones` — refs: fb059 QA finding 3, q15.
+- [x] (fb204) [bug] **DONE 2026-09-25 (scheduled routine, lane `content`).**
+      A non-finite aim (`NaN`/`Infinity` — a hand-edited input log or replay
+      bundle can produce one, a mouse cannot) reached Time Lord's *Time Lock*
+      zone position: `fireTimeLock`'s `aimX ?? wd.x` only guards `undefined`.
+      **The real defect was generic, not Time-Lock-specific**, so the fix is
+      too: a new `sanitizeAim(aimX, aimY)` helper (`src/sim/classes.ts`, near
+      `aimDirection`) converts a non-finite value on either axis
+      independently to `undefined`, called once at the top of both Command
+      entry points, `useClassActive`/`useClassActive2`, before either
+      dispatches to any of the 12 kinds routed through them — rather than
+      patching each `fire*` function the way fb059 patched
+      `fireLightningBall` alone. `fireLightningBall`'s own now-redundant
+      local guard was simplified to lean on the upstream sanitization.
+      **QA's first pass found the fix incomplete**: Archer's *Deadeye Draw*
+      (`charge_pierce`) is a charge-kind Active1 that fires from
+      `tickClassCharge` on release, reading `TickInput.aimX`/`aimY` directly
+      — the one aimed Active that bypasses `useClassActive` entirely, so a
+      non-finite aim still reached `aimDirection`'s `normalize` call and
+      came back `{x: NaN, y: NaN}` (confirmed via the emitted `class_active`
+      VFX event's NaN endpoint; does not corrupt `hashWorld` or break replay
+      determinism, since `w.fx` is never hashed, but produces a wrong,
+      always-miss shot). Fixed at its own call site (`tickClassCharge`, one
+      `sanitizeAim` call before `fireDeadeyeDraw`); `charge_nova`/Circle
+      Slash and `ground_poison`/Poison Barrel are self-centered with no
+      `aimX`/`aimY` parameter at all, so neither has the same gap (QA
+      confirmed). New `tests/class-nonfinite-aim.test.ts` (42 cases): the
+      reported Time Lock case (whole-pair and per-axis-mixed NaN/Infinity,
+      zone lands at the Warden/aim point, always finite), a snapshot-
+      equivalence table proving a bad aim behaves identically to no aim at
+      all across the other 11 `useClassActive`/`useClassActive2`-routed
+      kinds (dash_line, repair_heal, dash_trail, dash_volley, death_pact,
+      ice_wall, chain_lightning, blood_tithe, dash_heal, mind_manipulation,
+      spreading_madness), and the QA-added Deadeye Draw follow-up block —
+      every case verified red before its fix (manually reverted and
+      reapplied) and green after. **Review (full tier):** code-reviewer
+      APPROVE, no Critical/Major (traced the two entry points as the only
+      callers of every `fire*` aim-taking function, confirmed architecture
+      rule 1 compliance). **qa-playtester:** FAIL on the first pass (the
+      Deadeye Draw gap above, with a precise repro), **PASS** on the
+      follow-up once fixed — also adversarially checked mixed-axis pairs,
+      Bracer of Overlap's multi-zone Time Lock, mid-dash/Overdrive-window/
+      dying-state re-entry, and a 20,000-tick scripted run interleaving
+      non-finite aims at both the Command and raw-`TickInput` level (no
+      crash, no NaN in `hashWorld`). `npx tsc --noEmit` clean; targeted
+      tests + `npm run test:fast` green (5059 passed, 34 pre-existing skips,
+      0 new). **Left `[ ]`, filed below, not done here:** widening
+      `tests/q15-command-domain-fuzz.test.ts`'s aimed-Active coverage past
+      Engineer/Swordsman and adding `timeLockZones` to `scanWorld`
+      (`tools/invariants.ts`) — both out of this lane's Scope
+      (`tests/q15-*` matches neither `tests/class-*` nor `tests/equip-*`;
+      `tools/**` isn't listed at all) — refs: fb059 QA finding 3, q15.
 
 - [x] (fb061) [feat] normal priority: **DONE 2026-09-22 (main-lane session,
       full repository scope — the out-of-Scope test-file wall the Finding
@@ -514,6 +555,26 @@ are still blocked by the separate SPEC-FINAL.md wall above).
   fingerprint-distance check and its measurement method: `c033`/`c039`/
   `c040`; Bloodlord's specific wall: `c039`). Closed as superseded rather
   than executed — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D, c032-c041.
+
+### Filed 2026-09-25 — fb204's remaining acceptance clauses (main-lane, not this lane's to fix)
+
+- **Widen `tests/q15-command-domain-fuzz.test.ts`'s aimed-Active coverage.**
+  `tools/fuzz-command-domain.ts`'s `class_active`/`class_active2` rows only
+  ever fuzz Engineer (Active1) and Swordsman (Active2) — every other class's
+  aimed Active, Deadeye Draw's now-fixed `tickClassCharge` path included,
+  goes unprobed by this file's own anti-vacuity fuzzer. Needs new
+  `FIELD_SPECS` rows (or a per-class sweep) in `tools/fuzz-command-domain.ts`
+  and a regenerated `tests/q15-command-domain-holes.ts` census
+  (`Q15_RECORD`-shaped, same precedent as q7's `Q7_RECORD=1`). Out of this
+  lane's Scope: `tools/**` is not listed at all, and `tests/q15-*` matches
+  neither `tests/class-*` nor `tests/equip-*`.
+- **`scanWorld` (`tools/invariants.ts`) doesn't cover `w.timeLockZones`.**
+  Every other position-bearing World field the fuzzer's own oracle checks
+  (`w.warden.x/y`, enemy positions, etc.) gets a `finite(...)` call in
+  `scanWorld`; `timeLockZones[].x/y` has none, so a future regression in this
+  same family would not be caught generically even with q15's coverage
+  widened. One `finite('timeLockZones[i].x', ...)`-shaped addition, in
+  `tools/invariants.ts` — out of Scope for the same reason as above.
 
 ### Filed 2026-09-23 — fb202(f)/(g) cross-lane findings (not this lane's to fix)
 

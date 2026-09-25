@@ -5,6 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-25 — BACKLOG-CONTENT.md fb204 (non-finite aim, Time Lock + Deadeye
+  Draw) done (scheduled routine, lane `content`).** A hand-edited input log
+  or replay bundle's `NaN`/`Infinity` aim reached Time Lord's Time Lock zone
+  position (`fireTimeLock`'s `aimX ?? wd.x` only guarded `undefined`); fixed
+  generically rather than per-kind with a new `sanitizeAim` helper
+  (`src/sim/classes.ts`) called once at both Command entry points,
+  `useClassActive`/`useClassActive2`, covering all 12 kinds routed through
+  them. qa-playtester's first pass found the fix incomplete — Archer's
+  Deadeye Draw (`charge_pierce`) fires from `tickClassCharge` on release,
+  reading `TickInput.aimX`/`aimY` directly, bypassing both entry points —
+  fixed at its own call site and re-verified PASS. New
+  `tests/class-nonfinite-aim.test.ts` (42 cases, every aimed-Active kind,
+  each verified red before its fix). code-reviewer APPROVE, no Critical/
+  Major. Targeted tests + `npm run test:fast` green (5059 passed, 34
+  pre-existing skips, 0 new). Two acceptance clauses (widening
+  `tests/q15-command-domain-fuzz.test.ts`'s class coverage past Engineer/
+  Swordsman; `scanWorld` covering `timeLockZones`) are out of this lane's
+  Scope (`tools/**`, `tests/q15-*`) and filed in BACKLOG-CONTENT.md's Queue
+  for main-lane pickup. Readings: none — refs: SPEC-FINAL §4.2, fb059 QA
+  finding 3, BACKLOG-CONTENT.md fb204.
 - **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
   session, full repository scope).** Built the sim state it was blocked on —
   `World.damageBySourceType`, credited at `damageEnemy` beside the two flat

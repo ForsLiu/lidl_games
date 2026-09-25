@@ -401,6 +401,23 @@ function circleSlashChargeRate(w: World, cls: ClassDef): number {
 }
 
 /**
+ * fb204 (QA): a non-finite aim (`NaN`/`Infinity` — a hand-edited input log or
+ * replay bundle can produce one; a mouse cannot) is no aim at all, for every
+ * aimed Active alike. A bare `aimX ?? wd.x` only guards `undefined`, and
+ * `normalize` only treats a *zero* length as "no direction" — a `NaN` length
+ * survives that check and comes back out as `{x: NaN, y: NaN}` — so this
+ * sanitizes both Command entry points once, before either dispatches to any
+ * kind's fire function, rather than leaving each fire function to guard
+ * itself (the one-off fix fb059 gave `fireLightningBall` alone).
+ */
+function sanitizeAim(aimX: number | undefined, aimY: number | undefined): [number | undefined, number | undefined] {
+  return [
+    aimX !== undefined && Number.isFinite(aimX) ? aimX : undefined,
+    aimY !== undefined && Number.isFinite(aimY) ? aimY : undefined,
+  ];
+}
+
+/**
  * Which way a mouse-aimed Active points: at the aim point when one was sent,
  * and along the Warden's current facing when it was not (or when the aim
  * lands exactly on the Warden, which normalizes to nothing).
@@ -2044,6 +2061,7 @@ export function updateTempWalls(w: World, dt: number): void {
 
 /** Returns whether the Active fired; false on cooldown, wrong phase, or no active defined. */
 export function useClassActive(w: World, aimX?: number, aimY?: number): boolean {
+  [aimX, aimY] = sanitizeAim(aimX, aimY);
   const wd = w.warden;
   if (!ACTIVE_PHASES.has(w.phase)) return false;
   // `updateWarden`'s own "frozen for the defeat slow-mo beat" rule (run.ts)
@@ -2166,6 +2184,7 @@ export function isChargeKind(kind: ClassEffect['kind']): boolean {
  * which stays self-centered exactly as before.
  */
 export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean {
+  [aimX, aimY] = sanitizeAim(aimX, aimY);
   if (!ACTIVE_PHASES.has(w.phase)) return false;
   // See the matching guard/comment in `useClassActive` above (p6b bug fix) —
   // same gap, same fix, and Dash Slash is exactly the case that made it
@@ -2315,7 +2334,13 @@ export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: n
     } else if (cls.active1.kind === 'ground_poison') {
       firePoisonBarrel(w, cls, wd.active1Charge);
     } else {
-      fireDeadeyeDraw(w, cls, wd.active1Charge, input.aimX, input.aimY);
+      // fb204 (QA): Deadeye Draw is the one aimed Active that fires from here
+      // rather than through `useClassActive`/`useClassActive2`, so it reads
+      // `TickInput.aimX`/`aimY` raw instead of already-sanitized parameters —
+      // the same per-axis "no aim at all" treatment, applied at its own entry
+      // point.
+      const [ax, ay] = sanitizeAim(input.aimX, input.aimY);
+      fireDeadeyeDraw(w, cls, wd.active1Charge, ax, ay);
     }
     wd.active1Charging = false;
     wd.active1Charge = 0;
@@ -2493,10 +2518,10 @@ function fireLightningBall(w: World, cls: ClassDef, aimX: number | undefined, ai
   const wd = w.warden;
   const eff = cls.active1;
   const range = characterBasicRange(w);
-  // QA: a non-finite aim (a hand-edited input log, a replay bundle) is no aim
-  // at all — never a NaN ball.
-  let ax = aimX !== undefined && Number.isFinite(aimX) ? aimX : undefined;
-  let ay = aimY !== undefined && Number.isFinite(aimY) ? aimY : undefined;
+  // fb204: non-finite aim is sanitized once, upstream, by `useClassActive`'s
+  // own `sanitizeAim` call — never a NaN ball.
+  let ax: number | undefined = aimX;
+  let ay: number | undefined = aimY;
   if (ax === undefined || ay === undefined) {
     const t = w.nearestEnemy(wd.x, wd.y, range);
     ax = t ? t.x : wd.x + wd.fx * range;
