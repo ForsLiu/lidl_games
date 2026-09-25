@@ -168,5 +168,15 @@ export function buildCodexCollections(
       tunerFile: 'warden',
       raw: content.raw.warden,
     },
+    {
+      key: 'terrain',
+      label: 'Terrain',
+      // fb064f: same authored-document rationale as warden above (this doc
+      // has no `numberScale`-style loaded view worth showing separately, and
+      // one row is the whole document, same as warden).
+      rows: asRows(content.raw.mapTerrain as Record<string, unknown>),
+      tunerFile: 'terrain',
+      raw: content.raw.mapTerrain,
+    },
   ];
 }

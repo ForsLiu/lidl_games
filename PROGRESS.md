@@ -30,6 +30,37 @@
   Targeted tests (735 passed/2 skipped) and `npm run test:fast` green, `git
   diff data/` empty. Readings: none — refs: fb059, QUESTIONS Q219(11),
   SPEC-FINAL §14 G8, BACKLOG-CONTENT.md fb203.
+- **2026-09-25 (scheduled terrain-lane routine) — BACKLOG-TERRAIN.md fb205
+  (re-record the sweeps at fb156's jittered gates), 3 of 4 clauses done.**
+  Added a jittered-gate arm to `tests/terrain-run-provenance.test.ts`'s
+  stranding sweep: over the same 12,000-seed domain sample, `jitterGates`
+  strands 16 seeds and `+jitterModifierGate` strands 27 (all 43 confirmed
+  rescued by the Warden clearing, no fallback) — the file now runs 61 s ->
+  136 s (a per-seed gate list rules out the shared-`Grid` sweep trick);
+  `vitest.fast.config.ts` itself is outside this lane's Scope (code-reviewer
+  caught a first version editing it directly), so the exclude-list addition
+  is filed in BACKLOG-TERRAIN.md's Log for the main lane instead. Built
+  `jitterDomainCoreAnchorFloor`/`jitterDomainMaxCoreLegalFrac`
+  (`src/sim/terrain/config.ts`, new `tests/terrain-jitter-anchor-floor.
+  test.ts`): a proven (not sampled) minimum `flatCoreAnchorCount` over both
+  live gate populations, exact through the shipped `coreGateClearance` (3).
+  **Deliberately not wired into the loader's `minCoreLegalFrac` check** —
+  measured, that swap reddens legal `fb064g` test fixtures, the same false-
+  rejection shape this file's own doc comments argue against (QUESTIONS
+  Q224). Ran `tools/sweep.ts` (engineer/hybrid: T3/12 seeds 25% win, T1/10
+  seeds 60% win) and the real `tests/boss.test.ts` harness, which gives
+  G14's T1/T5 companion checks their first recorded numbers (T1 50%, need
+  >=55%; T5 30%, need <=20%) — red, same direction as the pre-existing
+  G1/G8/G14/G23 over-ceiling family (Q160/Q161/p11a), not attributed to
+  jitter specifically (no static-gate control run in budget this session).
+  **Left `[ ]`: the file's own "a scripted run reaches it, kills it and
+  wins" seed-4 floor (11.98 s, re-confirmed unchanged from Q220) needs a
+  balance-data fix (`data/enemies.json`/towers, per fb099's precedent) —
+  outside this lane's Scope, filed in BACKLOG-TERRAIN.md's Log for the main
+  lane/balance-analyst.** `npm run test:fast`: 324 files passed, 9 skipped,
+  0 failed (`tests/boss.test.ts` excluded from this tier, unaffected by that
+  count). `npx tsc --noEmit`: clean. Full-tier verification (touches
+  `/src/sim`) — refs: QUESTIONS Q220 item 10, Q224.
 - **2026-09-25 — BACKLOG-CONTENT.md fb204 (non-finite aim, Time Lock + Deadeye
   Draw) done (scheduled routine, lane `content`).** A hand-edited input log
   or replay bundle's `NaN`/`Infinity` aim reached Time Lord's Time Lock zone
@@ -50,6 +81,63 @@
   Scope (`tools/**`, `tests/q15-*`) and filed in BACKLOG-CONTENT.md's Queue
   for main-lane pickup. Readings: none — refs: SPEC-FINAL §4.2, fb059 QA
   finding 3, BACKLOG-CONTENT.md fb204.
+- **2026-09-25 — BACKLOG.md fb210 / BACKLOG-TERRAIN.md fb064f (Tuner terrain
+  page + Training Grounds override) done (scheduled routine, main-lane
+  session).** Picked up per this routine's out-of-scope-authorization rule:
+  fb064f's own Log named it blocked on main-lane files. `terrain` gained a
+  real Codex/Tuner page (`src/ui/codex-collections.ts`, the `warden`
+  single-document pattern) and joined the typed-per-field-widget set
+  (`FIELD_EDITOR_KEYS`, `src/ui/tuner.ts`) — extending it past QUESTIONS
+  Q150's named four (towers/classes/cores/waves) to a fifth, logged as Q223
+  rather than folded in silently, since `terrain/config.ts`'s own
+  `superRefine` comment ("fb064f's Tuner highlights by path") already
+  anticipated it. A refused save now highlights the exact widget (or nearest
+  ancestor group for a no-widget field shape) a schema error's path names,
+  via new `highlightTunerFieldErrors` (`src/ui/tuner-fields.ts`), forcing
+  every ancestor `<details>` open since a collapsed one hides its subtree.
+  The Training Grounds flat-arena override needed no new code (fb064n/
+  fb130/fb156 already wired practice runs to `flatTerrain(w.gates)`);
+  confirmed with a new interior-tile-match regression test. New
+  `tests/fb064f-tuner-terrain.test.ts` (6 tests). code-reviewer:
+  REQUEST-CHANGES (a fabricated QUESTIONS.md citation, and highlighted
+  widgets invisible inside collapsed `<details>`) → both fixed → clean.
+  qa-playtester: PASS on every clause via real DOM exercising; filed one
+  pre-existing, not-introduced-by-this-item bug against the shared
+  `tuner-fields.ts` engine (fb209: a non-object Tuner document crashes any
+  typed-widget edit, reproducible on all five collections, not just
+  terrain). `npx tsc --noEmit` clean; `npm run test:fast` green (324 files,
+  5018 passed, 34 pre-existing skips). Readings: QUESTIONS Q223.
+- **2026-09-24 (scheduled routine) — BACKLOG-UI.md fb160 unstalled and
+  shipped: the three prior 2026-09-23 runs' bind resolved by this run's own
+  instructions, not by a design change.** Preflight: no open PR, no branch
+  touched BACKLOG.md-adjacent files in the last 60 min, `feedback/` empty
+  outside `processed/`. Re-grepped every backlog file: the same six
+  owner-directed lane items the last three runs found were still open. This
+  run's own task prompt added a clause none of the prior three had —
+  "any lane item whose Log says it is blocked on an out-of-scope need is
+  yours: move it to BACKLOG.md and do it, including the out-of-scope part"
+  — which names exactly fb160's own situation (`BACKLOG-UI.md`'s fb160 reads
+  "blocked on new main-lane sim state, see this file's Log"). That is the
+  precise bind all three 2026-09-23 entries above describe hitting and
+  declining to cross on their own authority. Executed it: built the missing
+  sim-side state (`World.damageByWeaponType`, credited at `damageEnemy`'s
+  existing choke point, snapshotted/hashed/reported the same way its sibling
+  accumulators are) and the DPS panel's segmented-bar redesign in one pass.
+  Full tier (touches `src/sim`): code-reviewer REQUEST-CHANGES on one Major
+  (a new test file failed `tsc --noEmit` under `noUncheckedIndexedAccess`,
+  fixed with `!` assertions, re-verified clean), then approved; qa-playtester
+  confirmed every acceptance clause and stress-tested the wave/Sunder
+  snapshot-pairing regression risk directly (two full transition cycles, 47
+  samples, no mismatch). `npm run test:fast` green (321 files, 4873 passed,
+  34 pre-existing skips). Full details in BACKLOG.md's own fb160 entry and
+  BACKLOG-UI.md's matching closure note; the wave/run dual-window design
+  tension (owner text says "no per-wave view" but `vs-panel.ts` still reads
+  the wave window) is logged as QUESTIONS Q222 rather than guessed past
+  silently. fb059/fb202(h)/fb064c/fb064e/fb064f remain open and out of this
+  run's budget — unchanged from the three prior runs' assessment, still
+  either full-class-sized or blocked on a sub-item this routine isn't
+  licensed to invent on its own. — refs: BACKLOG.md fb160, BACKLOG-UI.md
+  fb160, QUESTIONS Q222, PROGRESS.md's three 2026-09-23 entries below.
 - **2026-09-23 — BACKLOG-UI.md fb160 (DPS panel bars) done (owner-directed
   session, full repository scope).** Built the sim state it was blocked on —
   `World.damageBySourceType`, credited at `damageEnemy` beside the two flat
