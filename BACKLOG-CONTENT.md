@@ -371,29 +371,149 @@ closed).
       Readings: QUESTIONS Q219. — refs: SPEC-FINAL §4.2 (designer-fill
       addition), §13, §14 (G8), owner feedback `feature-class-voltbolt`.
 
-- [ ] (fb203) [balance] Voltbolt's late-game scaling and its G8 row are
-      unmeasured (fb059 QA). With the owner's formulas as specced, the
-      character's total attack-speed multiplier reached x7.6-x14 in VS on
-      seed 1 (full tree + boons), which puts Overdrive's burst radius
-      (`classArea(r3) x (1 + attack bonus)`) at 35-55 tiles — map-wide — and
-      Lightning Accelerate gave towers up to x3.4 attack speed / x1.87 damage
-      by TD wave 18. Acceptance: measure Voltbolt's G8 win-rate row and the
-      91-pair fingerprint census (the excluded ~1 h `p6e` sweep, working rule
-      8 — this item's acceptance *is* the measurement); if out of band, tune
-      the ⚖ values (burst base/radius, ball speed) or propose a cap on the
-      burst-radius multiplier in QUESTIONS.md for an owner verdict (the
-      formula itself is owner text) — refs: fb059, QUESTIONS Q219(11).
+- [x] (fb203) [balance] **DONE 2026-09-25 (balance-analyst session, lane
+      `content`), negative result, no `/data` change.** Voltbolt's late-game
+      scaling and its G8 row were unmeasured (fb059 QA). With the owner's
+      formulas as specced, the character's total attack-speed multiplier
+      reached x7.6-x14 in VS on seed 1 (full tree + boons), putting
+      Overdrive's burst radius (`classArea(r3) x (1 + attack bonus)`) at
+      35-55 tiles — map-wide — and Lightning Accelerate up to x3.4 tower
+      attack speed / x1.87 damage by TD wave 18. Acceptance: measure
+      Voltbolt's G8 win-rate row and the 91-pair fingerprint census (the
+      excluded ~1 h `p6e` sweep, working rule 8); tune the ⚖ values or log a
+      QUESTIONS.md cap proposal if out of band.
+      **`tests/p6e-class-diversity.test.ts` itself is out of this lane's
+      Scope** (not `tests/class-*`/`tests/equip-*`), so rather than edit it
+      directly this item added a new in-Scope file,
+      `tests/class-voltbolt-g8-band.test.ts` (precedent: `class-time-lord-
+      band.test.ts`, c003), reproducing p6e's exact `runClassScripted`
+      harness for Voltbolt alone at G8's real reference tier
+      (`GATE_TIER`=T3, unlike the Time Lord file's T1 history) — opt-in via
+      `VOLTBOLT_G8_MEASURE=1` (c033's convention) rather than opt-out, since
+      this lane cannot add itself to `vitest.fast.config.ts`'s exclude list
+      the way the Time Lord file's own commit did. Also ran the full,
+      unmodified `p6e-class-diversity.test.ts` (168 scripted-kit runs,
+      ~58 min) for the official 91-pair fingerprint census, plus a scratch,
+      non-repo 4-seed directional script (c033's own precedent for a fast
+      directional read before committing to a full 12-seed one) isolating
+      which pairs specifically involve Voltbolt.
+      **Measured, seeds 1-12 (or 1-4 for the directional census), T3:**
 
-- [ ] (fb204) [bug] a non-finite aim reaches Time Lord's *Time Lock* zone
-      position (fb059 QA, pre-existing — the same defect fb059 fixed for
-      Lightning Ball): `useClassActive2(w, NaN, NaN)` places a zone at NaN,
-      which then lives its full span and feeds NaN into `hashWorld`. A mouse
-      cannot produce it; a replay bundle or hand-edited input log can.
-      Acceptance: a failing regression test first; every aimed Active treats
-      a non-finite aim as unaimed; `tests/q15-command-domain-fuzz.test.ts`
-      probes every class's aimed Actives (today it probes Engineer and
-      Swordsman only) and `scanWorld` (`tools/invariants.ts`) covers
-      `timeLockZones` — refs: fb059 QA finding 3, q15.
+      | measurement | result | G8 band | verdict |
+      |---|---|---|---|
+      | Voltbolt win rate (own file, 12 seeds, T3) | 8/12 (66.7%) — 7 landslide-win, 1 close-win, 4 contested-loss (`defeat_core`@w12/13/16), no timeout | [5,8] wins (35-70%) | **in band**, right at the ceiling |
+      | 91-pair census (official, `p6e`, 12 seeds) | 50/91 pairs fail the 0.15 floor | gate wants 0 failing | red, but **pre-existing** — see below |
+      | Voltbolt's own 13 pairs vs. the other 13 classes (directional, 4 seeds) | **0/13 fail** — closest: voltbolt/swordsman 0.1506, voltbolt/bloodlord 0.1569; every other pair 0.19-0.43 | 0 failing | **in band** |
+      | Full 91-pair census, same 4-seed directional run (control) | 44/91 fail | — | tracks the official 50/91 closely |
+
+      Re-run twice (seeds 1-12) for the win-rate row: byte-identical
+      8/12, same per-seed outcomes both times — deterministic, not sampling
+      noise. **Verdict: Voltbolt clears G8 on both clauses measured for it
+      specifically.** The fingerprint census's 50/91 failure count is a
+      **pre-existing, roster-wide wall** (every prior reading of this file
+      already names it: classes whose own-kit damage never clears
+      `MATERIALITY_SHARE` get fingerprinted by shared `hybrid`-tower usage
+      instead, P10/owner-verdict territory per Q160/Q207/fb197) — the stale
+      comparison point (28/78, dated 2026-09-16, itself never re-measured
+      after Madness King's addition per fb057's own note) predates 9 days of
+      roster and balance changes unrelated to Voltbolt, so blaming the
+      50-vs-28 gap on Voltbolt without a control run would be exactly the
+      "plausible story instead of the control run" CLAUDE.md's measurement
+      rules warn against. The control this item *did* run (Voltbolt's own
+      13 pairs, isolated) says the opposite: Voltbolt is the roster's most
+      fingerprint-*distinct* class, not a contributor to the wall — its Arc/
+      Overdrive/Lightning Ball kit deals real, heavily class-attributed
+      damage (`class_active`/`class_active2`/`class_passive`) rather than
+      being a bystander to `hybrid`'s tower build the way most of the roster
+      is. The raw multiplier magnitudes this item's own acceptance text
+      names (35-55 tile bursts, x3.4 tower attack speed) are real and large,
+      but did not translate into an out-of-band win rate or a diversity
+      failure at the gate level — no ⚖ lever (burst base/radius, ball speed)
+      was tuned, and no QUESTIONS.md cap proposal was filed, since the
+      decision tree's own branch ("if out of band, tune... if in band, no
+      `/data` change") resolved to the latter both ways.
+      **Two out-of-Scope follow-ups logged to this file's Queue** (2026-09-25
+      dated subsection below) rather than actioned here: re-pointing
+      `p6e-class-diversity.test.ts`'s `it.skip('voltbolt', ...)` case and its
+      stale `expect(failing).toBe(28)` pin at the real measured numbers
+      above. **Verification:** targeted (`tests/class-voltbolt.test.ts` 57
+      cases, `tests/class-voltbolt-g8-band.test.ts` new, 3 cases,
+      + 10 other `tests/class-*` files reading Voltbolt's numbers, 735 passed
+      / 2 skipped total) and `npm run test:fast` both green, no `/data`
+      diff (`git diff data/` empty). — refs: fb059, QUESTIONS Q219(11),
+      SPEC-FINAL §14 G8, `tests/p6e-class-diversity.test.ts`,
+      `tests/class-time-lord-band.test.ts` (c003 precedent).
+
+### Follow-ups 2026-09-25 — fb203, out of this lane's Scope
+
+Two small edits fb203's own measurement earned but could not make itself
+(`tests/p6e-class-diversity.test.ts` is not `tests/class-*`/`tests/equip-*`),
+for whichever lane next touches that file:
+
+- Re-point `it.skip('voltbolt', () => assertBand('voltbolt'))` (currently
+  claims "never yet measured") with the measured number: **8/12 (66.7%),
+  in band** — see fb203 above for the full seed-by-seed detail. Following
+  `time_lord`'s own precedent (the only other class-row `it()` left
+  unskipped, also landing right at the 70% ceiling), this could plausibly go
+  live rather than staying `.skip`-ed, since the number is measured at the
+  gate's own real tier (T3) with no caveat.
+- Re-pin `expect(failing).toBe(28)` (the fingerprint-distance drift guard) —
+  measured **50/91** in this same session's full run (91 pairs, 14 classes).
+  Fold in fb203's own isolation finding while re-pinning: Voltbolt itself
+  contributes 0 of the 50 failing pairs (directional read, see fb203) — the
+  failing count belongs entirely to the pre-existing 13-class/78-pair wall.
+
+- [x] (fb204) [bug] **DONE 2026-09-25 (scheduled routine, lane `content`).**
+      A non-finite aim (`NaN`/`Infinity` — a hand-edited input log or replay
+      bundle can produce one, a mouse cannot) reached Time Lord's *Time Lock*
+      zone position: `fireTimeLock`'s `aimX ?? wd.x` only guards `undefined`.
+      **The real defect was generic, not Time-Lock-specific**, so the fix is
+      too: a new `sanitizeAim(aimX, aimY)` helper (`src/sim/classes.ts`, near
+      `aimDirection`) converts a non-finite value on either axis
+      independently to `undefined`, called once at the top of both Command
+      entry points, `useClassActive`/`useClassActive2`, before either
+      dispatches to any of the 12 kinds routed through them — rather than
+      patching each `fire*` function the way fb059 patched
+      `fireLightningBall` alone. `fireLightningBall`'s own now-redundant
+      local guard was simplified to lean on the upstream sanitization.
+      **QA's first pass found the fix incomplete**: Archer's *Deadeye Draw*
+      (`charge_pierce`) is a charge-kind Active1 that fires from
+      `tickClassCharge` on release, reading `TickInput.aimX`/`aimY` directly
+      — the one aimed Active that bypasses `useClassActive` entirely, so a
+      non-finite aim still reached `aimDirection`'s `normalize` call and
+      came back `{x: NaN, y: NaN}` (confirmed via the emitted `class_active`
+      VFX event's NaN endpoint; does not corrupt `hashWorld` or break replay
+      determinism, since `w.fx` is never hashed, but produces a wrong,
+      always-miss shot). Fixed at its own call site (`tickClassCharge`, one
+      `sanitizeAim` call before `fireDeadeyeDraw`); `charge_nova`/Circle
+      Slash and `ground_poison`/Poison Barrel are self-centered with no
+      `aimX`/`aimY` parameter at all, so neither has the same gap (QA
+      confirmed). New `tests/class-nonfinite-aim.test.ts` (42 cases): the
+      reported Time Lock case (whole-pair and per-axis-mixed NaN/Infinity,
+      zone lands at the Warden/aim point, always finite), a snapshot-
+      equivalence table proving a bad aim behaves identically to no aim at
+      all across the other 11 `useClassActive`/`useClassActive2`-routed
+      kinds (dash_line, repair_heal, dash_trail, dash_volley, death_pact,
+      ice_wall, chain_lightning, blood_tithe, dash_heal, mind_manipulation,
+      spreading_madness), and the QA-added Deadeye Draw follow-up block —
+      every case verified red before its fix (manually reverted and
+      reapplied) and green after. **Review (full tier):** code-reviewer
+      APPROVE, no Critical/Major (traced the two entry points as the only
+      callers of every `fire*` aim-taking function, confirmed architecture
+      rule 1 compliance). **qa-playtester:** FAIL on the first pass (the
+      Deadeye Draw gap above, with a precise repro), **PASS** on the
+      follow-up once fixed — also adversarially checked mixed-axis pairs,
+      Bracer of Overlap's multi-zone Time Lock, mid-dash/Overdrive-window/
+      dying-state re-entry, and a 20,000-tick scripted run interleaving
+      non-finite aims at both the Command and raw-`TickInput` level (no
+      crash, no NaN in `hashWorld`). `npx tsc --noEmit` clean; targeted
+      tests + `npm run test:fast` green (5059 passed, 34 pre-existing skips,
+      0 new). **Left `[ ]`, filed below, not done here:** widening
+      `tests/q15-command-domain-fuzz.test.ts`'s aimed-Active coverage past
+      Engineer/Swordsman and adding `timeLockZones` to `scanWorld`
+      (`tools/invariants.ts`) — both out of this lane's Scope
+      (`tests/q15-*` matches neither `tests/class-*` nor `tests/equip-*`;
+      `tools/**` isn't listed at all) — refs: fb059 QA finding 3, q15.
 
 - [x] (fb061) [feat] normal priority: **DONE 2026-09-22 (main-lane session,
       full repository scope — the out-of-Scope test-file wall the Finding
@@ -514,6 +634,26 @@ are still blocked by the separate SPEC-FINAL.md wall above).
   fingerprint-distance check and its measurement method: `c033`/`c039`/
   `c040`; Bloodlord's specific wall: `c039`). Closed as superseded rather
   than executed — refs: QUESTIONS Q161, BALANCE DIRECTION v2 §D, c032-c041.
+
+### Filed 2026-09-25 — fb204's remaining acceptance clauses (main-lane, not this lane's to fix)
+
+- **Widen `tests/q15-command-domain-fuzz.test.ts`'s aimed-Active coverage.**
+  `tools/fuzz-command-domain.ts`'s `class_active`/`class_active2` rows only
+  ever fuzz Engineer (Active1) and Swordsman (Active2) — every other class's
+  aimed Active, Deadeye Draw's now-fixed `tickClassCharge` path included,
+  goes unprobed by this file's own anti-vacuity fuzzer. Needs new
+  `FIELD_SPECS` rows (or a per-class sweep) in `tools/fuzz-command-domain.ts`
+  and a regenerated `tests/q15-command-domain-holes.ts` census
+  (`Q15_RECORD`-shaped, same precedent as q7's `Q7_RECORD=1`). Out of this
+  lane's Scope: `tools/**` is not listed at all, and `tests/q15-*` matches
+  neither `tests/class-*` nor `tests/equip-*`.
+- **`scanWorld` (`tools/invariants.ts`) doesn't cover `w.timeLockZones`.**
+  Every other position-bearing World field the fuzzer's own oracle checks
+  (`w.warden.x/y`, enemy positions, etc.) gets a `finite(...)` call in
+  `scanWorld`; `timeLockZones[].x/y` has none, so a future regression in this
+  same family would not be caught generically even with q15's coverage
+  widened. One `finite('timeLockZones[i].x', ...)`-shaped addition, in
+  `tools/invariants.ts` — out of Scope for the same reason as above.
 
 ### Filed 2026-09-23 — fb202(f)/(g) cross-lane findings (not this lane's to fix)
 

@@ -106,12 +106,9 @@ import { sampleSeeds } from './terrain-sample';
 const cfg = loadTerrain();
 
 /**
- * The static base list plus the static Fourth Gate — the pre-fb156 live lists.
- * fb156 moved live runs onto per-seed jittered gates (`jitterGates`/
- * `jitterModifierGate`), so this file's sweeps now measure the static
- * populations only; the jittered populations' stranding rates are recorded in
- * QUESTIONS Q220 (code review measurement, seeds 1..3000) and the arm itself
- * is BACKLOG-TERRAIN.md fb205.
+ * The static base list plus the static Fourth Gate — the pre-fb156 live lists,
+ * and still the tools'/tests' own default (`generateTerrain`'s own default
+ * stays `GATES`, per `gates.ts`'s header comment).
  */
 const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
@@ -161,6 +158,15 @@ function strandedIn(
   }
   return { stranded, checked };
 }
+
+// `strandedInJittered` (fb205, `strandedIn`'s jittered-gate sibling — one
+// `Grid` per seed rather than `strandedIn`'s one shared `Grid`, since a
+// jittered seed's gate tiles are baked in at `Grid` construction, fb177) is
+// defined once, further down this file, alongside the `fallbacks`-tracking
+// describe block it was built for — this branch's own earlier, weaker
+// duplicate (same computation, no `fallbacks` field) is merged away rather
+// than kept as dead weight in a file already over `vitest.fast.config.ts`'s
+// own ~60s-per-file budget (BACKLOG-TERRAIN.md's Log).
 
 describe('fb065h — a run plays its own seed’s map', () => {
   it('bounds the retry rate over the whole domain sample, on both gate lists', () => {

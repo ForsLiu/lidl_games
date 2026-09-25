@@ -314,6 +314,15 @@ not already expose it) logs that need below instead of reaching into
       a test reconciles the rendered numbers against the sim's damage ledger;
       colors come from `data/damagetypes.json` — refs: SPEC-FINAL §11, owner
       feedback `ui-dps-panel-bars`.
+      **Shipped:** the missing main-lane state (`World.damageByWeaponType`, a
+      source x type damage matrix credited at `damageEnemy`'s existing choke
+      point) landed alongside the panel redesign in one session — see
+      BACKLOG.md's own fb160 entry for the full write-up (sim-side
+      accumulator/snapshots/hash/RunReport plumbing, the segmented-bar UI,
+      the `wave`-window-kept-but-unrendered decision logged as QUESTIONS
+      Q222, and the full review/QA pass). Full tier: code-reviewer
+      REQUEST-CHANGES (one Major, a test-file typecheck break, fixed) then
+      clean; qa-playtester PASS on every acceptance clause.
 
 ### Kept live (cross-lane test dependency)
 
