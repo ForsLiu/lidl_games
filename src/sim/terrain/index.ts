@@ -6,6 +6,7 @@ export {
   isHighGround,
   isWalkable,
   flatCoreAnchorCount,
+  jitterDomainCoreAnchorRange,
   loadTerrain,
   maxCoreLegalFrac,
   parseTerrain,

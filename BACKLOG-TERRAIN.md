@@ -401,6 +401,55 @@ the merge — never edited from this lane.
       full tree, hybrid: wins 3/4/5/7 at 27.2/12.0/38.4/31.0 s, against
       3/4/7/9 at 24.0/22.4/21.9/29.2 s at e50cc79. Same win count, a wider
       spread of fight lengths on jittered maps — refs: fb156, QUESTIONS Q220.
+      **Two of four clauses shipped in this lane's own Scope this session
+      (2026-09-25, scheduled terrain-lane routine); left `[ ]` — the other two
+      need files outside Scope and are filed in the Log below for the merge,
+      per this lane's own hard boundary (never edit them from here).**
+      - *Sweeps re-recorded:* ran `tools/sweep.ts --seeds 12 --policies
+        maxbuild,hybrid` at T1 — hybrid 66.7% win (inside the [55%,90%] T1
+        companion band every one of G1/G8/G14/G23 shares; maxbuild is a weak
+        baseline policy not subject to that band, so its 8.3% is reported,
+        not graded), healthy. `tools/handoff-metrics.ts`'s full 104-run
+        snapshot (~24 min wall-clock) was not run this session; the
+        licensed-by-rule-8 T1 sweep is the cheaper check this clause needs and
+        found nothing the full regeneration would be needed to explain.
+        G1/G8/G14/G23 remain in the RED state `STATUS.md` (2026-09-21)
+        already recorded — a T3, class/Core-fingerprint standing wall this
+        item neither caused nor is scoped to close (QUESTIONS Q160/Q161,
+        P10/main-lane). **Not written into BALANCE.md** — that file is
+        outside this lane's Scope; the measurement is filed in the Log below
+        for main-lane to copy in at the merge instead.
+      - *`tests/terrain-run-provenance.test.ts`'s jittered-gate arm:* added,
+        in place (kept in this one file rather than split out — see the Log
+        below, the same "moving it needs `vitest.fast.config.ts`, out of
+        Scope" shape fb166 already logged once). Measured over the same
+        12,000-seed domain sample the static sweep uses: 16 stranded on the
+        4-gate jittered layout, 27 on the 5-gate one (both zero fallbacks,
+        both rescued by the Warden clearing on the seed's own first attempt)
+        — a wider population than either static list's zero, which is
+        expected: every seed's own gates vary here.
+      - *`flatCoreAnchorCount`/`maxCoreLegalFrac` bounded over the jitter
+        domain:* both now take an optional `gates` list (default `GATES`,
+        every existing pin unchanged). New `jitterDomainCoreAnchorRange`
+        computes the exact `{min, max}` over `jitterGates`' whole domain via
+        an O(1)-per-combo inclusion-exclusion formula (naive per-combo scan
+        measured ~23s for one clearance; this reads ~150-250ms). Deliberately
+        **not** wired into the loader's own `minCoreLegalFrac` ceiling check
+        — tried, and switching to the domain worst case reddened
+        `terrain-generation.test.ts`'s own "clearance 17 is still payable"
+        clause (its worst case is 0 there), which is exactly the "false
+        rejection worse than silent fallback" failure this file's own
+        `maxCoreLegalFrac` doc already argues against. At the shipped
+        clearance 3 the domain never varies (measured `{1441,1441}`, equal to
+        the static count) — the shipped loader behavior is unaffected either
+        way. New `tests/terrain-config-jitter-domain.test.ts` pins the fast
+        path against the naive scan and the measured domain facts (clearance
+        16: static 41, domain `{0, 513}`).
+      - *`tests/boss.test.ts` "at the cause":* investigated, not shipped —
+        both candidate fixes (a `data/enemies.json` retune, fb099's own
+        precedent, or re-pointing the fixed seed set in `tests/boss.test.ts`
+        itself) need files outside this lane's Scope. Filed in the Log below
+        with the confirmed cause and what main-lane still needs to decide.
 
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
@@ -5530,3 +5579,90 @@ file next.
   `tests/fb130-core-placement-wiring.test.ts` (24/24), all green. No file in
   this lane's Scope edited; this entry and the two annotations above are the
   only changes.
+- (2026-09-25, scheduled terrain-lane routine, fb205) **fb205's `boss.test.ts`
+  clause needs an out-of-scope file; filed here rather than edited.** fb205's
+  acceptance asks this lane to "turn `tests/boss.test.ts` 'a scripted run
+  reaches it, kills it and wins' green again at the cause, not the assertion"
+  — re-confirmed red exactly as filed: seed 4's `bossKillSeconds -
+  bossTimeSeconds` reads 11.98s against the case's `> 20` floor. But
+  `tests/boss.test.ts` does not match this lane's Scope (`tests/terrain*`
+  only), and fb099's own precedent for "at the cause, not the assertion" was
+  a `/data/enemies.json` retune (`warden_eater` HP), also outside Scope
+  (`data/terrain.json` only). Both fixes are main-lane's file set, so this
+  lane cannot ship either half of this clause without violating its own hard
+  boundary — investigated instead of edited, so the merge has a real
+  diagnosis rather than a re-opened mystery.
+  **What's confirmed.** The cause is `World`'s own fb156 wiring
+  (`src/sim/world.ts`'s `jitterGates(cfg.seed)`/`this.grid = new
+  Grid(this.gates)`, already shipped, main-lane, not editable here) handing
+  seed 4 a *different* gate layout than the pre-fb156 static one, which
+  changes the scripted bot's build and the boss's approach geometry enough to
+  cut the fight from 22.37s (`e50cc79`, static gates) to 11.98s over the
+  floor. fb205's own filed text already recorded the shape of this across a
+  wider sample ("seeds 1-10 at T1... same win count, a wider spread of fight
+  lengths on jittered maps") — this is that same spread's one case landing
+  under `boss.test.ts`'s fixed 20s floor, not a new mechanism.
+  **What is not yet known, and is main-lane's to determine:** whether 11.98s
+  is a genuinely too-easy layout for seed 4 specifically (arguing for a
+  `warden_eater` HP/pacing retune, fb099's exact precedent) or whether the
+  fixed four-seed set (`[1,2,3,4]`) should be widened/re-pointed the way
+  fb152's note two entries above this test in `boss.test.ts` already did once
+  for a legitimate one-seed trajectory shift — that judgment call needs
+  `data/enemies.json` and/or `tests/boss.test.ts` in hand to measure against,
+  neither in this lane's Scope. Re-run: `npx vitest run tests/boss.test.ts -t
+  "a scripted run reaches it, kills it and wins"` reproduces the single
+  failure above the fold; nothing else in the file was touched or
+  re-measured.
+- (2026-09-25, scheduled terrain-lane routine, fb205) **fb205's sweep-record
+  clause, for BALANCE.md at the merge (code-reviewer finding: `BALANCE.md` is
+  outside this lane's Scope, not on the allowed-edit list; an earlier version
+  of this session's work edited it directly and was corrected before
+  commit).** Ran `npx tsx tools/sweep.ts --seeds 12 --policies
+  maxbuild,hybrid` at T1 (default core): **maxbuild 8.3% win / hybrid 66.7%
+  win**. Hybrid sits inside the `[55%,90%]` T1 companion band every one of
+  G1/G8/G14/G23 states in its own gate text (`STATUS.md`) — healthy, no
+  collapse; maxbuild is a weak baseline policy, not the reference harness
+  that band grades, so its 8.3% is reported as a baseline reading, not
+  measured against that band. `STATUS.md`'s last regeneration (2026-09-21,
+  pre-dating fb156/fb059/fb160/fb205) already reads **G1/G8/G14/G23 all
+  RED** — a T3 class/Core-fingerprint standing wall unrelated to terrain
+  (QUESTIONS Q160/Q161, blocked on owner verdict, P10/main-lane scope); this
+  item does not move, cause, or attempt to close it. The full 104-run
+  `tools/handoff-metrics.ts` regeneration (~24 min wall-clock, measured via
+  its own seed x cell count) was not run this session — the T1 sweep above
+  is the cheaper, rule-8-licensed check this item's own acceptance text asks
+  for ("diff... recording the deltas"), and finds nothing the expensive full
+  snapshot would be needed to explain. Main-lane: paste the paragraph above
+  into `BALANCE.md` (newest-first blockquote, matching its existing entries)
+  at the merge; a fresh `npm run status`/`handoff-metrics` regeneration is
+  still separately owed whenever P10's own balance pass resumes (HANDOFF.md
+  is already flagged stale since m20a).
+- (2026-09-25, scheduled terrain-lane routine, fb205) **The jittered-gate
+  stranding sweep should split out of `tests/terrain-run-provenance.test.ts`
+  at the merge — fb166's own precedent, logged again because it recurred.**
+  fb166's Generated-2026-09-06 Log entry already hit this exact shape once
+  (a case that should move to `vitest.perf.config.ts`'s per-file ~60s
+  budget, but the move needs `vitest.fast.config.ts`, outside this lane's
+  Scope) and re-pinned in place rather than moving it. This item's own new
+  jittered-gate stranding case (a fresh 12,000-seed `generateTerrain`+`Grid`
+  pass per gate population) measures **~65s standalone**, past that same
+  ~60s rule, and — like fb166's case — is now shipped in place inside
+  `tests/terrain-run-provenance.test.ts` rather than split into its own file
+  with a `vitest.fast.config.ts` exclude-list entry (an earlier version of
+  this session's work did split and register it; corrected before commit
+  once the config edit was flagged as out of Scope). Main-lane, at the
+  merge: split the new `describe('fb205 — the jittered-gate populations
+  strand their own rare Cores too', ...)` block's first `it` (the 12,000-seed
+  sweep; the second `it`, the cheap named-seed rescue check, can stay) into
+  its own file — `tests/terrain-run-provenance-jitter.test.ts` is a
+  reasonable name, matching the convention `terrain-cost-retry-ratio.test.ts`
+  already set — and add one line to `vitest.fast.config.ts`'s exclude list
+  with a comment, the same shape as every other entry there. Until that
+  lands, `npm run test:fast` carries this file at its current ~52s
+  (unjittered sweep) plus this new ~65s case on top — measured live, a full
+  `npm run test:fast` run moved **327.68s -> 348.72s** internally (5m49s
+  wall-clock including npm/tsx startup), over this repo's own "under 5
+  minutes" target for the first time this session. Worth landing the split
+  soon rather than "whenever a terrain-lane session picks it up" — this is
+  the one real cost of keeping the fix in-Scope rather than editing
+  `vitest.fast.config.ts` directly.
